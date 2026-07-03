@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Small terminals (e.g. VS Code's integrated-terminal panel) no longer break
+  the UI: dialog tables (permissions, stale audit, search, …) size relative to
+  the viewport instead of a fixed cap, so their rows can't be clipped away;
+  the help scrolls instead of collapsing to one line; and the breadcrumb's
+  `secret:` segment outranks the identity chip on narrow widths, so the user
+  email can no longer take the secret name's place in the top bar.
+- Help rows no longer wrap onto two lines: the help card is wider and the
+  longest descriptions were tightened.
+
+### Added
+
+- Plain-letter fallbacks for chords VS Code's integrated terminal keeps for
+  itself: `F` = search everywhere (ctrl+f), `P` = command palette (ctrl+p).
+  Documented alongside the `terminal.integrated.commandsToSkipShell` knob.
+
 ## [0.4.0] - 2026-07-02
 
 ### Added

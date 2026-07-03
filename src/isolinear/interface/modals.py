@@ -607,14 +607,15 @@ class AuditScreen(ModalScreen[tuple[str, str] | None]):
 class HelpScreen(ModalScreen[None]):
     BINDINGS = [Binding("escape,q,?", "close", "Close")]
 
+    # keep descriptions short enough for one line in the 76-wide help card
     KEYS = [
         ("↑↓ / j k", "Move within a pane"),
         ("←→ / h l", "Move between panes"),
         ("tab", "Next pane"),
         ("g / G", "Jump to top / bottom"),
         ("enter", "Scopes: open · Secrets: reveal"),
-        ("/", "Filter the focused pane (↑↓ move while typing)"),
-        ("ctrl+f", "Search every scope"),
+        ("/", "Filter pane (↑↓ move while typing)"),
+        ("ctrl+f / F", "Search every scope"),
         ("esc", "Clear the filter"),
         ("f", "Scopes: only mine / all"),
         ("s / S", "Sort: next column / reverse"),
@@ -623,21 +624,20 @@ class HelpScreen(ModalScreen[None]):
         ("e", "Edit secret value"),
         ("m", "Move / copy / rename secret"),
         ("d", "Delete secret/scope (confirm)"),
-        ("u", "Undo the last secret delete"),
+        ("u", "Undo the last delete / move"),
         ("p", "Manage scope permissions (ACLs)"),
-        ("space", "Reveal / hide value (auto-hides in 30s)"),
-        ("c / C", "Copy value / copy code reference"),
+        ("space", "Reveal / hide (auto-hides in 30s)"),
+        ("c / C", "Copy value / code reference"),
         ("", ""),
         ("r / R", "Refresh scope / workspace"),
-        ("a", "Authorization overview"),
-        ("A", "Audit: stale secrets"),
+        ("a / A", "Auth overview / stale audit"),
         ("w", "Switch / add workspace (login)"),
-        ("ctrl+p", "Command palette"),
+        ("ctrl+p / P", "Command palette"),
         ("? / q", "Help / quit"),
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
+        with Vertical(id="dialog", classes="help"):
             yield Static("Isolinear — keys", classes="dialog-title")
             with VerticalScroll():
                 for key, desc in self.KEYS:

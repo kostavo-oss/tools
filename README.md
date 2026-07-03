@@ -89,7 +89,7 @@ for the fuzzy command palette.
 | `←→` / `h` `l` · `tab` | Move between panes |
 | `g` / `G` | Jump to top / bottom |
 | `/` | Filter the focused pane (`↑↓` move while typing, `esc` clears) |
-| `ctrl+f` | Search every scope |
+| `ctrl+f` / `F` | Search every scope |
 | `s` / `S` | Sort: next column / reverse |
 | `n` / `N` | New secret / new scope |
 | `e` · `d` | Edit secret · delete (with confirm) |
@@ -100,7 +100,7 @@ for the fuzzy command palette.
 | `c` / `C` | Copy value / copy a code reference (dbutils, Spark conf, CLI) |
 | `r` / `R` | Refresh scope / workspace |
 | `a` / `A` | Authorization overview / stale-secret audit |
-| `w` · `ctrl+p` | Switch workspace · command palette |
+| `w` · `ctrl+p` / `P` | Switch workspace · command palette |
 | `?` · `q` | Help · quit |
 
 The command palette (`ctrl+p`) holds the rest: bulk **.env import/export**, a

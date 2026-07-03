@@ -83,7 +83,10 @@ class MainScreen(Screen[None]):
         Binding("space", "reveal", "Reveal"),
         Binding("c", "copy", "Copy"),
         Binding("C", "copy_snippet", "Copy ref", show=False),
-        Binding("ctrl+f", "search", "Search", show=False),
+        # F and P double the chords: VS Code's integrated terminal keeps
+        # ctrl+f (terminal find) and ctrl+p (Quick Open) for itself.
+        Binding("ctrl+f,F", "search", "Search", show=False),
+        Binding("P", "app.command_palette", "Palette", show=False),
         Binding("u", "undo_delete", "Undo delete", show=False),
         Binding("r", "refresh_scope", "Refresh", show=False),
         Binding("R", "refresh_workspace", "Refresh all", show=False),
