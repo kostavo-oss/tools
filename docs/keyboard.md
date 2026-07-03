@@ -9,7 +9,7 @@ Everything in Isolinear is keyboard-driven. Press ++question++ at any time for t
 | ++g++ / ++shift+g++ | Jump to top / bottom |
 | ++enter++ | Scopes: open · Secrets: reveal / hide |
 | ++slash++ | Filter the focused pane (++up++ ++down++ move while typing, ++esc++ clears) |
-| ++ctrl+f++ | Search every scope |
+| ++ctrl+f++ / ++shift+f++ | Search every scope |
 | ++s++ / ++shift+s++ | Sort: next column / reverse direction |
 | ++n++ / ++shift+n++ | New secret / new scope |
 | ++e++ · ++d++ | Edit secret · delete (with confirm) |
@@ -20,7 +20,8 @@ Everything in Isolinear is keyboard-driven. Press ++question++ at any time for t
 | ++c++ / ++shift+c++ | Copy value / copy a code reference (dbutils, Spark conf, CLI) |
 | ++r++ / ++shift+r++ | Refresh scope / workspace |
 | ++a++ / ++shift+a++ | Authorization overview / stale-secret audit |
-| ++w++ · ++ctrl+p++ | Switch workspace · command palette |
+| ++w++ | Switch / add workspace |
+| ++ctrl+p++ / ++shift+p++ | Command palette |
 | ++question++ · ++q++ | Help · quit |
 
 ## Filtering
@@ -30,6 +31,10 @@ Press ++slash++ to fuzzy-filter the focused pane. While the filter bar is open, 
 ## Sorting
 
 Every table sorts the same way: ++s++ advances to the next column (ascending), ++shift+s++ reverses the direction, and clicking a column header works too. A ↑ / ↓ marks the active column.
+
+## VS Code's integrated terminal
+
+VS Code keeps some chords for itself before they reach the terminal — ++ctrl+p++ opens Quick Open and ++ctrl+f++ the terminal find. Isolinear therefore doubles both on plain letters: ++shift+f++ for search and ++shift+p++ for the palette. If you'd rather hand the chords back to the terminal, remove the corresponding commands from `terminal.integrated.commandsToSkipShell` in your VS Code settings.
 
 ## Palette-only commands
 

@@ -80,10 +80,15 @@ Button.-error:focus {
 }
 #banner #breadcrumb {
     width: 1fr;
+    /* the breadcrumb (where you ARE) wins over the identity chip on narrow
+       terminals — without this, `secret: x` vanishes and the email takes
+       its place */
+    min-width: 30;
     color: $text-muted;
 }
 #banner #ws-status {
     width: auto;
+    max-width: 40%;
     text-align: right;
     color: $text-muted;
 }
@@ -172,6 +177,7 @@ DataTable > .datatable--header {
 #acl-table {
     height: auto;
     max-height: 12;
+    margin-top: 1;
 }
 #acl-table > .datatable--cursor {
     background: $detail-color 18%;
@@ -216,7 +222,9 @@ ModalScreen {
     width: 64;
     max-width: 90%;
     height: auto;          /* size to content — a compact card */
-    max-height: 90%;
+    /* the full viewport, not 90%: on a short integrated-terminal panel the
+       10% haircut plus border+padding left dialog tables with zero rows */
+    max-height: 100%;
     padding: 1 3;
     border: round $border;
     /* the card MUST be opaque: the backdrop above is translucent ($background
@@ -278,20 +286,22 @@ ModalScreen {
     text-style: bold;
 }
 
-#auth-table {
+/* every table inside a dialog sizes to its rows, capped RELATIVE to the
+   terminal (vh) — on a short integrated-terminal panel a fixed cap let the
+   dialog overflow and clip the rows away entirely */
+#dialog DataTable {
     height: auto;
-    max-height: 16;
+    max-height: 40vh;
     margin-top: 1;
 }
-#search-results, #snippet-table, #audit-table, #principal-results {
+/* same for the help's scrolling key list */
+#dialog VerticalScroll {
     height: auto;
-    max-height: 16;
-    margin-top: 1;
+    max-height: 65vh;
 }
-#acl-table {
-    height: auto;
-    max-height: 14;
-    margin-top: 1;
+/* the help table is the widest content — give its card more room */
+#dialog.help {
+    width: 76;
 }
 
 /* ── login / onboarding ──────────────────────────────────────── */
@@ -315,7 +325,7 @@ LoginScreen {
 }
 #ws-table {
     height: auto;
-    max-height: 12;
+    max-height: 40vh;
     margin-top: 1;
 }
 #login-wordmark {
