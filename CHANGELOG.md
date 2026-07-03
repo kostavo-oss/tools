@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-03
+
 ### Fixed
 
 - Small terminals (e.g. VS Code's integrated-terminal panel) no longer break
@@ -285,7 +287,8 @@ Initial release.
 - Pre-loads and caches scopes/secrets/ACLs on startup.
 - Three switchable themes (violet, amber Okudagram, phosphor green).
 
-[Unreleased]: https://github.com/misja-pronk/isolinear/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/misja-pronk/isolinear/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/misja-pronk/isolinear/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/misja-pronk/isolinear/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/misja-pronk/isolinear/compare/v0.2.8...v0.3.0
 [0.2.8]: https://github.com/misja-pronk/isolinear/compare/v0.2.7...v0.2.8
