@@ -16,10 +16,25 @@ from isolinear.application import WorkspaceService
 SIZE = (110, 30)
 
 
-async def _settle(pilot) -> None:
-    """Let the startup warm (and any other worker) finish before rendering."""
-    await pilot.app.workers.wait_for_complete()
-    await pilot.pause()
+def _steps(*keys: str):
+    """A run_before that presses keys and fully settles the message cascade.
+
+    snap_compare's own `press=` screenshots as soon as the keys are sent; a
+    slow CI runner can catch the panes mid-update (each keypress fans out
+    highlight → selection → re-render messages). Settling explicitly after
+    the presses makes the render deterministic.
+    """
+
+    async def run(pilot) -> None:
+        await pilot.app.workers.wait_for_complete()
+        await pilot.pause()
+        for key in keys:
+            await pilot.press(key)
+            await pilot.app.workers.wait_for_complete()
+            await pilot.pause()
+        await pilot.pause()
+
+    return run
 
 
 def _app(*, session: bool = True) -> IsolinearApp:
@@ -28,14 +43,12 @@ def _app(*, session: bool = True) -> IsolinearApp:
 
 
 def test_browse_screen(snap_compare):
-    assert snap_compare(
-        _app(), press=["j", "tab"], run_before=_settle, terminal_size=SIZE
-    )
+    assert snap_compare(_app(), run_before=_steps("j", "tab"), terminal_size=SIZE)
 
 
 def test_login_empty_state(snap_compare):
-    assert snap_compare(_app(session=False), run_before=_settle, terminal_size=SIZE)
+    assert snap_compare(_app(session=False), run_before=_steps(), terminal_size=SIZE)
 
 
 def test_audit_screen(snap_compare):
-    assert snap_compare(_app(), press=["A"], run_before=_settle, terminal_size=SIZE)
+    assert snap_compare(_app(), run_before=_steps("A"), terminal_size=SIZE)
