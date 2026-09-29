@@ -1,0 +1,59 @@
+# serializer version: 1
+# name: test_a_destructive_change
+  '''
+  sluis plan · shop · target dev
+  
+  pre
+    model  ./ops/steps.py:LatestModel
+      → version = 14
+  
+  bundle
+      + jobs.bar
+      + pipelines.foo
+      vars  model_version = 14
+  
+  post
+    tables  deltaplan
+      ~ dev.sales.orders  destructive
+          DROP COLUMN  [destructive]
+    notify  command
+      ⏸ decided at apply: resources.jobs.bar is created by this deploy
+    backfill  bundle.run
+      ▶ runs jobs.backfill
+  
+  Plan: 3 changes · 1 run · 1 destructive · 1 decided at apply
+  
+  '''
+# ---
+# name: test_a_first_deploy
+  '''
+  sluis plan · shop · target dev
+  
+  pre
+    model  ./ops/steps.py:LatestModel
+      → version = 14
+  
+  bundle
+      + jobs.bar
+      + pipelines.foo
+      vars  model_version = 14
+  
+  post
+    tables  deltaplan
+      + dev.sales.customers
+          CREATE SCHEMA sales
+          CREATE TABLE customers
+      + dev.sales.orders
+          CREATE TABLE orders
+          SET TAGS
+      + dev.sales.big_orders
+          CREATE VIEW big_orders
+    notify  command
+      ⏸ decided at apply: resources.jobs.bar is created by this deploy
+    backfill  bundle.run
+      ▶ runs jobs.backfill
+  
+  Plan: 5 changes · 1 run · 0 destructive · 1 decided at apply
+  
+  '''
+# ---
