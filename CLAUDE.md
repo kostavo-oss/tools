@@ -28,5 +28,15 @@ Never use pip/virtualenv, black/flake8/isort, or mypy.
 
 ## Status
 
-Design only; nothing is built. Work through the milestones in `docs/DESIGN.md` and stop
-after each one to summarise what was built and what was assumed.
+**Milestone 1 (read-only) is done**: `validate`, `steps`, `plan` and `show`, with the
+`deltaplan`, `bundle.run` and `command` steps and steps from a repo file. Its departures
+are listed under Milestones in `docs/DESIGN.md`. Work through the milestones in order and
+stop after each one to summarise what was built and what was assumed.
+
+`mise run check` is the gate (lint, format check, types, unit tests). There is no
+Databricks CLI or workspace in the unit suite:
+- `tests/fixtures/cli/` holds the CLI's own recorded outputs, from its acceptance tests.
+- `tests/fixtures/deltaplan-*.json` are real deltaplan plan files, written by deltaplan
+  against its fake warehouse. They are the contract between the two tools.
+- `tests/fake_databricks.py` and `tests/fake_deltaplan.py` answer from those and fail
+  loudly on anything else.

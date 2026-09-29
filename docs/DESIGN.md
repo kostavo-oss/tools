@@ -135,7 +135,7 @@ for them.
 
 ```python
 class Step[O](Protocol):
-    Options: type[O]                               # frozen dataclass; `with:` is validated into it
+    Options: type[O]  # frozen dataclass; `with:` is validated into it
 
     def plan(self, ctx: Context[O]) -> StepPlan: ...
     def apply(self, ctx: Context[O], plan: StepPlan) -> Outputs: ...
@@ -144,29 +144,29 @@ class Step[O](Protocol):
 @dataclass(frozen=True, slots=True)
 class Context[O]:
     target: str
-    options: O                                     # references already resolved
-    bundle: Bundle                                 # `bundle validate -o json`
-    deployed: Deployed | None                      # `bundle summary -o json`; None before deploy
-    outputs: Mapping[str, Outputs]                 # earlier steps, by name
-    workspace: WorkspaceClient                     # the target's workspace, same auth as the CLI
+    options: O  # references already resolved
+    bundle: Bundle  # `bundle validate -o json`
+    deployed: Deployed | None  # `bundle summary -o json`; None before deploy
+    outputs: Mapping[str, Outputs]  # earlier steps, by name
+    workspace: WorkspaceClient  # the target's workspace, same auth as the CLI
     root: Path
-    log: Log                                       # progress lines; a heartbeat while waiting
+    log: Log  # progress lines; a heartbeat while waiting
 
 
 @dataclass(frozen=True, slots=True)
 class StepPlan:
     changes: tuple[Change, ...]
-    outputs: Outputs                               # what is known at plan time
-    deferred: str | None = None                    # why part of this is decided at apply
-    payload: Json = None                           # the step's own data, carried in plan.json
+    outputs: Outputs  # what is known at plan time
+    deferred: str | None = None  # why part of this is decided at apply
+    payload: Json = None  # the step's own data, carried in plan.json
 
 
 @dataclass(frozen=True, slots=True)
 class Change:
-    key: str                                       # stable identity: "orders.amount", "jobs.backfill"
+    key: str  # stable identity: "orders.amount", "jobs.backfill"
     action: Literal["create", "update", "delete", "replace", "run"]
     summary: str
-    destructive: bool = False                      # delete and replace are always destructive
+    destructive: bool = False  # delete and replace are always destructive
     detail: tuple[str, ...] = ()
 ```
 
@@ -256,8 +256,10 @@ bundle's resolved config beside it:
 every change in the new plan matches an approved change by `key`, and none has become destructive.
 Fewer changes is fine: someone else did part of the work. Anything new stops the run and asks for a
 new plan. The bundle gets the same check: a resource key with an action, and `delete`, `recreate` and
-`update_id` count as destructive. `TODO(verify)`: whether `bundle deploy --plan` itself refuses a
-plan whose state `serial` has moved on.
+`update_id` count as destructive. The CLI checks its own part too: `bundle deploy --plan` refuses a
+plan whose state `lineage` or `serial` has moved on ("the state has been modified since the plan
+was created"). Source: `bundle/direct/bundle_plan.go`, `ValidatePlanAgainstState`, and the acceptance
+tests `deploy/readplan/serial-mismatch` and `lineage-mismatch`, at CLI commit `e41a5c8`.
 
 `apply` also refuses a plan file whose `sluis.yml`, or any step's resolved options, differ from the
 ones it was planned with.
@@ -328,17 +330,37 @@ covers the bundle and every step, and updates that comment rather than adding ne
 - **Live**: every assumption about Databricks behaviour is a probe with a doc link, in the pattern of
   deltaplan's `probes.py`.
 
-`TODO(verify)`, at the start. These are from reading the CLI source rather than the docs:
-- `bundle summary -o json` carries `id` and `url` per resource.
-- `bundle plan` and `bundle deploy --plan` accept `--var`.
-- Whether `bundle deploy --plan` checks staleness.
-- Whether `bundle deploy` asks before deleting or recreating, and fails when it can't ask.
+Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8`, see
+`tests/fixtures/cli/README.md`). A live probe should still confirm each one:
+- `bundle summary -o json` is the resolved config plus `id` and `url` per deployed resource, and
+  `modified_status: created` before the first deploy. This was recorded on a real workspace
+  (`templates/default-python/integration_classic`, `resources/jobs/check-metadata`).
+- `--var` is a persistent flag of `bundle`, so `validate`, `plan` and `deploy` all take it
+  (`cmd/bundle/variables.go`).
+- `bundle deploy --plan` checks `lineage` and `serial` (see [the approval check](#planning-what-doesnt-exist-yet)).
+- A failed `bundle validate` still prints JSON and exits 1. The exit code decides.
+
+`TODO(verify)`: whether `bundle deploy` asks before deleting or recreating, and fails when it can't
+ask.
 
 ## Milestones
 
-1. **Read-only**: config and `validate`, references, resolve via the CLI, the step interface and
-   discovery, the `command`, Python-class and `deltaplan` steps, `bundle plan`, `plan` and `show`
-   (Rich and JSON), and the contract kit.
+1. **Read-only** (done, 2026-09-29): config and `validate`, references, resolve via the CLI, the
+   step interface and discovery, the `command`, Python-class and `deltaplan` steps, `bundle plan`,
+   `plan` and `show` (Rich and JSON), and the contract kit. Departures, each small:
+   - **`bundle validate` runs twice** when `bundle_vars` exist. The first run passes a placeholder
+     for each variable sluis sets, so a variable without a default can't fail it. `check` makes sure
+     no pre step reads one. The second run passes the real values, for the post steps.
+   - **`bundle summary` runs at plan time** too, before this deploy. It gives the ids of resources
+     deployed already, so a post step that uses one plans normally. Only the ids of what this deploy
+     creates or replaces are *decided at apply*.
+   - **The core defers a step**, not the step itself, when its options hold a value decided at
+     apply. The step's `plan` isn't called with half its options.
+   - **A `command` step's plan command** prints its `StepPlan` as JSON on stdout. `SLUIS_PLAN` and
+     `SLUIS_OUTPUTS` come with apply.
+   - **`options_hash`** covers the resolved options, with environment values by name and values
+     decided at apply as `$unknown`, so a rotated token isn't a new plan.
+   - **Not yet**: `doctor`, the Markdown format, and the apply half of the contract kit.
 2. **Apply**: pre steps, then `bundle deploy --plan`, then `summary`, then post steps. Outputs,
    `bundle_vars`, the approval check, `--from`, `--allow-destructive`, `bundle.run`.
 3. **CI**: the Markdown renderer and the GitHub Action with one comment.
