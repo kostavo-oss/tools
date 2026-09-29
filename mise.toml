@@ -1,0 +1,42 @@
+[tools]
+python = "3.14"
+uv = "latest"
+
+[env]
+UV_PROJECT_ENVIRONMENT = ".venv"
+
+# ── tasks ──────────────────────────────────────────────────────────────────
+# Run with `mise run <name>`; list them with `mise tasks`.
+
+[tasks.dev]
+description = "Run the sluis CLI"
+alias = "run"
+run = "uv run sluis"
+
+[tasks.test]
+description = "Run the unit tests (no workspace needed)"
+alias = "t"
+run = "uv run pytest tests/unit"
+
+[tasks.lint]
+description = "Lint with ruff"
+run = "uv run ruff check ."
+
+[tasks.fmt]
+description = "Auto-format with ruff"
+alias = "format"
+run = "uv run ruff format ."
+
+[tasks.typecheck]
+description = "Type-check with ty"
+alias = "types"
+run = "uv run ty check"
+
+[tasks.check]
+description = "Full pre-commit gate: lint + format check + types + unit tests"
+run = [
+    "uv run ruff check .",
+    "uv run ruff format --check .",
+    "uv run ty check",
+    "uv run pytest tests/unit",
+]
