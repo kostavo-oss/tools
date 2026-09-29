@@ -387,17 +387,18 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 ## Suite
 
-sluis is the hub. deltaplan is its first step and stays a standalone CLI. isolinear stays a TUI for
-people. The shared pieces are workspace auth and bundle resolution: deltaplan's `bundle.py` asks the
+sluis is the hub. deltaplan is its first step and stays a standalone CLI. kluis, currently isolinear,
+stays a TUI for people. The shared pieces are workspace auth and bundle resolution: deltaplan's `bundle.py` asks the
 CLI and falls back to reading the file, and isolinear's picker reads `databricks.yml`. They become a
 small shared package once sluis is a second real user of them, not before.
 
-All three will move to the `kostavo-oss` GitHub organisation. The tools' names, including this one,
-are to be decided with that move.
+All three will move to the `kostavo-oss` GitHub organisation as **deltaplan**, **sluis** and **kluis**.
+isolinear is renamed to kluis in that move, and its last release on PyPI points to the new name.
+Package names are plain, with no `kostavo-` prefix, so `uvx sluis` works. The story behind the names
+is in the README.
 
 ## Open questions
 
-- Names under `kostavo-oss`.
 - A lock file for concurrent applies outside CI.
 - Which Postgres differ for Lakebase, when it's built.
 
@@ -410,6 +411,8 @@ are to be decided with that move.
 - CI first after the core, on GitHub Actions only.
 - The direct engine is required.
 - License: MIT.
+- Names: deltaplan, sluis, kluis (isolinear renamed), with plain package names. `kostavo` is the org
+  and the landing page, not a prefix.
 - Commit locally; no GitHub repo until the move to `kostavo-oss`.
 
 ## Stack
