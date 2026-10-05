@@ -1,4 +1,4 @@
-# 008 — GitHub Actions
+# 008 — GitHub
 
 **Status:** draft; its scope is decided. Phase two.
 
@@ -18,7 +18,8 @@ The owner's "a way to update GitHub Actions" means: **update what GitHub shows**
   *(design)*
 - **R2 — The pull request is kept up to date.** On a pull request, the plan is posted as one
   comment that covers every step, and that comment is *updated* on later pushes instead of
-  another being added. One comment per target. *(owner)*
+  another being added. One comment per target. lely finds its own comment by a marker it puts
+  in it — the memory is GitHub's, not lely's. *(owner; the marker is how stevin does it)*
 - **R3 — The run's page is kept up to date.** The plan goes to the job summary; after an apply,
   so does what each step did and the overview of what now exists
   ([004/R7](004-asset-bundle.md)), with links into the workspace. A run can be read without
@@ -33,8 +34,10 @@ The owner's "a way to update GitHub Actions" means: **update what GitHub shows**
   *(proposed)*
 - **R7 — The docs carry a workflow to copy:** plan on a pull request, apply on merge, destroy
   only when started by hand with the target named — with the `concurrency:` group that keeps two
-  runs for one target from overlapping, and with no input pasted into a script as text.
-  *(design, as an example instead of an Action)*
+  runs for one target from overlapping, with no input pasted into a script as text, and with
+  the plan job given credentials that can only read — planning runs the pull request's own code
+  ([002/R13a](002-plugins.md)). *(design, as an example instead of an Action; the last part was
+  found in review)*
 
 ## Not in this spec
 
@@ -61,8 +64,8 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
   one is refused — or a new plan made on `main` with `--yes`? With the file, a first deploy that
   has a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)); with `--yes`, one
   ([005/R28](005-plan-apply-destroy.md)).
-- **D3 — A pull request from a fork** has no credentials. Skip quietly, or say so in the job
-  summary?
+- **D3 — A pull request from a fork** has no credentials, and must not be given any: its code
+  would run with them. Skip quietly, or say so in the job summary? *(proposed: say so)*
 
 ## Done when
 

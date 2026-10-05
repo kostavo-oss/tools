@@ -93,7 +93,8 @@ are errors, with file, line and column.
 ## Done when
 
 - A project written in `lely.yml` and the same project written in `pyproject.toml` give the same
-  plan, byte for byte.
+  plan: the same steps, changes and outputs, and the same "made from"
+  ([005/R5](005-plan-apply-destroy.md)), so a plan made from one is accepted with the other.
 - `lely validate` reports the same mistakes, with a position, in both.
 - The README's quickstart is written as R1.
-- R6, the one still marked as proposed here, is agreed or changed.
+- Every requirement still marked *(proposed)* here is agreed or changed.

@@ -1,20 +1,24 @@
 # 000 — what lely is
 
 **Status:** draft. The direction is the owner's, given on 2026-10-05; it replaces parts of
-`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). The positioning —
-[Why it exists](#why-it-exists) and [Where it stands](#where-it-stands) — is a proposal.
+`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). How lely is positioned
+was decided the same day; the wording around those decisions is still a proposal.
 
 Requirements are marked *(owner)* where they come from that direction, *(design)* where
 `docs/DESIGN.md` already says them, and *(proposed)* where neither does and this is a suggestion.
 
 ## In one line
 
-lely plans, applies and destroys everything a Databricks deploy consists of — as an ordered list
-of steps, each done by a plugin — and keeps no state of its own. The Asset Bundle is one of those
-plugins.
+> **One plan for your whole Databricks deploy.**
+> The bundle and everything around it — the steps before, the steps after — reviewed before
+> anything runs, and taken down again when you say so.
 
-That is the *definition*. The line people should meet first is a different question:
-[D3](#to-decide).
+That is the line people meet first *(owner, 2026-10-05: lead with the reviewed deploy)*. Under it
+goes what lely replaces: the script around `databricks bundle deploy` *(proposed)*.
+
+The definition, for whoever builds it: lely plans, applies and destroys an ordered list of
+steps, each done by a plugin, and keeps no state of its own. The Asset Bundle is one of those
+plugins.
 
 ## Why it exists
 
@@ -40,30 +44,44 @@ steps written down and checked (R4a); one rule for consent and for destructive c
 
 ## Where it stands
 
-*(proposed)*
-
 - **Beside the bundle, not instead of it.** The bundle stays the bundle and the Databricks CLI
   stays the tool that deploys it. If a bundle resource can do something, the bundle does it, and
-  when Databricks adds one, the step that covered it is retired.
-- **Not a small Terraform.** `plan`, `apply`, `destroy` sound like one. But lely manages no
-  resource itself and remembers nothing: each plugin's own tool knows what exists. lely owns the
-  order, the review and the consent — not the resources. Terraform is still for the platform.
+  when Databricks adds one, the step that covered it is retired. *(design)*
+- **Not a small Terraform.** The words are the same — plan, apply, destroy — and lely uses them
+  because everyone already knows what they promise. The job is not the same. lely manages no
+  resource itself and remembers nothing: the Databricks CLI knows what a bundle deployed. lely
+  owns the order, the review and the consent. Terraform is still for the platform — and it can
+  do what lely by its nature can't: notice drift, and clean up what a config no longer names.
+  *(owner, 2026-10-05: borrow the words, state the difference)*
 - **Not a task runner.** Make and a CI workflow run commands in order. A lely step can say what
-  it *would* do before it does it, and can be undone.
+  it *would* do before it does it, hands on what it produced in a way that is checked, and can be
+  undone. *(proposed)*
 - **Not a workflow engine.** It runs at deploy time, once, top to bottom. What runs every night
-  is a job, and jobs are the bundle's.
-- **In the Kostavo line** — "Terraform for your platform, Asset Bundles for your code, stevin for
-  your data model" — lely is not a fourth layer. It is what carries the layers out together, as
-  one deploy. Whether the line should say so is [D4](#to-decide).
+  is a job, and jobs are the bundle's. *(design)*
+- **In the Kostavo line** lely is not a fourth layer: it is what carries the layers out
+  together. The line becomes: **"Terraform for your platform, Asset Bundles for your code, stevin
+  for your data model — and lely to deploy them as one."** *(owner, 2026-10-05. The other
+  repositories and the organisation's front page still carry the three-part line.)*
 
-**When not to use it.** One bundle and nothing around it: `databricks bundle deploy` is all you
-need, and lely would add a file and no value. That is worth saying on the first page.
+### When not to use it
+
+Said on the first page, because a tool that names who it isn't for is easier to trust:
+
+- **One bundle and nothing around it.** `databricks bundle deploy` is all you need.
+- **Every extra step is an opaque script.** lely gives it an order, checked inputs and one rule
+  for consent, but a plan that reads "runs `deploy.sh`" shows a reviewer little
+  ([010](010-command-and-bundle-run.md)).
+- **You need an audit trail, drift detection, or cleanup of what you stopped declaring.** Those
+  need state, and lely has none.
+- **Your CI isn't GitHub Actions,** for now.
+
+*(proposed)*
 
 ## Who it is for
 
 A team that deploys to Databricks with a bundle and has more to deploy than the bundle covers,
 to more than one target, through pull requests — and that today keeps a deploy script it would
-rather not own. Which of them lely speaks to *first* is [D3](#to-decide).
+rather not own.
 
 ## What it does
 
@@ -103,7 +121,10 @@ Kept from the design:
 
 - be a workflow engine — one ordered list, no DAG, no parallel steps, no retries
 - roll back a failed apply; running it again finishes it
-- keep a state file or a run history
+- keep a state file or a run history — and so it cannot see what the config no longer names. A
+  step that is removed or renamed, a target taken out of a step's `targets:`, a bundle moved to
+  another path: what they deployed stays, and neither `destroy` nor `status` knows it is there.
+  Destroy first, then remove the step. *(the price of no state, found in review)*
 - build artifacts
 - do through a step what a bundle resource can do
 - generate YAML for a bundle to include: a bundle is fed variables, nothing else
@@ -114,10 +135,15 @@ No longer excluded: `bundle destroy` and teardown.
 
 ## Phases
 
-1. **The Asset Bundle, as a plugin, with steps around it** — [002](002-plugins.md),
-   [003](003-config.md), [004](004-asset-bundle.md), [010](010-command-and-bundle-run.md),
-   [005](005-plan-apply-destroy.md). *(owner: "start with asset bundles")* In what order these
-   become usable is [D5](#to-decide).
+1. **The Asset Bundle, as a plugin, with steps around it** — built as one piece, and called
+   usable only when all of it is there. *(owner: "start with asset bundles"; and, 2026-10-05,
+   "all of phase one, then use it")* The order it is built in, each on the one before:
+   1. the contract, and the bundle moved out of the core with every test still passing —
+      [002](002-plugins.md)
+   2. the config as one list — [003](003-config.md)
+   3. the bundle plugin — [004](004-asset-bundle.md)
+   4. `command` and `bundle.run` — [010](010-command-and-bundle-run.md)
+   5. apply, status, destroy, doctor — [005](005-plan-apply-destroy.md)
 2. **Around it:** the UI ([007](007-ui.md)) and GitHub ([008](008-github-actions.md)). Which
    first is [D1](#to-decide).
 
@@ -140,35 +166,24 @@ Against `docs/DESIGN.md` and the code as built ([001](001-what-is-built.md)):
 `docs/DESIGN.md` is rewritten to match once these specs are agreed — not before, so there is one
 place to argue in.
 
+## Decided
+
+All by the owner, on 2026-10-05.
+
+- **The first line** (was D3): the reviewed deploy — "One plan for your whole Databricks
+  deploy."
+- **The Kostavo line** (was D4): lely is added to it — "…and lely to deploy them as one."
+- **Terraform:** borrow its words and state the difference; don't avoid the comparison and don't
+  lean on it.
+- **How phase one becomes usable** (was D5): all of it, then use it — no slices.
+
 ## To decide
 
 - **D1 — After phase one: the UI first, or GitHub first?**
 - **D2 — Further plugins.** The design names Lakebase schemas and three MLflow steps as "later".
   Still the next ones, and in which order?
-- **D3 — The first line, and who it is said to.** The definition above is accurate and sells
-  nothing. Three ways to lead, each for a different reader:
-  1. *The reviewed deploy* — "One plan for your whole Databricks deploy: the bundle and
-     everything around it, reviewed before anything runs." For the team that got burned by a
-     merge.
-  2. *The deploy script, gone* — "Replace the script around `bundle deploy`: steps before and
-     after, with a plan, a teardown, and nothing passed along by accident." For the person who
-     maintains that script.
-  3. *Environments that go away again* — "Stand up a whole Databricks environment for a branch,
-     and take it down again: plan, apply, destroy." For teams that want a workspace per pull
-     request.
-
-  *(proposed: 1 as the headline, with 2 as the sentence under it. 3 is real, but it only becomes
-  true once destroy has run against a workspace.)*
-- **D4 — The Kostavo line.** Today: "Terraform for your platform, Asset Bundles for your code,
-  stevin for your data model." lely is in none of the three. Extend it — "…and lely to deploy
-  them as one" — or leave the line alone and describe lely next to it? *(proposed: extend it;
-  otherwise the family's own tagline has no place for one of its three tools)*
-- **D5 — The first usable cut of phase one.** All of phase one before anything can be used, or
-  in slices: first plan and apply for a bundle with `command` steps around it and `status`; then
-  destroy; then `bundle.run`, `pyproject.toml` and `doctor`? *(proposed: slices, in that order —
-  each one a tool somebody could run)*
 
 ## Done when
 
-Every "to decide" in this folder that touches phase one is answered, D3 and D4 have an answer the
-README can open with, and this page describes lely without a proposal in it.
+Every "to decide" in this folder that touches phase one is answered, the repository's README
+opens with the line above, and this page describes lely without a proposal in it.

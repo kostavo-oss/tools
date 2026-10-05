@@ -17,27 +17,38 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
 
 - **R1** — `lely plan -t <target>` plans every step in order and changes nothing. It can be
   written to a file with `-o`. *(built)*
-- **R2 — A plan file says what it is.** Its format version; lely's version; the target; whether
-  it is a plan to apply or a plan to destroy; and a hash of the config and of every step's
-  resolved options. *(built, except the kind)*
+- **R2 — A plan file says what it is, and holds what was shown.** At the top: its format
+  version; lely's version; the target; the workspace and the identity it was planned as (R35);
+  whether it is a plan to apply or a plan to destroy; and what it was made from (R5, R36). Then,
+  for every step in order: its name and plugin; whether it is ready, waiting (and for what) or
+  skipped (and why); what it takes and from where; its changes, each with its key, its kind,
+  whether it is destructive, and the lines that were shown for it; the outputs known at plan; and
+  whatever the plugin itself needs to carry — for a bundle step, the CLI's own plan.
+  *(built in part: no kind, no workspace, and the bundle's plan sits outside the steps)*
 - **R3** — A plan file in a format this lely doesn't read is refused, with a message that names
   both versions and says to plan again. *(built, for `show`)*
 
 ### `apply`
 
 - **R4** — `lely apply plan.json` runs a plan that was saved and reviewed. `lely apply -t
-  <target>`, without a file, plans, shows the plan, asks, and then runs. *(design)*
-- **R5** — A plan file is refused when the config, or any step's resolved options, differ from
-  what it was planned with. The message says which, and to plan again. *(design)*
+  <target>`, without a file, plans, shows the plan, asks, and then runs. `apply` runs plans to
+  apply: handed a destroy plan, it refuses and names the command that takes one (R14).
+  *(design; the last sentence is proposed)*
+- **R5** — A plan file is refused when the project's steps, or any step's options, differ from
+  what it was planned with. What is compared is the config as lely reads it — not the file's
+  text, so an unrelated edit to `pyproject.toml` doesn't make a plan stale — with values from the
+  environment compared by name, and without the values that couldn't be known when planning. The
+  message says which step differs, and to plan again. *(design; today the file's text is hashed)*
 - **R6** — Steps run in the order written. A step whose `targets:` leaves this target out is
   skipped, and the result says so. *(design)*
 - **R7 — The approval check.** Each step is planned again immediately before it runs. It may run
   only if every change in the new plan matches an approved one, and none has become destructive.
-  Fewer changes is fine — someone else did part of the work. Anything new stops the run and asks
-  for a new plan. What "matches" means is [D9](#to-decide). *(design)*
+  Fewer changes is fine — someone else did part of the work, or an earlier run did. Anything new
+  stops the run and asks for a new plan. What "matches" means is [D9](#to-decide). *(design)*
 - **R8** — `apply` refuses a destructive change without `--allow-destructive`. Where the plan
   already shows one, the refusal comes before anything runs. *(design)*
-- **R9** — A plan with nothing to do runs nothing, says so, and ends as done. *(proposed)*
+- **R9** — A plan with nothing to do runs nothing, says so, and ends as done. (A project with a
+  bundle step always has something to do: [004/R5a](004-asset-bundle.md).) *(proposed)*
 - **R10** — When it is done, `apply` shows what each step did and, from every plugin that can, the
   overview of what now exists ([002/R6](002-plugins.md)). *(owner)*
 
@@ -48,12 +59,15 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
 - **R12** — Steps are destroyed in the reverse of the order they are applied in: what was made
   last goes first. *(proposed)*
 - **R13** — A step with nothing to destroy — one that only runs something — is listed in the
-  destroy plan as skipped, with the reason, and the rest is destroyed.
+  destroy plan as skipped, with the reason, and the rest is destroyed. So is a step that needs
+  something that isn't there ([002/R21](002-plugins.md)).
   *(owner, 2026-10-05; [002/R8a](002-plugins.md))*
 - **R14 — A destroy can be saved and reviewed first, like an apply.**
   `lely plan -t <target> --destroy -o destroy.json` writes it, `lely show` renders it, and
-  `lely apply destroy.json` runs exactly that. One file format for both; a destroy can go through
-  a pull request. *(owner, 2026-10-05)*
+  `lely destroy destroy.json -t <target>` runs exactly that. One file format for both; a destroy
+  can go through a pull request. The file is handed to `destroy`, with the target said again: a
+  command that destroys always has both words in it. *(owner, 2026-10-05; that it is `destroy`
+  and not `apply` that takes the file is a change made in review — see R20)*
 - **R15** — The approval check holds for a destroy as well: each step is planned again before it
   is destroyed, and anything that wasn't in the approved plan stops the run. *(proposed)*
 - **R16** — Destroying a target that has nothing deployed does nothing, says so, and ends as
@@ -69,74 +83,104 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
   so that `prod` is never destroyed by a reflex. *(owner, 2026-10-05)*
 - **R19 — Without a terminal, consent is given in the command.** `lely destroy -t <target> --yes`
   runs without asking — for a pipeline, where nobody can. It needs the target spelled out with
-  `-t`; there is no default target to destroy. *(owner, 2026-10-05)*
-- **R20 — A file is asked about too.** Applying a saved plan at a terminal shows what is in it
-  and asks before running; `--yes` answers. A saved *destroy* plan is a destroy: it asks for the
-  target's name as in R18, and `--allow-destructive` plays no part in it — everything in a
-  destroy is destructive, and the command already says so. *(proposed — otherwise the file route
-  of R14 would be a way around R18)*
+  `-t`, with or without a file; there is no default target to destroy, and a file made for
+  another target is refused. *(owner, 2026-10-05)*
+- **R20 — A file is asked about too, and can't smuggle a destroy.** Applying a saved plan at a
+  terminal shows what is in it and asks before running; `--yes` answers. A destroy plan is run
+  only by `lely destroy`, which asks for the target's name as in R18. `--allow-destructive`
+  plays no part in a destroy: everything in one is destructive, and the command says so.
+  *(proposed — as first written, `lely apply destroy.json --yes` would have destroyed a target
+  with neither "destroy" nor its name on the command line)*
 
 ### When something fails — apply and destroy alike
 
-- **R21** — The first failing step stops the run. Nothing after it starts. The result names what
-  ran, what failed and what never started. *(design)*
-- **R22** — Running the same command again finishes the job: a step that already did its work
-  plans as nothing to do. *(design)*
+- **R21** — The first failing step stops the run. Nothing after it starts. The result has three
+  lists — what ran, what failed, what never started — in the terminal and as JSON. *(design)*
+- **R22** — After a *failure*, running the same command again finishes the job: a step that
+  already did its work plans as nothing to do. After a *refusal* — a stale plan, a waiting step
+  in a reviewed file — the same file will be refused again: it takes a new plan. The exit code
+  says which of the two it was (R31). *(design; the distinction is new)*
 - **R23** — `--from <step>` starts at a named step, for getting past one that *runs* something
-  every time. In a destroy it names where to start going *up* the list. Resuming is always asked
-  for, never inferred from a record. *(design; the destroy half is proposed)*
+  every time. In a destroy it names where to start going *up* the list. The steps it passes over
+  are still planned, for what they give to the others; they are not applied or destroyed.
+  Resuming is always asked for, never inferred from a record. *(design; the destroy half and the
+  third sentence are proposed)*
 - **R24** — There is no rollback. A failure half-way leaves what was done, done, and the result
-  says so in those words. *(design)*
+  says "nothing was rolled back" in those words. *(design)*
 
 ### A step that can't be planned yet
 
 - **R25 — Ready or waiting.** A step whose inputs are all known is *ready*: the plan shows its
   changes, and approving the plan approves them. A step that takes something that doesn't exist
   yet is *waiting*: the plan shows the step and names what it waits for
-  (`app.resources.jobs.backfill.id`), and shows no changes, because nobody can know them.
-  *(owner, 2026-10-05; the showing is built, as "decided at apply")*
+  (`app.resources.jobs.backfill.id`), and shows no changes, because nobody can know them. A
+  plugin can also say that part of its *own* plan has to wait; that step is treated the same way
+  for the part that waits. *(owner, 2026-10-05; the showing is built, as "decided at apply")*
 - **R26 — One rule, wherever the step stands.** A step waits when it takes something an earlier
-  step only has after it is applied — below the bundle or above it. In practice that is narrow:
-  the first deploy of something a later step needs the id or link of. The second time it exists,
-  and the step is ready. *(owner, 2026-10-05)*
+  step doesn't have yet — below the bundle or above it. How often depends on what it takes
+  ([002/R14](002-plugins.md)): something that exists *once it exists* makes a step wait on the
+  first deploy and never again; something produced *after every run* makes it wait on every
+  deploy. *(owner, 2026-10-05; the second sentence corrects an earlier "in practice this is
+  narrow", which was only true of the first kind)*
 - **R27 — A reviewed file runs what was reviewed.** `lely apply plan.json` stops at a waiting
   step and says to plan again; the next plan shows that step, now ready. So a first deploy through
-  a reviewed file can take two rounds, and every deploy after it takes one.
-  *(owner, 2026-10-05)*
+  a reviewed file can take two rounds, and every deploy after it takes one. `plan` says so before
+  anyone is surprised: a plan with a waiting step ends with "applied from a file, this stops
+  before `<step>`" — and, where the step waits on every deploy, that a file can never take it
+  further. *(owner, 2026-10-05; the warning is proposed)*
 - **R28 — `--yes` without a file runs it.** `lely apply -t <target> --yes` plans a waiting step
   when it gets there and runs it: nobody reviewed a plan in that run, and `--yes` said not to
-  ask. *(owner, 2026-10-05)*
+  ask. This is lely's unreviewed way of running, and the docs call it that. *(owner, 2026-10-05)*
 - **R29 — At a terminal, lely asks again.** `lely apply -t <target>` shows the waiting step's
   plan when it gets there, and asks once more before running it. *(proposed — the same consent,
   given at the moment it can be)*
 - **R30 — Never out of order, and never past the other rules.** Apply doesn't skip a waiting step
   to reach the ones below it. A destructive change in a step that was waiting needs
-  `--allow-destructive` like any other. A destroy has no waiting steps: everything it removes
-  exists. *(proposed)*
+  `--allow-destructive` like any other. *(proposed)*
 
 ### How a run ends
 
-- **R31 — Three exit codes.** 0: done, including "nothing to do". 1: a step failed. 2: lely
-  refused, before or between steps — a plan that went stale, a waiting step in a reviewed file,
-  a change that wasn't approved, a destructive change that wasn't allowed, no consent. A pipeline
-  can tell "plan again" from "something broke" without reading the message.
-  *(owner, 2026-10-05)*
+- **R31 — Three exit codes.** 0: done, including "nothing to do". 1: something failed — a step,
+  or lely itself. 2: lely refused, before or between steps — a plan that went stale, a waiting
+  step in a reviewed file, a change that wasn't approved, a destructive change that wasn't
+  allowed, no consent, a command it couldn't make sense of. A pipeline can tell "plan again" from
+  "something broke" without reading the message. `plan`, `status`, `validate` and `doctor` end
+  with 0 or 1 by the same rule. *(owner, 2026-10-05; today every error ends with 1)*
 
 ### On demand
 
 - **R32 — `lely status -t <target>`** changes nothing and shows the overview of every step for
-  that target — what is deployed right now, in detail. A step whose plugin has nothing to list
-  is shown with those words; one skipped for this target is shown as skipped.
-  *(owner, 2026-10-05; the last sentence is proposed)*
+  that target — what is deployed right now. To find it, it resolves each step's inputs from the
+  top down, the way a plan does. A step whose plugin has nothing to list is shown with those
+  words; one skipped for this target is shown as skipped; and a bundle step says whose view it
+  is ([004/R9b](004-asset-bundle.md)). *(owner, 2026-10-05; the detail is proposed)*
 - **R33** — `lely doctor` reports whether each plugin's tool is installed and usable (the
-  Databricks CLI and its engine, a `command` step's program) and whether the workspace can be
-  reached. It changes nothing. An error message in the code already points at it. *(design)*
+  Databricks CLI and its engine, a `command` step's program), whether the workspace can be
+  reached and as whom, and whether the credentials at hand can do more than read
+  ([002/R13a](002-plugins.md)). It changes nothing. An error message in the code already points
+  at it. *(design; the last check is proposed)*
 
-### Secrets
+### What is never shown, and what always is
 
-- **R34** — A secret in a step's outputs is never written anywhere and never printed — not in a
-  plan file, a page, a comment or a summary. It is fetched again when it is needed.
-  *(built for plan)*
+- **R34 — Secrets.** A value a plugin marks as secret, and any value that came from the
+  environment (`${env.…}`), is never printed and never written — not in a plan file, a page, a
+  comment or a summary — wherever it flows. It is not kept for apply either: the step that gives
+  it is planned again, and gives it again. A pull-request comment, a job summary and the page's
+  first view show a step's changes; they never show a plugin's raw data, such as the CLI's own
+  plan, which can hold whatever the bundle's config holds. *(built for values marked secret; the
+  rest is the design's promise, and found unkept in review)*
+- **R35 — The workspace is named.** Every plan, every question lely asks, and every plan file
+  says which workspace it is about and as whom: the host and the identity. A plan file made
+  against one workspace is refused on another. Consent is given to a target *on a workspace*,
+  not to a name that could mean anything. *(proposed — found in review: the target is typed, but
+  the workspace comes from the environment)*
+- **R36 — What was reviewed is what is deployed.** A plan file records which version of the
+  project it was made from — in a git repository, the tree it was planned on, and whether
+  anything was uncommitted. `apply` and `destroy` refuse the file on a different tree, and say
+  so. Without it, a plan approved for one commit can be applied on another, and a bundle's
+  notebooks and wheels are in no plan at all ([004/R5a](004-asset-bundle.md)). Outside a git
+  repository nothing is recorded, and the plan says that it couldn't be. *(proposed — found in
+  review)*
 
 ## Not in this spec
 
@@ -145,6 +189,8 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
 - Markdown output, the pull-request comment → [008](008-github-actions.md)
 - A lock against two runs at once: for now a CI concurrency group does that job, and the bundle
   holds its own lock while it deploys
+- Finding what the config no longer names: a step that was removed or renamed, a target taken
+  out of `targets:`. Without state lely can't see it ([000](000-what-lely-is.md#what-it-does-not-do))
 
 ## Decided
 
@@ -176,16 +222,17 @@ Found when the spec was reviewed on 2026-10-05; numbered on from the ones above.
   `destroy`? *(proposed: always require it. One more word to type, and no deploy to a target
   nobody named.)*
 - **D9 — How strict is "matches" in the approval check (R7)?** The design matches a change by its
-  key alone: `jobs.backfill` was approved, so `jobs.backfill` may run — even if what changes in
-  it is no longer what the reviewer saw. Stricter: the key *and* what kind of change it is
-  (create, update, delete, replace, run), so an approved update can't turn into a replace.
-  Strictest: the whole change, so any difference at all needs a new plan. *(proposed: key and
-  kind. The strictest makes every reviewed plan stale the moment anything moves; the design's is
-  the one that lets an unreviewed change through.)*
+  key alone: `jobs.backfill` was approved, so `jobs.backfill` may run — whatever now changes in
+  it. That lets through exactly what "consent covers what was shown" forbids, and a `command`
+  step, whose one change is named after the step, would always match. The other end: every
+  change in the new plan must be one that was shown — same thing, same kind of change, same
+  lines — while changes that are *gone* are still fine, so a second run can finish a first.
+  *(proposed: the second. A plan then goes stale when the workspace moves under it, which is
+  what a reviewed plan should do.)*
 
 ## Done when
 
-- R1–R34 each have a test, against fake tools.
+- Each requirement here has a test, against fake tools.
 - The README no longer says lely "shows you a whole deploy and runs none of it" — and says
   instead that apply and destroy have not yet been run against a real workspace.
 - Every requirement still marked *(proposed)* here is agreed or changed, and D8 and D9 are

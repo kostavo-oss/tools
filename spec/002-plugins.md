@@ -1,6 +1,7 @@
 # 002 — plugins
 
-**Status:** draft. Phase one, and the base for everything after it.
+**Status:** draft. Phase one, and the base for everything after it. Built first: nothing else in
+phase one can start before the bundle is out of the core.
 
 ## Words
 
@@ -24,7 +25,8 @@ What the bundle needs, every plugin can then have.
   the same contract as a class somebody wrote in their repo. *(owner)*
 - **R2** — A plugin is found by a registered name (the entry-point group `lely.steps`), by
   `package.module:Class`, or by `./file.py:Class` in the repo. The plugins lely ships register
-  the same way anyone's would. *(built)*
+  the same way anyone's would. `lely steps` lists the registered ones and the ones the project's
+  config names. *(built, except that `lely steps` lists only the registered ones today)*
 - **R3** — A plugin declares its options. A step's options are checked against them offline, by
   `lely validate`. *(built)*
 
@@ -32,15 +34,16 @@ What the bundle needs, every plugin can then have.
 
 - **R4 — Plan.** Say what `apply` would change, and change nothing. *(built)*
 - **R5 — Apply.** Do what the plan said, and no more. *(design)*
-- **R6 — Overview.** Say, in detail, what exists because of this step: each thing with its kind,
-  its name, its id and a link, where the system has them. Available right after an apply and on
-  its own, without changing anything. *(owner)*
+- **R6 — Overview.** Say what exists because of this step, one line per thing: its kind, its key
+  and its name, always; its id and a link, where the system has them; and whether it is deployed.
+  Available right after an apply and on its own, without changing anything.
+  *(owner: "a detailed overview of what it created"; the fields are proposed)*
 - **R7 — Destroy.** Say what `destroy` would remove, and then remove it. *(owner)*
 - **R8 — Show itself.** Optionally, give the UI its own detailed view of a plan. Without one, the
-  UI shows the plan's changes. → [007](007-ui.md) *(owner)*
-
+  UI shows the plan's changes. This arrives with the UI, in phase two. → [007](007-ui.md)
+  *(owner)*
 - **R8a — A plugin with nothing to undo says so.** Not every plugin has something to destroy or
-  to show: a step that only *runs* a job deploys nothing. A plugin says which of R6–R8 it
+  to list: a step that only *runs* a job deploys nothing. A plugin says which of R6 and R7 it
   supports, `lely steps` lists that, and `destroy` skips a step that can't destroy — visibly,
   with the reason. *(owner, 2026-10-05)*
 - **R8b — `command` can be given a destroy command,** beside its plan and apply commands. With
@@ -55,11 +58,20 @@ What the bundle needs, every plugin can then have.
 - **R10 — It touches only what its options name.** Anything else it finds is reported as not its
   own, and never changed. *(design)*
 - **R11 — It destroys only what it can show is its own.** A plugin that can't tell what it made
-  from what it merely found has nothing it may destroy. *(proposed — it is R9 and R10 applied to
-  the verb that can't be taken back)*
+  from what it merely found has nothing it may destroy. `command` is the one exception, by its
+  nature: its destroy command is whatever the project wrote, lely can vouch for none of it, and
+  so the destroy plan shows that command line in full. *(proposed)*
 - **R12 — Destructive is declared.** Deleting, replacing or dropping data is marked, in a plan and
-  in a destroy plan alike. *(design)*
-- **R13 — No secrets in a plan.** *(built)*
+  in a destroy plan alike. A change a plugin's tool reports and the plugin doesn't recognise is
+  treated as destructive. *(design; the second sentence is built, for the bundle)*
+- **R13 — No secrets in a plan.** → [005/R34](005-plan-apply-destroy.md) *(built, for values a
+  plugin marks as secret)*
+- **R13a — Planning runs the project's own code, and says so.** A plugin that is a file in the
+  repo, and a `command` step's plan command, are run by `plan`; a repo plugin is loaded even by
+  `validate`. So wherever that code isn't trusted yet — a pull request — `plan` must be given
+  credentials that can read and nothing more. lely can't enforce that. It says it where people
+  will read it: in the docs' workflow ([008/R7](008-github-actions.md)) and in `lely doctor`.
+  *(proposed — found in review)*
 
 ### What flows between steps
 
@@ -67,24 +79,31 @@ Sometimes a step feeds the bundle: it looks up a model version, and the bundle n
 variable. Sometimes a step needs something from the bundle: the id of a job it just created.
 Both are the same thing — one step's output is another step's input — and these rules are what
 make it impossible to be vague about which is which. *(owner: "how can we make sure that is
-clearly defined")*
+clearly defined"; the principle is decided, the mechanics below are proposed where marked)*
 
-- **R14 — Outputs are declared.** A plugin lists what a step of it gives: each output's name, and
-  when its value is known — *at plan*, before anything is deployed, or only *after apply*.
+- **R14 — Outputs are declared.** A plugin lists what a step of it gives. Each output has a name
+  and one of three answers to "when is it known?":
+  - **at plan** — always, before anything is deployed. A looked-up model version.
+  - **once it exists** — when planning, if the thing is already there; otherwise only after
+    apply. The id of a job the bundle deploys.
+  - **after every run** — never when planning: it is produced by running. What a script writes
+    while it applies.
+
   `lely steps` prints them next to the options. *(proposed; today a plugin declares only its
   options, so an output's name can't be checked until it is used)*
 - **R14a — An output whose name depends on the project is declared as a shape.** The bundle
   plugin can't list `resources.jobs.backfill.id` ahead of time: the job is the project's. It
-  declares `resources.<type>.<key>.id`. Offline, a reference is checked against the shape; that
-  the job itself exists is checked when the step is planned, with the same kind of message.
-  *(proposed)*
+  declares `resources.<type>.<key>.id`, where each `<…>` stands for exactly one part of the
+  name. Offline, a reference is checked against the shape; that the job itself exists is checked
+  when the step is planned, with the same kind of message. *(proposed)*
 - **R15 — An input is a reference, and nothing else.** A step takes a value from another step
   only by writing `${steps.<name>.<output>}` in its own options. There is no other channel: no
   file left behind, no environment handed on, no lookup behind the scenes. Whatever a step
   depends on can be read in its `with:`. *(design)*
 - **R15a — There is one spelling.** Every reference names the step the value comes from. The
-  short `${var.…}`, `${bundle.…}` and `${resources.…}` that exist today, from when the bundle was
-  built in, go. `${env.<NAME>}` stays: the environment is not a step. *(owner, 2026-10-05)*
+  short `${var.…}`, `${bundle.…}`, `${workspace.…}` and `${resources.…}` that exist today, from
+  when the bundle was built in, go. `${env.<NAME>}` stays: the environment is not a step.
+  *(owner, 2026-10-05)*
 - **R16 — References point up the list, never down.** A step can use the outputs of steps listed
   before it. So the order of the list *is* the order of dependency, and it reads top to bottom:
   what feeds the bundle is written above it, what needs something from the bundle below it.
@@ -97,40 +116,84 @@ clearly defined")*
   leave out a target the referring step runs for. What can only be known with the tool at hand —
   that a named job is really in the bundle — is refused by `plan`, before anything changes.
   *(the first two built; the rest need R14)*
-- **R19 — A value that isn't known yet is never guessed.** If a step's input is only known after
-  apply — the id of a job this deploy creates — the plan shows that step as *waiting* and names
-  the output it is waiting for. What apply then does with it is
-  [005/R25–R30](005-plan-apply-destroy.md). *(built, as "decided at apply")*
-- **R20 — The wiring is shown.** In a plan — terminal, page or Markdown — every step lists what it
-  takes, from which step, and the value where it is known:
-  `model_version = 14  ← model.version`. And `lely validate` prints the wiring of the whole
-  project: for each step, what it takes and what it gives. *(proposed)*
-- **R21 — Destroy reads the same wiring.** Inputs are resolved from the top of the list down;
-  removal then goes from the bottom up. While destroying, a step's outputs are what it can give
-  without changing anything: what it knows at plan, and — for what already exists — what its
-  overview reports. So a step above the bundle that only looks something up still does its
-  lookup, and the bundle can be resolved and destroyed; and a step below the bundle is destroyed
-  while the bundle, and the id it needed, still exist. A value a destroy needs that can't be had
-  that way stops the destroy plan, with the reason. *(proposed)*
+- **R19 — A value that isn't known yet is never guessed.** A step that takes one is shown in the
+  plan as *waiting*, with the output it is waiting for by name. A step that takes an *after every
+  run* output waits on every deploy, not only the first — and `validate` says so when it prints
+  the wiring, because such a step can never be approved ahead of time. What apply does at a
+  waiting step is [005/R25–R30](005-plan-apply-destroy.md). *(built, as "decided at apply"; the
+  warning is proposed)*
+- **R20 — The wiring is shown.** In a plan, every step lists what it takes, from which step, and
+  the value where it is known: `model_version = 14  ← model.version`. And `lely validate` prints
+  the wiring of the whole project: for each step, what it takes and what it gives. In phase one
+  that is the terminal and the plan file; the page and Markdown follow in phase two. *(proposed)*
+- **R21 — Destroy reads the same wiring.** Inputs are resolved from the top of the list down, by
+  planning each step as usual; removal then goes from the bottom up. So a step above the bundle
+  that only looks something up still does its lookup, and a step below the bundle is destroyed
+  while the bundle, and the id it needed, still exist. A step whose input doesn't exist — the
+  job was never deployed, or the value only ever came from a run — is skipped, with the reason:
+  lely can't know what it would have to remove. The rest of the destroy goes on. *(proposed)*
 
 ### What a step is given
 
-- **R22** — The target's name; its own options, with references resolved; the project's
-  directory; a log; and a way to reach the workspace. *(built)*
+- **R22 — Only this:** the target's name; its own options, with references resolved; the
+  project's directory; a log; and a way to reach the workspace. Not the other steps' outputs as a
+  whole — today a step is handed all of them, and the bundle besides, which would make R15 a
+  habit instead of a rule. *(narrower than what is built)*
 - **R23 — The target is a name, and each plugin reads it its own way.** `-t dev` is handed to
   every step as it is: the bundle plugin takes it as a bundle target. lely keeps no list of
-  targets of its own. *(owner, 2026-10-05)*
+  targets of its own — so a name no plugin knows is only caught by a plugin that checks it, as
+  the bundle's does. *(owner, 2026-10-05)*
 - **R24 — The workspace comes from the command line or the environment:** `--profile`, or the
   variables the Databricks SDK and CLI already read. One run talks to one workspace — every
-  step in it, two bundle steps included. *(owner, 2026-10-05)*
+  step in it, two bundle steps included. *(owner, 2026-10-05; today the host is taken from the
+  bundle's target)*
 
 ### For people writing one
 
-- **R25** — `lely.testing` checks a plugin against R4–R21: plan makes no writes; plan, apply,
-  plan again is empty for a plugin that converges; apply then destroy then plan is what it was
-  before; an overview changes nothing; every output a step returns was declared, and none that
-  was declared *at plan* is missing from a plan; no secret reaches a file. Every plugin lely
-  ships passes it. *(plan half built)*
+- **R25** — `lely.testing` checks a plugin against the rules above, each as something that can
+  fail:
+  - *plan changes nothing* — run against a recording fake, it makes no call outside a list of
+    reads;
+  - *apply does what the plan said* — plan, apply, plan again shows no changes, for a plugin that
+    converges;
+  - *destroy undoes it* — apply, destroy, plan shows what the first plan showed;
+  - *only its own* — a look-alike object the plugin didn't make is reported as not its own, and
+    is still there after apply and after destroy;
+  - *an overview changes nothing*, and every line has a kind, a key and a name;
+  - *outputs are as declared* — nothing undeclared is returned, and nothing declared *at plan* is
+    missing from a plan;
+  - *no secret reaches a file.*
+
+  Every plugin lely ships passes the ones that apply to it. *(the plan half exists, without the
+  recording fake)*
+
+### The contract, as a sketch
+
+*(proposed — the names are settled when it is built, the parts are what the rules above need)*
+
+```python
+class Plugin(Protocol):
+    Options: type                      # a frozen dataclass; `with:` is checked against it
+    outputs: tuple[Output, ...]        # R14: name or shape, and when it is known
+
+    def plan(self, ctx) -> StepPlan: ...                 # R4
+    def apply(self, ctx, plan) -> Outputs: ...           # R5
+
+    # optional — a plugin without one says so by not having it (R8a)
+    def overview(self, ctx) -> tuple[Item, ...]: ...     # R6
+    def plan_destroy(self, ctx) -> StepPlan: ...         # R7
+    def destroy(self, ctx, plan) -> None: ...            # R7
+
+
+@dataclass(frozen=True, slots=True)
+class Item:                            # one line of an overview
+    kind: str                          # "job"
+    key: str                           # "jobs.backfill"
+    name: str                          # "shop-backfill"
+    deployed: bool
+    id: str | None = None
+    url: str | None = None
+```
 
 ## The plugins of phase one
 
@@ -168,9 +231,9 @@ plan half exists in the code and is left as it is.
 
 - The bundle goes through the same contract as every other plugin, and no module in the core
   imports anything bundle-specific.
-- `lely steps` shows each plugin with its options, its outputs and when each is known, and which
-  of overview, destroy and its own view it supports.
+- `lely steps` shows each plugin with its options, its outputs and when each is known, and
+  whether it has an overview and a destroy.
 - `lely validate` on a project with a reference pointing down the list, and on one naming an
   output that doesn't exist, fails with a message that says what to change.
 - R25's checks exist and the plugins above pass the ones that apply to them.
-- D1 is answered here.
+- Every requirement still marked *(proposed)* here is agreed or changed, and D1 is answered.

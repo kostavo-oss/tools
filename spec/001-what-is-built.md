@@ -42,13 +42,35 @@ Found while writing this; none is fixed yet. Each is small, and each needs one o
 - **G1 — `doctor` is mentioned and doesn't exist.** An error in `bundle.py` tells the user to
   "check `lely doctor`". It arrives with [005/R33](005-plan-apply-destroy.md).
 - **G2 — What a `command` step is given.** The design promises `LELY_TARGET`, `LELY_PLAN` and
-  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. Settled as all five,
-  in [010/R4](010-command-and-bundle-run.md).
+  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. Settled in
+  [010/R4](010-command-and-bundle-run.md): four of the five; `LELY_PHASE` goes with the phases.
 - **G3 — How stevin is called.** The design says `stevin plan -t <target> -o <tmp> -f json`. The
   code spells the flags out and adds `--config` and `--select`. The code is right; the design
   needs the line updated.
 - **G4 — `py.typed` was promised by the package's classifiers and missing** until 2026-10-05.
   Fixed; listed so nobody looks for it.
+
+## Words that change
+
+The spec says *waiting* for a step whose inputs aren't known yet. The code has four names for
+it — `deferred`, `Unresolved`, `Unknown`, and "decided at apply" on screen — and the README shows
+the last. They become one word when [005/R25](005-plan-apply-destroy.md) is built. Likewise a
+plugin's kinds of change have no word yet for "files are uploaded"
+([004/R5a](004-asset-bundle.md)).
+
+## What the review found in the built half
+
+Small, and listed so they are fixed on the way rather than rediscovered:
+
+- A step is handed every earlier step's outputs and the whole bundle, not only what its options
+  name ([002/R22](002-plugins.md)).
+- Only values marked as secret are kept out of plan files; values from the environment and the
+  CLI's whole plan are not ([005/R34](005-plan-apply-destroy.md)).
+- The plan file's "made from" is a hash of the config file's text ([005/R5](005-plan-apply-destroy.md)).
+- Every error ends with exit code 1 ([005/R31](005-plan-apply-destroy.md)).
+- `lely steps` lists installed plugins, not the ones a project's config names
+  ([002/R2](002-plugins.md)).
+- The workspace's host is taken from the bundle's target ([002/R24](002-plugins.md)).
 
 ## What changes
 
