@@ -10,8 +10,8 @@ regenerate with:
 from __future__ import annotations
 
 from fakes import seeded_store, stub_onboarding
-from isolinear.app import IsolinearApp
-from isolinear.application import WorkspaceService
+from maeslant.app import MaeslantApp
+from maeslant.application import WorkspaceService
 
 SIZE = (110, 30)
 
@@ -37,9 +37,9 @@ def _steps(*keys: str):
     return run
 
 
-def _app(*, session: bool = True) -> IsolinearApp:
+def _app(*, session: bool = True) -> MaeslantApp:
     svc = WorkspaceService(seeded_store(), "test") if session else None
-    return IsolinearApp(onboarding=stub_onboarding(), session=svc)
+    return MaeslantApp(onboarding=stub_onboarding(), session=svc)
 
 
 def test_browse_screen(snap_compare):

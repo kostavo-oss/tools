@@ -638,7 +638,7 @@ class HelpScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog", classes="help"):
-            yield Static("Isolinear — keys", classes="dialog-title")
+            yield Static("Maeslant — keys", classes="dialog-title")
             with VerticalScroll():
                 for key, desc in self.KEYS:
                     yield Static(f"[b $secondary]{key:<12}[/]  {desc}")

@@ -27,9 +27,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "tests"))
 
 from fakes import seeded_store, stub_onboarding  # noqa: E402
-from isolinear.app import IsolinearApp  # noqa: E402
-from isolinear.application import WorkspaceService  # noqa: E402
-from isolinear.domain import SOURCE_BUNDLE, Workspace  # noqa: E402
+from maeslant.app import MaeslantApp  # noqa: E402
+from maeslant.application import WorkspaceService  # noqa: E402
+from maeslant.domain import SOURCE_BUNDLE, Workspace  # noqa: E402
 
 SIZE = (112, 34)
 
@@ -39,7 +39,7 @@ async def shot(
 ) -> None:
     onboarding = onboarding or stub_onboarding()
     session = WorkspaceService(seeded_store(), "prod-account") if with_session else None
-    app = IsolinearApp(onboarding=onboarding, session=session)
+    app = MaeslantApp(onboarding=onboarding, session=session)
     async with app.run_test(size=SIZE) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()

@@ -5,7 +5,7 @@
 - **Python ≥ 3.11**
 - A modern terminal on **macOS**, **Linux**, or **Windows**
 
-Isolinear is distributed on PyPI. No configuration is required before you install or run it — connection details are gathered interactively on launch.
+Maeslant is distributed on PyPI. No configuration is required before you install or run it — connection details are gathered interactively on launch.
 
 ## Install
 
@@ -14,15 +14,15 @@ Isolinear is distributed on PyPI. No configuration is required before you instal
     Run the latest version once, ephemerally, without installing anything:
 
     ```sh
-    uvx isolinear
+    uvx maeslant
     ```
 
 === "uv tool"
 
-    Install `isolinear` (and the `iso` alias) onto your `PATH`:
+    Install `maeslant` onto your `PATH`:
 
     ```sh
-    uv tool install isolinear
+    uv tool install maeslant
     ```
 
 === "pipx"
@@ -30,26 +30,22 @@ Isolinear is distributed on PyPI. No configuration is required before you instal
     Run once, or install persistently:
 
     ```sh
-    pipx run isolinear
+    pipx run maeslant
     ```
 
     ```sh
-    pipx install isolinear
+    pipx install maeslant
     ```
 
 ## Running
 
-Once installed, launch the app with either command:
+Once installed, launch the app:
 
 ```sh
-isolinear
+maeslant
 ```
 
-```sh
-iso
-```
-
-Both open the workspace picker. See [Connecting](connecting.md) for what happens next.
+It opens the workspace picker. See [Connecting](connecting.md) for what happens next.
 
 ## Upgrading
 
@@ -58,20 +54,20 @@ Both open the workspace picker. See [Connecting](connecting.md) for what happens
     `uvx` always fetches the latest published version, so there is nothing to upgrade. To refresh a cached run:
 
     ```sh
-    uvx isolinear@latest
+    uvx maeslant@latest
     ```
 
 === "uv tool"
 
     ```sh
-    uv tool upgrade isolinear
+    uv tool upgrade maeslant
     ```
 
 === "pipx"
 
     ```sh
-    pipx upgrade isolinear
+    pipx upgrade maeslant
     ```
 
 !!! note "No config needed up front"
-    Isolinear ships with sensible defaults and discovers your workspaces at runtime. You do not need to create a config file, set environment variables, or store a token before the first launch.
+    Maeslant ships with sensible defaults and discovers your workspaces at runtime. You do not need to create a config file, set environment variables, or store a token before the first launch.

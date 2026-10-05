@@ -1,5 +1,5 @@
 [project]
-name = "isolinear"
+name = "maeslant"
 version = "0.4.1"
 description = "A keyboard-driven terminal UI for managing Databricks secrets"
 readme = "README.md"
@@ -40,21 +40,23 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/misja-pronk/isolinear"
-Repository = "https://github.com/misja-pronk/isolinear"
-Issues = "https://github.com/misja-pronk/isolinear/issues"
-Changelog = "https://github.com/misja-pronk/isolinear/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/maeslant"
+Repository = "https://github.com/kostavo-oss/maeslant"
+Issues = "https://github.com/kostavo-oss/maeslant/issues"
+Changelog = "https://github.com/kostavo-oss/maeslant/blob/main/CHANGELOG.md"
 
 [project.scripts]
-isolinear = "isolinear.app:main"
-iso = "isolinear.app:main"
+maeslant = "maeslant.app:main"
+# the names this was released under: they say so, and run maeslant
+isolinear = "maeslant.formerly:main"
+iso = "maeslant.formerly:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/isolinear"]
+packages = ["src/maeslant"]
 
 [dependency-groups]
 dev = [

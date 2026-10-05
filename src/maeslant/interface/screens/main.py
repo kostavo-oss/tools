@@ -47,7 +47,7 @@ from ..widgets import DetailPane, ScopeRow, ScopesPane, SecretsPane
 from .login import ConnectResult, LoginScreen
 
 
-class IsolinearCommands(Provider):
+class MaeslantCommands(Provider):
     """Feeds every action into the command palette (ctrl+p)."""
 
     async def discover(self) -> Hits:
@@ -70,7 +70,7 @@ class IsolinearCommands(Provider):
 
 
 class MainScreen(Screen[None]):
-    COMMANDS = {IsolinearCommands}
+    COMMANDS = {MaeslantCommands}
 
     BINDINGS = [
         Binding("w", "switch_workspace", "Workspace", show=False),
@@ -144,7 +144,7 @@ class MainScreen(Screen[None]):
         with Horizontal(id="banner"):
             yield Static(
                 "[$scopes-color]█[/][$secrets-color]█[/][$detail-color]█[/]"
-                "  [b]Isolinear[/]",
+                "  [b]Maeslant[/]",
                 id="brand",
             )
             yield Static("", id="breadcrumb")

@@ -106,7 +106,7 @@ class LoginScreen(Screen[ConnectResult | None]):
     def compose(self) -> ComposeResult:
         card_classes = "browse" if self._workspaces else ""
         with Center(), Vertical(id="login-card", classes=card_classes):
-            yield Static("Isolinear", id="login-wordmark")
+            yield Static("Maeslant", id="login-wordmark")
             yield Static("[$primary]▂▂[/][$success]▂▂[/][$warning]▂▂[/]", id="login-mark")
             if self._workspaces:
                 yield Static("WORKSPACES", classes="login-section")

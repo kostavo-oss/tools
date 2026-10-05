@@ -1,4 +1,4 @@
-"""Isolinear themes.
+"""Maeslant themes.
 
 The default is **Graphite** — a calm, near-neutral base with a single restrained
 violet accent (focus + selection), green for a revealed value, red for
@@ -13,8 +13,8 @@ from __future__ import annotations
 from textual.theme import Theme
 
 # Graphite — the calm, enterprise default.
-ISOLINEAR_GRAPHITE = Theme(
-    name="isolinear",
+MAESLANT_GRAPHITE = Theme(
+    name="maeslant",
     primary="#8b7cff",  # violet — the one accent: focus + selection
     secondary="#9b8cff",  # lighter violet — focused titles, footer keys
     accent="#5fd39a",  # green — a revealed / live value
@@ -44,8 +44,8 @@ ISOLINEAR_GRAPHITE = Theme(
 )
 
 # Violet-cyber — the original electric LCARS-flavoured look.
-ISOLINEAR_VIOLET = Theme(
-    name="isolinear-violet",
+MAESLANT_VIOLET = Theme(
+    name="maeslant-violet",
     primary="#7c5cff",
     secondary="#29e0c4",
     accent="#ff9f1c",
@@ -74,8 +74,8 @@ ISOLINEAR_VIOLET = Theme(
 )
 
 # LCARS amber — the classic Okudagram orange/blue on black.
-ISOLINEAR_AMBER = Theme(
-    name="isolinear-amber",
+MAESLANT_AMBER = Theme(
+    name="maeslant-amber",
     primary="#ff9f43",  # LCARS amber
     secondary="#6bb6ff",  # LCARS blue
     accent="#ffd166",
@@ -102,8 +102,8 @@ ISOLINEAR_AMBER = Theme(
 )
 
 # Phosphor green — a spare retro-terminal look.
-ISOLINEAR_PHOSPHOR = Theme(
-    name="isolinear-phosphor",
+MAESLANT_PHOSPHOR = Theme(
+    name="maeslant-phosphor",
     primary="#5ad27a",
     secondary="#9ad29a",
     accent="#d7d77a",
@@ -129,9 +129,9 @@ ISOLINEAR_PHOSPHOR = Theme(
     },
 )
 
-ISOLINEAR_THEMES = [
-    ISOLINEAR_GRAPHITE,
-    ISOLINEAR_VIOLET,
-    ISOLINEAR_AMBER,
-    ISOLINEAR_PHOSPHOR,
+MAESLANT_THEMES = [
+    MAESLANT_GRAPHITE,
+    MAESLANT_VIOLET,
+    MAESLANT_AMBER,
+    MAESLANT_PHOSPHOR,
 ]

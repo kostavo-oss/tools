@@ -8,24 +8,24 @@ the identity email where the secret name should be.
 from __future__ import annotations
 
 from fakes import seeded_store, stub_onboarding
-from isolinear.app import IsolinearApp
-from isolinear.application import WorkspaceService
-from isolinear.domain import Identity
-from isolinear.interface.modals import SearchModal
+from maeslant.app import MaeslantApp
+from maeslant.application import WorkspaceService
+from maeslant.domain import Identity
+from maeslant.interface.modals import SearchModal
 
 PANEL = (98, 12)  # a cramped VS Code panel
 
 
-def _rendered_text(app: IsolinearApp) -> str:
+def _rendered_text(app: MaeslantApp) -> str:
     """The visible screen as text (the SVG export encodes spaces as &#160;)."""
     return app.export_screenshot().replace("&#160;", " ")
 
 
-def _app() -> IsolinearApp:
+def _app() -> MaeslantApp:
     store = seeded_store()
     store._identity = Identity("misja@prorexconsultancy.nl", "Misja", authenticated=True)
     session = WorkspaceService(store, "acme-prod-workspace")
-    return IsolinearApp(onboarding=stub_onboarding(), session=session)
+    return MaeslantApp(onboarding=stub_onboarding(), session=session)
 
 
 async def test_breadcrumb_keeps_the_secret_segment_when_narrow():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from isolinear.domain import Acl, Identity, Scope, perm_rank
-from isolinear.domain.permissions import authorization_summary
+from maeslant.domain import Acl, Identity, Scope, perm_rank
+from maeslant.domain.permissions import authorization_summary
 
 
 def test_perm_rank_orders_permissions():

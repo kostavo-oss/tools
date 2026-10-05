@@ -7,19 +7,19 @@ from typing import cast
 from textual.widgets import Checkbox, DataTable, Input, Select
 
 from fakes import FakeSecretStore, seeded_store, stub_onboarding
-from isolinear.app import IsolinearApp
-from isolinear.application import WorkspaceService
-from isolinear.domain import Acl, Scope, Secret
-from isolinear.interface.modals import MoveSecretModal, PrincipalModal
-from isolinear.interface.screens.main import MainScreen
+from maeslant.app import MaeslantApp
+from maeslant.application import WorkspaceService
+from maeslant.domain import Acl, Scope, Secret
+from maeslant.interface.modals import MoveSecretModal, PrincipalModal
+from maeslant.interface.screens.main import MainScreen
 
 
-def _app() -> tuple[IsolinearApp, WorkspaceService]:
+def _app() -> tuple[MaeslantApp, WorkspaceService]:
     session = WorkspaceService(seeded_store(), "test")
-    return IsolinearApp(onboarding=stub_onboarding(), session=session), session
+    return MaeslantApp(onboarding=stub_onboarding(), session=session), session
 
 
-def _two_scope_app() -> tuple[IsolinearApp, WorkspaceService]:
+def _two_scope_app() -> tuple[MaeslantApp, WorkspaceService]:
     store = FakeSecretStore(
         scopes=[Scope("alpha"), Scope("beta")],
         secrets={"alpha": [Secret("alpha", "token", 1_718_000_000_000)], "beta": []},
@@ -30,7 +30,7 @@ def _two_scope_app() -> tuple[IsolinearApp, WorkspaceService]:
         values={("alpha", "token"): "t0ps3cret"},
     )
     session = WorkspaceService(store, "test")
-    return IsolinearApp(onboarding=stub_onboarding(), session=session), session
+    return MaeslantApp(onboarding=stub_onboarding(), session=session), session
 
 
 # ── move / rename / copy ────────────────────────────────────────────────

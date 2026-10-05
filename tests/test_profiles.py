@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import configparser
 
-from isolinear.infrastructure import DatabricksCfgProfileStore
+from maeslant.infrastructure import DatabricksCfgProfileStore
 
 
 def _store(tmp_path, monkeypatch, body: str = ""):

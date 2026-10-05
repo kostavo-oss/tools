@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import cast
 
 from fakes import seeded_store, stub_onboarding
-from isolinear.app import IsolinearApp
-from isolinear.application import WorkspaceService
-from isolinear.domain import Settings
-from isolinear.infrastructure import JsonSettingsStore
-from isolinear.interface.screens.main import MainScreen
+from maeslant.app import MaeslantApp
+from maeslant.application import WorkspaceService
+from maeslant.domain import Settings
+from maeslant.infrastructure import JsonSettingsStore
+from maeslant.interface.screens.main import MainScreen
 
 
 def test_json_store_round_trip(tmp_path):
@@ -29,9 +29,9 @@ def test_json_store_tolerates_missing_and_corrupt_files(tmp_path):
     assert JsonSettingsStore(wrong_types).load() == Settings()
 
 
-def _app(store: JsonSettingsStore) -> IsolinearApp:
+def _app(store: JsonSettingsStore) -> MaeslantApp:
     session = WorkspaceService(seeded_store(), "test")
-    return IsolinearApp(
+    return MaeslantApp(
         onboarding=stub_onboarding(), session=session, settings_store=store
     )
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from isolinear.application import format_dotenv, parse_dotenv
+from maeslant.application import format_dotenv, parse_dotenv
 
 
 def test_parse_ignores_noise_and_strips_quotes():

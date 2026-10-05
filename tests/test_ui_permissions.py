@@ -3,14 +3,14 @@ from __future__ import annotations
 from textual.widgets import Input, Select
 
 from fakes import seeded_store, stub_onboarding
-from isolinear.app import IsolinearApp
-from isolinear.application import WorkspaceService
-from isolinear.interface.modals import AclFormModal, ConfirmModal, PermissionsScreen
+from maeslant.app import MaeslantApp
+from maeslant.application import WorkspaceService
+from maeslant.interface.modals import AclFormModal, ConfirmModal, PermissionsScreen
 
 
-def _app() -> tuple[IsolinearApp, WorkspaceService]:
+def _app() -> tuple[MaeslantApp, WorkspaceService]:
     session = WorkspaceService(seeded_store(), "test")
-    return IsolinearApp(onboarding=stub_onboarding(), session=session), session
+    return MaeslantApp(onboarding=stub_onboarding(), session=session), session
 
 
 async def test_p_opens_permissions_for_current_scope():

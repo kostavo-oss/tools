@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import cast
 
 from fakes import FakeSecretStore, seeded_store
-from isolinear.application import WorkspaceService
-from isolinear.domain import Scope
+from maeslant.application import WorkspaceService
+from maeslant.domain import Scope
 
 
 def test_authenticate_and_load_scopes_populate_cache():

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude / agents working in this repo. **Isolinear** is a
+Guidance for Claude / agents working in this repo. **Maeslant** is a
 keyboard-driven Textual TUI for managing Databricks secrets.
 
 ## Toolchain — use these, nothing else
@@ -38,7 +38,7 @@ This project is **all-[Astral](https://astral.sh)**, version-managed by
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock (incl. dev group)
 
-uv run isolinear        # run the app (alias: uv run iso)
+uv run maeslant        # run the app
 uv run pytest           # tests (core units + UI via Textual Pilot)
 uv run ruff check .     # lint
 uv run ruff format .    # format
@@ -53,7 +53,7 @@ Hexagonal / DDD — dependencies point **inward**, all I/O sits behind domain
 ports, so the domain is unit-testable with no network. Respect the layering:
 
 ```
-src/isolinear/
+src/maeslant/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the ONLY place the Databricks SDK is imported
