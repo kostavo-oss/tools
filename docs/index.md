@@ -42,3 +42,10 @@ On launch, Maeslant opens a workspace picker that discovers connection targets a
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
 - [Connecting](connecting.md) — the workspace picker and its three sources.
 - [Browsing & managing](browsing.md) — navigate, reveal, and manage secrets and permissions.
+
+---
+
+Maeslant is named after the Maeslantkering, the storm surge barrier that guards Rotterdam's
+waterway: one of the largest moving structures in the world, and it closes when it matters.
+
+Community project, not affiliated with or endorsed by Databricks.

@@ -73,3 +73,18 @@ src/maeslant/
 - ty must report no errors.
 - Keep blocking I/O off the UI thread — services run in worker threads via
   `asyncio.to_thread` (see `interface/screens/main.py`).
+
+## The rename
+
+Maeslant was `isolinear` up to 0.4.1 — renamed on its way into the Kostavo tools
+(`kostavo-oss`: stevin, lely, maeslant). `src/maeslant/formerly.py` is the one module
+that spells the old name, and `tests/test_formerly.py` keeps it that way. It holds what
+still answers to it: the old settings directory (read until a file exists under the new
+name, never written), the old theme names (a saved `isolinear-violet` is
+`maeslant-violet`), and the `isolinear` and `iso` commands (still installed; they say the
+new name on stderr and run maeslant). `isolinear-shim/` is the last `isolinear` release
+for PyPI — it installs maeslant — and no workflow publishes it.
+
+The TUI snapshots and `docs/img/*.svg` cannot be search-and-replaced: their element ids
+are hashed from the window title. Regenerate them (`--snapshot-update`, and
+`docs/redesign/capture.py` with its `cp` lines).

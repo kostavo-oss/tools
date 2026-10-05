@@ -16,6 +16,17 @@ values — all from a fast, calm three-pane TUI.
 **[Read the docs →](https://kostavo-oss.github.io/maeslant/)** — installation,
 connecting, the full keyboard reference, themes, and the security model.
 
+## Named after
+
+The Maeslantkering, the storm surge barrier at the mouth of Rotterdam's waterway — one
+of the largest moving structures in the world. It stands open, and closes when it
+matters.
+
+Up to 0.4.1 Maeslant was called `isolinear`. That command, `iso`, your settings and your
+theme all still work —
+[coming from isolinear](https://kostavo-oss.github.io/maeslant/installation/#coming-from-isolinear)
+says what moved.
+
 ## Install
 
 Run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
@@ -148,6 +159,16 @@ uv run maeslant     # run it
 
 uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 ```
+
+## Where it fits
+
+> **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
+
+Maeslant is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
+Each does one job and none needs another: this one is for the secrets a deploy and a
+data model both end up depending on, and for the people who have to look after them.
+
+Community project, not affiliated with or endorsed by Databricks.
 
 ## License
 
