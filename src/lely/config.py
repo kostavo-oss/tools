@@ -1,4 +1,4 @@
-"""`sluis.yml` in, config out.
+"""`lely.yml` in, config out.
 
 This is the only place that reads YAML. The file is read through the YAML
 *node* tree rather than `safe_load`, so every error can point at the line and
@@ -20,10 +20,10 @@ import yaml
 from yaml.constructor import SafeConstructor
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
-from sluis.errors import SluisError
-from sluis.model import Phase
+from lely.errors import LelyError
+from lely.model import Phase
 
-CONFIG_FILE = "sluis.yml"
+CONFIG_FILE = "lely.yml"
 
 #: Every key the file accepts at the top, and in a step. Anything else is an
 #: error where it was written.
@@ -78,8 +78,8 @@ class Map:
 Item: TypeAlias = Scalar | Seq | Map
 
 
-class ConfigError(SluisError):
-    """`sluis.yml` can't be read; every problem found, one per line."""
+class ConfigError(LelyError):
+    """`lely.yml` can't be read; every problem found, one per line."""
 
     def __init__(self, problems: list[str]) -> None:
         self.problems = tuple(problems)
@@ -122,7 +122,7 @@ def load(path: Path) -> Config:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         raise ConfigError(
-            [f"{path}: not found. sluis reads `{CONFIG_FILE}` next to `databricks.yml`."]
+            [f"{path}: not found. lely reads `{CONFIG_FILE}` next to `databricks.yml`."]
         ) from None
     return load_text(text, path)
 
@@ -210,7 +210,7 @@ class _Reader:
         return item.value
 
     def config(self, root: Item, path: Path, text: str) -> Config:
-        top = self.mapping(root, "sluis.yml", TOP_KEYS)
+        top = self.mapping(root, "lely.yml", TOP_KEYS)
         bundle_dir = path.parent
         pre: tuple[StepConfig, ...] = ()
         post: tuple[StepConfig, ...] = ()
@@ -258,7 +258,7 @@ class _Reader:
                 self.problem(
                     block.loc,
                     f"step `{uses}` needs a `name`: only a plain step name like "
-                    "`deltaplan` doubles as one",
+                    "`stevin` doubles as one",
                 )
                 return None
             name = uses
@@ -310,7 +310,7 @@ class _Reader:
                 self.problem(
                     entry.value.loc,
                     f"bundle variable `{entry.key}` must be a single value; complex "
-                    "variables aren't passed by sluis yet",
+                    "variables aren't passed by lely yet",
                 )
         return item
 

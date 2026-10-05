@@ -1,4 +1,4 @@
-"""From `sluis.yml` to a plan: every step, and the bundle, in order.
+"""From `lely.yml` to a plan: every step, and the bundle, in order.
 
 `check` is what `validate` runs: every step found, every option read, every
 reference allowed where it stands — with no workspace. `plan` does the rest:
@@ -25,21 +25,21 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from sluis import __version__, bundle, options, planfile, registry
-from sluis.config import Config, ConfigError, Item, Map, Scalar, Seq, StepConfig
-from sluis.databricks import Databricks
-from sluis.errors import SluisError
-from sluis.model import BundlePlan, Json, Outputs, Plan, PlannedStep, Secret, StepPlan
-from sluis.refs import Position, RefError, Scope, Unknown, parse, resolve
-from sluis.refs import check as check_ref
-from sluis.step import Context, Log
+from lely import __version__, bundle, options, planfile, registry
+from lely.config import Config, ConfigError, Item, Map, Scalar, Seq, StepConfig
+from lely.databricks import Databricks
+from lely.errors import LelyError
+from lely.model import BundlePlan, Json, Outputs, Plan, PlannedStep, Secret, StepPlan
+from lely.refs import Position, RefError, Scope, Unknown, parse, resolve
+from lely.refs import check as check_ref
+from lely.step import Context, Log
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
 
 #: What a variable `bundle_vars` sets is, while the pre steps plan. Nothing
 #: reads it: `check` refuses a pre step that names such a variable.
-PENDING = "sluis-pending"
+PENDING = "lely-pending"
 
 
 def check(config: Config) -> None:
@@ -58,7 +58,7 @@ def check(config: Config) -> None:
         )
         try:
             found = registry.find(step.uses, config.root)
-        except SluisError as error:
+        except LelyError as error:
             problems.append(f"{step.loc}: {error}")
             continue
         try:
@@ -68,7 +68,7 @@ def check(config: Config) -> None:
                 _offline(position),
                 _where(step),
             )
-        except SluisError as error:  # located already
+        except LelyError as error:  # located already
             problems.append(str(error))
     if config.bundle_vars is not None:
         position = Position(
@@ -83,7 +83,7 @@ def check(config: Config) -> None:
             if isinstance(entry.value, Scalar) and isinstance(entry.value.value, str):
                 try:
                     resolver(entry.value)
-                except SluisError as error:
+                except LelyError as error:
                     problems.append(str(error))
     if problems:
         raise ConfigError(problems)
@@ -226,21 +226,21 @@ class _Run:
         )
         try:
             result = cls().plan(ctx)
-        except SluisError as error:
-            raise SluisError(f"{where}: {error}") from error
+        except LelyError as error:
+            raise LelyError(f"{where}: {error}") from error
         except NotImplementedError:
             raise
         except Exception as error:
-            raise SluisError(
+            raise LelyError(
                 f"{where} failed to plan: {type(error).__name__}: {error}"
             ) from error
         if not isinstance(result, StepPlan):
-            raise SluisError(
+            raise LelyError(
                 f"{where}: `plan` returned {type(result).__name__}, not a StepPlan"
             )
         keys = [change.key for change in result.changes]
         if len(set(keys)) != len(keys):
-            raise SluisError(f"{where}: two changes share a key; each must be unique")
+            raise LelyError(f"{where}: two changes share a key; each must be unique")
         planfile.step_plan_to_json(result, where)  # refuses secrets in the payload
         return result
 
@@ -257,14 +257,14 @@ class _Run:
             if isinstance(value, Unknown):
                 unknown[entry.key] = value.reason
             elif isinstance(value, Secret):
-                raise SluisError(
+                raise LelyError(
                     f"{entry.value.loc}: bundle variable `{entry.key}` would hold a "
                     "secret, which the bundle's deployed config would then show"
                 )
             elif isinstance(value, dict | list):
-                raise SluisError(
+                raise LelyError(
                     f"{entry.value.loc}: bundle variable `{entry.key}` would be a "
-                    f"{type(value).__name__}; sluis passes single values only"
+                    f"{type(value).__name__}; lely passes single values only"
                 )
             else:
                 variables[entry.key] = _format(value)

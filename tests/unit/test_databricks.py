@@ -1,5 +1,5 @@
 """The real CLI runner, against `fake_databricks.py` — a program that answers
-from recordings, so what sluis passes on the command line is what is tested."""
+from recordings, so what lely passes on the command line is what is tested."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 import project
-from sluis.databricks import CliError, DatabricksCli
+from lely.databricks import CliError, DatabricksCli
 
 
 def cli(tmp_path: Path, profile: str | None = None) -> tuple[DatabricksCli, Path]:

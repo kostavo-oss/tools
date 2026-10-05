@@ -14,8 +14,8 @@ plan file holds for a step:
 
 Without one, the step's plan is a single `run`: it runs on every apply.
 
-Both commands run in the directory of `sluis.yml`, with sluis's environment
-plus `SLUIS_TARGET`, `SLUIS_STEP` and `SLUIS_PHASE`, and the `env` option.
+Both commands run in the directory of `lely.yml`, with lely's environment
+plus `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`, and the `env` option.
 """
 
 from __future__ import annotations
@@ -25,11 +25,11 @@ import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from sluis import process
-from sluis.errors import SluisError
-from sluis.model import Change, Outputs, StepPlan
-from sluis.planfile import step_plan_from_json
-from sluis.step import Context
+from lely import process
+from lely.errors import LelyError
+from lely.model import Change, Outputs, StepPlan
+from lely.planfile import step_plan_from_json
+from lely.step import Context
 
 
 class Command:
@@ -46,7 +46,7 @@ class Command:
 
     def plan(self, ctx: Context[Command.Options]) -> StepPlan:
         if not ctx.options.apply:
-            raise SluisError(f"step `{ctx.name}`: `apply` needs a command to run")
+            raise LelyError(f"step `{ctx.name}`: `apply` needs a command to run")
         if ctx.options.plan is None:
             shown = shlex.join(ctx.options.apply)
             return StepPlan(
@@ -58,7 +58,7 @@ class Command:
         try:
             document = json.loads(result.stdout)
         except json.JSONDecodeError as error:
-            raise SluisError(
+            raise LelyError(
                 f"step `{ctx.name}`'s plan command must print JSON on stdout: {error}"
             ) from None
         return step_plan_from_json(document, where=f"step `{ctx.name}`'s plan command")
@@ -71,7 +71,7 @@ def _env(ctx: Context[Command.Options]) -> dict[str, str]:
     return {
         **ctx.env,
         **ctx.options.env,
-        "SLUIS_TARGET": ctx.target,
-        "SLUIS_STEP": ctx.name,
-        "SLUIS_PHASE": ctx.phase,
+        "LELY_TARGET": ctx.target,
+        "LELY_STEP": ctx.name,
+        "LELY_PHASE": ctx.phase,
     }

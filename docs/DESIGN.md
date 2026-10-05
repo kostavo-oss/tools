@@ -1,6 +1,8 @@
-# sluis — design
+# lely — design
 
-Working name: `sluis` (Dutch for a lock: it moves a ship through one chamber at a time).
+`lely`, after Cornelis Lely, who got the Zuiderzee Works built. It was designed under the working
+name `sluis` — Dutch for a lock, which moves a ship through one chamber at a time — and that is
+still how it works.
 It is one `plan` and one `apply` for a whole Databricks deploy. Pre-deploy steps run, then the bundle
 deploys, then post-deploy steps run. Each step can see what the ones before it produced.
 
@@ -18,7 +20,7 @@ What a bundle offers for everything else, checked 2026-09-29 against CLI v1.18.0
 | Run something before or after deploy | `experimental.scripts`: `preinit`, `postinit`, `prebuild`, `postbuild`, `predeploy`, `postdeploy` | Shell commands only. No auth or resolved config is passed in. Output is logged but can't set a variable. The only way back into the bundle is a `preinit` script writing a YAML file that is included. Still experimental. |
 | Resources from code | Python for bundles (`databricks-bundles`, GA): `resources` and `mutators` | It produces config only. It runs on every command, `validate` included. Resource IDs aren't available yet, and there is nothing after deploy. |
 | Review before deploy | `bundle plan -o json`, and `bundle deploy --plan` (direct engine) | Covers bundle resources only |
-| Table schemas | — | [deltaplan](https://github.com/misja-pronk/deltaplan) |
+| Table schemas | — | [stevin](https://github.com/kostavo-oss/stevin) |
 | Lakebase | `postgres_projects`, `_branches`, `_endpoints`, `_databases`, `_roles`, … | What's inside the database: tables and schemas |
 | MLflow | `experiments`, `registered_models`, `model_serving_endpoints` | Model version aliases (the direct engine never reads `aliases` back), prompts and their aliases, scorers, evaluation datasets |
 
@@ -33,9 +35,9 @@ What a bundle offers for everything else, checked 2026-09-29 against CLI v1.18.0
   it again finishes an interrupted deploy.
 - A small, explicit step interface. A step can be a Python class in the repo, an installed package,
   or a pair of commands.
-- v1 ships two built-in steps: `deltaplan` and `bundle.run`. Lakebase and MLflow come later
+- v1 ships two built-in steps: `stevin` and `bundle.run`. Lakebase and MLflow come later
   ([Later](#later)).
-- The bundle stays the bundle. sluis asks the Databricks CLI and never reimplements what the CLI
+- The bundle stays the bundle. lely asks the Databricks CLI and never reimplements what the CLI
   resolves.
 
 ## Non-goals
@@ -50,8 +52,8 @@ What a bundle offers for everything else, checked 2026-09-29 against CLI v1.18.0
 - **Rollback.** See [Failure model](#failure-model).
 - **Building artifacts.** The bundle's `artifacts` does that.
 - **A state file or run history.** Each system a step touches is its own state.
-- **The Terraform engine.** sluis requires the direct engine: `bundle deploy --plan` is direct-only,
-  and Terraform is deprecated. `sluis doctor` reports a bundle's engine.
+- **The Terraform engine.** lely requires the direct engine: `bundle deploy --plan` is direct-only,
+  and Terraform is deprecated. `lely doctor` reports a bundle's engine.
 - **MCP.** Nothing is needed now. For the record: managed servers need no deploy; a custom server is
   an app (the bundle, plus `bundle.run` for its code); an external one needs a UC HTTP connection,
   which isn't a bundle resource.
@@ -61,7 +63,7 @@ What a bundle offers for everything else, checked 2026-09-29 against CLI v1.18.0
 ## Pipeline
 
 ```
-sluis.yml ───────┐
+lely.yml ───────┐
 databricks.yml ──┼─> resolve ─> context ─> plan: pre steps ─> bundle plan ─> post steps ─> Plan (JSON) ─> renderer
                  │  (bundle validate)                                                        │
                  │                                                                           └─> apply
@@ -69,7 +71,7 @@ databricks.yml ──┼─> resolve ─> context ─> plan: pre steps ─> bund
 apply:  pre[i]: re-plan, check, apply ─> bundle deploy --plan ─> bundle summary ─> post[i]: re-plan, check, apply
 ```
 
-1. **Config**: `sluis.yml` becomes frozen dataclasses. It is validated at this edge only, with
+1. **Config**: `lely.yml` becomes frozen dataclasses. It is validated at this edge only, with
    file:line:column errors and strict unknown-key errors. Each step's `with:` block is validated
    against that step's `Options`.
 2. **Resolve**: `databricks bundle validate -o json -t <target>` gives targets, variables and resource
@@ -84,7 +86,7 @@ apply:  pre[i]: re-plan, check, apply ─> bundle deploy --plan ─> bundle summ
 The core does no I/O: config, references, ordering, plan assembly, the approval check and the
 renderers. I/O happens only at the edges: the CLI runner, the workspace client, and the steps.
 
-## Config: `sluis.yml`
+## Config: `lely.yml`
 
 Next to `databricks.yml`. The targets are the bundle's targets; there is no second list.
 
@@ -103,8 +105,8 @@ bundle_vars:                         # pre-step outputs into the bundle, as --va
 
 post:
   - name: tables
-    uses: deltaplan
-    with: {config: deltaplan.yml}
+    uses: stevin
+    with: {config: stevin.yml}
   - name: backfill
     uses: bundle.run
     with: {resource: jobs.backfill}
@@ -114,7 +116,7 @@ post:
     targets: [dev]                   # skipped for other targets
 ```
 
-**References**, resolved by the core and checked offline by `sluis validate`:
+**References**, resolved by the core and checked offline by `lely validate`:
 
 | Reference | Source | Available |
 |---|---|---|
@@ -186,25 +188,25 @@ class Change:
 
 **Finding a step** (`uses:`):
 
-1. A registered name, from the entry-point group `sluis.steps`. Built-ins register the same way.
+1. A registered name, from the entry-point group `lely.steps`. Built-ins register the same way.
 2. `package.module:Class`.
 3. `./path/to/file.py:Class`, loaded from the repo.
 
-`sluis steps` lists what's installed and each step's options. The editors' JSON Schema for
-`sluis.yml` is built from the same `Options` classes.
+`lely steps` lists what's installed and each step's options. The editors' JSON Schema for
+`lely.yml` is built from the same `Options` classes.
 
 ## Built-in steps (v1)
 
-### `deltaplan`
+### `stevin`
 
-Runs the deltaplan CLI. The contract is deltaplan's CLI and its plan file (`PLAN_FORMAT_VERSION`), not
-its Python modules, so deltaplan stays a standalone tool with its own releases.
+Runs the stevin CLI. The contract is stevin's CLI and its plan file (`PLAN_FORMAT_VERSION`), not
+its Python modules, so stevin stays a standalone tool with its own releases.
 
-- **plan**: `deltaplan plan -t <target> -o <tmp> -f json`. The payload is that plan file. deltaplan's
+- **plan**: `stevin plan -t <target> -o <tmp> -f json`. The payload is that plan file. stevin's
   `destructive` maps to `destructive`, and every other risk class maps to `update`. A `rewrite` is
   named in the detail.
-- **apply**: writes the payload back to a file, then runs `deltaplan apply <file> --yes`, with
-  `--allow-destructive` only if sluis was given it. deltaplan's own state fingerprint catches a stale
+- **apply**: writes the payload back to a file, then runs `stevin apply <file> --yes`, with
+  `--allow-destructive` only if lely was given it. stevin's own state fingerprint catches a stale
   plan.
 - **Placement**: usually post, because a bundle that declares the schema creates it. It goes pre only
   when the schemas already exist.
@@ -228,10 +230,10 @@ The escape hatch, for steps that don't need Python:
     apply: [./ops/seed.sh]
 ```
 
-- **Environment**: the command inherits sluis's environment, plus `DATABRICKS_HOST` (and
+- **Environment**: the command inherits lely's environment, plus `DATABRICKS_HOST` (and
   `DATABRICKS_CONFIG_PROFILE` when a profile is used), so the CLI and the SDK inside it reach the
-  same workspace. It also gets `SLUIS_TARGET`, `SLUIS_PLAN` (the step's plan, as a file) and
-  `SLUIS_OUTPUTS`, a file it writes outputs to, as in GitHub Actions.
+  same workspace. It also gets `LELY_TARGET`, `LELY_PLAN` (the step's plan, as a file) and
+  `LELY_OUTPUTS`, a file it writes outputs to, as in GitHub Actions.
 - **No `plan:` command**: the step's plan is one `run` change.
 
 ### Python classes
@@ -261,7 +263,7 @@ plan whose state `lineage` or `serial` has moved on ("the state has been modifie
 was created"). Source: `bundle/direct/bundle_plan.go`, `ValidatePlanAgainstState`, and the acceptance
 tests `deploy/readplan/serial-mismatch` and `lineage-mismatch`, at CLI commit `e41a5c8`.
 
-`apply` also refuses a plan file whose `sluis.yml`, or any step's resolved options, differ from the
+`apply` also refuses a plan file whose `lely.yml`, or any step's resolved options, differ from the
 ones it was planned with.
 
 ## Failure model
@@ -276,25 +278,25 @@ Nothing here is transactional, and there is no rollback.
   failed, and which never started.
 - Concurrency: `bundle deploy` holds the bundle's own lock only while it deploys. v1 relies on a
   GitHub Actions `concurrency:` group per target, and the docs will show the snippet. Open question:
-  a sluis lock file in the bundle's state path.
+  a lely lock file in the bundle's state path.
 
 ## CLI
 
 ```
-sluis validate                          # config, references, step options: offline
-sluis steps                             # installed steps and their options
-sluis plan -t <target> [-o plan.json] [-f rich|md|json]
-sluis show plan.json [-f rich|md|json]
-sluis apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
-sluis doctor                            # CLI version and engine, auth, each step's tools on PATH
+lely validate                          # config, references, step options: offline
+lely steps                             # installed steps and their options
+lely plan -t <target> [-o plan.json] [-f rich|md|json]
+lely show plan.json [-f rich|md|json]
+lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
+lely doctor                            # CLI version and engine, auth, each step's tools on PATH
 ```
 
-`apply` without a plan file plans, shows the plan, asks, and runs, like deltaplan.
+`apply` without a plan file plans, shows the plan, asks, and runs, like stevin.
 
 ## Plan output (target look)
 
 ```
-sluis plan · shop · target prod
+lely plan · shop · target prod
 
 pre
   model        LatestModel     = churn@candidate → version 14
@@ -303,7 +305,7 @@ bundle                         + 1 job · ~ 2 jobs · ~ 1 serving endpoint
   var model_version = 14  (from model)
 
 post
-  tables       deltaplan       ~ 2 tables · 5 steps
+  tables       stevin       ~ 2 tables · 5 steps
                                  ⏸ schema sales is created by this deploy: checked again before running
   backfill     bundle.run      ▶ runs jobs.backfill
 
@@ -312,23 +314,23 @@ Plan: 4 changes · 1 run · 0 destructive · 1 decided at apply
 
 ## CI
 
-A composite GitHub Action. It posts `sluis plan -f md` as a single comment on the pull request that
+A composite GitHub Action. It posts `lely plan -f md` as a single comment on the pull request that
 covers the bundle and every step, and updates that comment rather than adding new ones. It runs
-`apply` on merge. As in deltaplan: no `${{ }}` interpolated into a `run:` script.
+`apply` on merge. As in stevin: no `${{ }}` interpolated into a `run:` script.
 
 ## Testing
 
 - **Unit**: config, references, ordering, the approval check and the renderers are pure, tested
   with golden plans.
 - **Fake CLI**: a fake `databricks` on PATH answers from recorded JSON (transcripts of real runs). A
-  command it has no recording for fails loudly. The same goes for a fake `deltaplan`.
-- **Contract kit, `sluis.testing`**, which every built-in step passes and plugin authors reuse:
+  command it has no recording for fails loudly. The same goes for a fake `stevin`.
+- **Contract kit, `lely.testing`**, which every built-in step passes and plugin authors reuse:
   - `plan` makes no writes;
   - `plan`, then `apply`, then `plan` again gives an empty plan (for convergent steps);
   - `StepPlan` round-trips through `plan.json`;
   - no `Secret` reaches the file.
 - **Live**: every assumption about Databricks behaviour is a probe with a doc link, in the pattern of
-  deltaplan's `probes.py`.
+  stevin's `probes.py`.
 
 Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8`, see
 `tests/fixtures/cli/README.md`). A live probe should still confirm each one:
@@ -346,18 +348,18 @@ ask.
 ## Milestones
 
 1. **Read-only** (done, 2026-09-29): config and `validate`, references, resolve via the CLI, the
-   step interface and discovery, the `command`, Python-class and `deltaplan` steps, `bundle plan`,
+   step interface and discovery, the `command`, Python-class and `stevin` steps, `bundle plan`,
    `plan` and `show` (Rich and JSON), and the contract kit. Departures, each small:
    - **`bundle validate` runs twice** when `bundle_vars` exist. The first run passes a placeholder
-     for each variable sluis sets, so a variable without a default can't fail it. `check` makes sure
+     for each variable lely sets, so a variable without a default can't fail it. `check` makes sure
      no pre step reads one. The second run passes the real values, for the post steps.
    - **`bundle summary` runs at plan time** too, before this deploy. It gives the ids of resources
      deployed already, so a post step that uses one plans normally. Only the ids of what this deploy
      creates or replaces are *decided at apply*.
    - **The core defers a step**, not the step itself, when its options hold a value decided at
      apply. The step's `plan` isn't called with half its options.
-   - **A `command` step's plan command** prints its `StepPlan` as JSON on stdout. `SLUIS_PLAN` and
-     `SLUIS_OUTPUTS` come with apply.
+   - **A `command` step's plan command** prints its `StepPlan` as JSON on stdout. `LELY_PLAN` and
+     `LELY_OUTPUTS` come with apply.
    - **`options_hash`** covers the resolved options, with environment values by name and values
      decided at apply as `$unknown`, so a rotated token isn't a new plan.
    - **Not yet**: `doctor`, the Markdown format, and the apply half of the contract kit.
@@ -371,9 +373,9 @@ Not in v1. Written down so v1 doesn't paint them into a corner.
 
 ### Lakebase: declarative schemas
 
-Desired state for the tables inside a Lakebase database, diffed and applied like deltaplan. This
+Desired state for the tables inside a Lakebase database, diffed and applied like stevin. This
 works by wrapping an existing Postgres schema differ, not by building one, and not by teaching
-deltaplan Postgres.
+stevin Postgres.
 
 - **Which differ**: to evaluate, among Atlas, pgschema and psqldef. The criteria are a dry-run plan
   that can be read as structure, how it marks destructive changes, its license, and whether it runs
@@ -382,13 +384,13 @@ deltaplan Postgres.
   - host: `w.postgres.get_endpoint(name).status.hosts.host` (`TODO(verify)`: source only)
   - password: `w.postgres.generate_database_credential(endpoint=…, ttl=…)`, a token valid for up to
     an hour
-  - user: the identity sluis runs as (an email, or a service principal's application ID)
+  - user: the identity lely runs as (an email, or a service principal's application ID)
 
   These are passed as libpq variables (`PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`,
   `PGSSLMODE=require`).
 - **An endpoint this deploy creates**: the plan is `deferred`, and everything in the spec is new.
 - **Testing a plan first**: apply it to a throwaway branch of the database. Autoscaling branches make
-  this cheap. It is the Lakebase version of deltaplan's `--clone`.
+  this cheap. It is the Lakebase version of stevin's `--clone`.
 - **Autoscaling only.** New instances are Autoscaling since 2026-03-12, and provisioned ones are
   being upgraded.
 
@@ -409,15 +411,14 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 ## Suite
 
-sluis is the hub. deltaplan is its first step and stays a standalone CLI. kluis, currently isolinear,
-stays a TUI for people. The shared pieces are workspace auth and bundle resolution: deltaplan's `bundle.py` asks the
-CLI and falls back to reading the file, and isolinear's picker reads `databricks.yml`. They become a
-small shared package once sluis is a second real user of them, not before.
+lely is the hub. stevin is its first step and stays a standalone CLI. maeslant stays a TUI for
+people. The shared pieces are workspace auth and bundle resolution: stevin's `bundle.py` asks the
+CLI and falls back to reading the file, and maeslant's picker reads `databricks.yml`. They become a
+small shared package once lely is a second real user of them, not before.
 
-All three will move to the `kostavo-oss` GitHub organisation as **deltaplan**, **sluis** and **kluis**.
-isolinear is renamed to kluis in that move, and its last release on PyPI points to the new name.
-Package names are plain, with no `kostavo-` prefix, so `uvx sluis` works. The story behind the names
-is in the README.
+All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **maeslant**.
+Package names are plain, with no `kostavo-` prefix, so `uvx lely` works. Each README tells the
+story behind its own name.
 
 ## Open questions
 
@@ -428,14 +429,21 @@ is in the README.
 
 - MCP: nothing now; it was only an example.
 - Lakebase: declarative, by wrapping an existing tool. Not in v1.
-- v1 built-in steps: `deltaplan` and `bundle.run`, plus custom Python and `command` steps.
+- v1 built-in steps: `stevin` and `bundle.run`, plus custom Python and `command` steps.
 - Pre steps feed the bundle variables only.
 - CI first after the core, on GitHub Actions only.
 - The direct engine is required.
 - License: MIT.
 - Names: deltaplan, sluis, kluis (isolinear renamed), with plain package names. `kostavo` is the org
-  and the landing page, not a prefix.
+  and the landing page, not a prefix. *Superseded on 2026-10-05, below.*
 - Commit locally; no GitHub repo until the move to `kostavo-oss`.
+
+## Decided with the owner, 2026-10-05
+
+- Names: **stevin** (was deltaplan), **lely** (was sluis) and **maeslant** (was isolinear) — a Dutch
+  engineer or a work of Dutch engineering each, with its story in its README. Still plain package
+  names.
+- The built-in step for tables is `stevin`, and it runs the `stevin` command.
 
 ## Stack
 

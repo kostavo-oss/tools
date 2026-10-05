@@ -10,7 +10,7 @@ A step is a class with an `Options` dataclass and two methods:
         def plan(self, ctx: Context[WarmCache.Options]) -> StepPlan: ...
         def apply(self, ctx: Context[WarmCache.Options], plan: StepPlan) -> Outputs: ...
 
-The rules a step follows, which `sluis.testing` checks:
+The rules a step follows, which `lely.testing` checks:
 
 - **Stateless.** `plan` and `apply` may run on different machines, days apart;
   only the `StepPlan` passes between them, through the plan file.
@@ -32,12 +32,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
 
-from sluis.model import Json, Outputs, Phase, StepPlan
+from lely.model import Json, Outputs, Phase, StepPlan
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
 
-    from sluis.databricks import Databricks
+    from lely.databricks import Databricks
 
 OptionsT = TypeVar("OptionsT")
 OptionsT_contra = TypeVar("OptionsT_contra", contravariant=True)
@@ -64,7 +64,7 @@ class Context(Generic[OptionsT]):
     `bundle` is the bundle's resolved config (`bundle validate -o json`) and
     `deployed` its deployment summary (`bundle summary -o json`), when anything
     asked for one. `outputs` are the earlier steps', by name. `root` is where
-    `sluis.yml` is. `env` is the environment for a program the step runs: sluis's
+    `lely.yml` is. `env` is the environment for a program the step runs: lely's
     own, plus `DATABRICKS_CONFIG_PROFILE` when a profile was chosen. `databricks`
     runs the Databricks CLI in the bundle's directory.
     """

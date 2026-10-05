@@ -21,15 +21,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from sluis.config import Item, Map, Scalar, Seq
-from sluis.errors import SluisError
-from sluis.model import Secret, Value
-from sluis.refs import Unknown
+from lely.config import Item, Map, Scalar, Seq
+from lely.errors import LelyError
+from lely.model import Secret, Value
+from lely.refs import Unknown
 
 Resolver = Callable[[Scalar], Value | Unknown]
 
 
-class OptionsError(SluisError):
+class OptionsError(LelyError):
     """A step's `with:` block doesn't fit its options; every problem, one per line."""
 
 
@@ -49,7 +49,7 @@ class OptionField:
 
 
 def fields_of(cls: type) -> tuple[OptionField, ...]:
-    """What a step's options are, for `sluis steps` and the editors' schema."""
+    """What a step's options are, for `lely steps` and the editors' schema."""
     hints = typing.get_type_hints(cls)
     result: list[OptionField] = []
     for f in dataclasses.fields(cast(Any, cls)):

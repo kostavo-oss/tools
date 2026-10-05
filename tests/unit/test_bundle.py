@@ -7,9 +7,9 @@ its acceptance tests: https://github.com/databricks/cli/tree/e41a5c87436a5b8fa81
 import pytest
 
 from fakes import fixture
-from sluis import bundle
-from sluis.errors import SluisError
-from sluis.model import Change
+from lely import bundle
+from lely.errors import LelyError
+from lely.model import Change
 
 
 def test_a_first_deploy_creates_everything() -> None:
@@ -49,18 +49,18 @@ def test_skipped_resources_are_no_change() -> None:
     assert bundle.changes(document) == ()
 
 
-def test_an_action_sluis_doesnt_know_is_treated_as_destructive() -> None:
+def test_an_action_lely_doesnt_know_is_treated_as_destructive() -> None:
     document = fixture("cli/plan-create.json")
     document["plan"]["resources.jobs.bar"]["action"] = "teleport"
     change = bundle.changes(document)[0]
     assert change.destructive
-    assert change.detail == ("the CLI plans `teleport`, which sluis doesn't know",)
+    assert change.detail == ("the CLI plans `teleport`, which lely doesn't know",)
 
 
 def test_another_plan_version_is_refused() -> None:
     document = fixture("cli/plan-create.json")
     document["plan_version"] = 3
-    with pytest.raises(SluisError, match="plan of version 3; sluis reads version 2"):
+    with pytest.raises(LelyError, match="plan of version 3; lely reads version 2"):
         bundle.changes(document)
 
 

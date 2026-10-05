@@ -2,10 +2,10 @@
 
 Three spellings:
 
-1. A registered name — `deltaplan`, `bundle.run` — from the entry-point group
-   `sluis.steps`. The built-ins register exactly as a plugin package would.
-2. `package.module:Class`, importable from the environment sluis runs in.
-3. `./path/to/file.py:Class`, a file in the repo, relative to `sluis.yml`.
+1. A registered name — `stevin`, `bundle.run` — from the entry-point group
+   `lely.steps`. The built-ins register exactly as a plugin package would.
+2. `package.module:Class`, importable from the environment lely runs in.
+3. `./path/to/file.py:Class`, a file in the repo, relative to `lely.yml`.
 """
 
 from __future__ import annotations
@@ -19,12 +19,12 @@ from dataclasses import dataclass
 from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 
-from sluis.errors import SluisError
+from lely.errors import LelyError
 
-GROUP = "sluis.steps"
+GROUP = "lely.steps"
 
 
-class StepNotFound(SluisError):
+class StepNotFound(LelyError):
     """A `uses:` that names no step, or something that isn't one."""
 
 
@@ -65,7 +65,7 @@ def _from_entry_point(uses: str) -> Found:
     except Exception as error:  # a plugin's import error is its own
         raise StepNotFound(f"Step `{uses}` failed to load: {error}") from error
     dist = point.dist.name if point.dist else "?"
-    source = "built-in" if dist == "sluis" else f"from {dist}"
+    source = "built-in" if dist == "lely" else f"from {dist}"
     return Found(uses, cls, source)
 
 
@@ -87,7 +87,7 @@ def _from_file(uses: str, root: Path) -> Found:
         raise StepNotFound(f"`{uses}`: there is no file {path}")
     # One module per file, named after its path, so type hints resolve and a
     # file two steps share is imported once.
-    name = "sluis_local_" + hashlib.sha256(str(path).encode()).hexdigest()[:12]
+    name = "lely_local_" + hashlib.sha256(str(path).encode()).hexdigest()[:12]
     module = sys.modules.get(name)
     if module is None:
         spec = importlib.util.spec_from_file_location(name, path)

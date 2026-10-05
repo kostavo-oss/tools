@@ -1,7 +1,7 @@
-"""A small project, written to disk: `sluis.yml`, a step in the repo, fakes.
+"""A small project, written to disk: `lely.yml`, a step in the repo, fakes.
 
 The scenario every planner, renderer and CLI test shares: a pre step looks up
-a model version and feeds it to the bundle; deltaplan plans the tables; a
+a model version and feeds it to the bundle; stevin plans the tables; a
 command needs the id of a job this deploy creates; a backfill runs last.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fakes import FIXTURES, FakeDatabricks, bundle_config, fixture
 
-FAKE_DELTAPLAN = Path(__file__).parent / "fake_deltaplan.py"
+FAKE_STEVIN = Path(__file__).parent / "fake_stevin.py"
 FAKE_DATABRICKS = Path(__file__).parent / "fake_databricks.py"
 
 STEPS_PY = '''\
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sluis.model import StepPlan
+from lely.model import StepPlan
 
 
 class LatestModel:
@@ -41,9 +41,9 @@ class LatestModel:
 '''
 
 
-def sluis_yml(deltaplan_fixture: str = "deltaplan-create.json") -> str:
+def lely_yml(stevin_fixture: str = "stevin-create.json") -> str:
     executable = json.dumps(
-        [sys.executable, str(FAKE_DELTAPLAN), str(FIXTURES / deltaplan_fixture)]
+        [sys.executable, str(FAKE_STEVIN), str(FIXTURES / stevin_fixture)]
     )
     return f"""\
 pre:
@@ -57,7 +57,7 @@ bundle_vars:
 
 post:
   - name: tables
-    uses: deltaplan
+    uses: stevin
     with:
       executable: {executable}
   - name: notify
@@ -95,8 +95,8 @@ SUMMARY = {
 def write(root: Path, text: str | None = None) -> Path:
     (root / "ops").mkdir(exist_ok=True)
     (root / "ops" / "steps.py").write_text(STEPS_PY)
-    path = root / "sluis.yml"
-    path.write_text(text if text is not None else sluis_yml())
+    path = root / "lely.yml"
+    path.write_text(text if text is not None else lely_yml())
     return path
 
 

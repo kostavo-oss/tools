@@ -311,7 +311,7 @@
       "est_bytes": null,
       "undo_hint": null,
       "warnings": [],
-      "note": "the schema doesn't exist yet; deltaplan creates schemas, not catalogs"
+      "note": "the schema doesn't exist yet; stevin creates schemas, not catalogs"
     },
     {
       "id": 2,

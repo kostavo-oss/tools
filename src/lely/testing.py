@@ -1,6 +1,6 @@
-"""The step contract, as checks a test can run — for sluis's steps and yours.
+"""The step contract, as checks a test can run — for lely's steps and yours.
 
-    from sluis.testing import check_plan, context
+    from lely.testing import check_plan, context
 
     def test_plans_the_alias():
         ctx = context(MyStep.Options(model="main.ml.churn"), target="dev")
@@ -24,9 +24,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, NoReturn, TypeVar
 
-from sluis.model import Json, Outputs, Phase, StepPlan
-from sluis.planfile import step_plan_from_json, step_plan_to_json
-from sluis.step import Context, NullLog
+from lely.model import Json, Outputs, Phase, StepPlan
+from lely.planfile import step_plan_from_json, step_plan_to_json
+from lely.step import Context, NullLog
 
 OptionsT = TypeVar("OptionsT")
 

@@ -1,10 +1,10 @@
-"""The Databricks CLI: the only way sluis learns what the bundle is.
+"""The Databricks CLI: the only way lely learns what the bundle is.
 
-sluis never reads `databricks.yml` itself. The CLI resolves variables, runs
+lely never reads `databricks.yml` itself. The CLI resolves variables, runs
 lookups, applies presets and target overrides, and names everything as a
-deploy would; sluis asks it, with `-o json`, and reimplements none of it.
+deploy would; lely asks it, with `-o json`, and reimplements none of it.
 
-`Databricks` is the edge the rest of sluis talks to, so tests can answer it
+`Databricks` is the edge the rest of lely talks to, so tests can answer it
 from recordings; `DatabricksCli` is the real one, a subprocess in the bundle's
 directory.
 
@@ -28,16 +28,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from sluis.errors import SluisError
-from sluis.model import Json
-from sluis.process import failure, run
+from lely.errors import LelyError
+from lely.model import Json
+from lely.process import failure, run
 
 INSTALL = (
     "Install the Databricks CLI: https://docs.databricks.com/aws/en/dev-tools/cli/install"
 )
 
 
-class CliError(SluisError):
+class CliError(LelyError):
     """The Databricks CLI failed, or isn't there; its own words are in the message."""
 
 

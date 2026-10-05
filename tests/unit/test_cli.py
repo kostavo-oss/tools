@@ -1,4 +1,4 @@
-"""The `sluis` command, end to end, against the recorded CLI and deltaplan."""
+"""The `lely` command, end to end, against the recorded CLI and stevin."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 import project
-from sluis import cli, planfile
+from lely import cli, planfile
 
 runner = CliRunner()
 
@@ -29,22 +29,20 @@ def workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_validate(workdir: Path) -> None:
     result = runner.invoke(cli.app, ["validate"])
     assert result.exit_code == 0, result.output
-    assert "sluis.yml: 1 pre, 4 post steps, 1 bundle variable(s)" in result.output
+    assert "lely.yml: 1 pre, 4 post steps, 1 bundle variable(s)" in result.output
 
 
 def test_validate_fails_with_located_problems(workdir: Path) -> None:
-    (workdir / "sluis.yml").write_text(
-        "post:\n  - uses: deltaplan\n    with: {confg: x}\n"
-    )
+    (workdir / "lely.yml").write_text("post:\n  - uses: stevin\n    with: {confg: x}\n")
     result = runner.invoke(cli.app, ["validate"])
     assert result.exit_code == 1
-    assert "sluis.yml:3:12: unknown option `confg`" in result.output
+    assert "lely.yml:3:12: unknown option `confg`" in result.output
 
 
 def test_plan_shows_and_writes_the_plan(workdir: Path) -> None:
     result = runner.invoke(cli.app, ["plan", "-o", "plan.json"])
     assert result.exit_code == 0, result.output
-    assert "sluis plan · shop · target dev" in result.output
+    assert "lely plan · shop · target dev" in result.output
     assert "Plan: 5 changes · 1 run · 0 destructive · 1 decided at apply" in result.output
     written = planfile.loads((workdir / "plan.json").read_text())
     assert written.deploy.variables == (("model_version", "14"),)
@@ -76,9 +74,9 @@ def test_steps_lists_the_built_ins() -> None:
     assert result.exit_code == 0, result.output
     assert "bundle.run  built-in" in result.output
     assert "resource: a string  required" in result.output
-    assert "executable: list of strings  default ('deltaplan',)" in result.output
+    assert "executable: list of strings  default ('stevin',)" in result.output
 
 
 def test_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
-    assert result.output.startswith("sluis ")
+    assert result.output.startswith("lely ")

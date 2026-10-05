@@ -1,8 +1,8 @@
 """The bundle's answers, read. Pure.
 
 What the Databricks CLI prints is someone else's format, so it is read
-leniently: only what sluis uses is looked at, and nothing else is validated.
-The plan document itself is kept whole in sluis's plan (`BundlePlan.document`)
+leniently: only what lely uses is looked at, and nothing else is validated.
+The plan document itself is kept whole in lely's plan (`BundlePlan.document`)
 so apply can hand it back to `bundle deploy --plan` untouched.
 """
 
@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from sluis.errors import SluisError
-from sluis.model import Action, Change, Json
+from lely.errors import LelyError
+from lely.model import Action, Change, Json
 
 #: The direct engine's plan format this was written against.
 PLAN_VERSION = 2
 
-#: The CLI's per-resource actions, as sluis's. `update_id` gives the resource
+#: The CLI's per-resource actions, as lely's. `update_id` gives the resource
 #: a new id — for whatever refers to it, that is a replacement.
 _ACTIONS: dict[str, Action | None] = {
     "skip": None,
@@ -37,7 +37,7 @@ def target(config: Mapping[str, Json]) -> str:
     bundle = _section(config, "bundle")
     chosen = bundle.get("target")
     if not isinstance(chosen, str):
-        raise SluisError(
+        raise LelyError(
             "The bundle's resolved config names no target; pass one with --target."
         )
     return chosen
@@ -63,16 +63,16 @@ def resource_keys(config: Mapping[str, Json]) -> frozenset[str]:
 
 
 def changes(document: Mapping[str, Json]) -> tuple[Change, ...]:
-    """The plan's resources that change, as sluis changes.
+    """The plan's resources that change, as lely changes.
 
     An action this doesn't know (a newer CLI's) is kept and marked destructive:
-    sluis would rather ask than wave through what it can't read.
+    lely would rather ask than wave through what it can't read.
     """
     version = document.get("plan_version")
     if version != PLAN_VERSION:
-        raise SluisError(
-            f"The Databricks CLI wrote a plan of version {version}; sluis reads "
-            f"version {PLAN_VERSION}. Check `sluis doctor` for a supported CLI."
+        raise LelyError(
+            f"The Databricks CLI wrote a plan of version {version}; lely reads "
+            f"version {PLAN_VERSION}. Check `lely doctor` for a supported CLI."
         )
     plan = document.get("plan")
     if not isinstance(plan, dict):
@@ -91,7 +91,7 @@ def changes(document: Mapping[str, Json]) -> tuple[Change, ...]:
                     action="update",
                     summary=short,
                     destructive=True,
-                    detail=(f"the CLI plans `{raw}`, which sluis doesn't know",),
+                    detail=(f"the CLI plans `{raw}`, which lely doesn't know",),
                 )
             )
             continue

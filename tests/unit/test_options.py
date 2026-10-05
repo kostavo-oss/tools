@@ -9,10 +9,10 @@ from typing import Any, Literal
 
 import pytest
 
-from sluis.config import Map, Scalar, load_text
-from sluis.model import Secret
-from sluis.options import OptionsError, Unresolved, build, fields_of
-from sluis.refs import Unknown
+from lely.config import Map, Scalar, load_text
+from lely.model import Secret
+from lely.options import OptionsError, Unresolved, build, fields_of
+from lely.refs import Unknown
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +30,7 @@ class Options:
 
 
 def block(yaml: str) -> Map | None:
-    config = load_text(f"post:\n  - uses: x\n    with:\n{yaml}", Path("sluis.yml"))
+    config = load_text(f"post:\n  - uses: x\n    with:\n{yaml}", Path("lely.yml"))
     return config.post[0].options
 
 
@@ -91,20 +91,20 @@ def problem(yaml: str) -> str:
 
 def test_an_unknown_option_names_the_known_ones() -> None:
     assert problem("      model: m\n      modle: m\n").startswith(
-        "sluis.yml:5:7: unknown option `modle`; known: model, retries,"
+        "lely.yml:5:7: unknown option `modle`; known: model, retries,"
     )
 
 
 def test_a_missing_option_is_an_error() -> None:
     assert (
         problem("      retries: 1\n")
-        == "sluis.yml:4:7: missing option `model` (step `x` (x))"
+        == "lely.yml:4:7: missing option `model` (step `x` (x))"
     )
 
 
 def test_a_wrong_type_says_what_it_wanted() -> None:
     assert problem("      model: m\n      retries: many\n") == (
-        "sluis.yml:5:16: `retries` must be an integer, not 'many' (step `x` (x))"
+        "lely.yml:5:16: `retries` must be an integer, not 'many' (step `x` (x))"
     )
     assert "must be one of 'fast', 'safe'" in problem(
         "      model: m\n      mode: slow\n"

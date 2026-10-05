@@ -1,7 +1,7 @@
 # serializer version: 1
 # name: test_a_destructive_change
   '''
-  sluis plan · shop · target dev
+  lely plan · shop · target dev
   
   pre
     model  ./ops/steps.py:LatestModel
@@ -13,7 +13,7 @@
       vars  model_version = 14
   
   post
-    tables  deltaplan
+    tables  stevin
       ~ dev.sales.orders  destructive
           DROP COLUMN  [destructive]
     notify  command
@@ -27,7 +27,7 @@
 # ---
 # name: test_a_first_deploy
   '''
-  sluis plan · shop · target dev
+  lely plan · shop · target dev
   
   pre
     model  ./ops/steps.py:LatestModel
@@ -39,7 +39,7 @@
       vars  model_version = 14
   
   post
-    tables  deltaplan
+    tables  stevin
       + dev.sales.customers
           CREATE SCHEMA sales
           CREATE TABLE customers

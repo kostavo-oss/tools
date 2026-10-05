@@ -10,11 +10,11 @@ from rich.console import Console
 from syrupy.assertion import SnapshotAssertion
 
 import project
-from sluis import planning
-from sluis.config import load
-from sluis.model import Plan
-from sluis.render.rich import render_plan
-from sluis.step import NullLog
+from lely import planning
+from lely.config import load
+from lely.model import Plan
+from lely.render.rich import render_plan
+from lely.step import NullLog
 
 
 def text(plan: Plan) -> str:
@@ -23,10 +23,10 @@ def text(plan: Plan) -> str:
     return console.export_text()
 
 
-def planned(root: Path, deltaplan_fixture: str) -> Plan:
-    project.write(root, project.sluis_yml(deltaplan_fixture))
+def planned(root: Path, stevin_fixture: str) -> Plan:
+    project.write(root, project.lely_yml(stevin_fixture))
     return planning.plan(
-        load(root / "sluis.yml"),
+        load(root / "lely.yml"),
         target=None,
         databricks=project.databricks(),
         env={},
@@ -36,8 +36,8 @@ def planned(root: Path, deltaplan_fixture: str) -> Plan:
 
 
 def test_a_first_deploy(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
-    assert text(planned(tmp_path, "deltaplan-create.json")) == snapshot
+    assert text(planned(tmp_path, "stevin-create.json")) == snapshot
 
 
 def test_a_destructive_change(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
-    assert text(planned(tmp_path, "deltaplan-destroy.json")) == snapshot
+    assert text(planned(tmp_path, "stevin-destroy.json")) == snapshot

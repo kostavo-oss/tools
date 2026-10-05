@@ -1,6 +1,6 @@
 """Offline tests stay offline.
 
-A machine with the Databricks CLI or deltaplan installed would answer
+A machine with the Databricks CLI or stevin installed would answer
 differently from one without them — and from CI — so the unit suite hides
 both from PATH; tests that want one pass a fake as the `executable`.
 """
@@ -22,4 +22,4 @@ def path_without(*programs: str) -> str:
 
 @pytest.fixture(autouse=True)
 def _without_real_tools(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PATH", path_without("databricks", "deltaplan"))
+    monkeypatch.setenv("PATH", path_without("databricks", "stevin"))

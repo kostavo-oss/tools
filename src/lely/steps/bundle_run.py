@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sluis import bundle
-from sluis.errors import SluisError
-from sluis.model import Change, Outputs, StepPlan
-from sluis.step import Context
+from lely import bundle
+from lely.errors import LelyError
+from lely.model import Change, Outputs, StepPlan
+from lely.step import Context
 
 
 class BundleRun:
@@ -34,7 +34,7 @@ class BundleRun:
         declared = bundle.resource_keys(ctx.bundle)
         if resource not in declared:
             known = ", ".join(sorted(declared)) or "none"
-            raise SluisError(
+            raise LelyError(
                 f"`{resource}` isn't a resource of this bundle for target "
                 f"`{ctx.target}` (it has: {known})."
             )

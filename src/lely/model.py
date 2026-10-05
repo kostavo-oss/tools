@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
-from sluis.errors import SluisError
+from lely.errors import LelyError
 
 Json: TypeAlias = None | bool | int | float | str | list["Json"] | dict[str, "Json"]
 
@@ -44,7 +44,7 @@ class Secret:
 
     def reveal(self) -> str:
         if self._value is None:
-            raise SluisError(
+            raise LelyError(
                 "This secret was read back from a plan file, which never keeps one; "
                 "it is fetched again when the step is planned at apply."
             )
@@ -75,7 +75,7 @@ class Change:
 
     def __post_init__(self) -> None:
         if self.action not in ACTIONS:
-            raise SluisError(
+            raise LelyError(
                 f"A change's action must be one of {', '.join(ACTIONS)}, "
                 f"not {self.action!r} (change {self.key!r})."
             )
@@ -125,7 +125,7 @@ class PlannedStep:
 
 @dataclass(frozen=True, slots=True)
 class BundlePlan:
-    """The bundle's part: its changes, and the variables sluis passes it.
+    """The bundle's part: its changes, and the variables lely passes it.
 
     `document` is the Databricks CLI's own plan, kept whole so apply can hand it
     back to `bundle deploy --plan`. It is `None` when the bundle couldn't be

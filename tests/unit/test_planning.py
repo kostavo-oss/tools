@@ -1,4 +1,4 @@
-"""From `sluis.yml` to a plan: the steps, the bundle, what flows between them."""
+"""From `lely.yml` to a plan: the steps, the bundle, what flows between them."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import pytest
 
 import project
 from fakes import FakeDatabricks
-from sluis import planning
-from sluis.config import ConfigError, load
-from sluis.errors import SluisError
-from sluis.model import Change, Plan
-from sluis.step import NullLog
+from lely import planning
+from lely.config import ConfigError, load
+from lely.errors import LelyError
+from lely.model import Change, Plan
+from lely.step import NullLog
 
 
 def no_workspace(host: str | None) -> Any:
@@ -26,7 +26,7 @@ def plan(
     root: Path, fake: FakeDatabricks | None = None, target: str | None = None
 ) -> Plan:
     return planning.plan(
-        load(root / "sluis.yml"),
+        load(root / "lely.yml"),
         target=target,
         databricks=fake or project.databricks(),
         env={},
@@ -89,7 +89,7 @@ def test_a_step_needing_what_this_deploy_creates_is_decided_at_apply(
 
 
 def test_an_id_of_something_deployed_already_is_resolved(tmp_path: Path) -> None:
-    text = project.sluis_yml().replace(
+    text = project.lely_yml().replace(
         "resources.jobs.bar.id", "resources.jobs.backfill.id"
     )
     project.write(tmp_path, text)
@@ -123,7 +123,7 @@ def test_a_variable_decided_at_apply_defers_the_bundle(tmp_path: Path) -> None:
         "      model: ${var.catalog}.ml.churn"
     )
     deferred = f"uses: command\n    with:\n      apply: [./x.sh]\n      plan: {printer}"
-    text = project.sluis_yml().replace(looked_up, deferred)
+    text = project.lely_yml().replace(looked_up, deferred)
     project.write(tmp_path, text)
     fake = project.databricks()
     built = plan(tmp_path, fake)
@@ -138,11 +138,11 @@ def test_a_variable_decided_at_apply_defers_the_bundle(tmp_path: Path) -> None:
 
 
 def test_options_hash_ignores_environment_values(tmp_path: Path) -> None:
-    text = project.sluis_yml().replace(
+    text = project.lely_yml().replace(
         "apply: [./warm.sh]", "apply: [./warm.sh, '${env.TOKEN}']"
     )
     project.write(tmp_path, text.replace("targets: [prod]", "targets: [dev]"))
-    config = load(tmp_path / "sluis.yml")
+    config = load(tmp_path / "lely.yml")
 
     def hashed(token: str) -> str:
         built = planning.plan(
@@ -164,29 +164,27 @@ def test_options_hash_ignores_environment_values(tmp_path: Path) -> None:
 def problems(root: Path, text: str) -> list[str]:
     project.write(root, text)
     with pytest.raises(ConfigError) as caught:
-        planning.check(load(root / "sluis.yml"))
+        planning.check(load(root / "lely.yml"))
     return list(caught.value.problems)
 
 
 def test_check_passes_the_scenario(tmp_path: Path) -> None:
     project.write(tmp_path)
-    planning.check(load(tmp_path / "sluis.yml"))
+    planning.check(load(tmp_path / "lely.yml"))
 
 
 def test_check_finds_an_unknown_step(tmp_path: Path) -> None:
     [problem] = problems(tmp_path, "post:\n  - uses: deltaplna\n")
-    assert problem.startswith(f"{tmp_path / 'sluis.yml'}:2:5: No step named `deltaplna`")
+    assert problem.startswith(f"{tmp_path / 'lely.yml'}:2:5: No step named `deltaplna`")
 
 
 def test_check_finds_a_bad_option(tmp_path: Path) -> None:
-    [problem] = problems(
-        tmp_path, "post:\n  - uses: deltaplan\n    with: {confg: x.yml}\n"
-    )
+    [problem] = problems(tmp_path, "post:\n  - uses: stevin\n    with: {confg: x.yml}\n")
     assert "unknown option `confg`; known: config, target, select, executable" in problem
 
 
 def test_check_finds_a_reference_that_cant_stand_there(tmp_path: Path) -> None:
-    text = project.sluis_yml().replace(
+    text = project.lely_yml().replace(
         "model: ${var.catalog}.ml.churn", "model: ${var.model_version}"
     )
     [problem] = problems(tmp_path, text)
@@ -197,7 +195,7 @@ def test_check_finds_a_reference_that_cant_stand_there(tmp_path: Path) -> None:
 
 
 def test_check_finds_a_bundle_variable_from_a_post_step(tmp_path: Path) -> None:
-    text = project.sluis_yml().replace("${steps.model.version}", "${steps.tables.x}")
+    text = project.lely_yml().replace("${steps.model.version}", "${steps.tables.x}")
     [problem] = problems(tmp_path, text)
     assert problem.endswith("${steps.tables.x}: step `tables` runs after bundle_vars")
 
@@ -206,7 +204,7 @@ def test_check_finds_a_bundle_variable_from_a_post_step(tmp_path: Path) -> None:
 
 BROKEN = """\
 from dataclasses import dataclass
-from sluis.model import StepPlan, Secret
+from lely.model import StepPlan, Secret
 
 class Raises:
     @dataclass(frozen=True)
@@ -238,5 +236,5 @@ class Leaks(Raises):
 def test_a_misbehaving_step_is_named(tmp_path: Path, cls: str, message: str) -> None:
     (tmp_path / "broken.py").write_text(BROKEN)
     project.write(tmp_path, f"pre:\n  - name: x\n    uses: ./broken.py:{cls}\n")
-    with pytest.raises(SluisError, match=message.replace("(", r"\(").replace(")", r"\)")):
+    with pytest.raises(LelyError, match=message.replace("(", r"\(").replace(")", r"\)")):
         plan(tmp_path)

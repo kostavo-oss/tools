@@ -1,9 +1,9 @@
-"""The `sluis` command.
+"""The `lely` command.
 
-    sluis validate                 config, references, step options: offline
-    sluis steps                    installed steps and their options
-    sluis plan -t <target> [-o plan.json] [-f rich|json]
-    sluis show plan.json [-f rich|json]
+    lely validate                 config, references, step options: offline
+    lely steps                    installed steps and their options
+    lely plan -t <target> [-o plan.json] [-f rich|json]
+    lely show plan.json [-f rich|json]
 
 `apply` and `doctor` come with milestone 2.
 """
@@ -20,11 +20,11 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 
-from sluis import __version__, config, options, planfile, planning, registry
-from sluis.databricks import DatabricksCli
-from sluis.errors import SluisError
-from sluis.model import Plan
-from sluis.render.rich import render_plan
+from lely import __version__, config, options, planfile, planning, registry
+from lely.databricks import DatabricksCli
+from lely.errors import LelyError
+from lely.model import Plan
+from lely.render.rich import render_plan
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -37,7 +37,7 @@ app = typer.Typer(
 out = Console(highlight=False)
 err = Console(stderr=True, highlight=False)
 
-#: How sluis runs the Databricks CLI. Tests point it at a recording.
+#: How lely runs the Databricks CLI. Tests point it at a recording.
 DATABRICKS: tuple[str, ...] = ("databricks",)
 
 
@@ -46,7 +46,7 @@ class Format(StrEnum):
     json = "json"
 
 
-ConfigOption = Annotated[Path, typer.Option("--config", "-c", help="Path to sluis.yml.")]
+ConfigOption = Annotated[Path, typer.Option("--config", "-c", help="Path to lely.yml.")]
 TargetOption = Annotated[
     str | None,
     typer.Option("--target", "-t", help="The bundle target; its default if omitted."),
@@ -64,7 +64,7 @@ FormatOption = Annotated[
 
 def _version(value: bool) -> None:
     if value:
-        out.print(f"sluis {__version__}")
+        out.print(f"lely {__version__}")
         raise typer.Exit()
 
 
@@ -85,18 +85,18 @@ class _Log:
         err.print(f"[dim]… {escape(message)}[/]")
 
 
-def _fail(error: SluisError) -> typer.Exit:
+def _fail(error: LelyError) -> typer.Exit:
     err.print(f"[red]{escape(str(error))}[/]")
     return typer.Exit(1)
 
 
 @app.command()
 def validate(path: ConfigOption = Path(config.CONFIG_FILE)) -> None:
-    """Check sluis.yml without a workspace: steps, options, references."""
+    """Check lely.yml without a workspace: steps, options, references."""
     try:
         loaded = config.load(path)
         planning.check(loaded)
-    except SluisError as error:
+    except LelyError as error:
         raise _fail(error) from None
     out.print(
         f"[green]✓[/] {escape(str(path))}: {len(loaded.pre)} pre, "
@@ -115,7 +115,7 @@ def steps() -> None:
     for name in sorted(registry.installed()):
         try:
             found = registry.find(name, Path.cwd())
-        except SluisError as error:
+        except LelyError as error:
             err.print(f"[red]{escape(name)}[/]: {escape(str(error))}")
             continue
         doc = (found.cls.__doc__ or "").strip().splitlines()
@@ -154,20 +154,20 @@ def plan(
             log=_Log(),
             connect=functools.partial(_workspace, profile=profile),
         )
-    except SluisError as error:
+    except LelyError as error:
         raise _fail(error) from None
     _output(built, output_format, output)
 
 
 @app.command()
 def show(
-    plan_file: Annotated[Path, typer.Argument(help="A plan written by `sluis plan -o`.")],
+    plan_file: Annotated[Path, typer.Argument(help="A plan written by `lely plan -o`.")],
     output_format: FormatOption = Format.rich,
 ) -> None:
     """Show a saved plan."""
     try:
         built = planfile.loads(plan_file.read_text(encoding="utf-8"))
-    except (OSError, SluisError) as error:
+    except (OSError, LelyError) as error:
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from None
     _output(built, output_format, None)

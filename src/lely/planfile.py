@@ -15,8 +15,8 @@ import json
 from collections.abc import Mapping
 from typing import Any, cast
 
-from sluis.errors import SluisError
-from sluis.model import (
+from lely.errors import LelyError
+from lely.model import (
     ACTIONS,
     Action,
     BundlePlan,
@@ -37,7 +37,7 @@ FORMAT_VERSION = 1
 _SECRET = "$secret"
 
 
-class PlanFileError(SluisError):
+class PlanFileError(LelyError):
     """A plan file (or a plan command's output) that can't be read."""
 
 
@@ -76,8 +76,8 @@ def plan_from_json(document: Json) -> Plan:
     version = doc.get("format_version")
     if version != FORMAT_VERSION:
         raise PlanFileError(
-            f"This plan file is format {version}; this sluis reads format "
-            f"{FORMAT_VERSION}. Run `sluis plan` again."
+            f"This plan file is format {version}; this lely reads format "
+            f"{FORMAT_VERSION}. Run `lely plan` again."
         )
     deploy = _object(doc.get("deploy"), "the plan file's `deploy`")
     variables = _object(deploy.get("variables", {}), "`deploy.variables`")

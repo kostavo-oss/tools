@@ -9,17 +9,17 @@ from typing import Any, cast
 import pytest
 
 import project
-from sluis import planfile, planning
-from sluis.config import load
-from sluis.model import Change, Secret, StepPlan
-from sluis.planfile import PlanFileError
-from sluis.step import NullLog
+from lely import planfile, planning
+from lely.config import load
+from lely.model import Change, Secret, StepPlan
+from lely.planfile import PlanFileError
+from lely.step import NullLog
 
 
 def test_a_plan_survives_the_round_trip(tmp_path: Path) -> None:
     project.write(tmp_path)
     built = planning.plan(
-        load(tmp_path / "sluis.yml"),
+        load(tmp_path / "lely.yml"),
         target=None,
         databricks=project.databricks(),
         env={},
@@ -46,7 +46,7 @@ def test_a_payload_with_a_secret_is_refused() -> None:
 
 
 def test_another_format_is_refused() -> None:
-    with pytest.raises(PlanFileError, match="format 9; this sluis reads format 1"):
+    with pytest.raises(PlanFileError, match="format 9; this lely reads format 1"):
         planfile.loads(json.dumps({"format_version": 9}))
 
 

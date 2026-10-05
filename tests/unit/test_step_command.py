@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sluis.errors import SluisError
-from sluis.model import Change
-from sluis.steps.command import Command
-from sluis.testing import check_plan, context
+from lely.errors import LelyError
+from lely.model import Change
+from lely.steps.command import Command
+from lely.testing import check_plan, context
 
 
 def printing(document: object) -> tuple[str, ...]:
@@ -35,7 +35,7 @@ def test_a_plan_command_prints_the_steps_plan(tmp_path: Path) -> None:
 
 
 def test_the_plan_command_knows_where_it_runs(tmp_path: Path) -> None:
-    names = "('SLUIS_TARGET', 'SLUIS_STEP', 'SLUIS_PHASE', 'EXTRA')"
+    names = "('LELY_TARGET', 'LELY_STEP', 'LELY_PHASE', 'EXTRA')"
     script = (
         "import json, os; print(json.dumps({'outputs': "
         f"{{k: os.environ[k] for k in {names}}}}}))"
@@ -47,16 +47,16 @@ def test_the_plan_command_knows_where_it_runs(tmp_path: Path) -> None:
         context(options, target="prod", name="seed", phase="pre", root=tmp_path)
     )
     assert plan.outputs == {
-        "SLUIS_TARGET": "prod",
-        "SLUIS_STEP": "seed",
-        "SLUIS_PHASE": "pre",
+        "LELY_TARGET": "prod",
+        "LELY_STEP": "seed",
+        "LELY_PHASE": "pre",
         "EXTRA": "yes",
     }
 
 
 def test_a_plan_command_must_print_json(tmp_path: Path) -> None:
     options = Command.Options(apply=("true",), plan=(sys.executable, "-c", "print('hi')"))
-    with pytest.raises(SluisError, match="must print JSON on stdout"):
+    with pytest.raises(LelyError, match="must print JSON on stdout"):
         Command().plan(context(options, root=tmp_path))
 
 
@@ -64,7 +64,7 @@ def test_a_plan_commands_plan_is_checked(tmp_path: Path) -> None:
     options = Command.Options(
         apply=("true",), plan=printing({"changes": [{"key": "a", "action": "nuke"}]})
     )
-    with pytest.raises(SluisError, match="action must be one of"):
+    with pytest.raises(LelyError, match="action must be one of"):
         Command().plan(context(options, root=tmp_path))
 
 
@@ -72,6 +72,6 @@ def test_a_failing_plan_command_is_shown(tmp_path: Path) -> None:
     script = "import sys; print('no access', file=sys.stderr); sys.exit(3)"
     options = Command.Options(apply=("true",), plan=(sys.executable, "-c", script))
     with pytest.raises(
-        SluisError, match="(?s)plan command failed \\(exit 3\\).*no access"
+        LelyError, match="(?s)plan command failed \\(exit 3\\).*no access"
     ):
         Command().plan(context(options, name="seed", root=tmp_path))

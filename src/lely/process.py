@@ -1,4 +1,4 @@
-"""Running another program: the Databricks CLI, deltaplan, a `command` step.
+"""Running another program: the Databricks CLI, stevin, a `command` step.
 
 One place, so every step that shells out fails the same way: a missing program
 says so, and a failing one is shown in its own words.
@@ -10,10 +10,10 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from sluis.errors import SluisError
+from lely.errors import LelyError
 
 
-class ProcessError(SluisError):
+class ProcessError(LelyError):
     """Another program was missing, or failed."""
 
 

@@ -9,9 +9,9 @@ UV_PROJECT_ENVIRONMENT = ".venv"
 # Run with `mise run <name>`; list them with `mise tasks`.
 
 [tasks.dev]
-description = "Run the sluis CLI"
+description = "Run the lely CLI"
 alias = "run"
-run = "uv run sluis"
+run = "uv run lely"
 
 [tasks.test]
 description = "Run the unit tests (no workspace needed)"

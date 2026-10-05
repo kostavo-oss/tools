@@ -2,7 +2,7 @@
 
 `FakeDatabricks` answers `validate`, `plan` and `summary` from JSON documents,
 the way the CLI would: a `--var` overrides the variable's `value` in what
-validate returns. It keeps every call, so a test can assert what sluis asked.
+validate returns. It keeps every call, so a test can assert what lely asked.
 Anything it has no answer for fails loudly.
 """
 

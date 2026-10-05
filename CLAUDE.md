@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-`sluis`: one plan/apply for a whole Databricks deploy — pre-deploy steps, the bundle,
+`lely`: one plan/apply for a whole Databricks deploy — pre-deploy steps, the bundle,
 post-deploy steps. Read `docs/DESIGN.md` first; it is the source of truth. If code and
 design disagree, flag it instead of silently picking one.
 
@@ -23,20 +23,28 @@ design disagree, flag it instead of silently picking one.
 
 ## Commands
 
-Tooling is mise + the Astral stack (uv, ruff, ty) — same as `deltaplan` and `isolinear`.
+Tooling is mise + the Astral stack (uv, ruff, ty) — same as `stevin` and `maeslant`.
 Never use pip/virtualenv, black/flake8/isort, or mypy.
 
 ## Status
 
 **Milestone 1 (read-only) is done**: `validate`, `steps`, `plan` and `show`, with the
-`deltaplan`, `bundle.run` and `command` steps and steps from a repo file. Its departures
+`stevin`, `bundle.run` and `command` steps and steps from a repo file. Its departures
 are listed under Milestones in `docs/DESIGN.md`. Work through the milestones in order and
 stop after each one to summarise what was built and what was assumed.
 
 `mise run check` is the gate (lint, format check, types, unit tests). There is no
 Databricks CLI or workspace in the unit suite:
 - `tests/fixtures/cli/` holds the CLI's own recorded outputs, from its acceptance tests.
-- `tests/fixtures/deltaplan-*.json` are real deltaplan plan files, written by deltaplan
+- `tests/fixtures/stevin-*.json` are real stevin plan files, written by stevin
   against its fake warehouse. They are the contract between the two tools.
-- `tests/fake_databricks.py` and `tests/fake_deltaplan.py` answer from those and fail
+- `tests/fake_databricks.py` and `tests/fake_stevin.py` answer from those and fail
   loudly on anything else.
+
+**lely was sluis** until 2026-10-05, when the suite took its names from Dutch engineers and
+works (stevin, lely, maeslant). It had never been published, so nothing answers to the old
+name: the config file is `lely.yml`, the plugin entry-point group is `lely.steps`, the
+errors descend from `LelyError`, and a `command` step sees `LELY_TARGET`, `LELY_STEP` and
+`LELY_PHASE`. The step for tables is `stevin` and runs the `stevin` command. The recorded
+plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` — that is the
+property stevin really writes onto tables, and it kept its name on purpose.

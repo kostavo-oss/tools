@@ -1,6 +1,6 @@
 """The plan in a terminal.
 
-    sluis plan · shop · target prod
+    lely plan · shop · target prod
 
     pre
       model  ./ops/steps.py:LatestModel
@@ -13,7 +13,7 @@
         vars  model_version = 14
 
     post
-      tables  deltaplan
+      tables  stevin
         + dev.sales.orders
             CREATE TABLE orders
       backfill  bundle.run
@@ -32,7 +32,7 @@ from collections.abc import Iterator
 from rich.console import Console, Group, RenderableType
 from rich.text import Text
 
-from sluis.model import Change, Plan, PlannedStep, Secret, StepPlan, Value
+from lely.model import Change, Plan, PlannedStep, Secret, StepPlan, Value
 
 SYMBOLS = {"create": "+", "update": "~", "delete": "-", "replace": "±", "run": "▶"}
 STYLES = {
@@ -54,7 +54,7 @@ def plan_view(plan: Plan) -> RenderableType:
 
 def _lines(plan: Plan) -> Iterator[Text]:
     yield Text.assemble(
-        ("sluis plan", "bold"),
+        ("lely plan", "bold"),
         " · ",
         (plan.bundle, "bold"),
         " · target ",

@@ -1,4 +1,4 @@
-"""References: `${…}` in `sluis.yml`, checked offline and resolved at plan.
+"""References: `${…}` in `lely.yml`, checked offline and resolved at plan.
 
 Pure. Two jobs, kept apart:
 
@@ -20,9 +20,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
-from sluis.config import Loc
-from sluis.errors import SluisError
-from sluis.model import Json, Outputs, Secret, Value
+from lely.config import Loc
+from lely.errors import LelyError
+from lely.model import Json, Outputs, Secret, Value
 
 NAMESPACES = ("var", "bundle", "workspace", "resources", "steps", "env")
 
@@ -46,7 +46,7 @@ _ARITY: dict[str, tuple[int, int | None]] = {
 }
 
 
-class RefError(SluisError):
+class RefError(LelyError):
     """A reference that can't stand where it was written, or can't be answered."""
 
 
@@ -112,7 +112,7 @@ class Position:
 
     `phase` is `bundle` for `bundle_vars`, which sits between the phases.
     `earlier` are the steps that run before this point; `later` the ones that
-    don't (this step included). `fed` are the bundle variables sluis sets.
+    don't (this step included). `fed` are the bundle variables lely sets.
     """
 
     where: str

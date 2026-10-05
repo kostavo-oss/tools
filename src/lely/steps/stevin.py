@@ -1,15 +1,15 @@
-"""`deltaplan`: tables, views and the rest, with deltaplan's own plan.
+"""`stevin`: tables, views and the rest, with stevin's own plan.
 
-The contract is deltaplan's CLI and its plan file, not its Python modules, so
-deltaplan stays a standalone tool with its own releases:
+The contract is stevin's CLI and its plan file, not its Python modules, so
+stevin stays a standalone tool with its own releases:
 
-- plan: `deltaplan plan --target <t> --config <c> --output <tmp> --format json`.
+- plan: `stevin plan --target <t> --config <c> --output <tmp> --format json`.
   The plan file becomes this step's payload, whole.
 - apply (milestone 2): the payload written back to a file, then
-  `deltaplan apply <file> --yes`, with `--allow-destructive` only when sluis was
-  given it. deltaplan's own state fingerprint refuses a stale plan.
+  `stevin apply <file> --yes`, with `--allow-destructive` only when lely was
+  given it. stevin's own state fingerprint refuses a stale plan.
 
-deltaplan's risk classes map onto sluis's: `destructive` stays destructive;
+stevin's risk classes map onto lely's: `destructive` stays destructive;
 `meta`, `feature` and `rewrite` are updates, with a rewrite named in the
 detail. Each table is one change, keyed by its full name.
 """
@@ -22,39 +22,39 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from sluis import process
-from sluis.errors import SluisError
-from sluis.model import Action, Change, Json, Outputs, StepPlan
-from sluis.step import Context
+from lely import process
+from lely.errors import LelyError
+from lely.model import Action, Change, Json, Outputs, StepPlan
+from lely.step import Context
 
-#: The deltaplan plan-file format this reads (deltaplan's `PLAN_FORMAT_VERSION`).
+#: The stevin plan-file format this reads (stevin's `PLAN_FORMAT_VERSION`).
 FORMAT_VERSION = 1
 
-#: deltaplan's change kinds that bring an object into being, or remove one
-#: (`deltaplan.model.change`).
+#: stevin's change kinds that bring an object into being, or remove one
+#: (`stevin.model.change`).
 _CREATES = frozenset(
     {"create_table", "create_view", "create_function", "create_schema", "create_volume"}
 )
 _DROPS = frozenset({"drop_table"})
 
 
-class Deltaplan:
-    """Tables, views, functions and grants, planned and applied by deltaplan."""
+class Stevin:
+    """Tables, views, functions and grants, planned and applied by stevin."""
 
     @dataclass(frozen=True, slots=True)
     class Options:
-        #: deltaplan's project file, relative to `sluis.yml`.
-        config: str = "deltaplan.yml"
-        #: deltaplan's target; sluis's target when not given.
+        #: stevin's project file, relative to `lely.yml`.
+        config: str = "stevin.yml"
+        #: stevin's target; lely's target when not given.
         target: str | None = None
-        #: Only these tables, views or patterns (deltaplan's `--select`).
+        #: Only these tables, views or patterns (stevin's `--select`).
         select: tuple[str, ...] = ()
-        #: How to run deltaplan: `[uvx, deltaplan]` pins it to its own env.
-        executable: tuple[str, ...] = ("deltaplan",)
+        #: How to run stevin: `[uvx, stevin]` pins it to its own env.
+        executable: tuple[str, ...] = ("stevin",)
 
-    def plan(self, ctx: Context[Deltaplan.Options]) -> StepPlan:
+    def plan(self, ctx: Context[Stevin.Options]) -> StepPlan:
         options = ctx.options
-        with tempfile.TemporaryDirectory(prefix="sluis-deltaplan-") as scratch:
+        with tempfile.TemporaryDirectory(prefix="lely-stevin-") as scratch:
             out = Path(scratch) / "plan.json"
             args = [
                 *options.executable,
@@ -70,32 +70,32 @@ class Deltaplan:
             ]
             for pattern in options.select:
                 args += ["--select", pattern]
-            ctx.log.info(f"{ctx.name}: deltaplan plan")
+            ctx.log.info(f"{ctx.name}: stevin plan")
             result = process.run(
                 args,
                 ctx.root,
                 env=ctx.env,
-                hint="Install it with `uv tool install deltaplan`, or set `executable`.",
+                hint="Install it with `uv tool install stevin`, or set `executable`.",
             )
             if result.returncode != 0:
-                raise process.failure("`deltaplan plan`", result)
+                raise process.failure("`stevin plan`", result)
             try:
                 document = json.loads(out.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as error:
-                raise SluisError(f"deltaplan wrote no readable plan: {error}") from None
+                raise LelyError(f"stevin wrote no readable plan: {error}") from None
         return StepPlan(changes=changes(document), payload=document)
 
-    def apply(self, ctx: Context[Deltaplan.Options], plan: StepPlan) -> Outputs:
+    def apply(self, ctx: Context[Stevin.Options], plan: StepPlan) -> Outputs:
         raise NotImplementedError("apply is milestone 2")
 
 
 def changes(document: Mapping[str, Json]) -> tuple[Change, ...]:
-    """A deltaplan plan file, as one sluis change per table that changes."""
+    """A stevin plan file, as one lely change per table that changes."""
     version = document.get("format_version")
     if version != FORMAT_VERSION:
-        raise SluisError(
-            f"deltaplan wrote plan format {version}; sluis reads format "
-            f"{FORMAT_VERSION}. Use a deltaplan and a sluis released together."
+        raise LelyError(
+            f"stevin wrote plan format {version}; lely reads format "
+            f"{FORMAT_VERSION}. Use a stevin and a lely released together."
         )
     steps = [s for s in _list(document.get("steps")) if isinstance(s, dict)]
     result: list[Change] = []

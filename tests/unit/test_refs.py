@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from sluis.config import Loc
-from sluis.model import Secret
-from sluis.refs import Position, Ref, RefError, Scope, Unknown, check, parse, resolve
+from lely.config import Loc
+from lely.model import Secret
+from lely.refs import Position, Ref, RefError, Scope, Unknown, check, parse, resolve
 
-LOC = Loc("sluis.yml", 3, 7)
+LOC = Loc("lely.yml", 3, 7)
 
 CONFIG: dict[str, Any] = {
     "bundle": {"name": "shop", "target": "dev"},
@@ -91,7 +91,7 @@ def test_a_deployed_id_is_for_post_steps_only() -> None:
     check(Ref(("resources", "jobs", "nightly", "name")), PRE, LOC)
 
 
-def test_a_pre_step_may_not_read_a_variable_sluis_sets() -> None:
+def test_a_pre_step_may_not_read_a_variable_lely_sets() -> None:
     fed = Position("step `a`", "pre", (), ("a",), fed=frozenset({"v"}), this="a")
     with pytest.raises(RefError, match="set by bundle_vars"):
         check(Ref(("var", "v")), fed, LOC)
