@@ -89,8 +89,21 @@ ConfigOption = Annotated[
         "when not given.",
     ),
 ]
+
+
+def _a_target(value: str | None) -> str | None:
+    """An empty `-t` is what an unset variable leaves behind (`-t "$TARGET"`), and
+    the Databricks CLI would read it as "the default target". There is none."""
+    if value is not None and not value.strip():
+        raise typer.BadParameter("it is empty; there is no default target")
+    return value
+
+
 TargetOption = Annotated[
-    str, typer.Option("--target", "-t", help="The target. There is no default.")
+    str,
+    typer.Option(
+        "--target", "-t", callback=_a_target, help="The target. There is no default."
+    ),
 ]
 ProfileOption = Annotated[
     str | None,
@@ -253,7 +266,7 @@ def _confirm(question: str) -> bool:
         return False
 
 
-def _consent_to_destroy(plan: Plan, yes: bool) -> None:
+def _consent_to_destroy(plan: Plan, run: _Run, yes: bool) -> None:
     """To destroy at a terminal, the answer is the target's name — not `y`, so
     that `prod` is never destroyed by a reflex."""
     if yes:
@@ -265,19 +278,33 @@ def _consent_to_destroy(plan: Plan, yes: bool) -> None:
         )
     try:
         answer = typer.prompt(
-            f"This destroys target `{plan.target}` on {plan.workspace}.\n"
-            "Type the target's name to go on",
+            f"This destroys {_where(plan, run)}.\nType the target's name to go on",
             default="",
             show_default=False,
             err=True,
         )
     except (typer.Abort, EOFError):
         answer = ""
-    if answer.strip() != plan.target:
+    if not plan.target or answer.strip() != plan.target:
         raise Refused("That isn't the target's name. Nothing was destroyed.")
 
 
-def _at_waiting(plan: Plan, yes: bool) -> running.AtWaiting:
+def _where(plan: Plan, run: _Run) -> str:
+    """What a question is about: the target, the workspace, and who is running
+    — which, with a plan file, need not be who planned."""
+    words = f"target `{plan.target}` on {run.workspace}"
+    if plan.workspace.identity != run.workspace.identity:
+        words += f" (the plan was made as {plan.workspace.identity})"
+    return words
+
+
+def _nothing_in(plan: Plan) -> bool:
+    """Whether a plan can run nothing at all, so there is nothing to ask about:
+    no step shows a change, and none is waiting to be planned."""
+    return not any(step.plan.changes or step.state == "waiting" for step in plan.steps)
+
+
+def _at_waiting(plan: Plan, run: _Run, yes: bool) -> running.AtWaiting:
     """What `apply` without a file does at a step that was waiting: `--yes`
     runs it; at a terminal lely shows it and asks once more."""
 
@@ -288,9 +315,7 @@ def _at_waiting(plan: Plan, yes: bool) -> running.AtWaiting:
             return True
         if not _interactive():
             return False
-        return _confirm(
-            f"Run step `{step.name}` on target `{plan.target}` ({plan.workspace})?"
-        )
+        return _confirm(f"Run step `{step.name}` on {_where(plan, run)}?")
 
     return ask
 
@@ -391,13 +416,13 @@ def plan(
         built = planning.plan(
             run.config,
             target=target,
-            source=source.read(run.config.root),
+            source=source.read(run.config.root, output),
             kind="destroy" if destroy else "apply",
             **run.edges,
         )
+        _show_plan(built, output_format, output)
     except LelyError as error:
         raise _fail(error, refusals=False) from None
-    _show_plan(built, output_format, output)
 
 
 @app.command()
@@ -408,9 +433,9 @@ def show(
     """Show a saved plan."""
     try:
         built = _read_plan(plan_file)
+        _show_plan(built, output_format, None)
     except LelyError as error:
         raise _fail(error, refusals=False) from None
-    _show_plan(built, output_format, None)
 
 
 @app.command()
@@ -539,10 +564,11 @@ def apply(
     profile: ProfileOption = None,
 ) -> None:
     """Run a reviewed plan — or, with -t, plan, show, ask and run."""
+    _a_target(target)
     try:
         run = _run(path, profile)
         if plan_file is not None:
-            approved = _read_plan(plan_file)
+            approved = _read_plan(plan_file, to_run=True)
             if approved.kind != "apply":
                 raise Refused(
                     "This is a plan to destroy, and `lely apply` only applies. Run it "
@@ -553,25 +579,24 @@ def apply(
                     f"The plan was made for target `{approved.target}`, and the "
                     f"command says `{target}`."
                 )
-            _still_holds(approved, run)
+            running.check_from(run.config, approved.target, from_step)
+            _still_holds(approved, run, plan_file)
             at_waiting = None
         else:
             if target is None:
                 raise Refused("Give the target: `lely apply -t <target>`.")
+            running.check_from(run.config, target, from_step)
             approved = planning.plan(
                 run.config,
                 target=target,
                 source=source.read(run.config.root),
                 **run.edges,
             )
-            at_waiting = _at_waiting(approved, yes)
+            at_waiting = _at_waiting(approved, run, yes)
         render_plan(approved, err)
         approval.destructive_allowed(approved.steps, allow_destructive)
-        if not approved.summary.empty:
-            _consent(
-                f"Apply this plan to target `{approved.target}` on {approved.workspace}?",
-                yes,
-            )
+        if not _nothing_in(approved):
+            _consent(f"Apply this plan to {_where(approved, run)}?", yes)
         result = running.apply(
             run.config,
             approved,
@@ -581,7 +606,7 @@ def apply(
             **run.edges,
         )
     except LelyError as error:
-        raise _fail(error) from None
+        raise _stopped("apply", target, error, output_format) from None
     _finish(result, output_format)
 
 
@@ -601,8 +626,9 @@ def destroy(
     """Take a target down again: plan the destroy, show it, ask, and run."""
     try:
         run = _run(path, profile)
+        running.check_from(run.config, target, from_step)
         if plan_file is not None:
-            approved = _read_plan(plan_file)
+            approved = _read_plan(plan_file, to_run=True)
             if approved.kind != "destroy":
                 raise Refused(
                     "This is a plan to apply, and `lely destroy` only destroys. Run "
@@ -613,7 +639,7 @@ def destroy(
                     f"The plan was made for target `{approved.target}`, and the "
                     f"command says `{target}`."
                 )
-            _still_holds(approved, run)
+            _still_holds(approved, run, plan_file)
         else:
             approved = planning.plan(
                 run.config,
@@ -623,15 +649,15 @@ def destroy(
                 **run.edges,
             )
         render_plan(approved, err)
-        if not approved.summary.empty:
-            _consent_to_destroy(approved, yes)
+        if not _nothing_in(approved):
+            _consent_to_destroy(approved, run, yes)
         result = running.destroy(run.config, approved, from_step=from_step, **run.edges)
     except LelyError as error:
-        raise _fail(error) from None
+        raise _stopped("destroy", target, error, output_format) from None
     _finish(result, output_format)
 
 
-def _still_holds(approved: Plan, run: _Run) -> None:
+def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
     """A plan file is held to the workspace, the project and the tree it was
     made for, before anything runs."""
     approval.same_workspace(approved, run.workspace)
@@ -639,7 +665,31 @@ def _still_holds(approved: Plan, run: _Run) -> None:
         approved,
         [(s.name, s.uses, planning.made_from(s)) for s in run.config.steps],
     )
-    approval.same_source(approved, source.read(run.config.root))
+    approval.same_source(approved, source.read(run.config.root, plan_file))
+
+
+def _stopped(
+    kind: str, target: str | None, error: LelyError, output_format: Format
+) -> typer.Exit:
+    """A run that ended before its first step. With `-f json` that is said on
+    stdout too, in the shape of a result, so whatever reads it reads something."""
+    refused = isinstance(error, Refused)
+    if output_format is Format.json:
+        _echo_json(
+            {
+                "kind": kind,
+                "target": target,
+                "outcome": "refused" if refused else "failed",
+                "message": str(error),
+                "ran": [],
+                "failed": [],
+                "refused": [],
+                "not_started": [],
+                "rolled_back": [],
+                "steps": [],
+            }
+        )
+    return _fail(error)
 
 
 def _finish(result: Result, output_format: Format) -> None:
@@ -654,23 +704,38 @@ def _finish(result: Result, output_format: Format) -> None:
 # -----------------------------------------------------------------------------
 
 
-def _read_plan(plan_file: Path) -> Plan:
+def _read_plan(plan_file: Path, *, to_run: bool = False) -> Plan:
+    """A plan from a file. For a command that would run it, a file lely can't
+    read is a refusal: it takes a new plan, not another try."""
     try:
         return planfile.loads(plan_file.read_text(encoding="utf-8"))
     except OSError as error:
         raise LelyError(f"{plan_file}: {error.strerror or error}") from None
+    except UnicodeDecodeError:
+        error_ = planfile.PlanFileError(f"{plan_file}: not a plan file: it isn't text.")
+    except planfile.PlanFileError as error:
+        error_ = error
+    if to_run:
+        raise Refused(str(error_)) from None
+    raise error_
 
 
 def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
+    if output is not None:
+        # first: a plan that can't be written is no use shown
+        try:
+            output.write_text(planfile.dumps(built), encoding="utf-8")
+        except OSError as error:
+            raise LelyError(
+                f"Can't write the plan to {output}: {error.strerror or error}"
+            ) from None
     if output_format is Format.json:
-        text = planfile.dumps(built)
         if output is None:
-            typer.echo(text, nl=False)
+            typer.echo(planfile.dumps(built), nl=False)
             return
     else:
         render_plan(built, out)
     if output is not None:
-        output.write_text(planfile.dumps(built), encoding="utf-8")
         out.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 

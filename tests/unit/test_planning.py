@@ -521,3 +521,114 @@ def test_a_misbehaving_plugin_is_named(tmp_path: Path, cls: str, message: str) -
     project.write(tmp_path, f"steps:\n  - name: x\n    uses: ./broken.py:{cls}\n")
     with pytest.raises(LelyError, match=message.replace("(", r"\(").replace(")", r"\)")):
         plan(tmp_path)
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+def test_a_value_is_shown_under_its_own_options_name(tmp_path: Path) -> None:
+    """002/R20. In a `pyproject.toml` written with dotted keys the positions of
+    two values can't be told apart; the option each fills still can."""
+    (tmp_path / "pair.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import Output, StepPlan\n"
+        "class Pair:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pass\n"
+        "    outputs = (Output('catalog'), Output('version'))\n"
+        "    def plan(self, ctx):\n"
+        "        return StepPlan(outputs={'catalog': 'prod_catalog', 'version': 14})\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+    )
+    text = (
+        "[[tool.lely.steps]]\n"
+        'name = "model"\nuses = "./pair.py:Pair"\n\n'
+        "[[tool.lely.steps]]\n"
+        'name = "app"\nuses = "bundle"\n'
+        'with.vars.catalog = "${steps.model.catalog}"\n'
+        'with.vars.model_version = "${steps.model.version}"\n'
+    )
+    project.write(tmp_path, text, toml=True)
+    wires = planning.check(load(tmp_path / "pyproject.toml"))
+    assert wires[1].takes == (
+        ("catalog", "model.catalog"),
+        ("model_version", "model.version"),
+    )
+    fake = project.databricks(tmp_path)
+    app = plan(tmp_path, fake).steps[1]
+    assert app.inputs == (
+        Input("catalog", "model.catalog", "prod_catalog"),
+        Input("model_version", "model.version", 14),
+    )
+    assert "--var=catalog=prod_catalog" in fake.calls[0]
+
+
+def test_a_yaml_alias_used_twice_keeps_both_names(tmp_path: Path) -> None:
+    text = (
+        "steps:\n"
+        "  - name: model\n    uses: ./ops/steps.py:LatestModel\n"
+        "    with: {model: dev.ml.churn}\n"
+        "  - name: seed\n    uses: command\n    with:\n      apply: [./ops/warm.sh]\n"
+        "      env: {FIRST: &v '${steps.model.version}', SECOND: *v}\n"
+    )
+    project.write(tmp_path, text)
+    seed = planning.check(load(tmp_path / "lely.yml"))[1]
+    assert [label for label, _ in seed.takes] == ["FIRST", "SECOND"]
+
+
+def test_validate_already_knows_where_an_environment_value_may_not_go(
+    tmp_path: Path,
+) -> None:
+    """002/R18: as much as can be is checked offline. A value from the
+    environment is a secret whatever it turns out to be."""
+    text = project.LELY_YML.replace(
+        "with: {apply: [./ops/warm.sh]}",
+        "with: {apply: [./ops/warm.sh, '${env.TOKEN}']}",
+    )
+    [problem] = problems(tmp_path, text)
+    assert "`apply` would hold a secret; only a `Secret` option may" in problem
+    allowed = project.LELY_YML.replace(
+        "with: {apply: [./ops/warm.sh]}",
+        "with: {apply: [./ops/warm.sh], env: {T: '${env.TOKEN}'}}",
+    )
+    project.write(tmp_path, allowed)
+    planning.check(load(tmp_path / "lely.yml"))  # no environment needed to check it
+
+
+RAISES = """\
+from dataclasses import dataclass
+from lely.model import StepPlan
+
+class BadOptions:
+    @dataclass(frozen=True)
+    class Options:
+        size: int = 1
+        def __post_init__(self):
+            raise ValueError("size must be even")
+    def plan(self, ctx):
+        return StepPlan()
+    def apply(self, ctx, plan):
+        return {}
+
+class BadOutputs(BadOptions):
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    @staticmethod
+    def outputs(written):
+        return written["nope"]
+"""
+
+
+def test_a_plugin_whose_own_code_raises_is_named_not_a_traceback(tmp_path: Path) -> None:
+    (tmp_path / "raises.py").write_text(RAISES)
+    [options] = problems(
+        tmp_path, "steps:\n  - name: x\n    uses: ./raises.py:BadOptions\n"
+    )
+    assert "its options can't be built: ValueError: size must be even" in options
+    [outputs] = problems(
+        tmp_path, "steps:\n  - name: x\n    uses: ./raises.py:BadOutputs\n"
+    )
+    assert "`./raises.py:BadOutputs`: its `outputs` failed: KeyError: 'nope'" in outputs

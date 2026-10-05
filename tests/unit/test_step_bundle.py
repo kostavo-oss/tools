@@ -478,3 +478,44 @@ def test_the_resources_of_a_linked_bundle_step() -> None:
 def test_the_plan_file_keeps_the_payload_without_a_secret(tmp_path: Path) -> None:
     plan = Bundle().plan(ctx(tmp_path))
     assert json.dumps(plan.payload)  # plain JSON, as the CLI wrote it
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+def test_a_variable_with_a_comma_is_quoted_the_way_the_cli_reads_it(
+    tmp_path: Path,
+) -> None:
+    """V8, unverified: `--var` is a list flag that reads its value as CSV. A
+    value with a comma would be cut in two — and `14,catalog=prod` from a step
+    above would set a second variable nobody wrote."""
+    fake = project.databricks(tmp_path)
+    plan = Bundle().plan(ctx(tmp_path, fake, vars={"model_version": "14,catalog=prod"}))
+    assert '--var="model_version=14,catalog=prod"' in fake.calls[0]
+    assert plan.outputs["var.model_version"] == "14,catalog=prod"
+    assert plan.outputs["var.catalog"] == "dev"  # not overridden through the back door
+    fake.clear_calls()
+    quoted = ctx(tmp_path, fake, vars={"model_version": 'say "hi"'})
+    assert Bundle().plan(quoted).outputs["var.model_version"] == 'say "hi"'
+    # the plain case stays as it was
+    assert bundle._csv("model_version=14") == "model_version=14"
+
+
+def test_the_fake_cuts_an_unquoted_comma_like_the_cli_would(tmp_path: Path) -> None:
+    write_bundle(tmp_path, project.BUNDLE)
+    fake = project.databricks(tmp_path)
+    done = fake.run(
+        ["bundle", "validate", "--target", "dev", "--var=model_version=1,2"], tmp_path
+    )
+    assert done.returncode == 1
+    assert "unexpected flag value for variable assignment: 2" in done.stderr
+
+
+def test_a_bundle_path_that_isnt_there_says_so(tmp_path: Path) -> None:
+    """Not "the Databricks CLI isn't installed", which is what a missing
+    working directory looks like to the process that can't start."""
+    with pytest.raises(LelyError) as caught:
+        Bundle().plan(ctx(tmp_path, path="bundel"))
+    assert str(caught.value) == (
+        f"`path: bundel`: there is no directory {tmp_path / 'bundel'}"
+    )

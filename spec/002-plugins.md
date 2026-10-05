@@ -255,6 +255,11 @@ requirement:
   refuses anything but reads; it can't see a write made through the SDK or another program.
   "Only its own" is not a check anyone can reuse: it is tested for the bundle plugin against
   the simulated workspace.
+- **What a plugin hands back is checked for more than its shape:** a change's lines and an
+  overview's id and link have to be text, and a plugin's own code failing — its options, its
+  `outputs` — is reported with the step's name, not as a traceback.
+- **`validate` knows where an environment value may not go** (R18): it is a secret whatever it
+  turns out to be, so an option that can't take one is refused offline.
 - **Not built:** R8, a plugin's own view — it arrives with the UI.
 
 ## Done when

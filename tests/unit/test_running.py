@@ -4,6 +4,7 @@ simulated bundle. Each test names the requirement of
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -12,10 +13,10 @@ from typing import Any, cast
 import pytest
 
 import project
-from fakes import FakeDatabricks, deploy
+from fakes import FakeDatabricks, deploy, write_bundle
 from lely import planning, running
 from lely.config import Config, load
-from lely.errors import Refused
+from lely.errors import LelyError, Refused
 from lely.model import Plan, PlanKind, PlannedStep, Result, Source
 from lely.step import NullLog
 
@@ -285,8 +286,9 @@ def test_the_first_failing_step_stops_the_run(tmp_path: Path) -> None:
     p = failing(tmp_path)
     result = p.apply()
     assert result.outcome == "failed"
-    assert [s.name for s in result.ran] == ["model", "app"]
+    assert [s.name for s in result.ran] == ["app"]
     assert [s.name for s in result.failed] == ["notify"]
+    assert result.refused == ()
     assert [s.name for s in result.not_started] == ["backfill"]
     assert "apply command failed (exit 7)" in result.message
     assert "no route" in result.message
@@ -563,3 +565,188 @@ def test_status_shows_every_step_and_changes_nothing(tmp_path: Path) -> None:
     ]
     assert app.notes[0].startswith("as seen by jane@example.com under ")
     assert (found.target, found.workspace) == ("dev", project.WORKSPACE)
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+def test_a_destroy_holds_a_skipped_step_to_having_shown_nothing(tmp_path: Path) -> None:
+    """A step the approved plan showed as skipped showed nothing it would
+    remove: whatever it would remove now was never approved."""
+    p = Project(tmp_path)
+    approved = p.plan("destroy")
+    hidden = dataclasses.replace(
+        approved,
+        steps=tuple(
+            dataclasses.replace(step, skipped="nothing deployed")
+            if step.name == "app"
+            else step
+            for step in approved.steps
+        ),
+    )
+    result = p.destroy(hidden)
+    assert result.outcome == "refused"
+    assert "Step `app` would now also delete jobs.backfill" in result.message
+    assert p.fake.deployed() == project.DEPLOYED
+
+
+def versioned(tmp_path: Path, text: str) -> Project:
+    (tmp_path / "version.txt").write_text("14")
+    (tmp_path / "latest.py").write_text(VERSIONED)
+    return Project(
+        tmp_path,
+        text.replace(
+            "uses: ./ops/steps.py:LatestModel\n    with:\n      model: dev.ml.churn",
+            "uses: ./latest.py:Latest",
+        ),
+    )
+
+
+def test_a_destroy_is_held_to_the_inputs_the_plan_showed(tmp_path: Path) -> None:
+    """R15, R5: a destroy acts on the values it is handed — `bundle destroy`
+    with other variables, a destroy command with another id — so they have to
+    be the ones that were shown. Checked before anything is removed."""
+    p = versioned(tmp_path, READY + DROP)
+    approved = p.plan("destroy")
+    (tmp_path / "version.txt").write_text("1500")
+    with pytest.raises(Refused) as caught:
+        p.destroy(approved)
+    assert str(caught.value) == (
+        "Step `app` takes model.version = 1500 now; the plan was approved with 14. "
+        "Plan again."
+    )
+    assert p.fake.deployed() == project.DEPLOYED
+    assert p.notified() == []  # the destroy command below the bundle didn't run
+
+
+def test_from_doesnt_pass_over_the_check_on_what_a_step_takes(tmp_path: Path) -> None:
+    """A step `--from` passes over is planned for what it gives the steps
+    below. What it gives was approved with these values."""
+    p = versioned(tmp_path, READY)
+    approved = p.plan()
+    (tmp_path / "version.txt").write_text("1500")
+    result = p.apply(approved, from_step="backfill")
+    assert result.outcome == "refused"
+    assert "Step `app` takes model.version = 1500 now" in result.message
+    assert p.fake.runs == []  # `bundle run` would have gone out with the new value
+
+
+def test_a_destroy_that_finds_nothing_says_whose_view_that_is(tmp_path: Path) -> None:
+    """004/R9b: never a bare "nothing there". The plan listed a job; run as
+    another identity (V7), it isn't there to destroy."""
+    project.write(tmp_path)
+    world = project.world(tmp_path)
+    write_bundle(tmp_path, {**project.BUNDLE, "profiles": {"ci": "ci@example.com"}})
+    config = load(tmp_path / "lely.yml")
+    approved = planning.plan(
+        config,
+        target="dev",
+        source=Source(),
+        kind="destroy",
+        **edges(FakeDatabricks(world)),
+    )
+    assert [c.key for c in approved.steps[1].plan.changes] == ["jobs.backfill"]
+    other = FakeDatabricks(world, profile="ci")
+    result = running.destroy(config, approved, **edges(other))
+    assert result.outcome == "done"
+    app = next(step for step in result.steps if step.name == "app")
+    assert app.outcome == "nothing"
+    assert app.detail == (
+        "nothing the plan listed is there to destroy; not deployed, as far as "
+        "ci@example.com can see under /Workspace/Users/ci@example.com/.bundle/shop/dev"
+    )
+    assert FakeDatabricks(world).deployed() == project.DEPLOYED
+
+
+def test_a_command_that_gives_something_only_by_running_plans_a_run(
+    tmp_path: Path,
+) -> None:
+    """A plan command with nothing to change, and an output only the apply
+    command writes: the step has to run to give it, and its plan says so.
+    Before this, the step had "nothing to do" and the one below it failed on
+    every run."""
+    (tmp_path / "ops").mkdir()
+    seed = tmp_path / "ops" / "seed.sh"
+    seed.write_text('#!/bin/sh\necho "count=3" >> "$LELY_OUTPUTS"\n')
+    seed.chmod(0o755)
+    nothing = json.dumps([sys.executable, "-c", "print('{}')"])
+    text = (
+        "steps:\n"
+        "  - name: seed\n    uses: command\n    with:\n"
+        f"      plan: {nothing}\n      apply: [./ops/seed.sh]\n      outputs: [count]\n"
+        "  - name: report\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+    )
+    p = Project(tmp_path, text)
+    seed_plan = p.plan().steps[0].plan
+    assert [(c.action, c.summary, c.detail) for c in seed_plan.changes] == [
+        ("run", "runs ./ops/seed.sh", ("to give count",))
+    ]
+    result = p.apply(at_waiting=run_it)
+    assert result.outcome == "done"
+    assert p.notified() == ["3"]
+
+
+IDLE = """\
+from dataclasses import dataclass
+from lely.model import Item, Output, Overview, StepPlan
+
+class Idle:
+    '''Declares an id it would give by running, and never plans a run.'''
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    outputs = (Output("id", "exists"),)
+    def plan(self, ctx):
+        return StepPlan(later=("id",))
+    def apply(self, ctx, plan):
+        return {"id": "1"}
+
+class Numbered(Idle):
+    '''An overview line whose id isn't text.'''
+    outputs = ()
+    def plan(self, ctx):
+        return StepPlan()
+    def overview(self, ctx):
+        return Overview((Item("thing", "a", "a", True, id=123),))
+"""
+
+
+def test_a_plugin_that_never_ran_is_named_when_what_it_gives_is_missed(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "idle.py").write_text(IDLE)
+    text = (
+        "steps:\n"
+        "  - name: made\n    uses: ./idle.py:Idle\n"
+        "  - name: report\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh, '${steps.made.id}']}\n"
+    )
+    p = Project(tmp_path, text)
+    result = p.apply(at_waiting=run_it)
+    assert result.outcome == "failed"
+    assert "Step `report`: it needs made.id, which isn't there" in result.message
+    assert "Step `made` had nothing to do, so it didn't run" in result.message
+
+
+def test_an_overview_line_that_isnt_text_is_a_message_not_a_crash(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "idle.py").write_text(IDLE)
+    p = Project(tmp_path, "steps:\n  - name: odd\n    uses: ./idle.py:Numbered\n")
+    with pytest.raises(LelyError, match="id and url are text or nothing"):
+        running.status(p.config, target="dev", **edges(p.fake))
+    # after an apply, that it can't be listed doesn't undo the run
+    result = p.apply()
+    assert result.outcome == "done"
+    assert result.steps[0].detail.startswith("couldn't be listed: ")
+
+
+def test_from_is_checked_before_anything_is_planned(tmp_path: Path) -> None:
+    p = Project(tmp_path, READY)
+    with pytest.raises(Refused, match="no step `nope` runs for target `dev`"):
+        running.check_from(p.config, "dev", "nope")
+    with pytest.raises(Refused, match="no step `warm` runs for target `dev`"):
+        running.check_from(p.config, "dev", "warm")  # it is for prod only
+    running.check_from(p.config, "dev", "app")
+    running.check_from(p.config, "dev", None)

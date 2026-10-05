@@ -269,10 +269,14 @@ def _result_lines(result: Result) -> Iterator[Text]:
     if result.outcome == "done":
         yield Text(_done(result), style="bold green")
         return
-    stopped = "refused" if result.outcome == "refused" else "failed"
+    stopped = (
+        ("refused", result.refused)
+        if result.outcome == "refused"
+        else ("failed", result.failed)
+    )
     for title, steps in (
         ("ran", result.ran),
-        (stopped, result.failed),
+        stopped,
         ("never started", result.not_started),
     ):
         names = ", ".join(step.name for step in steps) or "nothing"

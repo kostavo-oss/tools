@@ -128,7 +128,19 @@ class Command:
         if any(isinstance(value, Secret) for value in plan.outputs.values()):
             raise LelyError(f"{where}: a `command` step can't give a secret")
         later = tuple(name for name in options.outputs if name not in plan.outputs)
-        return dataclasses.replace(plan, later=later)
+        changes = plan.changes
+        if later and not changes:
+            # Nothing to change, and still something to give: only the apply
+            # command can give it, so the step runs — and its plan says so.
+            changes = (
+                Change(
+                    key=ctx.name,
+                    action="run",
+                    summary=f"runs {shlex.join(options.apply)}",
+                    detail=(f"to give {', '.join(later)}",),
+                ),
+            )
+        return dataclasses.replace(plan, changes=changes, later=later)
 
     def apply(self, ctx: Context[Command.Options], plan: StepPlan) -> Outputs:
         options = ctx.options

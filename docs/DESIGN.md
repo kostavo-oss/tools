@@ -372,8 +372,8 @@ an *after every run* output waits on every deploy, and `validate` says so.
 
 **The plan file against the project.** A file is refused when the steps for its target, or any
 step's options as written, differ from what it was planned with; when an input that was known at
-plan has another value now; when it was made against another workspace; or when the project is on
-another git tree than it was planned on. Environment values count by name. A plan made with
+plan has another value now — for an apply and for a destroy alike; when it was made against
+another workspace; or when the repository is on another git tree than it was planned on. Environment values count by name. A plan made with
 uncommitted changes says so, and so does one made outside a git repository: there, nothing could be
 recorded.
 
@@ -396,7 +396,7 @@ it. Every question names the workspace and the identity.
 Nothing here is transactional, and there is no rollback.
 
 - The first failing step stops the run. Nothing after it starts. The result has three lists: what
-  ran, what failed, what never started.
+  ran, what failed (or was refused), what never started. A step with nothing to do didn't run.
 - After a *failure*, running the same command again finishes the job: a step that already did its
   work plans as nothing to do, and the bundle deploys again, which only uploads its files.
 - After a *refusal* — a stale plan, a waiting step in a reviewed file, a change that wasn't
@@ -495,6 +495,7 @@ built against the fake only. What the simulator answers is what we believe, writ
 | V5 | `bundle plan` speaks only of resources, not of files |
 | V6 | `bundle deploy --plan`, given a plan with no resource changes, still uploads the files and succeeds |
 | V7 | a bundle another identity deployed, or deployed under another root path, looks not deployed |
+| V8 | `--var` reads its value as a line of CSV, so a value with a comma has to be quoted (found in review; not in the spec's list) |
 
 Each is marked `TODO(verify)` where the code depends on it. The first thing to do after phase one is
 a bundle planned, applied, listed and destroyed on a real target.
@@ -590,9 +591,13 @@ Each is the builder's call where the spec left room; none is the owner's yet.
   line of output wherever it flows.
 - **"Made from" is two things**: a hash of each step's options as written, and the value of every
   input that was known at plan.
-- **The git tree is `HEAD`'s tree, plus whether tracked files were changed.** A plan made on a
-  clean tree is refused on another tree or on a changed one; a plan made on a changed tree can
-  only say so.
+- **The git tree is the whole repository's at `HEAD`, without the plan file itself, plus whether
+  tracked files were changed.** The whole repository because a step can reach outside the
+  config's folder; without the plan file so that a plan committed for review doesn't refuse
+  itself. A plan made on a clean tree is refused on another tree or on a changed one; a plan made
+  on a changed tree can only say so.
+- **Bundle variables are CSV-quoted** when they hold a comma or a quote, because `--var` is a list
+  flag (V8, unverified).
 - **The plan file keeps a step's named outputs and the ones another step takes**, not every field
   of every bundle resource; and a plan in a terminal shows, where it is given, only what another
   step takes.

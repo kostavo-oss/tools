@@ -71,9 +71,14 @@ def _from_entry_point(uses: str) -> Found:
 
 def _from_module(uses: str) -> Found:
     module_name, _, attr = uses.partition(":")
+    if not module_name or not attr or module_name.startswith("."):
+        raise StepNotFound(
+            f"`{uses}`: a plugin in a package is `package.module:Class`; one in the "
+            "repo is `./path/file.py:Class`"
+        )
     try:
         module = importlib.import_module(module_name)
-    except ImportError as error:
+    except Exception as error:  # a plugin's import error is its own
         raise StepNotFound(f"`{uses}`: can't import `{module_name}`: {error}") from error
     return Found(uses, _attr(module, attr, uses), f"module {module_name}")
 

@@ -48,8 +48,8 @@ plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
 
 Not built, or not proven:
 
-- **Nothing has run against a real workspace.** The seven things assumed about the Databricks
-  CLI are V1–V7 in `spec/004-asset-bundle.md`, each a `TODO(verify)` in
+- **Nothing has run against a real workspace.** What is assumed about the Databricks CLI is
+  V1–V7 in `spec/004-asset-bundle.md` and V8 in its "As built", each a `TODO(verify)` in
   `src/lely/steps/bundle.py`, and listed in the README. Settling them is the first thing to do.
 - **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
   that uses it. The owner takes it up separately — don't extend it.

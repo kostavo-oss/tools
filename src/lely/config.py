@@ -149,6 +149,14 @@ def find(start: Path) -> Path:
             return own
         if in_pyproject:
             return shared
+        misnamed = folder / "lely.yaml"
+        if misnamed.is_file():
+            raise ConfigError(
+                [
+                    f"{misnamed}: lely reads `{CONFIG_FILE}`. Rename it, or name "
+                    "it with -c."
+                ]
+            )
     raise ConfigError(
         [
             f"No `{CONFIG_FILE}`, and no `{PYPROJECT}` with a `[tool.lely]` section, in "
@@ -167,6 +175,10 @@ def load(path: Path) -> Config:
                 f"`{PYPROJECT}`."
             ]
         ) from None
+    except OSError as error:
+        raise ConfigError([f"{path}: {error.strerror or error}"]) from None
+    except UnicodeDecodeError:
+        raise ConfigError([f"{path}: not a text file lely can read (UTF-8)."]) from None
     return load_text(text, path)
 
 
@@ -188,13 +200,21 @@ def load_text(text: str, path: Path) -> Config:
 def _yaml(text: str, path: Path, reader: _Reader) -> Node:
     try:
         node = yaml.compose(text, Loader=yaml.SafeLoader)
+        if node is None:
+            raise ConfigError([f"{path}: empty; it needs a `steps:` list."])
+        return reader.node(node)
     except yaml.MarkedYAMLError as error:
         mark = error.problem_mark
         where = f"{path}:{mark.line + 1}:{mark.column + 1}" if mark else str(path)
         raise ConfigError([f"{where}: not valid YAML: {error.problem}"]) from None
-    if node is None:
-        raise ConfigError([f"{path}: empty; it needs a `steps:` list."])
-    return reader.node(node)
+    except yaml.YAMLError as error:  # a character YAML can't hold, and the like
+        raise ConfigError([f"{path}: not valid YAML: {error}"]) from None
+    except ValueError as error:  # a date that isn't one, a number too long to read
+        raise ConfigError([f"{path}: a value lely can't read: {error}"]) from None
+    except RecursionError:
+        raise ConfigError(
+            [f"{path}: an anchor refers to itself, or the file is nested too deep."]
+        ) from None
 
 
 # -- TOML -----------------------------------------------------------------------
@@ -213,7 +233,7 @@ def _has_section(path: Path) -> bool:
     return isinstance(tool, dict) and "lely" in tool
 
 
-_SECTION = re.compile(r"^[ \t]*\[\[?[ \t]*tool[ \t]*\.[ \t]*lely\b", re.MULTILINE)
+_SECTION = re.compile(r"^[ \t]*(?:\[\[?[ \t]*)?tool[ \t]*\.[ \t]*lely\b", re.MULTILINE)
 
 
 def _toml(text: str, path: Path) -> Node:

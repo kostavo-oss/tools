@@ -79,3 +79,21 @@ def test_destroying_is_planned_first_or_not_at_all(tmp_path: Path) -> None:
     )
     with pytest.raises(StepNotFound, match="a `plan_destroy` method to go with"):
         find("./s.py:Half", tmp_path)
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("uses", [".foo:Bar", ":Bar", "pkg.mod:"])
+def test_a_malformed_module_spelling_says_what_one_looks_like(uses: str) -> None:
+    with pytest.raises(StepNotFound, match="a plugin in a package is `package.module:"):
+        find(uses, Path.cwd())
+
+
+def test_a_module_that_raises_on_import_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "exploding_plugin.py").write_text("raise RuntimeError('no config')\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with pytest.raises(StepNotFound, match="can't import `exploding_plugin`: no config"):
+        find("exploding_plugin:X", Path.cwd())

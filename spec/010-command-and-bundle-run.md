@@ -87,6 +87,10 @@ plan.
   it exists*: known at plan if the plan command prints them, otherwise after the apply command
   writes them. A step that takes one the plan command never prints waits on every deploy all
   the same — and `validate` can't warn about that.
+- **A step that gives something only by running plans a run.** With a plan command that prints
+  no changes and a listed output it doesn't print, the apply command is the only thing that can
+  give that output — so the plan shows a `run` for it, "to give `<name>`". Without this the
+  step had nothing to do, never ran, and the step below it failed on every deploy.
 - **`LELY_PLAN` (R4)** holds the plan made right before the command runs, which was checked
   against the approved one.
 - **What a command prints (R3)** is shown when it fails, and logged line by line when it

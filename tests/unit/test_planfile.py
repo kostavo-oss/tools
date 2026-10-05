@@ -195,10 +195,11 @@ def test_a_result_has_its_three_lists() -> None:
     )
     document = planfile.result_to_json(result)
     assert (document["ran"], document["failed"], document["not_started"]) == (
-        ["model", "app"],
+        ["app"],  # `model` had nothing to do: it didn't run
         ["notify"],
         ["backfill"],
     )
+    assert document["refused"] == []
     assert document["rolled_back"] == []
     assert (document["outcome"], document["message"]) == ("failed", "boom")
     app = document["steps"][1]
@@ -240,3 +241,51 @@ def test_a_status_as_json() -> None:
         "note": "runs a command; nothing to list",
         "overview": None,
     }
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+def test_a_step_that_isnt_ready_cant_hold_changes(tmp_path: Path) -> None:
+    """A skipped step shows no changes, so a file that marks one skipped and
+    leaves its changes in would hide what it then lets through."""
+    document = planfile.plan_to_json(planned(tmp_path, "destroy"))
+    app = document["steps"][1]
+    assert app["plan"]["changes"]
+    app["skipped"] = "nothing deployed"
+    with pytest.raises(PlanFileError) as caught:
+        planfile.plan_from_json(document)
+    assert str(caught.value) == (
+        "step `app` is skipped and holds changes; lely writes no such plan. "
+        "Run `lely plan` again."
+    )
+    app["skipped"] = None
+    app["waits_for"] = ["model.version"]
+    with pytest.raises(PlanFileError, match="step `app` is waiting and holds changes"):
+        planfile.plan_from_json(document)
+
+
+def test_a_file_nested_too_deep_is_not_a_plan_file() -> None:
+    with pytest.raises(PlanFileError, match="Not a plan file"):
+        planfile.loads("[" * 100_000)
+
+
+def test_a_refused_step_is_listed_as_refused_not_failed() -> None:
+    result = Result(
+        "apply",
+        "dev",
+        project.WORKSPACE,
+        (
+            StepResult("app", "bundle", "done"),
+            StepResult("notify", "command", "refused", "plan again"),
+            StepResult("backfill", "bundle.run", "not started"),
+        ),
+        "refused",
+        "plan again",
+    )
+    document = planfile.result_to_json(result)
+    assert (document["ran"], document["failed"], document["refused"]) == (
+        ["app"],
+        [],
+        ["notify"],
+    )

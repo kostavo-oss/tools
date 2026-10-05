@@ -132,7 +132,8 @@ The ones worth remembering:
 ## Still open
 
 1. **Phase one has never run against a real workspace.** It was built against a fake Databricks
-   CLI, on seven assumptions about the real one — a risk the owner took knowingly. Settling
+   CLI, on seven assumptions about the real one — a risk the owner took knowingly — and an
+   eighth that a review turned up (how `--var` reads a comma). Settling
    them is the first thing to do, and the README says so to anyone who would rely on `apply` or
    `destroy`. → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
 2. **What the builder decided where the specs left room** is in each spec's "As built", and in

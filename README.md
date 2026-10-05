@@ -136,7 +136,7 @@ rounds, and every one after it takes one.
   run.
 - **Destructive changes need `--allow-destructive`.**
 - **A plan file is held to what it was made for:** the workspace, the project's steps and their
-  options, and the git tree.
+  options, the values each step took, and the repository's git tree.
 - **No rollback.** The first failing step stops the run; running it again finishes it.
 - **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again.
 
@@ -178,6 +178,7 @@ is what we believe the real one does, and no real workspace has confirmed it:
    succeeds.
 7. A bundle that another identity deployed, or that was deployed under another root path,
    looks "not deployed" from here.
+8. `--var` reads its value as a line of CSV, so lely quotes a variable that holds a comma.
 
 `lely doctor` also can't tell whether credentials are read-only; it says so.
 

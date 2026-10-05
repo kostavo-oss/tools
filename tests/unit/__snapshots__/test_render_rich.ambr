@@ -89,7 +89,7 @@
     · backfill  bundle.run  not started
     – warm  command  not for target `dev`
   
-  ran: model, app
+  ran: app
   failed: notify
   never started: backfill
   Nothing was rolled back.

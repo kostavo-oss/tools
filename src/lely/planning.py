@@ -30,7 +30,6 @@ from lely import step as contract
 from lely.config import (
     Config,
     ConfigError,
-    Loc,
     Map,
     Node,
     Scalar,
@@ -49,6 +48,7 @@ from lely.model import (
     Plan,
     PlanKind,
     PlannedStep,
+    Secret,
     Skip,
     Source,
     StepPlan,
@@ -159,18 +159,24 @@ def _offline(
     def resolver(scalar: Scalar) -> Any:
         text = str(scalar.value)
         refs = parse(text, scalar.loc)
+        secret = False
         for ref in refs:
             output = check_ref(ref, position, scalar.loc)
             if ref.namespace != "steps":
+                secret = True
                 continue
             source = ".".join(ref.path[1:])
-            takes.append((labels.get(scalar.loc, ""), source))
+            takes.append((labels.get(id(scalar), ""), source))
             if output is not None and output.known == "run":
                 warnings.append(
                     f"step `{step.name}` takes `{source}`, which is known only "
                     f"{KNOWN['run']}: it waits on every deploy, and a plan applied "
                     "from a file always stops before it"
                 )
+        if secret:
+            # A value from the environment is a secret whatever it turns out to
+            # be, so where it may not go is known without looking it up.
+            return Secret("")
         return Unknown("offline") if refs else text
 
     return resolver
@@ -184,16 +190,20 @@ def _offline_link(
     def linker(scalar: Scalar) -> Unknown:
         name = str(scalar.value)
         check_step(name, position, f"{scalar.loc}: `{name}`")
-        takes.append((labels.get(scalar.loc, ""), name))
+        takes.append((labels.get(id(scalar), ""), name))
         return Unknown("offline")
 
     return linker
 
 
-def _labels(block: Map | None) -> dict[Loc, str]:
+def _labels(block: Map | None) -> dict[int, str]:
     """For each value in a `with:` block, the option it fills: the nearest key.
-    An item of a list has none."""
-    labels: dict[Loc, str] = {}
+    An item of a list has none.
+
+    By the node itself, not by where it was written: two values can share a
+    position — a YAML alias, or a TOML file whose positions couldn't be found.
+    """
+    labels: dict[int, str] = {}
 
     def walk(node: Node, label: str) -> None:
         if isinstance(node, Map):
@@ -203,7 +213,7 @@ def _labels(block: Map | None) -> dict[Loc, str]:
             for child in node.items:
                 walk(child, "")
         else:
-            labels[node.loc] = label
+            labels[id(node)] = label
 
     if block is not None:
         walk(block, "")
@@ -212,7 +222,14 @@ def _labels(block: Map | None) -> dict[Loc, str]:
 
 def _declared(found: Found, step: StepConfig) -> tuple[Output, ...]:
     said = written(step.options)
-    return contract.declared(found.cls, said if isinstance(said, dict) else {})
+    try:
+        return contract.declared(found.cls, said if isinstance(said, dict) else {})
+    except LelyError:
+        raise
+    except Exception as error:  # a plugin's `outputs` is its own code
+        raise LelyError(
+            f"`{step.uses}`: its `outputs` failed: {type(error).__name__}: {error}"
+        ) from error
 
 
 def _where(step: StepConfig) -> str:
@@ -273,7 +290,7 @@ class Session:
                 if ref.namespace != "steps":
                     continue
                 value = lookup(ref, scope, scalar.loc)
-                label = labels.get(scalar.loc, "")
+                label = labels.get(id(scalar), "")
                 source = ".".join(ref.path[1:])
                 named = match(self.given[ref.step].declared, ref.output)
                 if named is not None:
@@ -288,7 +305,7 @@ class Session:
 
         def linker(scalar: Scalar) -> Linked | Unknown:
             name = str(scalar.value)
-            label = labels.get(scalar.loc, "")
+            label = labels.get(id(scalar), "")
             given = self.given.get(name)
             if given is None:
                 raise LelyError(
@@ -419,9 +436,14 @@ class Session:
                 f"{where}: `overview` returned {type(result).__name__}, not an Overview"
             )
         for item in result.items:
-            if not (item.kind and item.key and item.name):
+            named = (item.kind, item.key, item.name)
+            if not all(isinstance(part, str) and part for part in named):
                 raise LelyError(
                     f"{where}: an overview line needs a kind, a key and a name: {item}"
+                )
+            if not all(isinstance(part, str | None) for part in (item.id, item.url)):
+                raise LelyError(
+                    f"{where}: an overview line's id and url are text or nothing: {item}"
                 )
         return result
 
@@ -479,6 +501,14 @@ def _check_plan(result: object, where: str, method: str = "plan") -> None:
     keys = [change.key for change in result.changes]
     if len(set(keys)) != len(keys):
         raise LelyError(f"{where}: two changes share a key; each must be unique")
+    for change in result.changes:
+        lines = (change.key, change.summary, *change.detail)
+        if not all(isinstance(line, str) for line in lines):
+            raise LelyError(
+                f"{where}: a change's key, summary and detail are text: {change}"
+            )
+    if not all(isinstance(line, str) for line in (*result.notes, *result.later)):
+        raise LelyError(f"{where}: a plan's `notes` and `later` are text")
     planfile.step_plan_to_json(result, where)  # refuses secrets in the payload
 
 

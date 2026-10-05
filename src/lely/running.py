@@ -80,9 +80,10 @@ def apply(
             f"`lely destroy <file> -t {approved.target}`."
         )
     target = approved.target
-    active = [step for step in config.steps if step.runs_for(target)]
-    _known_step(from_step, active)
-    for step in active:
+    check_from(config, target, from_step)
+    for step in config.steps:
+        if not step.runs_for(target):
+            continue
         found = find(step.uses, config.root)
         if not contract.applies(found.cls):
             raise Refused(
@@ -102,6 +103,10 @@ def apply(
         was = approved.step(step.name)
         try:
             prepared = session.prepare(step)
+            if was is not None and was.state == "ready":
+                # also for a step `--from` passes over: what it gives the steps
+                # below was approved with these values
+                approval.same_inputs(was, prepared.inputs)
             if prepared.waits_for:
                 if not started:
                     session.unplanned(prepared)
@@ -109,7 +114,7 @@ def apply(
                     continue
                 raise LelyError(
                     f"Step `{step.name}`: {missing(prepared.waits_for)}, now that "
-                    "the steps above it have run."
+                    f"the steps above it have run.{run.never_ran(prepared.waits_for)}"
                 )
             fresh = session.plan(prepared)
             if not started:
@@ -156,7 +161,6 @@ def _may_apply(
         if not at_waiting(now):
             raise Refused(f"Step `{step.name}` wasn't approved. Nothing more was run.")
     else:
-        approval.same_inputs(was, prepared.inputs)
         approval.approved_changes(was.plan, fresh, step.name)
     if fresh.destructive and not allow_destructive:
         found = "; ".join(c.summary for c in fresh.changes if c.destructive)
@@ -184,16 +188,21 @@ def destroy(
             "`lely apply <file>`."
         )
     target = approved.target
-    active = [step for step in config.steps if step.runs_for(target)]
-    _known_step(from_step, active)
+    check_from(config, target, from_step)
 
     # From the top down: what each step gives the ones below. Nothing is removed
-    # until every step's options are resolved.
+    # until every step's options are resolved — and found to be what the plan
+    # showed: a destroy command acts on the values it is handed.
     session = Session(config, target, workspace, env, databricks, log, connect)
     resolved: dict[str, Prepared] = {}
-    for step in active:
+    for step in config.steps:
+        if not step.runs_for(target):
+            continue
         prepared = session.prepare(step)
         resolved[step.name] = prepared
+        was = approved.step(step.name)
+        if was is not None:
+            approval.same_inputs(was, prepared.inputs)
         if prepared.waits_for:
             session.unplanned(prepared)
         else:
@@ -224,9 +233,15 @@ def destroy(
                 raise Refused(
                     f"Step `{step.name}` isn't in the approved plan. {approval.AGAIN}"
                 )
-            approval.approved_changes(was.plan, fresh, step.name)
+            # a step the plan showed as skipped showed nothing it would remove
+            shown = was.plan if was.state == "ready" else StepPlan()
+            approval.approved_changes(shown, fresh, step.name)
             if not fresh.changes:
-                run.add(step, "nothing", "nothing to destroy")
+                # never a bare "nothing there": the plugin says whose view it is
+                words = "nothing to destroy"
+                if shown.changes:
+                    words = "nothing the plan listed is there to destroy"
+                run.add(step, "nothing", "; ".join((words, *fresh.notes)))
                 continue
             session.destroy(prepared, fresh)
             run.add(step, "done", plan=fresh)
@@ -280,11 +295,14 @@ def status(
 # -----------------------------------------------------------------------------
 
 
-def _known_step(name: str | None, active: list[StepConfig]) -> None:
-    if name is not None and name not in [step.name for step in active]:
-        known = ", ".join(step.name for step in active) or "none"
+def check_from(config: Config, target: str, name: str | None) -> None:
+    """Refuse a `--from` that names no step of this run — before anything is
+    planned or asked."""
+    active = [step.name for step in config.steps if step.runs_for(target)]
+    if name is not None and name not in active:
         raise Refused(
-            f"`--from {name}`: no step `{name}` runs for this target ({known})."
+            f"`--from {name}`: no step `{name}` runs for target `{target}` "
+            f"({', '.join(active) or 'none'})."
         )
 
 
@@ -314,6 +332,21 @@ class _Run:
                 detail,
                 changes=plan.changes if plan is not None else (),
             )
+        )
+
+    def never_ran(self, waits_for: tuple[str, ...]) -> str:
+        """A hint for a step whose input never came: the step that gives it had
+        nothing to do, so it didn't run."""
+        idle = {s.name for s in self.steps if s.outcome == "nothing"}
+        givers = [
+            name for name in idle if any(w.startswith(f"{name}.") for w in waits_for)
+        ]
+        if not givers:
+            return ""
+        named = ", ".join(f"`{name}`" for name in sorted(givers))
+        return (
+            f" Step {named} had nothing to do, so it didn't run: a plugin that gives "
+            "something only by running has to plan a run."
         )
 
     def stopped(

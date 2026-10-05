@@ -364,11 +364,17 @@ class Result:
 
     @property
     def ran(self) -> tuple[StepResult, ...]:
-        return tuple(s for s in self.steps if s.outcome in ("done", "nothing"))
+        """The steps that did something. One with nothing to do didn't run."""
+        return tuple(s for s in self.steps if s.outcome == "done")
 
     @property
     def failed(self) -> tuple[StepResult, ...]:
-        return tuple(s for s in self.steps if s.outcome in ("failed", "refused"))
+        return tuple(s for s in self.steps if s.outcome == "failed")
+
+    @property
+    def refused(self) -> tuple[StepResult, ...]:
+        """A refusal isn't a failure: running again won't help, a new plan will."""
+        return tuple(s for s in self.steps if s.outcome == "refused")
 
     @property
     def not_started(self) -> tuple[StepResult, ...]:

@@ -103,7 +103,14 @@ def build(
         )
     if reader.unknowns:
         return Unresolved(tuple(dict.fromkeys(reader.unknowns)))
-    return cls(**values)
+    try:
+        return cls(**values)
+    except LelyError as error:
+        raise OptionsError(f"{where}: {error}") from error
+    except Exception as error:  # a plugin's `__post_init__` is its own
+        raise OptionsError(
+            f"{where}: its options can't be built: {type(error).__name__}: {error}"
+        ) from error
 
 
 class _Pending:

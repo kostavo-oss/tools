@@ -28,6 +28,7 @@ lely is consistent with them, not that they are true:
 - V6  `deploy --plan` with no resource changes still uploads the files.
 - V7  what was deployed is recorded under the bundle's root path, which holds
       the deploying user's name: another identity sees nothing deployed.
+- V8  `--var` is a list flag whose value is read as a line of CSV.
 
 Anything it can't answer exits 1 — loudly, like the CLI would.
 """
@@ -35,6 +36,7 @@ Anything it can't answer exits 1 — loudly, like the CLI would.
 from __future__ import annotations
 
 import copy
+import csv
 import json
 import sys
 from pathlib import Path
@@ -92,8 +94,14 @@ class _Call:
                 call.tail = rest[i + 1 :]
                 break
             if word.startswith("--var="):
-                name, _, value = word.removeprefix("--var=").partition("=")
-                call.variables[name] = value
+                # a list flag: its value is a line of CSV (V8)
+                for pair in next(csv.reader([word.removeprefix("--var=")])):
+                    name, equals, value = pair.partition("=")
+                    if not equals:
+                        raise _Fails(
+                            f"unexpected flag value for variable assignment: {pair}"
+                        )
+                    call.variables[name] = value
             elif word in _FLAGS_WITH_VALUE:
                 i += 1
                 call.flags[word] = rest[i]
@@ -132,7 +140,7 @@ class _Simulated:
             (cwd / BUNDLE_FILE).read_text(encoding="utf-8")
         )
         self.target = call.flags.get("--target")
-        if self.target is None:
+        if not self.target:
             raise _Fails("the fake needs --target: lely always names one")
         targets = self.bundle.get("targets")
         if targets is not None and self.target not in targets:

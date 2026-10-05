@@ -197,7 +197,14 @@ when apply is about to be built.
 - **Another workspace (V4):** the plugin compares the host the bundle's target resolves to with
   the one the run talks to, and refuses when they differ, rather than wait for the CLI to.
 - **Right after an apply (R7a)**, a resource the deploy deleted is listed too, as deleted.
-- **V1–V7** are each a `TODO(verify)` in `src/lely/steps/bundle.py`, are what
+- **An eighth assumption, found in review — V8.** `--var` is a list flag, which reads its
+  value as a line of CSV. So a value with a comma or a quote is CSV-quoted; unquoted,
+  `14,catalog=prod` from a step above would have set a second variable nobody wrote. This is
+  from the CLI's source (`cmd/bundle/variables.go`), not seen live:
+  `databricks bundle validate --var='a=1,b=2' -o json` settles it.
+- **A `path` that isn't a directory** is said so at plan. It used to read as "the Databricks
+  CLI isn't installed".
+- **V1–V8** are each a `TODO(verify)` in `src/lely/steps/bundle.py`, are what
   `tests/fake_databricks.py` simulates, and are listed in the README.
 
 ## Done when

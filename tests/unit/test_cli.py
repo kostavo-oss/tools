@@ -310,7 +310,7 @@ def test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round(
     first = lely("apply", "plan.json", "--yes")
     assert first.exit_code == 2
     assert "Plan again: the next plan shows it." in said(first)
-    assert "ran: model, app" in said(first)
+    assert "ran: app" in said(first)  # `model` had nothing to do: it didn't run
     assert "refused: notify" in said(first)  # a refusal isn't a failure
     assert "never started: backfill" in said(first)
     assert "Nothing was rolled back." in said(first)
@@ -430,7 +430,7 @@ def test_a_failed_step_ends_with_1_and_three_lists(ready: Lely) -> None:
     )
     result = ready("apply", "-t", "dev", "--yes")
     assert result.exit_code == 1
-    assert "ran: model, app" in said(result)
+    assert "ran: app" in said(result)
     assert "failed: notify" in said(result)
     assert "never started: backfill" in said(result)
     assert "Nothing was rolled back." in said(result)
@@ -443,8 +443,8 @@ def test_the_result_as_json(ready: Lely) -> None:
     assert result.exit_code == 0, said(result)
     document = json.loads(result.stdout)
     assert document["outcome"] == "done"
-    assert document["ran"] == ["model", "app", "notify", "backfill"]
-    assert document["failed"] == document["not_started"] == []
+    assert document["ran"] == ["app", "notify", "backfill"]
+    assert document["failed"] == document["refused"] == document["not_started"] == []
     items = document["steps"][1]["overview"]["items"]
     assert {item["key"]: item["happened"] for item in items} == {
         "jobs.backfill": "unchanged",
@@ -588,3 +588,168 @@ def test_doctor_fails_when_a_tool_is_missing(
     assert result.exit_code == 1
     assert "`no-such-databricks` isn't on PATH" in said(result)
     assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
+
+
+# -- found in review ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("plan",),
+        ("status",),
+        ("apply", "--yes"),
+        ("destroy", "--yes"),
+    ],
+)
+def test_an_empty_target_is_no_target(lely: Lely, command: tuple[str, ...]) -> None:
+    """R37. `-t "$TARGET"` with the variable unset: the Databricks CLI would
+    read an empty target as "the default one", and there is none."""
+    for empty in ("", "  "):
+        result = lely(*command, "-t", empty)
+        assert result.exit_code == 2, said(result)
+        assert "there is no default target" in said(result)
+    assert lely.fake.calls == []
+    assert lely.fake.deployed() == project.DEPLOYED
+
+
+def test_pressing_enter_doesnt_destroy(lely: Lely) -> None:
+    """R18."""
+    lely.terminal(True)
+    result = lely("destroy", "-t", "dev", typed="\n")
+    assert result.exit_code == 2
+    assert lely.fake.deployed() == project.DEPLOYED
+
+
+def test_a_destroy_file_edited_to_hide_what_it_removes_is_refused(lely: Lely) -> None:
+    """R17, R20. One field of a real destroy plan changed by hand: the step is
+    marked skipped, its changes left in. As first built this showed "Nothing to
+    destroy", asked nothing, and destroyed."""
+    lely("plan", "-t", "dev", "--destroy", "-o", "destroy.json")
+    path = lely.root / "destroy.json"
+    document = json.loads(path.read_text())
+    document["steps"][1]["skipped"] = "nothing deployed"
+    path.write_text(json.dumps(document))
+    lely.fake.clear_calls()
+    for command in (("show", "destroy.json"), ("destroy", "destroy.json", "-t", "dev")):
+        result = lely(*command)
+        assert result.exit_code == (1 if command[0] == "show" else 2), said(result)
+        assert "step `app` is skipped and holds changes" in said(result)
+    assert lely.fake.deployed() == project.DEPLOYED
+    assert "destroy" not in lely.fake.verbs
+
+
+def test_a_file_lely_cant_read_is_a_refusal_when_it_would_be_run(lely: Lely) -> None:
+    """R3, R31: "plan again" ends with 2. `show` changes nothing: 1."""
+    old = lely.root / "old.json"
+    old.write_text(json.dumps({"format_version": 1}))
+    for command in (("apply", "old.json", "--yes"), ("destroy", "old.json", "-t", "dev")):
+        result = lely(*command)
+        assert result.exit_code == 2, said(result)
+        assert "Run `lely plan` again." in said(result)
+    assert lely("show", "old.json").exit_code == 1
+    old.write_bytes(b"\xff\xfe\x00not text")
+    assert lely("apply", "old.json", "--yes").exit_code == 2
+    assert "it isn't text" in said(lely("show", "old.json"))
+    assert lely.fake.calls == []
+
+
+def test_a_from_that_names_no_step_is_refused_before_anything_is_planned(
+    ready: Lely,
+) -> None:
+    ready.terminal(True)
+    result = ready("apply", "-t", "dev", "--from", "nope", typed="y\n")
+    assert result.exit_code == 2
+    assert "`--from nope`: no step `nope` runs for target `dev`" in said(result)
+    assert "Apply this plan" not in said(result)  # nothing was asked
+    assert ready.fake.calls == []
+    assert ready("destroy", "-t", "dev", "--yes", "--from", "nope").exit_code == 2
+    assert ready.fake.calls == []
+
+
+def test_a_refusal_before_the_first_step_is_said_as_json_too(ready: Lely) -> None:
+    """With `-f json`, whatever reads stdout reads something."""
+    result = ready("apply", "-t", "dev", "-f", "json")  # no terminal, no --yes
+    assert result.exit_code == 2
+    document = json.loads(result.stdout)
+    assert (document["kind"], document["target"]) == ("apply", "dev")
+    assert document["outcome"] == "refused"
+    assert "Pass --yes" in document["message"]
+    assert document["steps"] == []
+
+
+def test_the_question_names_who_runs_not_who_planned(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R35: with a file, the two need not be the same — a plan is made with
+    credentials that can read, and run with ones that can write."""
+    planned(ready)
+    deployer = Workspace(project.WORKSPACE.host, "deployer-sp@example.com")
+    monkeypatch.setattr(cli, "WHOAMI", lambda profile: deployer)
+    ready.terminal(True)
+    result = ready("apply", "plan.json", typed="n\n")
+    assert (
+        "Apply this plan to target `dev` on https://dbc-example.cloud.databricks.com "
+        "as deployer-sp@example.com (the plan was made as jane@example.com)?"
+    ) in said(result)
+
+
+def test_a_plan_that_cant_be_written_is_a_message(lely: Lely) -> None:
+    result = lely("plan", "-t", "dev", "-o", "missing/plan.json")
+    assert result.exit_code == 1
+    assert "Can't write the plan to missing/plan.json" in said(result)
+
+
+def test_a_destroy_plan_committed_for_review_doesnt_refuse_itself(lely: Lely) -> None:
+    """R14 and R36 together: a destroy can go through a pull request, and the
+    plan is still held to the tree it was made on — the tree without itself."""
+
+    def git(*args: str) -> None:
+        identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", *identity, *args], cwd=lely.root, check=True)
+
+    (lely.root / ".gitignore").write_text(".world/\nnotified.txt\n")
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-q", "-m", "first")
+    assert lely("plan", "-t", "dev", "--destroy", "-o", "destroy.json").exit_code == 0
+    git("add", "destroy.json")
+    git("commit", "-q", "-m", "destroy dev, for review")
+    result = lely("destroy", "destroy.json", "-t", "dev", "--yes")
+    assert result.exit_code == 0, said(result)
+    assert lely.fake.deployed() == {}
+
+
+def test_a_reviewed_file_covers_a_bundle_outside_the_configs_folder(
+    tmp_path: Path, lely: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R36: the bundle's files are in no plan, so the tree that is recorded has
+    to reach as far as a step can — here `path: ../bundle`."""
+
+    def git(*args: str) -> None:
+        identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", *identity, *args], cwd=tmp_path, check=True)
+
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    (tmp_path / "lely.yml").unlink()
+    (tmp_path / "bundle").mkdir()
+    (tmp_path / "fake-bundle.json").rename(tmp_path / "bundle" / "fake-bundle.json")
+    (deploy / "lely.yml").write_text(
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "    with: {path: ../bundle, vars: {model_version: 1}}\n"
+    )
+    (tmp_path / ".gitignore").write_text(".world/\nplan.json\n")
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-q", "-m", "first")
+    monkeypatch.chdir(deploy)
+    assert lely("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    (tmp_path / "bundle" / "notebook.py").write_text("# v2, unreviewed\n")
+    git("add", ".")
+    git("commit", "-q", "-m", "a notebook nobody reviewed")
+    lely.fake.clear_calls()
+    result = lely("apply", "plan.json", "--yes")
+    assert result.exit_code == 2
+    assert "The plan was made on git tree" in said(result)
+    assert lely.fake.calls == []

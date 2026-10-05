@@ -250,3 +250,49 @@ def test_both_in_one_folder_is_an_error_that_names_them(tmp_path: Path) -> None:
 def test_no_config_anywhere_says_what_was_looked_for(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="No `lely.yml`, and no `pyproject.toml`"):
         find(tmp_path)
+
+
+# -- found in review: a file lely can't read is a message, never a traceback ---------
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("base: &b {uses: bundle}\nsteps:\n  - <<: *b\n", "not valid YAML"),
+        ("steps:\n  - uses: !foo bar\n", "not valid YAML"),
+        ("steps:\n  - uses: bundle\n    with: {when: 2024-02-30}\n", "can't read"),
+        ("steps:\n  - uses: bundle\n    with: {n: !!int abc}\n", "can't read"),
+        ("steps: &a\n  - uses: bundle\n  - *a\n", "refers to itself"),
+        ("steps:\n  - uses: \x01\n", "not valid YAML"),
+    ],
+)
+def test_yaml_lely_cant_read_is_a_config_error(text: str, message: str) -> None:
+    [problem] = problems(text)
+    assert message in problem
+    assert problem.startswith("lely.yml")
+
+
+def test_a_config_that_isnt_a_readable_file_is_a_config_error(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="directory"):
+        load(tmp_path)
+    binary = tmp_path / "lely.yml"
+    binary.write_bytes(b"steps: \xff\xfe\n")
+    with pytest.raises(ConfigError, match="not a text file lely can read"):
+        load(binary)
+
+
+def test_a_config_named_lely_yaml_says_what_lely_reads(tmp_path: Path) -> None:
+    (tmp_path / "lely.yaml").write_text("steps: []\n")
+    with pytest.raises(ConfigError) as caught:
+        find(tmp_path)
+    assert "lely reads `lely.yml`. Rename it" in str(caught.value)
+
+
+def test_a_broken_pyproject_that_is_about_lely_isnt_passed_over(tmp_path: Path) -> None:
+    project.write(tmp_path)  # a `lely.yml` in the folder above
+    inner = tmp_path / "service"
+    inner.mkdir()
+    (inner / "pyproject.toml").write_text('tool.lely.steps = [\n  { uses = "bundle" \n')
+    assert find(inner) == inner / "pyproject.toml"
+    with pytest.raises(ConfigError, match="not valid TOML"):
+        load(find(inner))

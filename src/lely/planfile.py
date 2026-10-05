@@ -62,7 +62,7 @@ def dumps(plan: Plan) -> str:
 def loads(text: str) -> Plan:
     try:
         document = json.loads(text)
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, RecursionError) as error:
         raise PlanFileError(f"Not a plan file: {error}") from None
     return plan_from_json(document)
 
@@ -158,6 +158,7 @@ def result_to_json(result: Result) -> dict[str, Any]:
         "message": result.message,
         "ran": [step.name for step in result.ran],
         "failed": [step.name for step in result.failed],
+        "refused": [step.name for step in result.refused],
         "not_started": [step.name for step in result.not_started],
         "rolled_back": [],
         "steps": [
@@ -261,7 +262,7 @@ def _step_from_json(document: Json) -> PlannedStep:
                 known=bool(entry.get("known", True)),
             )
         )
-    return PlannedStep(
+    step = PlannedStep(
         name=name,
         uses=_str(doc, "uses", where),
         made_from=_str(doc, "made_from", where),
@@ -271,6 +272,14 @@ def _step_from_json(document: Json) -> PlannedStep:
         skipped=_optional_str(doc, "skipped", where),
         every_deploy=bool(doc.get("every_deploy", False)),
     )
+    # A step that isn't ready shows no changes, so it can't hold any: a file
+    # that says both would hide what it then lets through.
+    if step.plan.changes and (step.skipped is not None or step.waits_for):
+        raise PlanFileError(
+            f"{where} is {step.state} and holds changes; lely writes no such plan. "
+            "Run `lely plan` again."
+        )
+    return step
 
 
 def _change_to_json(change: Change) -> dict[str, Any]:

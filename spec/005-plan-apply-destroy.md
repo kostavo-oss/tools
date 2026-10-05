@@ -231,19 +231,38 @@ All by the owner, on 2026-10-05.
   environment counts by name — and, for every value a step took that was known at plan, that
   value: a plan that showed `model_version = 14` is refused when the lookup now answers 15.
   The bundle's own changes would read the same either way.
-- **The tree (R36)** is the tree of the project's directory at `HEAD`, and whether a tracked
-  file under it was changed. Not the commit — a merge that changes nothing keeps a plan valid —
-  and not the whole repository. A plan made on a clean tree is refused on another tree or a
-  changed one. A plan made with uncommitted changes can only say so: there is nothing to hold
-  it to. **Files git doesn't track yet are not seen** — the plan file is usually one — so a new,
+- **The tree (R36)** is the tree of the whole repository at `HEAD`, and whether any tracked
+  file was changed. Not the commit — a merge that changes nothing keeps a plan valid. The whole
+  repository and not only the folder the config is in, because a step can reach outside it: a
+  bundle at `path: ../bundle` was deployed from a later commit under a reviewed plan until this
+  was changed. In a repository with several projects that makes a plan stale more often than it
+  has to be. **The plan file itself is left out**, so a plan committed to be reviewed (R14: "a
+  destroy can go through a pull request") doesn't refuse itself. A plan made on a clean tree is
+  refused on another tree or a changed one. A plan made with uncommitted changes can only say
+  so: there is nothing to hold it to. **Files git doesn't track yet are not seen**, so a new,
   unadded notebook is deployed without the plan knowing.
+- **A destroy is held to its inputs too (R15).** Every value a step took when the destroy was
+  planned is compared before anything is removed — `bundle destroy` with other variables, or a
+  destroy command with another id, is another destroy. The same holds for a step `--from`
+  passes over.
+- **A step the approved plan showed as skipped showed nothing**, so whatever it would remove
+  now was never approved; and a plan file in which a skipped or waiting step holds changes is
+  refused as one lely never wrote.
+- **The three lists (R21).** "Ran" is what did something: a step with nothing to do didn't run.
+  A step lely refused is listed as refused, not as failed, in the terminal and in the JSON.
+- **An empty target** (`-t ""`, what an unset variable leaves behind) is refused: the
+  Databricks CLI would read it as "the default target", and there is none (R37).
+- **With a plan file, a question names who is running**, and says who planned when that is
+  someone else (R35).
 - **The workspace (R35)** is compared by host. The identity is recorded and shown, and may
   differ: a plan is made with credentials that can read, and applied with ones that can write.
 - **The overviews after an apply (R10)** are shown when the run is done. After a failure the
   result has its three lists; `lely status` shows what is there.
 - **A step that waits on every deploy (R27)** is marked so in the plan and its file.
 - **Exit codes (R31):** a config that can't be read is a failure, 1. A command typer can't make
-  sense of ends with 2, as do the refusals.
+  sense of ends with 2, as do the refusals — a plan file lely can't read among them, when it
+  was handed to `apply` or `destroy`. With `-f json`, a run that ends before its first step
+  still prints a result.
 - **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
   each program a step runs is there. It can't tell whether a bundle is on the direct engine
   without planning one, and says only which version brought it. It can't tell whether

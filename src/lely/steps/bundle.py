@@ -38,12 +38,16 @@ number from `spec/004-asset-bundle.md`:
 - V5: `bundle plan` speaks only of resources, not of files.
 - V6: `deploy --plan` with no resource changes still uploads the files.
 - V7: a bundle another identity deployed looks not deployed from here.
+- V8 (found in review, not in the spec's list): `--var` is a list flag that
+  reads its value as CSV, so a value with a comma needs quoting.
 
 Docs: https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands
 """
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import subprocess
 import tempfile
@@ -220,7 +224,7 @@ class OpenBundle:
 
     def args(self, verb: str, *extra: str, tail: tuple[str, ...] = ()) -> list[str]:
         args = ["bundle", verb, *extra, "--target", self.target]
-        args += [f"--var={name}={value}" for name, value in self.variables]
+        args += [f"--var={_csv(f'{name}={value}')}" for name, value in self.variables]
         return args + list(tail)
 
     def answer(self, verb: str) -> dict[str, Json]:
@@ -236,7 +240,26 @@ class OpenBundle:
 def open_bundle(cli: Cli, root: Path, target: str, options: Bundle.Options) -> OpenBundle:
     """The bundle a step's options name. `bundle.run` opens its bundle step's
     the same way, so both ask the CLI the same thing."""
-    return OpenBundle(cli, root / options.path, target, _variables(options.vars))
+    folder = root / options.path
+    if not folder.is_dir():
+        raise LelyError(f"`path: {options.path}`: there is no directory {folder}")
+    return OpenBundle(cli, folder, target, _variables(options.vars))
+
+
+def _csv(pair: str) -> str:
+    """One `name=value` as the CLI's `--var` reads it.
+
+    `--var` is a list flag (`StringSlice` in `cmd/bundle/variables.go`), and
+    such a flag reads its value as a line of CSV. Unquoted, a value with a comma
+    would be cut in two — and `14,catalog=prod` from a step above would set a
+    second variable nobody wrote. TODO(verify): V8 — from the CLI's source, not
+    seen live: `databricks bundle validate --var='a=1,b=2' -o json`.
+    """
+    if not any(char in pair for char in ',"\n\r'):
+        return pair
+    line = io.StringIO()
+    csv.writer(line, lineterminator="").writerow([pair])
+    return line.getvalue()
 
 
 def _variables(given: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
