@@ -1,29 +1,31 @@
 # CLAUDE.md
 
-`lely`: one plan/apply for a whole Databricks deploy — pre-deploy steps, the bundle,
-post-deploy steps. Read `docs/DESIGN.md` first; it is the source of truth. If code and
-design disagree, flag it instead of silently picking one.
+`lely`: one plan for a whole Databricks deploy. It plans, applies and destroys an ordered list
+of steps, each done by a plugin, and keeps no state. The Asset Bundle is one of those plugins.
 
-`spec/` says *what* each piece of work must deliver and when it is done; the design says
-*how*. The owner set a new direction on 2026-10-05 that the design doesn't have yet — plugins,
-destroy, the bundle as one of them — so **where `spec/` and `docs/DESIGN.md` disagree today, the
-spec is right**, and the design is rewritten once the specs are agreed. Before starting any
-work, read its spec, and don't build past a "To decide" that is still open — those are the
-owner's to answer. A requirement marked *(proposed)* is not agreed either.
+`spec/` says *what* each piece of work must deliver and when it is done; `docs/DESIGN.md` says
+*how* it is built. Read the spec of a piece before working on it. Since 2026-10-05 the two
+agree: if they disagree, or the code disagrees with either, flag it instead of silently picking
+one. Don't build past a "To decide" that is still open — those are the owner's to answer.
 
 ## Rules
 
-- The core is pure: config, references, ordering, plan assembly, the approval check and
-  renderers do no I/O, no SDK calls, no clock, no env. I/O lives in the CLI runner, the
-  workspace client and the steps.
+- The core is pure: config, references, the wiring, plan assembly, the approval check and the
+  renderers do no I/O, no SDK calls, no clock, no env. I/O lives at the edges: the plugins, the
+  Databricks CLI runner, the workspace client, `git`, the command line.
+- No module outside `src/lely/steps/` knows a plugin by name — the bundle included.
 - Domain model: frozen, slotted stdlib dataclasses with tuples.
-- The bundle is the Databricks CLI's: ask it (`bundle validate/plan/summary -o json`),
-  never reimplement what it resolves. If a bundle resource can manage something, no step
-  does.
-- A step touches only what its options name; anything else is unmanaged, never removed.
-- No destructive change without `destructive`, and none applied without
-  `--allow-destructive`.
-- Plan files carry no secrets.
+- The bundle is the Databricks CLI's: the `bundle` plugin asks it
+  (`bundle validate/plan/summary -o json`, `deploy --plan`, `destroy`) and never reimplements
+  what it resolves. If a bundle resource can manage something, no plugin does.
+- A step is given its own options and a way to reach the workspace, nothing else. What it takes
+  from another step is `${steps.<name>.<output>}` in its `with:`, from a step above it.
+- A plugin declares its outputs, touches only what its options name, and destroys only what it
+  can show is its own.
+- No destructive change without `destructive`, and none applied without `--allow-destructive`.
+- Nothing that changes a workspace runs unasked. A refusal is a `Refused` (exit 2); a failure
+  is any other `LelyError` (exit 1).
+- Plan files carry no secrets. A value from the environment is a `Secret`.
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.
@@ -33,25 +35,39 @@ owner's to answer. A requirement marked *(proposed)* is not agreed either.
 Tooling is mise + the Astral stack (uv, ruff, ty) — same as `stevin` and `maeslant`.
 Never use pip/virtualenv, black/flake8/isort, or mypy.
 
+`mise run check` is the gate (lint, format check, types, unit tests). `ruff format` also
+formats the Python in Markdown code blocks, so the gate covers `docs/` and `spec/`. When
+chaining the gate in a shell, a pipe hides a failing test: check the test count, not the exit
+code of `tail`.
+
 ## Status
 
-**Milestone 1 (read-only) is done**: `validate`, `steps`, `plan` and `show`, with the
-`stevin`, `bundle.run` and `command` steps and steps from a repo file. Its departures
-are listed under Milestones in `docs/DESIGN.md`. Work through the milestones in order and
-stop after each one to summarise what was built and what was assumed.
+**Phase one is built (2026-10-05), against fakes only.** `validate`, `steps`, `plan`, `show`,
+`apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run` plugins and
+plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
 
-`mise run check` is the gate (lint, format check, types, unit tests). There is no
-Databricks CLI or workspace in the unit suite:
+Not built, or not proven:
+
+- **Nothing has run against a real workspace.** The seven things assumed about the Databricks
+  CLI are V1–V7 in `spec/004-asset-bundle.md`, each a `TODO(verify)` in
+  `src/lely/steps/bundle.py`, and listed in the README. Settling them is the first thing to do.
+- **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
+  that uses it. The owner takes it up separately — don't extend it.
+- **The editors' schema** (`spec/003-config.md` R9).
+- **Phase two**: the page (`spec/007-ui.md`) and GitHub (`spec/008-github-actions.md`), whose
+  order is the owner's to decide.
+
+There is no Databricks CLI or workspace in the unit suite:
+
+- `tests/fake_databricks.py` is the CLI as a fake, as a program and in process. It answers from
+  recordings, or simulates a bundle in a workspace kept in a folder: `plan`, `deploy`,
+  `summary`, `destroy`, `run`. What it simulates is what lely *believes* the CLI does.
 - `tests/fixtures/cli/` holds the CLI's own recorded outputs, from its acceptance tests.
-- `tests/fixtures/stevin-*.json` are real stevin plan files, written by stevin
-  against its fake warehouse. They are the contract between the two tools.
-- `tests/fake_databricks.py` and `tests/fake_stevin.py` answer from those and fail
-  loudly on anything else.
+- `tests/fixtures/stevin-*.json` are real stevin plan files, written by stevin against its fake
+  warehouse; `tests/fake_stevin.py` answers from them.
+- `tests/project.py` is the scenario most tests share.
 
 **lely was sluis** until 2026-10-05, when the suite took its names from Dutch engineers and
 works (stevin, lely, maeslant). It had never been published, so nothing answers to the old
-name: the config file is `lely.yml`, the plugin entry-point group is `lely.steps`, the
-errors descend from `LelyError`, and a `command` step sees `LELY_TARGET`, `LELY_STEP` and
-`LELY_PHASE`. The step for tables is `stevin` and runs the `stevin` command. The recorded
-plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` — that is the
-property stevin really writes onto tables, and it kept its name on purpose.
+name. The recorded plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` —
+that is the property stevin really writes onto tables, and it kept its name on purpose.

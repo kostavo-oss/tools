@@ -1,6 +1,6 @@
 # 003 — config
 
-**Status:** agreed, 2026-10-05; not started. Phase one.
+**Status:** built, 2026-10-05, except R9 — see [As built](#as-built). Phase one.
 
 ## Why
 
@@ -89,6 +89,25 @@ are errors, with file, line and column.
   go. Nothing is published, so there is no file to migrate. *(owner, 2026-10-05)*
 - **Where the file is looked for** (was D2): upwards from the working directory — R5a.
   *(owner, 2026-10-05)*
+
+## As built
+
+2026-10-05.
+
+- **R9, the editors' schema, is not built.** Nothing else in phase one needs it.
+- **Positions in `pyproject.toml` (R7) are found again, not kept.** Python's TOML reader keeps
+  no line numbers, so each key is looked up in the text in the order it was read. That is
+  exact for a file written the usual way; in an unusual one a position can point at the right
+  step and the wrong line.
+- **R6 holds per folder.** Walking up, the first folder with a `lely.yml` or a `[tool.lely]`
+  wins, and one with both is the error. `--config` names a file outright and is not checked
+  against its neighbour.
+- **The wiring (R8) prints what a plugin declares**, one line per "when": for a bundle,
+  `resources.<type>.<key>.id (once it exists)` rather than the shorter `resources.*.id` of the
+  example above.
+- **"Made from" (done when) is a hash per step** of its plugin, its targets and its options as
+  written. A project in `lely.yml` and the same project in `pyproject.toml` give the same plan,
+  and a test holds them to it.
 
 ## Done when
 

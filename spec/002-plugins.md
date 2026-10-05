@@ -1,7 +1,8 @@
 # 002 — plugins
 
-**Status:** agreed, 2026-10-05; not started. Phase one, and the base for everything after it.
-Built first: nothing else in phase one can start before the bundle is out of the core.
+**Status:** built, 2026-10-05, against fakes only — see [As built](#as-built). The markers on
+the requirements below (*built*, *design*, "today …") say where each came from, and describe the
+code as it was before this was built.
 
 ## Words
 
@@ -222,6 +223,39 @@ plan half exists in the code and is left as it is.
   *(owner, 2026-10-05)*
 - **The word in the config** (was D1): it stays "step" — `uses:`, `lely steps`, the entry-point
   group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: go with the proposals)*
+
+## As built
+
+2026-10-05. Where the code went further than the sketch above, or stopped short of a
+requirement:
+
+- **`overview` answers with an `Overview`**: its lines, and notes — the bundle uses the notes to
+  say whose view it is ([004/R9b](004-asset-bundle.md)). `overview` and `plan_destroy` may also
+  answer `Skip(reason)`: a `command` step without a destroy command has nothing to destroy,
+  and which it is depends on the step, not on the plugin (R8a, R8b).
+- **A plan names what comes later.** `StepPlan.later` lists the declared *once it exists*
+  outputs that will exist only after apply. That is how a reference to a job that isn't in the
+  bundle at all is told apart from one to a job this deploy creates (R14a): the first is an
+  error at plan, the second makes a step wait.
+- **A plugin's outputs may depend on a step's options.** `outputs` is a list, or a function of
+  the options as written. `command` needs it: the step lists what it gives
+  ([010](010-command-and-bundle-run.md#decided)).
+- **An option can name a whole step** (type `Linked`), beside `${steps.<name>.<output>}`.
+  `bundle.run` has to run the CLI exactly as its bundle step does — same directory, same
+  `--var`s — and a step is given nothing but its options (R22). It is still R15: the dependency
+  is written in `with:`, the named step stands above, and `validate` checks both. *This is a
+  second way to depend on a step that the spec didn't name; the owner hasn't seen it.*
+- **What a step is given (R22)** is also its own name, the workspace's host, the environment
+  for a program it runs, and the Databricks CLI with this run's credentials — all "a way to
+  reach the workspace", none another step's.
+- **A value from the environment is a `Secret`** (R13): it can go only where a plugin asked for
+  one, which is what keeps it out of every plan and every line of output.
+- **The kit (R25)** has `check_plan`, `check_apply`, `check_destroy` and `check_overview`.
+  "Plan changes nothing" is held by running plan and overview with a Databricks CLI that
+  refuses anything but reads; it can't see a write made through the SDK or another program.
+  "Only its own" is not a check anyone can reuse: it is tested for the bundle plugin against
+  the simulated workspace.
+- **Not built:** R8, a plugin's own view — it arrives with the UI.
 
 ## Done when
 

@@ -1,7 +1,6 @@
 # 005 — plan, apply, destroy
 
-**Status:** agreed, 2026-10-05. Phase one. `plan` is built; `apply` and `destroy` are not started — every
-plugin's `apply` raises "apply is milestone 2" today.
+**Status:** built, 2026-10-05, against fakes only — see [As built](#as-built). Phase one.
 
 ## Why
 
@@ -223,6 +222,35 @@ All by the owner, on 2026-10-05.
 - **Whether `-t` is always needed** (was D8): yes — R37. *(go with the proposals)*
 - **How strict the approval check is** (was D9): every change in the new plan must be one that
   was shown; changes that are gone are fine — R7. *(go with the proposals)*
+
+## As built
+
+2026-10-05.
+
+- **"Made from" (R5) is two things.** A hash per step of its options *as written* — so the
+  environment counts by name — and, for every value a step took that was known at plan, that
+  value: a plan that showed `model_version = 14` is refused when the lookup now answers 15.
+  The bundle's own changes would read the same either way.
+- **The tree (R36)** is the tree of the project's directory at `HEAD`, and whether a tracked
+  file under it was changed. Not the commit — a merge that changes nothing keeps a plan valid —
+  and not the whole repository. A plan made on a clean tree is refused on another tree or a
+  changed one. A plan made with uncommitted changes can only say so: there is nothing to hold
+  it to. **Files git doesn't track yet are not seen** — the plan file is usually one — so a new,
+  unadded notebook is deployed without the plan knowing.
+- **The workspace (R35)** is compared by host. The identity is recorded and shown, and may
+  differ: a plan is made with credentials that can read, and applied with ones that can write.
+- **The overviews after an apply (R10)** are shown when the run is done. After a failure the
+  result has its three lists; `lely status` shows what is there.
+- **A step that waits on every deploy (R27)** is marked so in the plan and its file.
+- **Exit codes (R31):** a config that can't be read is a failure, 1. A command typer can't make
+  sense of ends with 2, as do the refusals.
+- **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
+  each program a step runs is there. It can't tell whether a bundle is on the direct engine
+  without planning one, and says only which version brought it. It can't tell whether
+  credentials are read-only: it reports whether the identity is a workspace admin, and that it
+  knows no more.
+- **The workspace and the identity** are asked of the Databricks SDK, which reads the same
+  profile and variables as the CLI.
 
 ## Done when
 

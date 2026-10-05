@@ -17,3 +17,7 @@ Nothing else is changed except where a note below says so.
 Most of these were recorded against the CLI's in-process test server; the
 default-python files against a real workspace. Replace them with transcripts of
 a live run when the live suite exists.
+
+These are for *reading* the CLI's answers. What `bundle deploy`, `destroy` and `run` do is not
+recorded anywhere: `tests/fake_databricks.py` simulates them, from what lely assumes
+(`spec/004-asset-bundle.md`, To verify).

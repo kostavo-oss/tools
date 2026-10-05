@@ -1,7 +1,7 @@
 # 010 — the small plugins: `command` and `bundle.run`
 
-**Status:** agreed, 2026-10-05; not started. Phase one — found missing when the spec was reviewed: nothing said what these
-two do on apply, on destroy or in `status`.
+**Status:** built, 2026-10-05 — see [As built](#as-built). Phase one. `bundle.run`'s apply is
+tested against a fake CLI only.
 
 ## Why
 
@@ -76,6 +76,26 @@ plan.
 - **How a `command` step says what it gives** (was D1): the step lists them — `outputs:
   [version]` in its options. `lely validate` can then check references to them, and a name it
   lists and gives in neither way is a failed step. *(owner, 2026-10-05: go with the proposals)*
+
+## As built
+
+2026-10-05.
+
+- **When a `command` step's outputs are known (R5).** Without a plan command they are all
+  *after every run*, and `validate` warns about a step that takes one. With a plan command lely
+  can't know before running it which of the listed names it prints, so they are declared *once
+  it exists*: known at plan if the plan command prints them, otherwise after the apply command
+  writes them. A step that takes one the plan command never prints waits on every deploy all
+  the same — and `validate` can't warn about that.
+- **`LELY_PLAN` (R4)** holds the plan made right before the command runs, which was checked
+  against the approved one.
+- **What a command prints (R3)** is shown when it fails, and logged line by line when it
+  succeeds.
+- **`env` may hold a secret (R8)**; arguments may not, a value from the environment included.
+- **`bundle` on `bundle.run` (R9)** is an option that names a step — see
+  [002, As built](002-plugins.md#as-built).
+- **`bundle run <key> -- <args>` (R11):** that arguments after `--` reach the job, and that a
+  failed run exits non-zero, are from the CLI's docs and not seen live.
 
 ## Done when
 

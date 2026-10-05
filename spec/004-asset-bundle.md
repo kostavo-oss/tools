@@ -1,8 +1,7 @@
 # 004 — the Asset Bundle plugin
 
-**Status:** agreed, 2026-10-05; not started. Phase one, and the first plugin to be finished — after the contract
-([002](002-plugins.md)) and the config's shape ([003/R1](003-config.md)), which it stands on.
-*(owner: "start with asset bundles")*
+**Status:** built, 2026-10-05, against a fake CLI only — see [As built](#as-built). Nothing here
+has run on a real workspace: [To verify](#to-verify-on-a-workspace) is the first thing to do.
 
 ## Why
 
@@ -175,6 +174,31 @@ when apply is about to be built.
   deployed — R9a. *(owner, 2026-10-05)*
 - **No run on a real workspace for now:** see [To verify](#to-verify-on-a-workspace).
   *(owner, 2026-10-05)*
+
+## As built
+
+2026-10-05.
+
+- **"Files are uploaded" (R5a) is a `run`.** The spec had no word for it. A `run` already means
+  "happens on every apply": a plan that holds one is never "nothing to do", and it is counted
+  as a run, not as a change. So a bundle with no resource to change plans as
+  `Plan: 0 changes · 1 run`.
+- **Planning asks the CLI three things** — `validate`, `plan`, `summary` — each with the step's
+  `vars`. The summary is asked at plan time too: it has the ids of what is deployed already.
+- **A resource this deploy replaces** is treated like one it creates: whatever id it has now is
+  not the id it will have, so a step that takes it waits.
+- **Which of the CLI's refusals lely recognises (R6b)** is one: a plan the state has moved on
+  from, by the words "since the plan was created" in what the CLI says. That ends the run as
+  refused. Any other failed deploy is a failure: running again may finish it. The words are
+  read from the CLI's source, not seen live.
+- **The Terraform engine (R3)** is recognised by a plan without a `plan_version`, and refused
+  with a message that says so. How such a bundle really answers `bundle plan -o json` is not
+  verified.
+- **Another workspace (V4):** the plugin compares the host the bundle's target resolves to with
+  the one the run talks to, and refuses when they differ, rather than wait for the CLI to.
+- **Right after an apply (R7a)**, a resource the deploy deleted is listed too, as deleted.
+- **V1–V7** are each a `TODO(verify)` in `src/lely/steps/bundle.py`, are what
+  `tests/fake_databricks.py` simulates, and are listed in the README.
 
 ## Done when
 

@@ -11,8 +11,8 @@ lely plans, applies and destroys an ordered list of steps, each done by a plugin
 state of its own. The Asset Bundle is one of those plugins.
 
 `spec/` says *what* each piece must deliver and when it is done. This file says *how* it is built.
-It was rewritten on 2026-10-05 to the direction the owner set that day; where the two disagree,
-say so instead of picking one.
+It was rewritten on 2026-10-05 to the direction the owner set that day, and phase one was built to
+it the same day — against fake tools only. Where the two disagree, say so instead of picking one.
 
 "Bundle" means a Declarative Automation Bundle, formerly Databricks Asset Bundle: `databricks.yml`,
 deployed by the Databricks CLI.
@@ -446,8 +446,12 @@ lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@exam
     – skipped: not for target dev
 
 Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
-Applied from a file, this stops before `notify`.
+Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.
 ```
+
+Where a step gives something another step takes, it is shown there (`→ version = 14`) and where
+it is taken (`model_version = 14  ← model.version`). The rest of what a step gives is in the plan
+file.
 
 ## The plan file
 
@@ -589,8 +593,14 @@ Each is the builder's call where the spec left room; none is the owner's yet.
 - **The git tree is `HEAD`'s tree, plus whether tracked files were changed.** A plan made on a
   clean tree is refused on another tree or on a changed one; a plan made on a changed tree can
   only say so.
-- **The plan file shows a step's named outputs and the ones another step takes**, not every field
-  of every bundle resource.
+- **The plan file keeps a step's named outputs and the ones another step takes**, not every field
+  of every bundle resource; and a plan in a terminal shows, where it is given, only what another
+  step takes.
+- **A step that waits for what only a run produces is marked** as waiting on every deploy, in the
+  plan and in its file.
+- **`doctor` reports what it can read off**: the CLI's version, the workspace, the identity,
+  whether it is a workspace admin, and whether each program a step runs is there. Not the
+  bundle's engine, and not whether credentials are read-only.
 
 ## Stack
 
