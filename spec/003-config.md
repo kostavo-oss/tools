@@ -1,6 +1,6 @@
 # 003 — config
 
-**Status:** built, 2026-10-05, except R9 — see [As built](#as-built). Phase one.
+**Status:** built, 2026-10-05 — see [As built](#as-built). Phase one.
 
 ## Why
 
@@ -94,7 +94,15 @@ are errors, with file, line and column.
 
 2026-10-05.
 
-- **R9, the editors' schema, is not built.** Nothing else in phase one needs it.
+- **R9, the editors' schema, is `lely schema`.** It prints a JSON Schema (draft-07) built from
+  the plugins installed and the ones the project names: each plugin's options, with the words
+  its author wrote above them, and what a step of it gives. An editor is pointed at it with a
+  first line in `lely.yml`: `# yaml-language-server: $schema=lely.schema.json`. It says what
+  `validate` says about a config's *shape*; that a reference names a step that exists, stands
+  above and gives that output stays `validate`'s to check — a schema can't see one step from
+  another. It is tested with a JSON Schema validator and against what lely itself accepts and
+  refuses, **not in an editor**. It covers `lely.yml`; a `[tool.lely]` section has no schema of
+  its own, because a `pyproject.toml` has one schema and it isn't lely's to replace.
 - **Positions in `pyproject.toml` (R7) are found again, not kept.** Python's TOML reader keeps
   no line numbers, so each key is looked up in the text in the order it was read. That is
   exact for a file written the usual way; in an unusual one a position can point at the right

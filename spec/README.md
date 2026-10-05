@@ -20,7 +20,7 @@ The numbers are names, not an order; the order of work is in
 | [000 — what lely is](000-what-lely-is.md) | Why it exists, where it stands, what it does and doesn't | — | agreed |
 | [001 — what is built](001-what-is-built.md) | The read-only half as it stood before phase one | — | superseded |
 | [002 — plugins](002-plugins.md) | The one contract; what flows between steps | 1 | built |
-| [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | built, except the editors' schema |
+| [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | built |
 | [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built — **untried on a real workspace** |
 | [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | built |
 | [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
@@ -144,5 +144,3 @@ The ones worth remembering:
    plan with `--yes`. → [008/D2](008-github-actions.md#to-decide)
 4. **After phase one: the UI first, or GitHub first — and which plugins come after.**
    → [000](000-what-lely-is.md#to-decide)
-5. **The editors' schema** ([003/R9](003-config.md)) is the one requirement of phase one that
-   isn't built.

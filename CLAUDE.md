@@ -42,9 +42,9 @@ code of `tail`.
 
 ## Status
 
-**Phase one is built (2026-10-05), against fakes only.** `validate`, `steps`, `plan`, `show`,
-`apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run` plugins and
-plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
+**Phase one is built (2026-10-05), against fakes only.** `validate`, `steps`, `schema`, `plan`,
+`show`, `apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run`
+plugins and plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
 
 Not built, or not proven:
 
@@ -53,7 +53,6 @@ Not built, or not proven:
   `src/lely/steps/bundle.py`, and listed in the README. Settling them is the first thing to do.
 - **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
   that uses it. The owner takes it up separately — don't extend it.
-- **The editors' schema** (`spec/003-config.md` R9).
 - **Phase two**: the page (`spec/007-ui.md`) and GitHub (`spec/008-github-actions.md`), whose
   order is the owner's to decide.
 

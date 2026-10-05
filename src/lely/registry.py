@@ -14,6 +14,8 @@ import dataclasses
 import hashlib
 import importlib
 import importlib.util
+import inspect
+import re
 import sys
 from dataclasses import dataclass
 from importlib.metadata import EntryPoint, entry_points
@@ -138,3 +140,30 @@ def _check(found: Found) -> Found:
         )
     assert isinstance(options, type)
     return dataclasses.replace(found, options=options)
+
+
+def option_docs(options: type) -> dict[str, str]:
+    """What a plugin's author wrote above each option, as `#:` comments.
+
+        #: The directory holding `databricks.yml`, relative to the config.
+        path: str = "."
+
+    Read from the plugin's source, for the editors' schema. A plugin whose
+    source isn't there to read has none.
+    """
+    try:
+        source = inspect.getsource(options)
+    except (OSError, TypeError):
+        return {}
+    docs: dict[str, str] = {}
+    above: list[str] = []
+    for line in source.splitlines():
+        text = line.strip()
+        if text.startswith("#:"):
+            above.append(text[2:].strip())
+            continue
+        named = re.match(r"(\w+)\s*:", text)
+        if named and above:
+            docs[named.group(1)] = " ".join(above)
+        above = []
+    return docs

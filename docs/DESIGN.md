@@ -105,6 +105,7 @@ client, `git`, and the command line.
 | `approval` | what may run: the plan file against the project, a fresh plan against the approved one |
 | `running` | `apply`, `destroy`, `status` |
 | `planfile` | the plan and the result, to JSON and back |
+| `schema` | the config's shape as JSON Schema, built from the plugins, for editors |
 | `render` | the terminal |
 | `steps/` | the plugins lely ships: `bundle`, `bundle.run`, `command`, and `stevin`'s plan half |
 | `databricks`, `source`, `process` | the Databricks CLI, `git`, any other program |
@@ -412,6 +413,7 @@ Nothing here is transactional, and there is no rollback.
 ```
 lely validate                          # config, options, references: offline; prints the wiring
 lely steps                             # plugins: options, outputs, what each can do
+lely schema [-o lely.schema.json]      # a JSON Schema of the config, for editors
 lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
 lely show plan.json [-f rich|json]
 lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]

@@ -52,6 +52,7 @@ packages = ["src/lely"]
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.20",
     "pytest>=8.0",
     "ruff>=0.6",
     "syrupy>=4.8",

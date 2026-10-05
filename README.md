@@ -84,6 +84,7 @@ options, and only from a step above it. Reading a step's `with:` is enough to kn
 it depends on.
 
 ```sh
+lely schema -o lely.schema.json  # for your editor: completes and checks `with:` as you type
 lely validate                    # config, options, references — offline; prints the wiring
 lely plan -t dev                 # the whole deploy as one plan; nothing is changed
 lely plan -t dev -o plan.json    # … as a file, to review
@@ -93,7 +94,8 @@ lely status -t dev               # what is deployed right now
 lely destroy -t dev              # take it down again: plan, show, ask, run
 ```
 
-There is no default target: `-t` is always given. The workspace comes from `--profile`, or
+For the editor, make `# yaml-language-server: $schema=lely.schema.json` the first line of
+`lely.yml`. There is no default target: `-t` is always given. The workspace comes from `--profile`, or
 from the variables the Databricks CLI already reads.
 
 ## The plan

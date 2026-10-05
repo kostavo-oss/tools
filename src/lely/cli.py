@@ -2,6 +2,7 @@
 
     lely validate                 config, options, references: offline; the wiring
     lely steps                    plugins: options, outputs, what each can do
+    lely schema [-o file]         a JSON Schema of the config, for editors
     lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
     lely show plan.json [-f rich|json]
     lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
@@ -48,6 +49,7 @@ from lely import (
     running,
     source,
 )
+from lely import schema as schema_
 from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
@@ -342,25 +344,10 @@ def validate(path: ConfigOption = None) -> None:
 @app.command()
 def steps(path: ConfigOption = None) -> None:
     """List the plugins: installed, and the ones this project names."""
-    names = sorted(registry.installed())
-    root = Path.cwd()
-    try:
-        loaded = _load(path)
-    except LelyError as error:
-        if path is not None:
-            raise _fail(error, refusals=False) from None
-    else:
-        root = loaded.root
-        names += [s.uses for s in loaded.steps if s.uses not in names]
-    for name in dict.fromkeys(names):
-        try:
-            found = registry.find(name, root)
-        except LelyError as error:
-            err.print(f"[red]{escape(name)}[/]: {escape(str(error))}")
-            continue
+    for found in _plugins(path):
         doc = (found.cls.__doc__ or "").strip().splitlines()
         out.print(
-            f"[bold]{escape(name)}[/]  [dim]{escape(found.source)}[/]"
+            f"[bold]{escape(found.uses)}[/]  [dim]{escape(found.source)}[/]"
             + (f"\n  {escape(doc[0])}" if doc else "")
         )
         for f in options.fields_of(found.options):
@@ -371,6 +358,60 @@ def steps(path: ConfigOption = None) -> None:
         for line in _gives(found.cls):
             out.print(f"    [dim]gives[/]  {escape(line)}")
         out.print(f"    [dim]can[/]    {escape(_can(found.cls))}")
+
+
+def _plugins(path: Path | None) -> list[registry.Found]:
+    """The plugins a config here can use: the installed ones, and the ones this
+    project names. One that can't be loaded is said so and left out."""
+    names = sorted(registry.installed())
+    root = Path.cwd()
+    try:
+        loaded = _load(path)
+    except LelyError as error:
+        if path is not None:
+            raise _fail(error, refusals=False) from None
+    else:
+        root = loaded.root
+        names += [s.uses for s in loaded.steps if s.uses not in names]
+    found = []
+    for name in dict.fromkeys(names):
+        try:
+            found.append(registry.find(name, root))
+        except LelyError as error:
+            err.print(f"[red]{escape(name)}[/]: {escape(str(error))}")
+    return found
+
+
+@app.command()
+def schema(
+    path: ConfigOption = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write the schema to a file.")
+    ] = None,
+) -> None:
+    """Print a JSON Schema of the config, built from the plugins, for editors.
+
+    Point an editor at it with a first line in lely.yml:
+    `# yaml-language-server: $schema=lely.schema.json`
+    """
+    plugins = _plugins(path)
+    docs = {found.uses: registry.option_docs(found.options) for found in plugins}
+    text = schema_.dumps(schema_.build(plugins, docs))
+    if output is None:
+        typer.echo(text, nl=False)
+        return
+    try:
+        output.write_text(text, encoding="utf-8")
+    except OSError as error:
+        problem = LelyError(
+            f"Can't write the schema to {output}: {error.strerror or error}"
+        )
+        raise _fail(problem, refusals=False) from None
+    out.print(Text.assemble(("Wrote", "green"), f" {output}"))
+    out.print(
+        "[dim]As the first line of lely.yml:[/]  "
+        + escape(f"# yaml-language-server: $schema={output}")
+    )
 
 
 def _gives(cls: type) -> list[str]:
