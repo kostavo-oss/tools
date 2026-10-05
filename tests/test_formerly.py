@@ -7,8 +7,10 @@ in their fingers — and this is where that is pinned.
 
 from __future__ import annotations
 
+import importlib
 import json
 import sys
+import tomllib
 from importlib.metadata import entry_points, version
 from pathlib import Path
 
@@ -138,3 +140,34 @@ def test_its_help_is_maeslants_and_never_mentions_the_old_name(monkeypatch, caps
     out = capsys.readouterr().out
     assert "usage: maeslant" in out
     assert "isolinear" not in out
+
+
+# -- the last release under the old name --------------------------------------
+
+SHIM = Path(__file__).parents[1] / "isolinear-shim"
+
+
+def test_the_last_isolinear_release_installs_maeslant_and_its_old_commands():
+    project = tomllib.loads((SHIM / "pyproject.toml").read_text())["project"]
+    assert project["name"] == "isolinear"
+    assert [d.split(">=")[0] for d in project["dependencies"]] == ["maeslant"]
+    assert project["scripts"] == {
+        "isolinear": "maeslant.formerly:main",
+        "iso": "maeslant.formerly:main",
+    }
+
+
+def test_importing_it_warns_and_points_at_maeslant(monkeypatch):
+    monkeypatch.syspath_prepend(str(SHIM / "src"))
+    monkeypatch.delitem(sys.modules, "isolinear", raising=False)
+    with pytest.warns(DeprecationWarning, match="isolinear is now maeslant"):
+        importlib.import_module("isolinear")
+    monkeypatch.delitem(sys.modules, "isolinear")
+
+
+def test_maeslant_does_not_ship_it():
+    """One wheel must not carry both names: the old one is a release of its own."""
+    root = SHIM.parent
+    build = tomllib.loads((root / "pyproject.toml").read_text())["tool"]["hatch"]["build"]
+    assert build["targets"]["wheel"]["packages"] == ["src/maeslant"]
+    assert SHIM.name in build["targets"]["sdist"]["exclude"]

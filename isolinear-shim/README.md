@@ -1,0 +1,20 @@
+# isolinear is now maeslant
+
+`isolinear` — the terminal UI for Databricks secrets — was renamed
+[**Maeslant**](https://github.com/kostavo-oss/maeslant). This is the last release under
+the old name. It contains no code of its own: it installs maeslant, and forwards to it.
+
+```sh
+uv tool install maeslant    # instead of: uv tool install isolinear
+maeslant                    # instead of: isolinear, or iso
+```
+
+Nothing you had is lost. Your settings and your theme are picked up from where isolinear
+kept them, and nothing in a workspace carries either name.
+[Coming from isolinear](https://kostavo-oss.github.io/maeslant/installation/#coming-from-isolinear)
+has the short list of what moved.
+
+Until you switch, the `isolinear` and `iso` commands still run — they say the new name on
+stderr, then open the app.
+
+Community project, not affiliated with or endorsed by Databricks. MIT.

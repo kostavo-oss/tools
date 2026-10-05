@@ -58,6 +58,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/maeslant"]
 
+[tool.hatch.build.targets.sdist]
+# the last isolinear release is a package of its own
+exclude = ["isolinear-shim"]
+
 [dependency-groups]
 dev = [
     "textual-dev>=1.5",
