@@ -147,7 +147,8 @@ def _main(
 
 class _Log:
     def info(self, message: str) -> None:
-        err.print(f"[dim]… {escape(message)}[/]")
+        # what a program printed is shown, never obeyed
+        err.print(f"[dim]… {escape(clean(message))}[/]")
 
 
 def _fail(error: Exception, *, refusals: bool = True) -> typer.Exit:
@@ -281,7 +282,7 @@ def _consent_to_destroy(plan: Plan, run: _Run, yes: bool) -> None:
         )
     try:
         answer = typer.prompt(
-            f"This destroys {_where(plan, run)}.\nType the target's name to go on",
+            f"This destroys {clean(_where(plan, run))}.\nType the target's name to go on",
             default="",
             show_default=False,
             err=True,
@@ -318,7 +319,7 @@ def _at_waiting(plan: Plan, run: _Run, yes: bool) -> running.AtWaiting:
             return True
         if not _interactive():
             return False
-        return _confirm(f"Run step `{step.name}` on {_where(plan, run)}?")
+        return _confirm(clean(f"Run step `{step.name}` on {_where(plan, run)}?"))
 
     return ask
 
@@ -368,9 +369,14 @@ def _plugins(path: Path | None) -> list[registry.Found]:
     root = Path.cwd()
     try:
         loaded = _load(path)
-    except LelyError as error:
+    except config.NoConfig as error:
+        # no project here: the installed plugins are all there is to list. A
+        # config that is there and can't be read is not that: its plugins
+        # would be silently missing.
         if path is not None:
             raise _fail(error, refusals=False) from None
+    except LelyError as error:
+        raise _fail(error, refusals=False) from None
     else:
         root = loaded.root
         names += [s.uses for s in loaded.steps if s.uses not in names]
@@ -379,7 +385,7 @@ def _plugins(path: Path | None) -> list[registry.Found]:
         try:
             found.append(registry.find(name, root))
         except LelyError as error:
-            err.print(f"[red]{escape(name)}[/]: {escape(str(error))}")
+            err.print(f"[red]{escape(name)}[/]: {escape(clean(str(error)))}")
     return found
 
 
@@ -397,7 +403,10 @@ def schema(
     """
     plugins = _plugins(path)
     docs = {found.uses: registry.option_docs(found.options) for found in plugins}
-    text = schema_.dumps(schema_.build(plugins, docs))
+    try:
+        text = schema_.dumps(schema_.build(plugins, docs))
+    except LelyError as error:
+        raise _fail(error, refusals=False) from None
     if output is None:
         typer.echo(text, nl=False)
         return
@@ -409,9 +418,22 @@ def schema(
         )
         raise _fail(problem, refusals=False) from None
     out.print(Text.assemble(("Wrote", "green"), f" {output}"))
+    # an editor reads the path from where the config is, not from here
+    beside = output
+    try:
+        found = config.find(Path.cwd()) if path is None else path
+        beside = Path(os.path.relpath(output.resolve(), found.resolve().parent))
+    except (LelyError, ValueError):
+        found = None
+    if found is not None and found.name == config.PYPROJECT:
+        out.print(
+            "[dim]It is for a `lely.yml`: a `[tool.lely]` section in pyproject.toml "
+            "has no schema of its own.[/]"
+        )
+        return
     out.print(
         "[dim]As the first line of lely.yml:[/]  "
-        + escape(f"# yaml-language-server: $schema={output}")
+        + escape(f"# yaml-language-server: $schema={beside.as_posix()}")
     )
 
 
@@ -560,7 +582,8 @@ def _programs(cls: type, written: Mapping[str, Any]) -> tuple[str, ...]:
     listed = getattr(cls, "programs", None)
     if not callable(listed):
         return ()
-    return tuple(dict.fromkeys(listed(written)))
+    with contract.quietly():
+        return tuple(dict.fromkeys(listed(written)))
 
 
 def _there(program: str, root: Path) -> bool:
@@ -640,10 +663,10 @@ def apply(
                 **run.edges,
             )
             at_waiting = _at_waiting(approved, run, yes)
-        render_plan(approved, err)
+        render_plan(approved, err, saved=plan_file is not None)
         approval.destructive_allowed(approved.steps, allow_destructive)
         if not _nothing_in(approved):
-            _consent(f"Apply this plan to {_where(approved, run)}?", yes)
+            _consent(clean(f"Apply this plan to {_where(approved, run)}?"), yes)
         result = running.apply(
             run.config,
             approved,
@@ -698,7 +721,7 @@ def destroy(
                 kind="destroy",
                 **run.edges,
             )
-        render_plan(approved, err)
+        render_plan(approved, err, saved=plan_file is not None)
         if not _nothing_in(approved):
             _consent_to_destroy(approved, run, yes)
         result = running.destroy(run.config, approved, from_step=from_step, **run.edges)

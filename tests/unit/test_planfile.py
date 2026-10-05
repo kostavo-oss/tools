@@ -65,7 +65,7 @@ def test_the_file_says_what_it_is_and_holds_what_was_shown(tmp_path: Path) -> No
     """005/R2."""
     document = planfile.plan_to_json(planned(tmp_path))
     assert {k: v for k, v in document.items() if k != "steps"} == {
-        "format_version": 2,
+        "format_version": 3,
         "tool_version": document["tool_version"],
         "kind": "apply",
         "target": "dev",
@@ -131,7 +131,7 @@ def test_another_format_is_refused_and_says_to_plan_again() -> None:
     with pytest.raises(PlanFileError) as caught:
         planfile.loads(json.dumps({"format_version": 1}))
     assert str(caught.value) == (
-        "This plan file is format 1; this lely reads format 2. Run `lely plan` again."
+        "This plan file is format 1; this lely reads format 3. Run `lely plan` again."
     )
     with pytest.raises(PlanFileError, match="Not a plan file"):
         planfile.loads("not json")
@@ -369,3 +369,59 @@ def test_a_plan_is_made_plain_so_it_reads_back_equal() -> None:
         json.loads(json.dumps(planfile.step_plan_to_json(plain)))
     )
     assert back == plain
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_an_output_shaped_like_the_secret_marker_is_refused() -> None:
+    """It would read back from a plan file as a secret — and a secret is never
+    compared, so the value could move without the plan going stale."""
+    for value in ({"$secret": True, "id": 14}, {"nested": {"$secret": True}}):
+        with pytest.raises(PlanFileError, match="how a plan file marks a secret"):
+            planfile.normalised(StepPlan(outputs={"made": cast(Any, value)}))
+    # and only exactly the marker reads back as one
+    back = planfile.step_plan_from_json({"outputs": {"a": {"$secret": True, "id": 1}}})
+    assert back.outputs["a"] == {"$secret": True, "id": 1}
+    assert isinstance(
+        planfile.step_plan_from_json({"outputs": {"a": {"$secret": True}}}).outputs["a"],
+        Secret,
+    )
+
+
+def test_a_number_python_wont_write_is_refused_when_it_is_planned() -> None:
+    """An integer of thousands of digits: every later step — comparing it,
+    showing it, writing it — would end in a `ValueError`."""
+    with pytest.raises(PlanFileError, match="a number too long to write"):
+        planfile.normalised(StepPlan(outputs={"n": 10**5000}))
+    assert planfile.normalised(StepPlan(outputs={"n": 2**70})).outputs == {"n": 2**70}
+
+
+def test_what_is_nested_too_deep_is_refused_not_a_traceback() -> None:
+    deep: Any = []
+    for _ in range(100_000):
+        deep = [deep]
+    with pytest.raises(PlanFileError, match="nested too deep"):
+        planfile.normalised(StepPlan(payload=deep))
+
+
+def test_a_change_is_one_thing_however_it_was_handed_over() -> None:
+    """A plugin that passes `destructive=1`, or one line of detail as a string,
+    used to get a plan lely wrote and then refused to read — or a detail of
+    single letters."""
+    change = Change(
+        "k", "update", "k", destructive=cast(Any, 1), detail=cast(Any, "one line")
+    )
+    assert change == Change("k", "update", "k", destructive=True, detail=("one line",))
+    plan = StepPlan((change, Change("j", "update", "j", destructive=cast(Any, None))))
+    document = json.loads(json.dumps(planfile.step_plan_to_json(plan)))
+    assert planfile.step_plan_from_json(document) == plan
+
+
+def test_a_plan_that_names_a_tree_names_its_project(tmp_path: Path) -> None:
+    document = planfile.plan_to_json(planned(tmp_path))
+    del document["source"]["root"]
+    with pytest.raises(PlanFileError, match="a `tree` needs a `root`"):
+        planfile.plan_from_json(document)
+    document["source"] = {"tree": None, "dirty": False, "root": None}  # outside git
+    assert planfile.plan_from_json(document).source == Source()

@@ -46,7 +46,8 @@ from lely.model import (
 
 #: Bumped when the shape changes in a way a reader has to know about.
 #: 2: one list of steps, the bundle among them; the workspace; the git tree.
-FORMAT_VERSION = 2
+#: 3: which project of the repository; read strictly.
+FORMAT_VERSION = 3
 
 _SECRET = "$secret"
 _STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload"}
@@ -122,6 +123,10 @@ def plan_from_json(document: Json) -> Plan:
     if not target.strip():
         # the Databricks CLI would read an empty target as "the default one"
         raise PlanFileError("the plan file: `target` is empty; a plan names its target")
+    if source.get("tree") is not None and not isinstance(source.get("root"), str):
+        # in a repository a plan says which project it is for; a file that
+        # names a tree and no project couldn't be held to one
+        raise PlanFileError("the plan file's `source`: a `tree` needs a `root`")
     steps = tuple(_step_from_json(s) for s in _array(doc.get("steps"), "`steps`"))
     names = [step.name for step in steps]
     if len(set(names)) != len(names):
@@ -159,13 +164,16 @@ def normalised(plan: StepPlan, where: str = "a step's plan") -> StepPlan:
     is a list, and so on. Planning hands on this one, so a plan is the same
     whether it went through a file or not — and what was approved can be
     compared with what is planned again."""
-    return dataclasses.replace(
-        plan,
-        outputs=normalised_outputs(plan.outputs, where),
-        later=tuple(plan.later),
-        notes=tuple(plan.notes),
-        payload=plain(plan.payload, f"{where}: its payload"),
-    )
+    try:
+        return dataclasses.replace(
+            plan,
+            outputs=normalised_outputs(plan.outputs, where),
+            later=tuple(plan.later),
+            notes=tuple(plan.notes),
+            payload=plain(plan.payload, f"{where}: its payload"),
+        )
+    except RecursionError:
+        raise PlanFileError(f"{where} is nested too deep to write down") from None
 
 
 def normalised_outputs(outputs: Outputs, where: str) -> dict[str, Value]:
@@ -186,7 +194,13 @@ def plain(value: Any, where: str) -> Json:
             f"{where} holds a secret; a plan file never does. Make it an output of "
             "its own (a `Secret`), or fetch it at apply."
         )
-    if value is None or isinstance(value, str | bool | int):
+    if value is None or isinstance(value, str | bool):
+        return value
+    if isinstance(value, int):
+        try:
+            str(value)
+        except ValueError:  # Python won't write an integer of thousands of digits
+            raise PlanFileError(f"{where} holds a number too long to write") from None
         return value
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
@@ -197,6 +211,12 @@ def plain(value: Any, where: str) -> Json:
             if not isinstance(key, str):
                 raise PlanFileError(
                     f"{where} holds a key that isn't text ({key!r}), which isn't JSON"
+                )
+            if key == _SECRET:
+                # it would read back as a secret, and a secret is never compared
+                raise PlanFileError(
+                    f"{where} holds a key `{_SECRET}`, which is how a plan file "
+                    "marks a secret"
                 )
         return {key: plain(item, where) for key, item in value.items()}
     if isinstance(value, list | tuple):
@@ -405,7 +425,7 @@ def _value_to_json(value: Value, where: str) -> Json:
 
 
 def _value_from_json(value: Json) -> Value:
-    if isinstance(value, dict) and value.get(_SECRET) is True:
+    if value == {_SECRET: True}:  # exactly the marker, and nothing beside it
         return Secret()
     return value
 

@@ -101,7 +101,8 @@ are errors, with file, line and column.
   `validate` says about a config's *shape*; that a reference names a step that exists, stands
   above and gives that output stays `validate`'s to check — a schema can't see one step from
   another. It is tested with a JSON Schema validator and against what lely itself accepts and
-  refuses, **not in an editor**. It covers `lely.yml`; a `[tool.lely]` section has no schema of
+  refuses, **not in an editor**. Where the two could differ it errs towards letting a value
+  through: a plugin the schema doesn't know, a boolean spelled `yes`. It covers `lely.yml`; a `[tool.lely]` section has no schema of
   its own, because a `pyproject.toml` has one schema and it isn't lely's to replace.
 - **Positions in `pyproject.toml` (R7) are found again, not kept.** Python's TOML reader keeps
   no line numbers, so each key is looked up in the text in the order it was read. That is

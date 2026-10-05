@@ -25,6 +25,7 @@ from lely.config import Map, Node, Scalar, Seq
 from lely.errors import LelyError
 from lely.model import Linked, Secret, Value
 from lely.refs import Unknown
+from lely.step import quietly
 
 Resolver = Callable[[Scalar], Value | Unknown]
 #: Answers an option that names a step: the step, or what it is waiting for.
@@ -50,11 +51,18 @@ class OptionField:
     default: str | None
 
 
+def option_fields(cls: type) -> tuple[dataclasses.Field[Any], ...]:
+    """The fields of an `Options` class a config can set: the ones its
+    constructor takes. A field the class fills in itself (`init=False`) is not
+    an option."""
+    return tuple(f for f in dataclasses.fields(cast(Any, cls)) if f.init)
+
+
 def fields_of(cls: type) -> tuple[OptionField, ...]:
     """What a plugin's options are, for `lely steps` and the editors' schema."""
     hints = typing.get_type_hints(cls)
     result: list[OptionField] = []
-    for f in dataclasses.fields(cast(Any, cls)):
+    for f in option_fields(cls):
         required = (
             f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         )
@@ -78,7 +86,7 @@ def build(
     if not dataclasses.is_dataclass(cls):
         raise OptionsError(f"{where}: its `Options` is not a dataclass")
     hints = typing.get_type_hints(cls)
-    fields = {f.name: f for f in dataclasses.fields(cast(Any, cls))}
+    fields = {f.name: f for f in option_fields(cls)}
     reader = _Reader(resolve, link)
     values: dict[str, Any] = {}
     given = {entry.key: entry for entry in block.entries} if block else {}
@@ -104,7 +112,8 @@ def build(
     if reader.unknowns:
         return Unresolved(tuple(dict.fromkeys(reader.unknowns)))
     try:
-        return cls(**values)
+        with quietly():
+            return cls(**values)
     except LelyError as error:
         raise OptionsError(f"{where}: {error}") from error
     except Exception as error:  # a plugin's `__post_init__` is its own
@@ -141,7 +150,7 @@ class _Reader:
             return resolved
         return item.value
 
-    def convert(self, tp: Any, item: Node, name: str) -> Any:
+    def convert(self, tp: Any, item: Node, name: str, optional: bool = False) -> Any:
         origin = typing.get_origin(tp)
         args = typing.get_args(tp)
         if origin in (types.UnionType, typing.Union):
@@ -152,7 +161,7 @@ class _Reader:
                 raise OptionsError(
                     f"option `{name}`: only `T | None` unions are supported"
                 )
-            return self.convert(members[0], item, name)
+            return self.convert(members[0], item, name, optional=True)
         if tp is object or tp is Any:
             return self.plain(item)
         if tp is Linked:
@@ -177,6 +186,8 @@ class _Reader:
         value = self.value(item)
         if value is _PENDING:
             return value
+        if value is None and optional:
+            return None  # a null that came by reference is a null all the same
         return self.scalar(tp, origin, args, value, item, name)
 
     def scalar(
@@ -196,7 +207,8 @@ class _Reader:
                 )
             return _PENDING
         if origin is Literal:
-            if value not in args:
+            # one of them, and of its kind: `true` is not the `1` of `Literal[1, 2]`
+            if not any(type(arg) is type(value) and arg == value for arg in args):
                 allowed = ", ".join(repr(a) for a in args)
                 self.problem(
                     item.loc, f"`{name}` must be one of {allowed}, not {value!r}"

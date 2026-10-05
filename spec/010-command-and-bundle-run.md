@@ -89,7 +89,8 @@ plan.
   the same — and `validate` can't warn about that.
 - **A step that gives something only by running plans a run.** With a plan command and a listed
   output it doesn't print, the apply command is the only thing that can give that output — so
-  every plan of the step shows a `run` for it, "to give `<name>`", beside its other changes.
+  every plan of the step shows a `run` for it, "to give its outputs", beside its other changes
+  and in the same words whichever outputs are still to come.
   Without it the step had nothing to do, never ran, and the step below it failed on every
   deploy; and with it only once the other changes were gone, a run that failed further down
   couldn't be finished from the same file.

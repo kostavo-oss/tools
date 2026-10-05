@@ -37,7 +37,7 @@ from typing import Any, NoReturn, TypeVar
 
 from lely import step as contract
 from lely.model import Json, Output, Outputs, Overview, Skip, StepPlan
-from lely.planfile import step_plan_from_json, step_plan_to_json
+from lely.planfile import normalised, step_plan_from_json, step_plan_to_json
 from lely.refs import match
 from lely.step import Cli, Context, NullLog
 
@@ -140,9 +140,13 @@ def check_plan(
         assert named is not None and named.output.known != "run", (
             f"`{name}` is declared as known after every run, and the plan gave it"
         )
-    written_out = json.dumps(step_plan_to_json(result))  # refuses secrets
+    # as lely itself takes a plan: made plain first — a tuple is a list, a
+    # change with no summary is named by its key — and refused if it holds a
+    # secret or something JSON has no word for
+    plain = normalised(result)
+    written_out = json.dumps(step_plan_to_json(plain))
     back = step_plan_from_json(json.loads(written_out))
-    assert back == result, "the plan changed on its way through the plan file"
+    assert back == plain, "the plan changed on its way through the plan file"
     return result
 
 

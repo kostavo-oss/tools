@@ -38,9 +38,10 @@ The rules a plugin follows, which `lely.testing` checks:
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
@@ -117,6 +118,17 @@ class Plugin(Protocol[OptionsT_contra]):
     def apply(self, ctx: Context[OptionsT_contra], plan: StepPlan) -> Outputs: ...
 
 
+@contextlib.contextmanager
+def quietly() -> Iterator[None]:
+    """Run a plugin's own code with what it prints sent to stderr.
+
+    stdout is lely's: a plan or a result as JSON, a schema. A `print` left in a
+    plugin — on import, in `plan` — would otherwise land in the middle of it.
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
+
+
 def declared(cls: type, written: Mapping[str, Json]) -> tuple[Output, ...]:
     """The outputs a step of plugin `cls` gives.
 
@@ -126,8 +138,15 @@ def declared(cls: type, written: Mapping[str, Json]) -> tuple[Output, ...]:
     """
     listed: Any = getattr(cls, "outputs", ())
     if callable(listed):
-        listed = listed(written)
-    outputs = tuple(listed)
+        with quietly():
+            listed = listed(written)
+    try:
+        outputs = tuple(listed)
+    except TypeError:
+        raise LelyError(
+            f"{cls.__qualname__}: `outputs` must be a tuple of `Output`s, "
+            f"not {type(listed).__name__}"
+        ) from None
     for output in outputs:
         if not isinstance(output, Output):
             raise LelyError(

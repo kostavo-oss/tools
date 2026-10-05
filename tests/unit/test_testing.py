@@ -264,3 +264,15 @@ def test_command_and_bundle_run_pass_the_parts_that_apply(tmp_path: Path) -> Non
     # a `run` may remain after apply: it happens every time
     assert check_apply(BundleRun(), run) == {}
     assert fake.runs == [{"key": "jobs.backfill", "args": []}]
+
+
+class GivesATuple(Good):
+    def plan(self, ctx: Context[Options]) -> StepPlan:
+        names: Any = ("a", "b")
+        return StepPlan(outputs={"count": names})
+
+
+def test_the_kit_takes_a_plan_the_way_lely_does() -> None:
+    """A tuple a plugin gives is a list once lely has taken it: the kit used to
+    fail a plan the core accepts."""
+    assert check_plan(GivesATuple(), CTX).outputs == {"count": ("a", "b")}

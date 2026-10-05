@@ -60,7 +60,7 @@ def test_a_destructive_change(tmp_path: Path, snapshot: SnapshotAssertion) -> No
     config = load(project.write(tmp_path))
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
     deploy(fake.world, MOVED)
-    built = planned(config, fake, tree="4b825dc642cb6eb9", dirty=True)
+    built = planned(config, fake, tree="4b825dc642cb6eb9", dirty=True, root=".")
     assert text(plan_view(built)) == snapshot
 
 
@@ -68,14 +68,16 @@ def test_a_destroy_plan_runs_from_the_bottom_up(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
     config = load(project.write(tmp_path))
-    built = planned(config, project.databricks(tmp_path), "destroy", tree="4b825dc6")
+    fake = project.databricks(tmp_path)
+    built = planned(config, fake, "destroy", tree="4b825dc6", root=".")
     assert text(plan_view(built)) == snapshot
 
 
 def test_nothing_to_destroy(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
     config = load(project.write(tmp_path))
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
-    assert text(plan_view(planned(config, fake, "destroy", tree="4b82"))) == snapshot
+    built = planned(config, fake, "destroy", tree="4b82", root=".")
+    assert text(plan_view(built)) == snapshot
 
 
 def test_the_wiring(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
@@ -153,7 +155,11 @@ def test_what_a_plan_says_is_shown_never_obeyed(tmp_path: Path) -> None:
     shown = text(step_view(step))
     assert "\x1b" not in shown and "\x07" not in shown and "\r" not in shown
     assert "+ �[1A�[2Kpipelines.foo" in shown
-    assert clean("two\nlines\tand a tab") == "two\nlines�and a tab"
+    assert clean("two\nlines\tand a tab") == "two\nlines\tand a tab"
+    # what shows nothing and reorders what is read: a name that reads as another
+    assert clean("jobs.\u202eelbat\u202c") == "jobs.�elbat�"
+    assert clean("a\u200bb\u2066c") == "a�b�c"
+    assert clean("ZWJ 👩\u200d💻 stays") == "ZWJ 👩\u200d💻 stays"
     config = load(project.write(tmp_path))
     built = planned(config, project.databricks(tmp_path))
     plan = type(built)(
@@ -174,3 +180,17 @@ def test_a_plan_says_which_project_of_the_repository_it_is_for(tmp_path: Path) -
     assert "lely plan · project team-a · target dev · " in text(plan_view(in_a_folder))
     at_the_top = planned(config, fake, tree="4b825dc6", root=".")
     assert "lely plan · target dev · " in text(plan_view(at_the_top))
+
+
+def test_a_plan_that_is_never_saved_says_nothing_about_files(tmp_path: Path) -> None:
+    """`lely apply -t dev` plans, shows and runs. What a plan *file* would be
+    held to, and where a file would stop, is not its business — and when git
+    couldn't be asked, "not in a git repository" would even be false."""
+    config = load(project.write(tmp_path))
+    built = planned(config, project.databricks(tmp_path))
+    saved = text(plan_view(built))
+    assert "Applied from a file, this stops before `notify`" in saved
+    assert "Not in a git repository" in saved
+    unsaved = text(plan_view(built, saved=False))
+    assert "from a file" not in unsaved and "git" not in unsaved
+    assert "⏸ waiting for app.resources.jobs.bar.id" in unsaved

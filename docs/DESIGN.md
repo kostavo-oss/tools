@@ -374,10 +374,10 @@ an *after every run* output waits on every deploy, and `validate` says so.
 **The plan file against the project.** A file is refused when the steps for its target, or any
 step's options as written, differ from what it was planned with; when an input that was known at
 plan has another value now — for an apply and for a destroy alike; when it was made against
-another workspace, or for another project of the repository; or when the repository's tracked
-files are not as they were when it was planned. Environment values count by name. A plan made with
-uncommitted changes is held to those changes; one made outside a git repository says that nothing
-could be recorded.
+another workspace, or for another project of the repository; or when the repository is not on
+a clean checkout of the tree it was planned on. Environment values count by name. A plan made with
+uncommitted changes says so and is not run from a file; one made outside a git repository says
+that nothing could be recorded.
 
 **The approval check.** Each step is planned again immediately before it runs. It may run only if
 every change in the new plan is one that was shown: the same key, the same action, the same lines.
@@ -594,12 +594,12 @@ Each is the builder's call where the spec left room; none is the owner's yet.
   line of output wherever it flows.
 - **"Made from" is two things**: a hash of each step's options as written, and the value of every
   input that was known at plan.
-- **What a plan is held to is every tracked file of the repository as it is on disk**, as one
-  git tree, without the plan file itself — and which project of the repository it is for. The
-  whole repository because a step can reach outside the config's folder; the files as they are
-  rather than `HEAD`, so a plan made with uncommitted changes is held to exactly those; without
-  the plan file so that a plan committed for review doesn't refuse itself. git failing is not
-  "no repository": it fails the plan.
+- **A plan file is for a clean checkout.** It is held to `HEAD`'s tree of the whole repository,
+  without the plan file itself, and to which project of the repository it is for. The whole
+  repository because a step can reach outside the config's folder; without the plan file so
+  that a plan committed for review doesn't refuse itself. A plan made while anything differed
+  from `HEAD` says so and is not run from a file, and no plan is run from a file on such a
+  checkout. git failing is not "no repository": it fails the plan.
 - **A target no step runs for is refused**, since no plugin would be asked about it.
 - **What a plugin hands back is made plain JSON when it is planned**, and inputs are compared as
   they would be written, so a plan is the same whether or not it went through a file.

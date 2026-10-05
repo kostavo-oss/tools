@@ -27,16 +27,24 @@ import re
 import types
 import typing
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from lely import step as contract
+from lely.errors import LelyError
 from lely.model import KNOWN, Linked, Secret
+from lely.options import option_fields
 from lely.registry import Found
 
 DRAFT = "http://json-schema.org/draft-07/schema#"
 
 #: A step's name, as `config.py` reads one.
 NAME = "^[A-Za-z_][A-Za-z0-9_-]*$"
+
+_YAML_BOOLEANS = tuple(
+    spelling
+    for word in ("yes", "no", "on", "off", "true", "false")
+    for spelling in (word, word.capitalize(), word.upper())
+)
 
 #: A string holding a reference. Where an option wants a number, a reference
 #: that will answer one is written as a string.
@@ -79,7 +87,10 @@ def build(
 
 
 def dumps(schema: Mapping[str, Any]) -> str:
-    return json.dumps(schema, indent=2) + "\n"
+    try:
+        return json.dumps(schema, indent=2, allow_nan=False) + "\n"
+    except (TypeError, ValueError) as error:
+        raise LelyError(f"The schema can't be written as JSON: {error}") from None
 
 
 def _step(
@@ -161,12 +172,15 @@ def _about(found: Found) -> str:
     lines = [doc[0]] if doc else []
     if callable(getattr(found.cls, "outputs", None)):
         lines.append("Gives: what the step lists, by its options.")
-    else:
+        return "\n".join(lines)
+    try:
         declared = contract.declared(found.cls, {})
-        for known, words in KNOWN.items():
-            names = [output.name for output in declared if output.known == known]
-            if names:
-                lines.append(f"Gives {words}: {', '.join(names)}.")
+    except LelyError:
+        return "\n".join(lines)  # `lely validate` says what is wrong with it
+    for known, words in KNOWN.items():
+        names = [output.name for output in declared if output.known == known]
+        if names:
+            lines.append(f"Gives {words}: {', '.join(names)}.")
     return "\n".join(lines)
 
 
@@ -175,16 +189,19 @@ def _options(cls: type, docs: Mapping[str, str]) -> dict[str, Any]:
     hints = typing.get_type_hints(cls)
     properties: dict[str, Any] = {}
     required: list[str] = []
-    for field in dataclasses.fields(cast(Any, cls)):
+    for field in option_fields(cls):
         schema = dict(_of(hints[field.name]))
         if field.name in docs:
             schema["description"] = docs[field.name]
+        default: Any = None
         if field.default is not dataclasses.MISSING:
             default = _plain_value(field.default)
-            if default is not _NOT_JSON and default is not None:
-                schema["default"] = default
-        elif field.default_factory is dataclasses.MISSING:
+        elif field.default_factory is not dataclasses.MISSING:
+            default = _plain_value(field.default_factory())
+        else:
             required.append(field.name)
+        if default is not _NOT_JSON and default not in (None, [], {}):
+            schema["default"] = default
         properties[field.name] = schema
     return {
         "type": "object",
@@ -217,12 +234,19 @@ def _of(tp: Any) -> dict[str, Any]:
             "additionalProperties": _of(args[1]) if len(args) == 2 else {},
         }
     if origin is Literal:
-        return {"anyOf": [{"enum": list(args)}, _REFERENCE]}
+        members = [_plain_value(arg) for arg in args]
+        if _NOT_JSON in members:
+            return {}  # a member a config couldn't write: nothing to hold it to
+        return {"anyOf": [{"enum": members}, _REFERENCE]}
     if tp is str or tp is Secret:
         # a number or a boolean is taken as text, as `options.py` takes it
         return {"type": ["string", "number", "boolean"]}
     if tp is bool:
-        return {"anyOf": [{"type": "boolean"}, _REFERENCE]}
+        # lely reads YAML as PyYAML does, where `yes` and `on` are booleans; an
+        # editor that reads them as text shouldn't call them a mistake
+        return {
+            "anyOf": [{"type": "boolean"}, {"enum": list(_YAML_BOOLEANS)}, _REFERENCE]
+        }
     if tp is int:
         return {"anyOf": [{"type": "integer"}, _REFERENCE]}
     if tp is float:
@@ -239,9 +263,14 @@ _NOT_JSON = _NotJson()
 
 def _plain_value(value: Any) -> Any:
     """A default as JSON, or `_NOT_JSON` for one a config couldn't write."""
-    if value is None or isinstance(value, str | int | float | bool):
+    if value is None or isinstance(value, str | int | bool):
         return value
+    if isinstance(value, float):
+        return value if value == value and abs(value) != float("inf") else _NOT_JSON
     if isinstance(value, tuple | list):
         items = [_plain_value(item) for item in value]
         return _NOT_JSON if _NOT_JSON in items else items
+    if isinstance(value, Mapping) and all(isinstance(key, str) for key in value):
+        held = {key: _plain_value(item) for key, item in value.items()}
+        return _NOT_JSON if _NOT_JSON in held.values() else held
     return _NOT_JSON

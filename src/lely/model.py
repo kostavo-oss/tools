@@ -129,8 +129,12 @@ class Change:
         # is a tuple whatever it was handed.
         if not self.summary:
             object.__setattr__(self, "summary", self.key)
-        if not isinstance(self.detail, tuple):
+        if isinstance(self.detail, str):  # one line, not its letters
+            object.__setattr__(self, "detail", (self.detail,))
+        elif not isinstance(self.detail, tuple):
             object.__setattr__(self, "detail", tuple(self.detail))
+        if not isinstance(self.destructive, bool):
+            object.__setattr__(self, "destructive", bool(self.destructive))
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,15 +236,21 @@ class Workspace:
 class Source:
     """The version of the project a plan was made from.
 
-    `tree` is every tracked file as it was on disk, as one git tree; `None`
-    outside a repository. `dirty` says some of that was uncommitted. `root` is
-    the project's folder in the repository, from its top: two projects that
-    share a tree are still two projects.
+    `tree` is the git tree of the repository's `HEAD`; `None` outside a
+    repository, and in one with no commit yet. `dirty` says something differed
+    from `HEAD`: such a plan is not run from a file. `root` is the project's
+    folder in the repository, from its top — `None` outside one: two projects
+    that share a tree are still two projects.
     """
 
     tree: str | None = None
     dirty: bool = False
     root: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.tree is not None and self.root is None:
+            # a plan file with one and not the other could be held to no project
+            raise LelyError("A `Source` with a `tree` names its `root` too.")
 
 
 @dataclass(frozen=True, slots=True)

@@ -176,26 +176,34 @@ def test_a_plan_is_refused_on_another_tree() -> None:
         Refused, match="made on git tree aaaaaaaaaaaa.*now on bbbbbbbbbbbb"
     ):
         approval.same_source(approved, Source("bbbbbbbbbbbbbbbb", root="."))
+    with pytest.raises(Refused, match="there is none here"):
+        approval.same_source(approved, Source())
+    with pytest.raises(Refused, match="there is none here"):  # no commit yet
+        approval.same_source(approved, Source(None, dirty=True, root="."))
+
+
+def test_a_plan_file_is_for_a_clean_checkout() -> None:
+    """Anything that differs from `HEAD` — when the plan is run, or when it was
+    made — and lely can't say what the plan was made on. The same tree is not
+    enough: a staged new file, or a change inside a submodule, leaves it as it
+    is."""
+    approved = plan(tree="aaaaaaaaaaaaaaaa", root=".")
     with pytest.raises(
         Refused, match="uncommitted changes that the plan was made without"
     ):
-        approval.same_source(approved, Source("bbbbbbbbbbbbbbbb", dirty=True, root="."))
-    with pytest.raises(Refused, match="this isn't one"):
-        approval.same_source(approved, Source())
-
-
-def test_a_plan_made_with_uncommitted_changes_is_held_to_those_changes() -> None:
-    """The tree holds them, so such a plan is no longer held to nothing."""
-    approved = plan(tree="cccccccccccccccc", dirty=True, root=".")
-    approval.same_source(approved, Source("cccccccccccccccc", dirty=True, root="."))
-    # the same changes, committed since: the same tree
-    approval.same_source(approved, Source("cccccccccccccccc", root="."))
-    with pytest.raises(
-        Refused, match="uncommitted changes that this checkout doesn't have"
+        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", dirty=True, root="."))
+    made_dirty = plan(tree="aaaaaaaaaaaaaaaa", dirty=True, root=".")
+    for now in (
+        Source("aaaaaaaaaaaaaaaa", root="."),
+        Source("aaaaaaaaaaaaaaaa", dirty=True, root="."),
+        Source("bbbbbbbbbbbbbbbb", root="."),
     ):
-        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="."))
-    with pytest.raises(Refused, match="made on git tree cccccccccccc"):
-        approval.same_source(approved, Source("dddddddddddddddd", dirty=True, root="."))
+        with pytest.raises(Refused) as caught:
+            approval.same_source(made_dirty, now)
+        assert str(caught.value) == (
+            "The plan was made with uncommitted changes, so lely can't say what it "
+            "was made on. Plan again on a clean checkout — or run it without a file."
+        )
 
 
 def test_a_plan_for_one_project_of_a_repository_is_refused_for_another() -> None:
@@ -214,9 +222,11 @@ def test_a_plan_for_one_project_of_a_repository_is_refused_for_another() -> None
 
 
 def test_a_plan_made_outside_git_recorded_nothing_it_can_be_held_to() -> None:
-    """It said so when it was made."""
+    """Nor did one made before the repository's first commit. Each said so
+    when it was made."""
     approval.same_source(plan(), Source("bbbb", root="."))
     approval.same_source(plan(), Source())
+    approval.same_source(plan(dirty=True, root="."), Source("bbbb", dirty=True, root="."))
 
 
 def test_the_same_value_means_the_same_as_it_would_be_written() -> None:
@@ -230,8 +240,20 @@ def test_the_same_value_means_the_same_as_it_would_be_written() -> None:
     def now(value: Any) -> list[Input]:
         return [Input("v", "model.v", value)]
 
-    for was, is_ in ((1, True), (14, 14.0), (14, "14"), (0, False), (None, "")):
+    for was, is_ in (
+        (1, True),
+        (14, 14.0),
+        (14, "14"),
+        (0, False),
+        (None, ""),
+        ([1], [True]),
+        ({"a": 1}, {"a": 1.0}),
+        ({"a": 1}, {"b": 1}),
+        ([1, 2], [1]),
+    ):
         with pytest.raises(Refused, match="Step `app` takes model.v"):
             approval.same_inputs(took(was), now(is_))
     approval.same_inputs(took(["a", "b"]), now(("a", "b")))
     approval.same_inputs(took({"b": 1, "a": 2}), now({"a": 2, "b": 1}))
+    approval.same_inputs(took(0.0), now(-0.0))  # equal, and both numbers of one kind
+    approval.same_inputs(took(2**70), now(2**70))

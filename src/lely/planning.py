@@ -35,6 +35,7 @@ from lely.config import (
     Scalar,
     Seq,
     StepConfig,
+    spelled,
     written,
 )
 from lely.errors import LelyError, Refused
@@ -140,7 +141,7 @@ def made_from(step: StepConfig) -> str:
     counts by name and a rotated token isn't a new plan; and the config file's
     format doesn't matter, only what it says.
     """
-    said = {"uses": step.uses, "targets": step.targets, "with": written(step.options)}
+    said = {"uses": step.uses, "targets": step.targets, "with": spelled(step.options)}
     text = json.dumps(said, sort_keys=True, default=str)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
@@ -478,7 +479,8 @@ class Session:
     ) -> T:
         where = prepared.where
         try:
-            return call(prepared.found.cls(), self._context(prepared))
+            with contract.quietly():
+                return call(prepared.found.cls(), self._context(prepared))
         except Refused as error:
             raise Refused(f"{where}: {error}") from error
         except LelyError as error:
@@ -591,7 +593,7 @@ def runs_for(config: Config, target: str) -> None:
     named = sorted({name for step in config.steps for name in step.targets or ()})
     raise Refused(
         f"No step runs for target `{target}`: every step's `targets` leave it out "
-        f"({', '.join(named)})."
+        f"({', '.join(named) or 'they name no target at all'})."
     )
 
 

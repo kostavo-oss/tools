@@ -274,7 +274,7 @@ def test_the_run_that_gives_an_output_is_in_every_plan_beside_the_other_changes(
     plan = Command().plan(context(options, name="seed", root=tmp_path))
     assert plan.changes == (
         Change("users", "create", "users"),
-        Change("seed", "run", "runs ./seed.sh", detail=("to give count",)),
+        Change("seed (apply)", "run", "runs ./seed.sh", detail=("to give its outputs",)),
     )
     # nothing left to change, and the output still to give: the same run
     idle = Command.Options(apply=("./seed.sh",), plan=printing({}), outputs=("count",))
@@ -290,13 +290,40 @@ def test_the_run_that_gives_an_output_is_in_every_plan_beside_the_other_changes(
     assert Command().plan(context(given, name="seed", root=tmp_path)).changes == ()
 
 
-def test_a_plan_command_cant_use_the_key_of_the_steps_own_run(tmp_path: Path) -> None:
+def test_the_steps_own_run_has_a_key_a_plan_command_wont_pick(tmp_path: Path) -> None:
+    """A plan command is handed the step's name as `LELY_STEP`, and may well
+    key a change of its own with it."""
     printed = {"changes": [{"key": "seed", "action": "create"}]}
     options = Command.Options(
         apply=("./seed.sh",), plan=printing(printed), outputs=("count",)
     )
-    with pytest.raises(LelyError, match="prints a change keyed `seed`"):
+    plan = Command().plan(context(options, name="seed", root=tmp_path))
+    assert [c.key for c in plan.changes] == ["seed", "seed (apply)"]
+    clash = {"changes": [{"key": "seed (apply)", "action": "create"}]}
+    options = Command.Options(
+        apply=("./seed.sh",), plan=printing(clash), outputs=("count",)
+    )
+    with pytest.raises(LelyError, match=r"prints a change keyed `seed \(apply\)`"):
         Command().plan(context(options, name="seed", root=tmp_path))
+
+
+def test_the_run_reads_the_same_whichever_outputs_are_still_to_come(
+    tmp_path: Path,
+) -> None:
+    """With two outputs, the plan command may come to print one of them. The
+    run for the other must still be the change the approved plan showed."""
+    both = Command.Options(
+        apply=("./seed.sh",), plan=printing({}), outputs=("table", "run_id")
+    )
+    one = Command.Options(
+        apply=("./seed.sh",),
+        plan=printing({"outputs": {"table": "t1"}}),
+        outputs=("table", "run_id"),
+    )
+    first = Command().plan(context(both, name="seed", root=tmp_path))
+    later = Command().plan(context(one, name="seed", root=tmp_path))
+    assert first.changes == later.changes
+    assert (first.later, later.later) == (("table", "run_id"), ("run_id",))
 
 
 def test_a_value_written_as_text_that_the_plan_gave_as_json_keeps_its_type(

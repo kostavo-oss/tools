@@ -249,3 +249,45 @@ def test_a_value_known_to_be_secret_is_checked_without_being_there() -> None:
             offline,
             "s",
         )
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_an_optional_text_takes_a_null_that_came_by_reference() -> None:
+    """`note: str | None` took a written `null` and refused the same null
+    arriving from another step's output."""
+
+    def resolver(scalar: Scalar) -> Any:
+        return None if scalar.value == "${steps.x.note}" else scalar.value
+
+    built = build(
+        Options, block("      model: m\n      note: ${steps.x.note}\n"), resolver, "s"
+    )
+    assert built.note is None
+    with pytest.raises(OptionsError, match="`model` must be a string, not None"):
+        build(Options, block("      model: ${steps.x.note}\n"), resolver, "s")
+
+
+def test_a_field_the_class_fills_in_itself_is_not_an_option() -> None:
+    @dataclass(frozen=True)
+    class Filled:
+        size: int = 1
+        made: str = field(default="by the class", init=False)
+
+    assert [f.name for f in fields_of(Filled)] == ["size"]
+    assert build(Filled, block("      size: 2\n"), plain, "s") == Filled(size=2)
+    with pytest.raises(OptionsError, match="unknown option `made`; known: size"):
+        build(Filled, block("      made: by hand\n"), plain, "s")
+
+
+def test_a_literal_is_one_of_its_members_and_of_its_kind() -> None:
+    """`true` equals `1` in Python; it is not the `1` of `Literal[1, 2]`."""
+
+    @dataclass(frozen=True)
+    class Level:
+        level: Literal[1, 2] = 1
+
+    assert build(Level, block("      level: 2\n"), plain, "s") == Level(2)
+    with pytest.raises(OptionsError, match="`level` must be one of 1, 2, not True"):
+        build(Level, block("      level: true\n"), plain, "s")

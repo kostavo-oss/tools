@@ -296,3 +296,75 @@ def test_a_broken_pyproject_that_is_about_lely_isnt_passed_over(tmp_path: Path) 
     assert find(inner) == inner / "pyproject.toml"
     with pytest.raises(ConfigError, match="not valid TOML"):
         load(find(inner))
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_a_toml_value_is_what_toml_parsed_never_what_a_scan_found() -> None:
+    """Where a value was written is found again by scanning the text, which is
+    good enough for a position in a message. For a moment the *value* a text
+    option was handed came from there too — and a commented-out line, or the
+    key above, supplied it."""
+    text = (
+        "[[tool.lely.steps]]\n"
+        'uses = "bundle"\n'
+        "# with.vars.model_version = 13\n"
+        "with.vars.model_version = 14  # not 15\n"
+        "with.vars.a = 1.10\n"
+        "with.vars.b = 2.20\n"
+    )
+    config = load_text(text, Path("pyproject.toml"))
+    block = config.steps[0].options
+    assert written(block) == {"vars": {"model_version": 14, "a": 1.1, "b": 2.2}}
+    variables = block.get("vars") if block else None
+    assert isinstance(variables, Map)
+    assert all(
+        isinstance(entry.value, Scalar) and entry.value.raw is None
+        for entry in variables.entries
+    )
+
+
+def test_a_yaml_number_keeps_the_text_it_was_written_as() -> None:
+    config = load_text(
+        "steps:\n  - uses: bundle\n    with: {vars: {a: 1.10, b: 0123, c: yes, d: x}}\n",
+        Path("lely.yml"),
+    )
+    block = config.steps[0].options
+    variables = block.get("vars") if block else None
+    assert isinstance(variables, Map)
+    raws = {e.key: e.value.raw for e in variables.entries if isinstance(e.value, Scalar)}
+    assert raws == {"a": "1.10", "b": "0123", "c": "yes", "d": None}
+
+
+def test_what_a_step_is_made_from_is_what_was_spelled() -> None:
+    """005/R5: options *as written*. `1.10` edited to `1.1` hands a text option
+    another text, so it is another step — while `5` is `5` in YAML and in TOML."""
+    from lely.config import spelled
+
+    def of(yaml_value: str) -> object:
+        config = load_text(
+            f"steps:\n  - uses: bundle\n    with: {{v: {yaml_value}}}\n", Path("lely.yml")
+        )
+        return spelled(config.steps[0].options)
+
+    assert of("1.10") != of("1.1")
+    assert of("0123") != of("83")
+    assert of("yes") != of("true")
+    assert of("1.10") == {"v": {"$written": "1.10"}}
+    assert of("5") == {"v": 5} and of("1.5") == {"v": 1.5} and of("true") == {"v": True}
+    toml = load_text(
+        '[[tool.lely.steps]]\nuses = "bundle"\nwith = { v = 5 }\n', Path("pyproject.toml")
+    )
+    assert spelled(toml.steps[0].options) == of("5")
+
+
+def test_no_config_is_told_apart_from_one_that_cant_be_read(tmp_path: Path) -> None:
+    from lely.config import NoConfig
+
+    with pytest.raises(NoConfig):
+        find(tmp_path)
+    (tmp_path / "lely.yml").write_text("stps: []\n")
+    with pytest.raises(ConfigError) as caught:
+        load(find(tmp_path))
+    assert not isinstance(caught.value, NoConfig)

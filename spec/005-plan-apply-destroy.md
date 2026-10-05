@@ -231,20 +231,23 @@ All by the owner, on 2026-10-05.
   environment counts by name — and, for every value a step took that was known at plan, that
   value: a plan that showed `model_version = 14` is refused when the lookup now answers 15.
   The bundle's own changes would read the same either way.
-- **The tree (R36)** is every tracked file of the whole repository as it is on disk, as one git
-  tree. On a clean checkout that is `HEAD`'s tree — not the commit, so a merge that changes
-  nothing keeps a plan valid. With uncommitted changes it is the tree those changes would make:
-  **a plan made on a changed checkout is held to exactly those changes**, and no longer to
-  nothing. The whole repository and not only the folder the config is in, because a step can
-  reach outside it (a bundle at `path: ../bundle`); in a repository with several projects that
-  makes a plan stale more often than it has to be. **Which project of the repository** a plan
-  is for is recorded beside the tree, shown in the plan, and held: two projects that share a
-  tree — and, started from one template, their steps as written — are still two projects.
-  **The plan file itself is left out**, so a plan committed to be reviewed (R14: "a destroy can
-  go through a pull request") doesn't refuse itself; a second plan file in the repository is a
-  change like any other. A file hidden from `git status` (`assume-unchanged`, `skip-worktree`)
-  is read anyway. **Files git doesn't track yet are not seen**, so a new, unadded notebook is
-  deployed without the plan knowing.
+- **A plan file is for a clean checkout (R36).** What is recorded is `HEAD`'s tree — not the
+  commit, so a merge that changes nothing keeps a plan valid — of the whole repository, because
+  a step can reach outside the folder its config is in (a bundle at `path: ../bundle`); in a
+  repository with several projects that makes a plan stale more often than it has to be.
+  **Which project of the repository** a plan is for is recorded beside the tree, shown in the
+  plan, and held: two projects that share a tree — and, started from one template, their steps
+  as written — are still two projects. And whether anything differed from `HEAD`: a changed,
+  staged, added or removed file, a submodule that moved or has changes of its own, a file git
+  was told not to look at (`assume-unchanged`, `skip-worktree`). **A plan made on such a
+  checkout says so and is not run from a file** — lely couldn't say what it was made on — and
+  no plan is run from a file on such a checkout. Run it without a file instead. (Two earlier
+  attempts were cleverer — hold such a plan to nothing; hold it to the exact contents of the
+  files — and each let something through.) **The plan file itself is left out**, so a plan
+  committed to be reviewed (R14: "a destroy can go through a pull request") doesn't refuse
+  itself; a second plan file in the repository is a change like any other. **Files git doesn't
+  track yet are not seen**, so a new, unadded notebook is deployed without the plan knowing. A
+  repository with no commit yet has no tree to record, and the plan says so.
 - **git failing is not "no repository".** Only git's own "not a git repository" means that.
   Any other failure — git missing, a checkout owned by someone else, as in many containers —
   fails `lely plan` and a run from a file, because a plan that quietly recorded nothing would

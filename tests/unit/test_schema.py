@@ -216,7 +216,7 @@ def test_a_reference_is_let_through_where_a_number_is_wanted() -> None:
         {},  # `model` is required
         {"model": "m", "retries": "many"},
         {"model": "m", "ratio": "half"},
-        {"model": "m", "enabled": "yes"},
+        {"model": "m", "enabled": "maybe"},
         {"model": "m", "mode": "slow"},
         {"model": "m", "tags": "a"},
         {"model": "m", "tags": [["a"]]},
@@ -238,7 +238,7 @@ def test_defaults_are_given_where_a_config_could_write_them() -> None:
     properties = options["properties"]
     assert properties["retries"]["default"] == 3
     assert properties["mode"]["default"] == "safe"
-    assert properties["tags"]["default"] == []
+    assert "default" not in properties["tags"]  # nothing: the same as leaving it out
     assert "default" not in properties["note"]  # `None`: nothing to write
     assert "default" not in properties["env"]
 
@@ -322,3 +322,104 @@ def test_lely_schema_works_without_a_project(
     step = json.loads(result.stdout)["definitions"]["step"]
     known = [c["const"] for c in step["properties"]["uses"]["anyOf"] if "const" in c]
     assert known == ["bundle", "bundle.run", "command", "stevin"]
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_a_config_that_cant_be_read_doesnt_quietly_lose_the_projects_plugins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One misspelt key, and `lely schema -o` used to overwrite a good schema
+    with one that had forgotten `./ops/steps.py:LatestModel`, exit 0."""
+    project.write(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    assert runner.invoke(cli.app, ["schema", "-o", "lely.schema.json"]).exit_code == 0
+    good = (tmp_path / "lely.schema.json").read_text()
+    (tmp_path / "lely.yml").write_text(project.LELY_YML.replace("steps:", "stps:", 1))
+    for command in (["schema", "-o", "lely.schema.json"], ["schema"], ["steps"]):
+        result = runner.invoke(cli.app, command)
+        assert result.exit_code == 1, result.output
+        assert "unknown key `stps`" in result.output
+    assert (tmp_path / "lely.schema.json").read_text() == good
+
+
+def test_the_hint_names_the_schema_from_where_the_config_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project.write(tmp_path)
+    deep = tmp_path / "ops"
+    monkeypatch.chdir(deep)
+    monkeypatch.setenv("COLUMNS", "200")
+    result = runner.invoke(cli.app, ["schema", "-o", "lely.schema.json"])
+    assert result.exit_code == 0, result.output
+    assert "# yaml-language-server: $schema=ops/lely.schema.json" in result.output
+
+
+@dataclass(frozen=True, slots=True)
+class Odd:
+    limit: float = float("inf")
+    ratio: float = float("nan")
+    kind: Literal[b"raw", "text"] = "text"  # type: ignore[valid-type]
+    size: float = 1.5
+
+
+class OddPlugin:
+    """Has defaults and choices a config could not write."""
+
+    Options = Odd
+    outputs = ("not an Output",)
+
+
+def test_what_json_cant_write_is_left_out_of_the_schema() -> None:
+    """`inf` and `nan` as defaults made `lely schema` print invalid JSON, exit
+    0; a `Literal` member that isn't JSON, and a plugin whose `outputs` are
+    wrong, ended it in a traceback."""
+    found = registry.Found("odd", OddPlugin, "test", Odd)
+    built = schema.build([found])
+    text = schema.dumps(built)
+    assert json.loads(text) == built
+    properties = built["definitions"]["step"]["allOf"][0]["then"]["properties"]["with"][
+        "properties"
+    ]
+    assert "default" not in properties["limit"]
+    assert "default" not in properties["ratio"]
+    assert properties["size"]["default"] == 1.5
+    assert properties["kind"] == {"default": "text"}  # nothing to hold it to
+    described = built["definitions"]["step"]["properties"]["uses"]["anyOf"][0]
+    assert described == {
+        "const": "odd",
+        "description": "Has defaults and choices a config could not write.",
+    }
+
+
+def test_a_boolean_as_yaml_spells_it_is_not_a_mistake() -> None:
+    """lely reads YAML as PyYAML does, where `yes` and `on` are booleans. An
+    editor that reads them as text shouldn't mark them."""
+    for spelling in ("yes", "No", "ON", "off", True, False, "${steps.x.on}"):
+        assert typed({"model": "m", "enabled": spelling}) == [], spelling
+
+
+@dataclass(frozen=True, slots=True)
+class Filled:
+    size: int = 1
+    #: Filled in by the class itself.
+    made: str = field(default="", init=False)
+    labels: Mapping[str, str] = field(default_factory=lambda: {"team": "data"})
+
+
+class FilledPlugin:
+    """Has a field no config can set, and a default from a factory."""
+
+    Options = Filled
+
+
+def test_only_what_a_config_can_set_is_an_option() -> None:
+    found = registry.Found("filled", FilledPlugin, "test", Filled)
+    options = schema.build([found])["definitions"]["step"]["allOf"][0]["then"][
+        "properties"
+    ]["with"]
+    assert sorted(options["properties"]) == ["labels", "size"]
+    assert options["properties"]["labels"]["default"] == {"team": "data"}
+    document = {"steps": [{"uses": "filled", "with": {"made": "by hand"}}]}
+    assert errors(document, schema.build([found])) != []

@@ -9,7 +9,6 @@ takes a new plan.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 
 from lely.errors import Refused
@@ -64,40 +63,41 @@ def same_workspace(approved: Plan, workspace: Workspace) -> None:
 
 
 def same_source(approved: Plan, source: Source) -> None:
-    """What was reviewed is what is deployed: refuse the file for another
-    project of the repository, and on another tree.
+    """What was reviewed is what is deployed. A plan file is for a clean
+    checkout: refuse it for another project of the repository, on another
+    tree, and whenever something differs from `HEAD` — now, or when the plan
+    was made, since lely then can't say what it was made on.
 
-    A plan made outside a git repository recorded nothing it can be held to —
-    it said so when it was made.
+    A plan made outside a git repository, or in one with no commit yet,
+    recorded nothing it can be held to — it said so when it was made.
     """
     planned = approved.source
     if planned.tree is None:
         return
     if source.tree is None:
         raise Refused(
-            "The plan was made in a git repository, and this isn't one: lely can't "
-            f"check that the project is as it was planned. {AGAIN}"
+            "The plan was made on a commit of a git repository, and there is none "
+            f"here: lely can't check that the project is as it was planned. {AGAIN}"
         )
     if planned.root != source.root:
         raise Refused(
             f"The plan was made for the project in {_folder(planned.root)}, and this "
             f"is the one in {_folder(source.root)}. {AGAIN}"
         )
-    if source.tree == planned.tree:
-        return
-    if source.dirty and not planned.dirty:
+    if planned.dirty:
+        raise Refused(
+            "The plan was made with uncommitted changes, so lely can't say what it "
+            "was made on. Plan again on a clean checkout — or run it without a file."
+        )
+    if source.dirty:
         raise Refused(
             f"The project has uncommitted changes that the plan was made without. {AGAIN}"
         )
-    if planned.dirty and not source.dirty:
+    if source.tree != planned.tree:
         raise Refused(
-            "The plan was made with uncommitted changes that this checkout doesn't "
-            f"have. {AGAIN}"
+            f"The plan was made on git tree {planned.tree[:12]}, and the project is "
+            f"now on {source.tree[:12]}. {AGAIN}"
         )
-    raise Refused(
-        f"The plan was made on git tree {planned.tree[:12]}, and the project is "
-        f"now on {source.tree[:12]}. {AGAIN}"
-    )
 
 
 def _folder(root: str | None) -> str:
@@ -108,8 +108,8 @@ def same_inputs(approved: PlannedStep, inputs: Sequence[Input]) -> None:
     """Every value a step took when it was planned must be the value it takes
     now: the plan showed `model_version = 14`, and 15 was never approved.
 
-    The same value means the same as it would be written: `1` is not `true`,
-    `14` is not `14.0` and not `"14"`.
+    The same value means the same kind of value: `1` is not `true`, `14` is
+    not `14.0` and not `"14"`.
     """
     known = {
         (taken.label, taken.source): taken.value
@@ -120,17 +120,27 @@ def same_inputs(approved: PlannedStep, inputs: Sequence[Input]) -> None:
         key = (taken.label, taken.source)
         if key not in known or isinstance(taken.value, Secret) or not taken.known:
             continue
-        if _written(known[key]) != _written(taken.value):
+        if not _same(known[key], taken.value):
             raise Refused(
                 f"Step `{approved.name}` takes {taken.source} = {taken.value!r} now; "
                 f"the plan was approved with {known[key]!r}. {AGAIN}"
             )
 
 
-def _written(value: object) -> str:
-    """A value as JSON writes it: what tells `1` from `true` and from `1.0`,
-    and makes a tuple and a list of the same things the same."""
-    return json.dumps(value, sort_keys=True, default=repr)
+def _same(one: object, other: object) -> bool:
+    """Equal, and of one kind. Python calls `1 == True` and `14 == 14.0` true;
+    a reviewer who was shown one was not shown the other. A tuple and a list
+    of the same things are the same: one is what a plugin gave, the other what
+    a plan file read back."""
+    if isinstance(one, list | tuple) and isinstance(other, list | tuple):
+        return len(one) == len(other) and all(
+            _same(a, b) for a, b in zip(one, other, strict=True)
+        )
+    if isinstance(one, dict) and isinstance(other, dict):
+        return one.keys() == other.keys() and all(
+            _same(value, other[key]) for key, value in one.items()
+        )
+    return type(one) is type(other) and one == other
 
 
 def approved_changes(approved: StepPlan, fresh: StepPlan, step: str) -> None:

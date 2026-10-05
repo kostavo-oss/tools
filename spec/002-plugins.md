@@ -261,8 +261,14 @@ requirement:
 - **`validate` knows where an environment value may not go** (R18): it is a secret whatever it
   turns out to be, so an option that can't take one is refused offline. It is not looked up and
   not stood in for: offline, a plugin's options aren't built with a made-up secret.
-- **An option that wants text gets what was written**: a number or a boolean in the config is
-  passed on as its own text, not as what YAML made of it.
+- **An option that wants text gets what was written**: a number or a boolean in a `lely.yml` is
+  passed on as its own text, not as what YAML made of it — and what a step is "made from"
+  follows that text. In a `pyproject.toml` a number is a number: text that has to stay as
+  written is written as a string.
+- **What a plugin prints goes to stderr.** stdout is lely's — a plan or a result as JSON, a
+  schema — and a `print` left in a plugin would land in the middle of it.
+- **Only what a config can set is an option**: a field the `Options` class fills in itself is
+  not one. A `Literal` option takes one of its members and of its kind — `true` is not `1`.
 - **Not built:** R8, a plugin's own view — it arrives with the UI.
 
 ## Done when

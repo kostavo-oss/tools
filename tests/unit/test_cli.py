@@ -209,7 +209,7 @@ def test_a_plan_file_this_lely_doesnt_read_is_refused(lely: Lely) -> None:
     (lely.root / "old.json").write_text(json.dumps({"format_version": 1}))
     result = lely("show", "old.json")
     assert result.exit_code == 1
-    assert "format 1; this lely reads format 2. Run `lely plan` again." in said(result)
+    assert "format 1; this lely reads format 3. Run `lely plan` again." in said(result)
     assert lely("show", "nope.json").exit_code == 1
 
 
@@ -832,8 +832,11 @@ def test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository(
     assert set(lely.fake.deployed("team-a")) == {"jobs.etl"}
 
 
-def test_a_plan_made_with_uncommitted_changes_is_held_to_them(ready: Lely) -> None:
-    """R36. It used to be held to nothing: any later commit could be applied."""
+def test_a_plan_file_is_for_a_clean_checkout(ready: Lely) -> None:
+    """R36. A plan made with uncommitted changes used to be held to nothing:
+    any later commit could be applied with it. Now it says so, and is not run
+    from a file. Nor is a clean plan run on a checkout where something was
+    staged since — which leaves every tracked file as it was."""
 
     def git(*args: str) -> None:
         identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
@@ -845,20 +848,38 @@ def test_a_plan_made_with_uncommitted_changes_is_held_to_them(ready: Lely) -> No
     git("commit", "-q", "-m", "first")
     script = ready.root / "ops" / "notify.sh"
     script.write_text('#!/bin/sh\necho "v2 $1" >> notified.txt\n')
-    result = ready("plan", "-t", "dev", "-o", "plan.json")
-    assert "Planned with uncommitted changes" in said(result)
-    script.write_text('#!/bin/sh\necho "v3 $1" >> notified.txt\n')  # and then another
-    changed = ready("apply", "plan.json", "--yes")
-    assert changed.exit_code == 2
-    assert "The plan was made on git tree" in said(changed)
-    git("commit", "-q", "-am", "v3")
-    assert ready("apply", "plan.json", "--yes").exit_code == 2
-    assert ready.notified() == []
-    # the changes it was planned with, committed: the same tree
-    script.write_text('#!/bin/sh\necho "v2 $1" >> notified.txt\n')
-    git("commit", "-q", "-am", "v2 after all")
+    made_dirty = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert "Planned with uncommitted changes" in said(made_dirty)
+    assert "won't run it from a file" in said(made_dirty)
+    git("commit", "-q", "-am", "v2")
+    refused = ready("apply", "plan.json", "--yes")
+    assert refused.exit_code == 2
+    assert "The plan was made with uncommitted changes" in said(refused)
+    assert ready.fake.verbs.count("deploy") == 0
+
+    planned(ready)  # on the clean checkout
+    (ready.root / "ops" / "new.sh").write_text("#!/bin/sh\n")
+    git("add", "ops/new.sh")  # staged since: no tracked file changed
+    staged = ready("apply", "plan.json", "--yes")
+    assert staged.exit_code == 2
+    assert "uncommitted changes that the plan was made without" in said(staged)
+    git("reset", "-q", "--", "ops/new.sh")
     assert ready("apply", "plan.json", "--yes").exit_code == 0
     assert ready.notified() == ["v2", "771"]
+    # without a file there is nothing to hold a plan to, and nothing stops it
+    script.write_text('#!/bin/sh\necho "v3 $1" >> notified.txt\n')
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+
+
+def test_before_the_first_commit_the_plan_says_so(ready: Lely) -> None:
+    """Not "not in a git repository", which would be false."""
+    subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
+    subprocess.run(["git", "add", "lely.yml"], cwd=ready.root, check=True)
+    result = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert result.exit_code == 0, said(result)
+    assert "This repository has no commit yet" in said(result)
+    assert "Not in a git repository" not in said(result)
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
 
 
 def test_git_refusing_fails_a_plan_and_doesnt_stop_an_unsaved_run(
@@ -967,3 +988,37 @@ def test_a_stream_that_cant_write_a_checkmark_doesnt_end_in_a_traceback(
     assert done.returncode == 0, done.stderr.decode("cp1252", "replace")
     assert b"lely.yml: 5 steps" in done.stdout
     assert b"Traceback" not in done.stderr
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_a_question_doesnt_obey_what_a_plan_file_says(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R35. The plan above the question was cleaned; the question itself, which
+    names who made the plan, was not."""
+    asked: list[str] = []
+    monkeypatch.setattr(cli, "_confirm", lambda question: asked.append(question) or False)
+    planned(ready)
+    path = ready.root / "plan.json"
+    document = json.loads(path.read_text())
+    document["workspace"]["identity"] = "eve\x1b[1A\x1b[2Kjane@example.com"
+    path.write_text(json.dumps(document))
+    ready.terminal(True)
+    assert ready("apply", "plan.json").exit_code == 2
+    [question] = asked
+    assert "\x1b" not in question
+    assert "(the plan was made as eve�[1A�[2Kjane@example.com)" in question
+
+
+def test_what_a_program_prints_is_logged_without_its_control_characters(
+    ready: Lely,
+) -> None:
+    (ready.root / "ops" / "notify.sh").write_text(
+        "#!/bin/sh\nprintf 'done \\033[2J\\033[1;1H and more\\n'\n"
+    )
+    result = ready("apply", "-t", "dev", "--yes")
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "notify: done �[2J�[1;1H and more" in result.output

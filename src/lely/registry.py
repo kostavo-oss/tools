@@ -23,6 +23,7 @@ from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 
 from lely.errors import LelyError
+from lely.step import quietly
 
 GROUP = "lely.steps"
 
@@ -45,12 +46,13 @@ def installed() -> dict[str, EntryPoint]:
 
 
 def find(uses: str, root: Path) -> Found:
-    if uses.startswith(("./", "../")):
-        found = _from_file(uses, root)
-    elif ":" in uses:
-        found = _from_module(uses)
-    else:
-        found = _from_entry_point(uses)
+    with quietly():  # importing a plugin runs its module
+        if uses.startswith(("./", "../")):
+            found = _from_file(uses, root)
+        elif ":" in uses:
+            found = _from_module(uses)
+        else:
+            found = _from_entry_point(uses)
     return _check(found)
 
 
@@ -159,19 +161,38 @@ def option_docs(options: type) -> dict[str, str]:
     Read from the plugin's source, for the editors' schema. A plugin whose
     source isn't there to read has none.
     """
-    try:
-        source = inspect.getsource(options)
-    except (OSError, TypeError):
-        return {}
     docs: dict[str, str] = {}
-    above: list[str] = []
-    for line in source.splitlines():
-        text = line.strip()
-        if text.startswith("#:"):
-            above.append(text[2:].strip())
+    # from the base outwards, so a class's own words win over the ones it inherits
+    for cls in reversed(options.__mro__):
+        if cls is object:
             continue
-        named = re.match(r"(\w+)\s*:", text)
-        if named and above:
-            docs[named.group(1)] = " ".join(above)
-        above = []
+        try:
+            source = inspect.getsource(cls)
+        except (OSError, TypeError):
+            continue
+        lines = inspect.cleandoc("\n" + source).splitlines()
+        # the body's own level: the indent of the first line after the header
+        body = next(
+            (
+                len(line) - len(line.lstrip())
+                for line in lines[1:]
+                if line.strip()
+                and not line.lstrip().startswith(("@", ")", "]"))
+                and len(line) > len(line.lstrip())
+            ),
+            None,
+        )
+        above: list[str] = []
+        for line in lines:
+            text = line.strip()
+            if len(line) - len(line.lstrip()) != body:
+                above = []  # a line of a method, or of a class inside it
+                continue
+            if text.startswith("#:"):
+                above.append(text[2:].strip())
+                continue
+            named = re.match(r"(\w+)\s*:", text)
+            if named and above:
+                docs[named.group(1)] = " ".join(above)
+            above = []
     return docs

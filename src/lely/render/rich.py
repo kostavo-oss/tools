@@ -71,11 +71,26 @@ _OUTCOMES = {
 }
 
 
+#: Characters that show nothing and change how the text around them reads:
+#: the bidirectional overrides and isolates, the marks, and the zero-width
+#: space and word joiner. (The zero-width joiners stay: scripts and emoji
+#: are written with them.)
+_INVISIBLE = frozenset(
+    "\u061c\u200b\u200e\u200f\u2060\ufeff"
+    "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
+)
+
+
 def clean(text: str) -> str:
-    """`text` with every control character but a line break made visible as
-    `�`: what a plan file or a program said is shown, never obeyed."""
+    """`text` with what a terminal would obey, or a reader couldn't see, made
+    visible as `�`: every control character but a line break and a tab, and
+    the invisible characters that reorder text. What a plan file or a program
+    said is shown, never obeyed."""
     return "".join(
-        "�" if unicodedata.category(char) == "Cc" and char != "\n" else char
+        "�"
+        if (unicodedata.category(char) == "Cc" and char not in "\n\t")
+        or char in _INVISIBLE
+        else char
         for char in text
     )
 
@@ -90,15 +105,17 @@ def _safe(lines: Iterable[Text]) -> Group:
     return Group(*safe)
 
 
-def render_plan(plan: Plan, console: Console) -> None:
-    console.print(plan_view(plan), highlight=False)
+def render_plan(plan: Plan, console: Console, *, saved: bool = True) -> None:
+    console.print(plan_view(plan, saved=saved), highlight=False)
 
 
-def plan_view(plan: Plan) -> RenderableType:
-    return _safe(_plan_lines(plan))
+def plan_view(plan: Plan, *, saved: bool = True) -> RenderableType:
+    """`saved` is false for a plan that is run now and never written: what it
+    was made on is held to nothing either way, so nothing is said about it."""
+    return _safe(_plan_lines(plan, saved))
 
 
-def _plan_lines(plan: Plan) -> Iterator[Text]:
+def _plan_lines(plan: Plan, saved: bool = True) -> Iterator[Text]:
     title = "lely plan" if plan.kind == "apply" else "lely destroy plan"
     project = plan.source.root
     yield Text.assemble(
@@ -117,7 +134,7 @@ def _plan_lines(plan: Plan) -> Iterator[Text]:
         yield from _step_lines(step, taken)
     yield Text()
     yield _summary(plan)
-    yield from _warnings(plan)
+    yield from _warnings(plan, saved)
 
 
 def step_view(step: PlannedStep) -> RenderableType:
@@ -207,9 +224,9 @@ def _summary(plan: Plan) -> Text:
     return text
 
 
-def _warnings(plan: Plan) -> Iterator[Text]:
+def _warnings(plan: Plan, saved: bool = True) -> Iterator[Text]:
     waiting = plan.waiting
-    if plan.kind == "apply" and waiting:
+    if plan.kind == "apply" and waiting and saved:
         first = waiting[0]
         yield Text(
             f"Applied from a file, this stops before `{first.name}`: a waiting "
@@ -222,7 +239,15 @@ def _warnings(plan: Plan) -> Iterator[Text]:
                 "never take it further: `lely apply -t <target>` does.",
                 style="yellow",
             )
-    if plan.source.tree is None:
+    if not saved:
+        return
+    if plan.source.tree is None and plan.source.root is not None:
+        yield Text(
+            "This repository has no commit yet: which version of the project this "
+            "was planned on couldn't be recorded.",
+            style="dim",
+        )
+    elif plan.source.tree is None:
         yield Text(
             "Not in a git repository: which version of the project this was planned "
             "on couldn't be recorded.",
@@ -230,8 +255,8 @@ def _warnings(plan: Plan) -> Iterator[Text]:
         )
     elif plan.source.dirty:
         yield Text(
-            "Planned with uncommitted changes: from a file, this is applied only "
-            "on a checkout that has those same changes.",
+            "Planned with uncommitted changes: lely can't say what this was made "
+            "on, so it won't run it from a file. Commit first, or run it without one.",
             style="yellow",
         )
 

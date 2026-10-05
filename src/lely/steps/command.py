@@ -59,6 +59,11 @@ from lely.step import Context
 
 _NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
 
+#: The key of the run a plan command's plan is given when the apply command
+#: has an output still to give. Not the step's bare name: a plan command is
+#: handed that as `LELY_STEP`, and may well key a change of its own with it.
+_RUN = "{step} (apply)"
+
 
 class Command:
     """Runs commands you give it: apply, and optionally plan and destroy."""
@@ -132,20 +137,21 @@ class Command:
         if later:
             # Something to give that the plan command didn't: only the apply
             # command can give it, so the step runs — and its plan says so,
-            # every time, beside whatever else it changes. (Only when nothing
-            # else is left to change, and a run that failed further down could
-            # not be finished from the same plan: the run would be new.)
-            if any(change.key == ctx.name for change in changes):
-                raise LelyError(
-                    f"{where} prints a change keyed `{ctx.name}`, which is the key "
-                    "of the step's own run; give that change another key"
-                )
+            # every time, beside whatever else it changes, and in the same
+            # words whichever outputs are still to come. A run that failed
+            # further down can then be finished from the same plan: what is
+            # left to do is something it showed.
             run = Change(
-                key=ctx.name,
+                key=_RUN.format(step=ctx.name),
                 action="run",
                 summary=f"runs {shlex.join(options.apply)}",
-                detail=(f"to give {', '.join(later)}",),
+                detail=("to give its outputs",),
             )
+            if any(change.key == run.key for change in changes):
+                raise LelyError(
+                    f"{where} prints a change keyed `{run.key}`, which is the key "
+                    "of the step's own run; give that change another key"
+                )
             changes = (*changes, run)
         return dataclasses.replace(plan, changes=changes, later=later)
 

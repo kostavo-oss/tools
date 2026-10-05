@@ -696,3 +696,53 @@ def test_a_bundle_variable_is_passed_as_it_was_written(tmp_path: Path) -> None:
         "--var=model_version=3.10",
         "--var=catalog=0123",
     ]
+
+
+# -- found in the third review -------------------------------------------------------
+
+
+def test_what_a_step_is_made_from_follows_the_text_a_plugin_is_handed(
+    tmp_path: Path,
+) -> None:
+    """`1.10` edited to `1.1` is the same number and another `--var`: outside
+    git nothing else would notice."""
+    text = (
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "    with: {vars: {model_version: 1.10}}\n"
+    )
+    project.write(tmp_path, text)
+    before = planning.made_from(load(tmp_path / "lely.yml").steps[0])
+    project.write(tmp_path, text.replace("1.10", "1.1"))
+    assert planning.made_from(load(tmp_path / "lely.yml").steps[0]) != before
+
+
+def test_a_bundle_variable_can_be_a_null_from_another_step(tmp_path: Path) -> None:
+    (tmp_path / "nothing.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import Output, StepPlan\n"
+        "class Nothing:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pass\n"
+        "    outputs = (Output('value'),)\n"
+        "    def plan(self, ctx):\n"
+        "        return StepPlan(outputs={'value': None})\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+    )
+    text = (
+        "steps:\n  - name: lookup\n    uses: ./nothing.py:Nothing\n"
+        "  - name: app\n    uses: bundle\n"
+        "    with: {vars: {model_version: '${steps.lookup.value}'}}\n"
+    )
+    project.write(tmp_path, text)
+    fake = project.databricks(tmp_path)
+    assert plan(tmp_path, fake).steps[1].state == "ready"
+    assert "--var=model_version=" in fake.calls[0]
+
+
+def test_no_step_runs_for_a_target_when_none_names_one(tmp_path: Path) -> None:
+    text = "steps:\n  - name: app\n    uses: bundle\n    targets: []\n"
+    project.write(tmp_path, text)
+    with pytest.raises(LelyError, match=r"leave it out \(they name no target at all\)"):
+        plan(tmp_path)

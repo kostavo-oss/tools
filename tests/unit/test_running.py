@@ -680,7 +680,7 @@ def test_a_command_that_gives_something_only_by_running_plans_a_run(
     p = Project(tmp_path, text)
     seed_plan = p.plan().steps[0].plan
     assert [(c.action, c.summary, c.detail) for c in seed_plan.changes] == [
-        ("run", "runs ./ops/seed.sh", ("to give count",))
+        ("run", "runs ./ops/seed.sh", ("to give its outputs",))
     ]
     result = p.apply(at_waiting=run_it)
     assert result.outcome == "done"
@@ -877,14 +877,14 @@ def test_a_command_that_failed_further_down_can_be_finished_from_the_same_file(
     approved = p.plan()
     assert [(c.key, c.action) for c in approved.steps[0].plan.changes] == [
         ("users", "create"),
-        ("seed", "run"),
+        ("seed (apply)", "run"),
     ]
     (tmp_path / "ops" / "notify.sh").write_text("#!/bin/sh\nexit 9\n")
     assert p.apply(approved).outcome == "failed"
     project.write(tmp_path, text)  # the script is fixed
     again = p.apply(approved)
     assert again.outcome == "done", again.message
-    assert [c.key for c in again.steps[0].changes] == ["seed"]
+    assert [c.key for c in again.steps[0].changes] == ["seed (apply)"]
 
 
 def test_a_value_the_plan_command_printed_and_the_apply_command_wrote_is_one_value(
