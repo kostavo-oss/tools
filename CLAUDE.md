@@ -4,6 +4,10 @@
 post-deploy steps. Read `docs/DESIGN.md` first; it is the source of truth. If code and
 design disagree, flag it instead of silently picking one.
 
+`spec/` says *what* each piece of work must deliver and when it is done; the design says
+*how*. Before starting a milestone, read its spec, and don't build past a "To decide" that
+is still open — those are the owner's to answer.
+
 ## Rules
 
 - The core is pure: config, references, ordering, plan assembly, the approval check and
