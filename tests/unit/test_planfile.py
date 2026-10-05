@@ -38,7 +38,9 @@ def planned(root: Path, kind: PlanKind = "apply") -> Plan:
         load(root / "lely.yml"),
         target="dev",
         workspace=project.WORKSPACE,
-        source=Source(tree="4b825dc642cb6eb9a060e54bf8d69288fbee4904", dirty=True),
+        source=Source(
+            "4b825dc642cb6eb9a060e54bf8d69288fbee4904", dirty=True, root="deploy"
+        ),
         env={},
         databricks=project.databricks(root),
         log=NullLog(),
@@ -71,7 +73,11 @@ def test_the_file_says_what_it_is_and_holds_what_was_shown(tmp_path: Path) -> No
             "host": "https://dbc-example.cloud.databricks.com",
             "identity": "jane@example.com",
         },
-        "source": {"tree": "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "dirty": True},
+        "source": {
+            "tree": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+            "dirty": True,
+            "root": "deploy",
+        },
     }
     model, app, notify, _, warm = document["steps"]
     assert (app["name"], app["uses"], app["state"]) == ("app", "bundle", "ready")
@@ -289,3 +295,77 @@ def test_a_refused_step_is_listed_as_refused_not_failed() -> None:
         [],
         ["notify"],
     )
+
+
+# -- found in the second review ------------------------------------------------------
+
+
+def test_a_plan_names_its_target(tmp_path: Path) -> None:
+    """The Databricks CLI would read an empty target as "the default one"; the
+    command line refuses one, and so does a plan file."""
+    document = planfile.plan_to_json(planned(tmp_path))
+    for empty in ("", "  "):
+        document["target"] = empty
+        with pytest.raises(PlanFileError, match="`target` is empty"):
+            planfile.plan_from_json(document)
+
+
+def test_a_plan_file_is_read_strictly(tmp_path: Path) -> None:
+    """A key lely doesn't write, or a flag that isn't one, is a file lely
+    didn't write. `"dirty": "false"` used to read as true."""
+    good = planfile.plan_to_json(planned(tmp_path))
+
+    def refused(edit: Any, message: str) -> None:
+        document = json.loads(json.dumps(good))
+        edit(document)
+        with pytest.raises(PlanFileError, match=message):
+            planfile.plan_from_json(document)
+
+    refused(lambda d: d.update(extra=1), "unknown keys extra")
+    refused(lambda d: d["steps"][0].update(note="x"), "step `model`: unknown keys note")
+    refused(lambda d: d["source"].update(dirty="false"), "`dirty` must be true or false")
+    refused(lambda d: d["steps"][1].update(every_deploy=1), "`every_deploy` must be")
+    refused(lambda d: d["steps"][1]["inputs"][0].update(known="yes"), "`known` must be")
+    refused(
+        lambda d: d["steps"][1]["plan"]["changes"][0].update(destructive="no"),
+        "`destructive` must be",
+    )
+    refused(
+        lambda d: d["steps"][1]["plan"]["changes"][0].update(extra=1),
+        "unknown keys extra",
+    )
+    refused(lambda d: d["steps"].append(d["steps"][0]), "two steps share a name")
+
+
+def test_a_number_too_long_to_read_is_not_a_plan_file() -> None:
+    with pytest.raises(PlanFileError, match="Not a plan file"):
+        planfile.loads('{"format_version": ' + "9" * 5000 + "}")
+
+
+def test_what_isnt_json_is_refused_with_its_reason() -> None:
+    import datetime
+
+    for value, said in (
+        ({1: "a"}, "a key that isn't text"),
+        ({"when": datetime.date(2026, 10, 5)}, "holds a date, which isn't JSON"),
+        ({"n": float("nan")}, "holds nan, which isn't JSON"),
+        ({"s": {1, 2}}, "holds a set"),
+    ):
+        with pytest.raises(PlanFileError, match=said):
+            planfile.step_plan_to_json(StepPlan(payload=cast(Any, value)))
+
+
+def test_a_plan_is_made_plain_so_it_reads_back_equal() -> None:
+    plan = StepPlan(
+        changes=(Change("k", "run", "", detail=cast(Any, ["a"])),),
+        outputs={"names": cast(Any, ("a", "b")), "token": Secret("t0k")},
+        payload=cast(Any, {"rows": (1, 2)}),
+    )
+    plain = planfile.normalised(plan)
+    assert plain.outputs["names"] == ["a", "b"]
+    assert plain.payload == {"rows": [1, 2]}
+    assert plain.changes == (Change("k", "run", "k", detail=("a",)),)
+    back = planfile.step_plan_from_json(
+        json.loads(json.dumps(planfile.step_plan_to_json(plain)))
+    )
+    assert back == plain

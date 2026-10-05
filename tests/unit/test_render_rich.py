@@ -132,3 +132,45 @@ def test_a_step_that_waits_on_every_deploy_says_a_file_never_gets_past_it(
     assert "⏸ waiting for seed.count — on every deploy" in shown
     assert "Applied from a file, this stops before `tell`" in shown
     assert "a file can never take it further: `lely apply -t <target>` does." in shown
+
+
+def test_what_a_plan_says_is_shown_never_obeyed(tmp_path: Path) -> None:
+    """An escape sequence in a change's summary — from a plan file, or a plan
+    command — would move the cursor up and erase the line above it."""
+    from lely.model import Change, PlannedStep, StepPlan
+    from lely.render.rich import clean, step_view
+
+    hostile = "\x1b[1A\x1b[2Kpipelines.foo"
+    step = PlannedStep(
+        "app\x07",
+        "bundle",
+        "h",
+        StepPlan(
+            (Change("k", "create", hostile, detail=("\x1b[31mred",)),),
+            notes=("a note\rover it",),
+        ),
+    )
+    shown = text(step_view(step))
+    assert "\x1b" not in shown and "\x07" not in shown and "\r" not in shown
+    assert "+ �[1A�[2Kpipelines.foo" in shown
+    assert clean("two\nlines\tand a tab") == "two\nlines�and a tab"
+    config = load(project.write(tmp_path))
+    built = planned(config, project.databricks(tmp_path))
+    plan = type(built)(
+        built.tool_version,
+        built.kind,
+        "dev\x1b[2J",
+        built.workspace,
+        built.source,
+        (step,),
+    )
+    assert "\x1b" not in text(plan_view(plan))
+
+
+def test_a_plan_says_which_project_of_the_repository_it_is_for(tmp_path: Path) -> None:
+    config = load(project.write(tmp_path))
+    fake = project.databricks(tmp_path)
+    in_a_folder = planned(config, fake, tree="4b825dc6", root="team-a")
+    assert "lely plan · project team-a · target dev · " in text(plan_view(in_a_folder))
+    at_the_top = planned(config, fake, tree="4b825dc6", root=".")
+    assert "lely plan · target dev · " in text(plan_view(at_the_top))

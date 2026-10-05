@@ -259,7 +259,10 @@ requirement:
   overview's id and link have to be text, and a plugin's own code failing — its options, its
   `outputs` — is reported with the step's name, not as a traceback.
 - **`validate` knows where an environment value may not go** (R18): it is a secret whatever it
-  turns out to be, so an option that can't take one is refused offline.
+  turns out to be, so an option that can't take one is refused offline. It is not looked up and
+  not stood in for: offline, a plugin's options aren't built with a made-up secret.
+- **An option that wants text gets what was written**: a number or a boolean in the config is
+  passed on as its own text, not as what YAML made of it.
 - **Not built:** R8, a plugin's own view — it arrives with the UI.
 
 ## Done when

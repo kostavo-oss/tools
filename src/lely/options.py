@@ -118,6 +118,8 @@ class _Pending:
 
 
 _PENDING = _Pending()
+#: … and for one that isn't known yet but is known to be a secret.
+_PENDING_SECRET = _Pending()
 
 
 class _Reader:
@@ -135,7 +137,7 @@ class _Reader:
             resolved = self.resolve(item)
             if isinstance(resolved, Unknown):
                 self.unknowns.append(resolved.waits_for)
-                return _PENDING
+                return _PENDING_SECRET if resolved.secret else _PENDING
             return resolved
         return item.value
 
@@ -186,6 +188,13 @@ class _Reader:
         item: Scalar,
         name: str,
     ) -> Any:
+        if value is _PENDING_SECRET:
+            # not known yet, and a secret whatever it is: the same rule as below
+            if tp is not Secret:
+                self.problem(
+                    item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
+                )
+            return _PENDING
         if origin is Literal:
             if value not in args:
                 allowed = ", ".join(repr(a) for a in args)
@@ -196,19 +205,15 @@ class _Reader:
         if tp is Secret:
             if isinstance(value, Secret):
                 return value
-            if isinstance(value, str | int | float) and not isinstance(value, bool):
-                return Secret(str(value))
+            if isinstance(value, str | int | float | bool):
+                return Secret(_text(value, item))
         elif isinstance(value, Secret):
             self.problem(
                 item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
             )
             return None
-        if (
-            tp is str
-            and isinstance(value, str | int | float)
-            and not isinstance(value, bool)
-        ):
-            return str(value)
+        if tp is str and isinstance(value, str | int | float | bool):
+            return _text(value, item)
         if tp is bool and isinstance(value, bool):
             return value
         if tp is int and isinstance(value, int) and not isinstance(value, bool):
@@ -236,6 +241,22 @@ class _Reader:
         if isinstance(item, Map):
             return {e.key: self.plain(e.value) for e in item.entries}
         return self.value(item)
+
+
+def _text(value: str | int | float | bool, item: Scalar) -> str:
+    """A value for an option that wants text.
+
+    A number or a boolean written in the config is passed on as it was written
+    — `1.10` stays `1.10` and not `1.1`, `0123` isn't read as octal, `yes` stays
+    `yes`. One that came from a reference is written the way JSON would.
+    """
+    if isinstance(value, str):
+        return value
+    if not isinstance(item.value, str) and item.raw is not None:
+        return item.raw
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _plural(tp: Any) -> str:

@@ -17,6 +17,7 @@ import importlib.util
 import inspect
 import re
 import sys
+import typing
 from dataclasses import dataclass
 from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
@@ -139,6 +140,13 @@ def _check(found: Found) -> Found:
             + " and ".join(problems)
         )
     assert isinstance(options, type)
+    try:
+        typing.get_type_hints(options)
+    except Exception as error:  # a name the plugin's module doesn't have
+        raise StepNotFound(
+            f"`{found.uses}` ({cls.__qualname__}): the types of its `Options` can't "
+            f"be read: {type(error).__name__}: {error}"
+        ) from error
     return dataclasses.replace(found, options=options)
 
 

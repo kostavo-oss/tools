@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -52,8 +52,12 @@ class Loc:
 
 @dataclass(frozen=True, slots=True)
 class Scalar:
+    """`raw` is a number or a boolean as it was written — `1.10`, `0123`, `yes`
+    — for an option that wants text: what was written is what is passed on."""
+
     value: str | int | float | bool | None
     loc: Loc
+    raw: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,8 +306,10 @@ class _TomlPositions:
             return Seq(items, self.loc(at))
         if not isinstance(value, str | int | float | bool):
             value = str(value)  # dates and times: keep what was written
+        written = _WORD.match(self.text, at)
+        raw = written.group() if written and not isinstance(value, str) else None
         self._skip_scalar(at)
-        return Scalar(value, self.loc(at))
+        return Scalar(value, self.loc(at), raw)
 
     def _close(self, bracket: str) -> None:
         """Move past the end of an inline table or array, so the next thing
@@ -402,7 +408,8 @@ class _Reader:
             if not isinstance(value, str | int | float | bool) and value is not None:
                 # Timestamps and the like: keep what was written.
                 value = str(node.value)
-            return Scalar(value, loc)
+            raw = str(node.value) if isinstance(value, int | float | bool) else None
+            return Scalar(value, loc, raw)
         if isinstance(node, SequenceNode):
             return Seq(tuple(self.node(child) for child in node.value), loc)
         if isinstance(node, MappingNode):

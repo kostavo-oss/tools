@@ -87,10 +87,16 @@ plan.
   it exists*: known at plan if the plan command prints them, otherwise after the apply command
   writes them. A step that takes one the plan command never prints waits on every deploy all
   the same — and `validate` can't warn about that.
-- **A step that gives something only by running plans a run.** With a plan command that prints
-  no changes and a listed output it doesn't print, the apply command is the only thing that can
-  give that output — so the plan shows a `run` for it, "to give `<name>`". Without this the
-  step had nothing to do, never ran, and the step below it failed on every deploy.
+- **A step that gives something only by running plans a run.** With a plan command and a listed
+  output it doesn't print, the apply command is the only thing that can give that output — so
+  every plan of the step shows a `run` for it, "to give `<name>`", beside its other changes.
+  Without it the step had nothing to do, never ran, and the step below it failed on every
+  deploy; and with it only once the other changes were gone, a run that failed further down
+  couldn't be finished from the same file.
+- **One value, written two ways.** The plan command prints JSON and the apply command writes
+  text. An output both give with the same value keeps the plan's type — `14`, not `"14"` — so
+  a step below that took it still takes it.
+- **An argument is passed as it was written**: `1.10` stays `1.10`.
 - **`LELY_PLAN` (R4)** holds the plan made right before the command runs, which was checked
   against the approved one.
 - **What a command prints (R3)** is shown when it fails, and logged line by line when it

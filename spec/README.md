@@ -140,7 +140,11 @@ The ones worth remembering:
    `docs/DESIGN.md` under "Decided while building". None of it is the owner's yet. The one that
    adds something the specs didn't name: an option that names a whole step.
    → [002, As built](002-plugins.md#as-built)
-3. **Which plan a merge applies** in the workflow the docs will show: the reviewed file, or a new
+3. **What the bundle resolves from outside lely is not held**: `BUNDLE_VAR_x` at apply, or a
+   variable's lookup answering something else, changes what is deployed without changing a line
+   of the plan. Whether to fingerprint the resolved variables is the owner's to decide.
+   → [004, As built](004-asset-bundle.md#as-built)
+4. **Which plan a merge applies** in the workflow the docs will show: the reviewed file, or a new
    plan with `--yes`. → [008/D2](008-github-actions.md#to-decide)
-4. **After phase one: the UI first, or GitHub first — and which plugins come after.**
+5. **After phase one: the UI first, or GitHub first — and which plugins come after.**
    → [000](000-what-lely-is.md#to-decide)

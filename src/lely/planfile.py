@@ -18,6 +18,7 @@ prints, so `step_plan_from_json` reads both. What a run leaves behind — a
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Mapping
 from typing import Any, cast
@@ -49,6 +50,24 @@ FORMAT_VERSION = 2
 
 _SECRET = "$secret"
 _STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload"}
+_PLAN_KEYS = frozenset(
+    {"format_version", "tool_version", "kind", "target", "workspace", "source", "steps"}
+)
+_STEP_KEYS = frozenset(
+    {
+        "name",
+        "uses",
+        "state",
+        "made_from",
+        "waits_for",
+        "every_deploy",
+        "skipped",
+        "inputs",
+        "plan",
+    }
+)
+_INPUT_KEYS = frozenset({"label", "from", "known", "value"})
+_CHANGE_KEYS = frozenset({"key", "action", "summary", "destructive", "detail"})
 
 
 class PlanFileError(LelyError):
@@ -62,7 +81,7 @@ def dumps(plan: Plan) -> str:
 def loads(text: str) -> Plan:
     try:
         document = json.loads(text)
-    except (json.JSONDecodeError, RecursionError) as error:
+    except (ValueError, RecursionError) as error:  # not JSON, or a number too long
         raise PlanFileError(f"Not a plan file: {error}") from None
     return plan_from_json(document)
 
@@ -74,7 +93,11 @@ def plan_to_json(plan: Plan) -> dict[str, Any]:
         "kind": plan.kind,
         "target": plan.target,
         "workspace": _workspace_to_json(plan.workspace),
-        "source": {"tree": plan.source.tree, "dirty": plan.source.dirty},
+        "source": {
+            "tree": plan.source.tree,
+            "dirty": plan.source.dirty,
+            "root": plan.source.root,
+        },
         "steps": [_step_to_json(step) for step in plan.steps],
     }
 
@@ -92,34 +115,93 @@ def plan_from_json(document: Json) -> Plan:
         raise PlanFileError(
             f"the plan file: `kind` must be apply or destroy, not {kind!r}"
         )
+    _only(doc, _PLAN_KEYS, "the plan file")
     workspace = _object(doc.get("workspace"), "the plan file's `workspace`")
     source = _object(doc.get("source"), "the plan file's `source`")
+    target = _str(doc, "target", "the plan file")
+    if not target.strip():
+        # the Databricks CLI would read an empty target as "the default one"
+        raise PlanFileError("the plan file: `target` is empty; a plan names its target")
+    steps = tuple(_step_from_json(s) for s in _array(doc.get("steps"), "`steps`"))
+    names = [step.name for step in steps]
+    if len(set(names)) != len(names):
+        raise PlanFileError("the plan file: two steps share a name")
     return Plan(
         tool_version=_str(doc, "tool_version", "the plan file"),
         kind=cast(PlanKind, kind),
-        target=_str(doc, "target", "the plan file"),
+        target=target,
         workspace=Workspace(
             host=_str(workspace, "host", "the plan file's `workspace`"),
             identity=_str(workspace, "identity", "the plan file's `workspace`"),
         ),
         source=Source(
             tree=_optional_str(source, "tree", "the plan file's `source`"),
-            dirty=bool(source.get("dirty", False)),
+            dirty=_bool(source, "dirty", "the plan file's `source`"),
+            root=_optional_str(source, "root", "the plan file's `source`"),
         ),
-        steps=tuple(_step_from_json(s) for s in _array(doc.get("steps"), "`steps`")),
+        steps=steps,
     )
 
 
 def step_plan_to_json(plan: StepPlan, where: str = "a step's plan") -> dict[str, Any]:
-    _no_secrets(plan.payload, f"{where}: its payload")
     return {
         "changes": [_change_to_json(c) for c in plan.changes],
         "outputs": {name: _value_to_json(v, where) for name, v in plan.outputs.items()},
         "later": list(plan.later),
         "waiting": plan.waiting,
         "notes": list(plan.notes),
-        "payload": plan.payload,
+        "payload": plain(plan.payload, f"{where}: its payload"),
     }
+
+
+def normalised(plan: StepPlan, where: str = "a step's plan") -> StepPlan:
+    """A plugin's plan as it reads back from a plan file: a tuple in an output
+    is a list, and so on. Planning hands on this one, so a plan is the same
+    whether it went through a file or not — and what was approved can be
+    compared with what is planned again."""
+    return dataclasses.replace(
+        plan,
+        outputs=normalised_outputs(plan.outputs, where),
+        later=tuple(plan.later),
+        notes=tuple(plan.notes),
+        payload=plain(plan.payload, f"{where}: its payload"),
+    )
+
+
+def normalised_outputs(outputs: Outputs, where: str) -> dict[str, Value]:
+    return {
+        name: value if isinstance(value, Secret) else plain(value, f"{where}: an output")
+        for name, value in outputs.items()
+    }
+
+
+def plain(value: Any, where: str) -> Json:
+    """`value` as JSON holds it, or a `PlanFileError` saying why it can't.
+
+    No secret, at any depth; no key that isn't text; nothing JSON has no word
+    for — a date, a set, a number that isn't one.
+    """
+    if isinstance(value, Secret):
+        raise PlanFileError(
+            f"{where} holds a secret; a plan file never does. Make it an output of "
+            "its own (a `Secret`), or fetch it at apply."
+        )
+    if value is None or isinstance(value, str | bool | int):
+        return value
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            raise PlanFileError(f"{where} holds {value}, which isn't JSON")
+        return value
+    if isinstance(value, Mapping):
+        for key in value:
+            if not isinstance(key, str):
+                raise PlanFileError(
+                    f"{where} holds a key that isn't text ({key!r}), which isn't JSON"
+                )
+        return {key: plain(item, where) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [plain(item, where) for item in value]
+    raise PlanFileError(f"{where} holds a {type(value).__name__}, which isn't JSON")
 
 
 def step_plan_from_json(document: Json, where: str = "a step's plan") -> StepPlan:
@@ -251,15 +333,17 @@ def _step_from_json(document: Json) -> PlannedStep:
     doc = _object(document, "a planned step")
     name = _str(doc, "name", "a planned step")
     where = f"step `{name}`"
+    _only(doc, _STEP_KEYS, where)
     inputs = []
     for raw in _array(doc.get("inputs", []), f"{where}: `inputs`"):
         entry = _object(raw, f"{where}: an input")
+        _only(entry, _INPUT_KEYS, f"{where}: an input")
         inputs.append(
             Input(
                 label=_str(entry, "label", f"{where}: an input"),
                 source=_str(entry, "from", f"{where}: an input"),
                 value=_value_from_json(entry.get("value")),
-                known=bool(entry.get("known", True)),
+                known=_bool(entry, "known", f"{where}: an input", default=True),
             )
         )
     step = PlannedStep(
@@ -270,7 +354,7 @@ def _step_from_json(document: Json) -> PlannedStep:
         inputs=tuple(inputs),
         waits_for=_strings(doc.get("waits_for", []), f"{where}: `waits_for`"),
         skipped=_optional_str(doc, "skipped", where),
-        every_deploy=bool(doc.get("every_deploy", False)),
+        every_deploy=_bool(doc, "every_deploy", where),
     )
     # A step that isn't ready shows no changes, so it can't hold any: a file
     # that says both would hide what it then lets through.
@@ -295,6 +379,7 @@ def _change_to_json(change: Change) -> dict[str, Any]:
 def _change_from_json(document: Json, where: str) -> Change:
     doc = _object(document, f"{where}: a change")
     key = _str(doc, "key", f"{where}: a change")
+    _only(doc, _CHANGE_KEYS, f"{where}: change {key!r}")
     action = doc.get("action")
     if action not in ACTIONS:
         raise PlanFileError(
@@ -302,11 +387,13 @@ def _change_from_json(document: Json, where: str) -> Change:
             f"not {action!r}"
         )
     detail = _array(doc.get("detail", []), f"{where}: change {key!r} detail")
+    if not all(isinstance(line, str) for line in detail):
+        raise PlanFileError(f"{where}: change {key!r}: `detail` must be lines of text")
     return Change(
         key=key,
         action=cast(Action, action),
-        summary=str(doc.get("summary") or key),
-        destructive=bool(doc.get("destructive", False)),
+        summary=_optional_str(doc, "summary", f"{where}: change {key!r}") or key,
+        destructive=_bool(doc, "destructive", f"{where}: change {key!r}"),
         detail=tuple(str(line) for line in detail),
     )
 
@@ -314,8 +401,7 @@ def _change_from_json(document: Json, where: str) -> Change:
 def _value_to_json(value: Value, where: str) -> Json:
     if isinstance(value, Secret):
         return {_SECRET: True}
-    _no_secrets(value, f"{where}: an output")
-    return value
+    return plain(value, f"{where}: an output")
 
 
 def _value_from_json(value: Json) -> Value:
@@ -324,20 +410,21 @@ def _value_from_json(value: Json) -> Value:
     return value
 
 
-def _no_secrets(value: Any, where: str) -> None:
-    if isinstance(value, Secret):
-        raise PlanFileError(
-            f"{where} holds a secret; a plan file never does. Make it an output of "
-            "its own (a `Secret`), or fetch it at apply."
-        )
-    if isinstance(value, dict):
-        for item in value.values():
-            _no_secrets(item, where)
-    elif isinstance(value, list | tuple):
-        for item in value:
-            _no_secrets(item, where)
-    elif value is not None and not isinstance(value, str | int | float | bool):
-        raise PlanFileError(f"{where} holds a {type(value).__name__}, which isn't JSON")
+def _only(doc: Mapping[str, Json], known: frozenset[str], where: str) -> None:
+    """A plan file is read strictly: a key lely doesn't write is a file lely
+    didn't write, or one that was edited."""
+    unknown = set(doc) - known
+    if unknown:
+        raise PlanFileError(f"{where}: unknown keys {', '.join(sorted(unknown))}")
+
+
+def _bool(
+    doc: Mapping[str, Json], key: str, where: str, *, default: bool = False
+) -> bool:
+    value = doc.get(key, default)
+    if not isinstance(value, bool):
+        raise PlanFileError(f"{where}: `{key}` must be true or false")
+    return value
 
 
 def _object(value: Json, where: str) -> Mapping[str, Json]:

@@ -124,6 +124,13 @@ class Change:
             )
         if self.action in DESTRUCTIVE_ACTIONS and not self.destructive:
             object.__setattr__(self, "destructive", True)
+        # One spelling, so a change reads the same before and after a plan
+        # file: a change with no summary is named by its key, and its detail
+        # is a tuple whatever it was handed.
+        if not self.summary:
+            object.__setattr__(self, "summary", self.key)
+        if not isinstance(self.detail, tuple):
+            object.__setattr__(self, "detail", tuple(self.detail))
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,12 +232,15 @@ class Workspace:
 class Source:
     """The version of the project a plan was made from.
 
-    `tree` is the git tree it was planned on, `None` outside a repository.
-    `dirty` says tracked files had uncommitted changes.
+    `tree` is every tracked file as it was on disk, as one git tree; `None`
+    outside a repository. `dirty` says some of that was uncommitted. `root` is
+    the project's folder in the repository, from its top: two projects that
+    share a tree are still two projects.
     """
 
     tree: str | None = None
     dirty: bool = False
+    root: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

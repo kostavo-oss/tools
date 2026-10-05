@@ -21,12 +21,15 @@
 A destroy plan is shown in the order it runs: from the bottom up.
 
 Pure: a plan in, Rich renderables out. A secret is shown as `***`, and a
-plugin's payload is never shown.
+plugin's payload is never shown. Nothing a plan, a plugin or a program said
+reaches the terminal with its control characters: an escape sequence in a
+change's summary could otherwise rewrite the lines above it.
 """
 
 from __future__ import annotations
 
 import json
+import unicodedata
 from collections.abc import Iterable, Iterator, Mapping
 
 from rich.console import Console, Group, RenderableType
@@ -68,18 +71,40 @@ _OUTCOMES = {
 }
 
 
+def clean(text: str) -> str:
+    """`text` with every control character but a line break made visible as
+    `�`: what a plan file or a program said is shown, never obeyed."""
+    return "".join(
+        "�" if unicodedata.category(char) == "Cc" and char != "\n" else char
+        for char in text
+    )
+
+
+def _safe(lines: Iterable[Text]) -> Group:
+    """Lines for a terminal. Each control character becomes one other
+    character, so the styles stay where they were."""
+    safe = []
+    for line in lines:
+        line.plain = clean(line.plain)
+        safe.append(line)
+    return Group(*safe)
+
+
 def render_plan(plan: Plan, console: Console) -> None:
     console.print(plan_view(plan), highlight=False)
 
 
 def plan_view(plan: Plan) -> RenderableType:
-    return Group(*_plan_lines(plan))
+    return _safe(_plan_lines(plan))
 
 
 def _plan_lines(plan: Plan) -> Iterator[Text]:
     title = "lely plan" if plan.kind == "apply" else "lely destroy plan"
+    project = plan.source.root
     yield Text.assemble(
         (title, "bold"),
+        # in a repository with several projects, which one this plan is for
+        *((" · project ", (project, "bold")) if project not in (None, ".") else ()),
         " · target ",
         (plan.target, "bold"),
         " · ",
@@ -89,13 +114,19 @@ def _plan_lines(plan: Plan) -> Iterator[Text]:
     steps = plan.steps if plan.kind == "apply" else tuple(reversed(plan.steps))
     taken = {taken.source for step in plan.steps for taken in step.inputs}
     for step in steps:
-        yield from step_lines(step, taken)
+        yield from _step_lines(step, taken)
     yield Text()
     yield _summary(plan)
     yield from _warnings(plan)
 
 
-def step_lines(step: PlannedStep, taken: Iterable[str] = ()) -> Iterator[Text]:
+def step_view(step: PlannedStep) -> RenderableType:
+    """One step of a plan, on its own: what `apply` shows before it asks about
+    a step that was waiting."""
+    return _safe(_step_lines(step))
+
+
+def _step_lines(step: PlannedStep, taken: Iterable[str] = ()) -> Iterator[Text]:
     """One step of a plan: what it takes, what it would do, what it gives.
 
     `taken` are the outputs another step takes, as `<step>.<output>`: those are
@@ -199,8 +230,8 @@ def _warnings(plan: Plan) -> Iterator[Text]:
         )
     elif plan.source.dirty:
         yield Text(
-            "Planned with uncommitted changes: lely can't check that what is "
-            "applied is what was planned.",
+            "Planned with uncommitted changes: from a file, this is applied only "
+            "on a checkout that has those same changes.",
             style="yellow",
         )
 
@@ -221,7 +252,7 @@ def _shown(value: Value) -> str:
 
 
 def wiring_view(wires: Iterable[Wire]) -> RenderableType:
-    return Group(*_wiring_lines(tuple(wires)))
+    return _safe(_wiring_lines(tuple(wires)))
 
 
 def _wiring_lines(wires: tuple[Wire, ...]) -> Iterator[Text]:
@@ -250,7 +281,7 @@ def _wiring_lines(wires: tuple[Wire, ...]) -> Iterator[Text]:
 
 
 def result_view(result: Result) -> RenderableType:
-    return Group(*_result_lines(result))
+    return _safe(_result_lines(result))
 
 
 def _result_lines(result: Result) -> Iterator[Text]:
@@ -321,7 +352,7 @@ def _done(result: Result) -> str:
 
 
 def status_view(status: Status) -> RenderableType:
-    return Group(*_status_lines(status))
+    return _safe(_status_lines(status))
 
 
 def _status_lines(status: Status) -> Iterator[Text]:

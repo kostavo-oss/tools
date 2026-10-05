@@ -202,6 +202,16 @@ when apply is about to be built.
   `14,catalog=prod` from a step above would have set a second variable nobody wrote. This is
   from the CLI's source (`cmd/bundle/variables.go`), not seen live:
   `databricks bundle validate --var='a=1,b=2' -o json` settles it.
+- **`vars` are text, passed as written.** `model_version: 3.10` goes out as `3.10`, not `3.1`,
+  and `0123` isn't read as octal. A secret — a value from the environment included — and a
+  list are refused where they are written, by `validate` already. A value with a line break
+  isn't sent: the CLI's CSV reader and Python's don't agree on one.
+- **Not held: what the bundle resolves from outside lely.** `BUNDLE_VAR_x` in the environment
+  of the apply, or a variable's `lookup` answering something else than at plan, changes what
+  is deployed without changing a line of the plan: the CLI's plan names the fields that
+  change, not their values. A fingerprint of the resolved variables in the plan would catch
+  it, at the price of refusing a plan whose variables depend on who runs it. *Not built; the
+  owner's to decide.*
 - **A `path` that isn't a directory** is said so at plan. It used to read as "the Databricks
   CLI isn't installed".
 - **V1–V8** are each a `TODO(verify)` in `src/lely/steps/bundle.py`, are what

@@ -233,7 +233,7 @@ def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
     def ctx(folder: str) -> Context[Bundle.Options]:
         world = tmp_path / folder
         return context(
-            Bundle.Options(vars={"model_version": 14}),
+            Bundle.Options(vars={"model_version": "14"}),
             root=tmp_path,
             databricks=FakeDatabricks(world),
         )
@@ -252,7 +252,7 @@ def test_command_and_bundle_run_pass_the_parts_that_apply(tmp_path: Path) -> Non
     app = Linked(
         "app",
         "bundle",
-        Bundle.Options(vars={"model_version": 14}),
+        Bundle.Options(vars={"model_version": "14"}),
         outputs={"resources.jobs.backfill.id": "771"},
     )
     run = context(

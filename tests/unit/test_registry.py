@@ -97,3 +97,20 @@ def test_a_module_that_raises_on_import_is_named(
     monkeypatch.syspath_prepend(str(tmp_path))
     with pytest.raises(StepNotFound, match="can't import `exploding_plugin`: no config"):
         find("exploding_plugin:X", Path.cwd())
+
+
+def test_options_whose_types_cant_be_read_are_named(tmp_path: Path) -> None:
+    """A type hint naming something the plugin's module doesn't have used to
+    end every command in a `NameError`."""
+    (tmp_path / "s.py").write_text(
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n"
+        "class Odd:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        size: Missing = None\n"
+        "    def plan(self, ctx): pass\n"
+        "    def apply(self, ctx, plan): pass\n"
+    )
+    with pytest.raises(StepNotFound, match="the types of its `Options` can't be read"):
+        find("./s.py:Odd", tmp_path)

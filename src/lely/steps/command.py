@@ -129,17 +129,24 @@ class Command:
             raise LelyError(f"{where}: a `command` step can't give a secret")
         later = tuple(name for name in options.outputs if name not in plan.outputs)
         changes = plan.changes
-        if later and not changes:
-            # Nothing to change, and still something to give: only the apply
-            # command can give it, so the step runs — and its plan says so.
-            changes = (
-                Change(
-                    key=ctx.name,
-                    action="run",
-                    summary=f"runs {shlex.join(options.apply)}",
-                    detail=(f"to give {', '.join(later)}",),
-                ),
+        if later:
+            # Something to give that the plan command didn't: only the apply
+            # command can give it, so the step runs — and its plan says so,
+            # every time, beside whatever else it changes. (Only when nothing
+            # else is left to change, and a run that failed further down could
+            # not be finished from the same plan: the run would be new.)
+            if any(change.key == ctx.name for change in changes):
+                raise LelyError(
+                    f"{where} prints a change keyed `{ctx.name}`, which is the key "
+                    "of the step's own run; give that change another key"
+                )
+            run = Change(
+                key=ctx.name,
+                action="run",
+                summary=f"runs {shlex.join(options.apply)}",
+                detail=(f"to give {', '.join(later)}",),
             )
+            changes = (*changes, run)
         return dataclasses.replace(plan, changes=changes, later=later)
 
     def apply(self, ctx: Context[Command.Options], plan: StepPlan) -> Outputs:
@@ -168,7 +175,15 @@ class Command:
                 "`outputs`, and neither its plan command printed it nor its apply "
                 "command wrote it to the file `LELY_OUTPUTS` names"
             )
-        return {**plan.outputs, **written}
+        # What the apply command writes is text; what the plan command printed
+        # is JSON. The same value written both ways is the one the plan gave —
+        # `14`, not `"14"` — so a step below that took it still takes it.
+        same = {
+            name: plan.outputs[name]
+            for name, value in written.items()
+            if name in plan.outputs and _as_text(plan.outputs[name]) == value
+        }
+        return {**plan.outputs, **written, **same}
 
     def plan_destroy(self, ctx: Context[Command.Options]) -> StepPlan | Skip:
         command = ctx.options.destroy
@@ -215,6 +230,19 @@ def _env(ctx: Context[Command.Options]) -> dict[str, str]:
         for name, value in ctx.options.env.items()
     }
     return {**ctx.env, **own, "LELY_TARGET": ctx.target, "LELY_STEP": ctx.name}
+
+
+def _as_text(value: object) -> str:
+    """A value the plan command printed, as a script would write it."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return ""
+    if isinstance(value, int | float):
+        return str(value)
+    return json.dumps(value)
 
 
 def _only_listed(outputs: Outputs, options: Command.Options, where: str) -> None:

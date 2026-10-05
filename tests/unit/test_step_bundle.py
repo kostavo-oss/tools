@@ -33,7 +33,7 @@ from lely.testing import (
     context,
 )
 
-VARS = {"model_version": 14}
+VARS = {"model_version": "14"}
 
 
 # -- reading the CLI's answers ---------------------------------------------------
@@ -519,3 +519,10 @@ def test_a_bundle_path_that_isnt_there_says_so(tmp_path: Path) -> None:
     assert str(caught.value) == (
         f"`path: bundel`: there is no directory {tmp_path / 'bundel'}"
     )
+
+
+def test_a_variable_with_a_line_break_isnt_sent(tmp_path: Path) -> None:
+    """V8: the CLI's CSV reader and Python's don't agree on a line break inside
+    a quoted field, so lely doesn't find out which one is right."""
+    with pytest.raises(LelyError, match="`model_version` holds a line break"):
+        Bundle().plan(ctx(tmp_path, vars={"model_version": "14\r\n15"}))

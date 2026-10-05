@@ -200,7 +200,7 @@ def _of(tp: Any) -> dict[str, Any]:
     args = typing.get_args(tp)
     if origin in (types.UnionType, typing.Union):
         members = [_of(arg) for arg in args if arg is not type(None)]
-        return {"anyOf": [*members, {"type": "null"}]}
+        return {"anyOf": [*members, *([{"type": "null"}] if type(None) in args else [])]}
     if tp is object or tp is Any:
         return {}
     if tp is Linked:
@@ -219,8 +219,8 @@ def _of(tp: Any) -> dict[str, Any]:
     if origin is Literal:
         return {"anyOf": [{"enum": list(args)}, _REFERENCE]}
     if tp is str or tp is Secret:
-        # a number is taken as text, as `options.py` takes it
-        return {"type": ["string", "number"]}
+        # a number or a boolean is taken as text, as `options.py` takes it
+        return {"type": ["string", "number", "boolean"]}
     if tp is bool:
         return {"anyOf": [{"type": "boolean"}, _REFERENCE]}
     if tp is int:

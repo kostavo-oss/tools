@@ -25,7 +25,7 @@ import dataclasses
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
-from lely import approval
+from lely import approval, planning
 from lely import step as contract
 from lely.config import Config, StepConfig
 from lely.errors import LelyError, Refused
@@ -81,15 +81,7 @@ def apply(
         )
     target = approved.target
     check_from(config, target, from_step)
-    for step in config.steps:
-        if not step.runs_for(target):
-            continue
-        found = find(step.uses, config.root)
-        if not contract.applies(found.cls):
-            raise Refused(
-                f"Step `{step.name}` uses `{step.uses}`, which can plan and can't "
-                "apply yet. Nothing was run."
-            )
+    check_applies(config, target)
     approval.destructive_allowed(approved.steps, allow_destructive)
 
     session = Session(config, target, workspace, env, databricks, log, connect)
@@ -188,6 +180,7 @@ def destroy(
             "`lely apply <file>`."
         )
     target = approved.target
+    planning.runs_for(config, target)
     check_from(config, target, from_step)
 
     # From the top down: what each step gives the ones below. Nothing is removed
@@ -233,8 +226,10 @@ def destroy(
                 raise Refused(
                     f"Step `{step.name}` isn't in the approved plan. {approval.AGAIN}"
                 )
-            # a step the plan showed as skipped showed nothing it would remove
-            shown = was.plan if was.state == "ready" else StepPlan()
+            # A step the plan showed as skipped showed nothing it would remove.
+            # (One whose plugin said part of its destroy plan has to wait did
+            # show what it could: that much was approved.)
+            shown = StepPlan() if was.skipped is not None or was.waits_for else was.plan
             approval.approved_changes(shown, fresh, step.name)
             if not fresh.changes:
                 # never a bare "nothing there": the plugin says whose view it is
@@ -267,6 +262,7 @@ def status(
     To find it, each step's inputs are resolved from the top down, the way a
     plan does.
     """
+    planning.runs_for(config, target)
     session = Session(config, target, workspace, env, databricks, log, connect)
     steps: list[StepStatus] = []
     for step in config.steps:
@@ -293,6 +289,20 @@ def status(
 
 
 # -----------------------------------------------------------------------------
+
+
+def check_applies(config: Config, target: str) -> None:
+    """Refuse a project with a step whose plugin can plan and can't apply yet —
+    before anything is asked, and before anything runs."""
+    planning.runs_for(config, target)
+    for step in config.steps:
+        if step.runs_for(target) and not contract.applies(
+            find(step.uses, config.root).cls
+        ):
+            raise Refused(
+                f"Step `{step.name}` uses `{step.uses}`, which can plan and can't "
+                "apply yet. Nothing was run."
+            )
 
 
 def check_from(config: Config, target: str, name: str | None) -> None:

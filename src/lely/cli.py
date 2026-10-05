@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
-from rich.console import Console, Group
+from rich.console import Console
 from rich.markup import escape
 from rich.text import Text
 
@@ -53,12 +53,13 @@ from lely import schema as schema_
 from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
-from lely.model import KNOWN, Plan, PlannedStep, Result, Workspace
+from lely.model import KNOWN, Plan, PlannedStep, Result, Source, Workspace
 from lely.render.rich import (
+    clean,
     render_plan,
     result_view,
     status_view,
-    step_lines,
+    step_view,
     wiring_view,
 )
 
@@ -155,7 +156,7 @@ def _fail(error: Exception, *, refusals: bool = True) -> typer.Exit:
     `plan`, `status`, `validate` and `doctor` change nothing, so there is
     nothing to plan again for: they end with 1.
     """
-    err.print(f"[red]{escape(str(error))}[/]")
+    err.print(f"[red]{escape(clean(str(error)))}[/]")
     return typer.Exit(2 if refusals and isinstance(error, Refused) else 1)
 
 
@@ -312,7 +313,7 @@ def _at_waiting(plan: Plan, run: _Run, yes: bool) -> running.AtWaiting:
 
     def ask(step: PlannedStep) -> bool:
         err.print()
-        err.print(Group(*step_lines(step)))
+        err.print(step_view(step))
         if yes:
             return True
         if not _interactive():
@@ -579,7 +580,7 @@ def _program_says(command: tuple[str, ...], *args: str) -> str | None:
     except ProcessError:
         return None
     said = (result.stdout or result.stderr).strip().splitlines()
-    return said[0] if said else f"exit {result.returncode}"
+    return clean(said[0]) if said else f"exit {result.returncode}"
 
 
 # -- commands that change a workspace -----------------------------------------------
@@ -606,10 +607,13 @@ def apply(
 ) -> None:
     """Run a reviewed plan — or, with -t, plan, show, ask and run."""
     _a_target(target)
+    known = _Known("apply", target)
     try:
         run = _run(path, profile)
+        known.workspace = run.workspace
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
+            known.target = approved.target
             if approved.kind != "apply":
                 raise Refused(
                     "This is a plan to destroy, and `lely apply` only applies. Run it "
@@ -620,17 +624,19 @@ def apply(
                     f"The plan was made for target `{approved.target}`, and the "
                     f"command says `{target}`."
                 )
+            running.check_applies(run.config, approved.target)
             running.check_from(run.config, approved.target, from_step)
             _still_holds(approved, run, plan_file)
             at_waiting = None
         else:
             if target is None:
                 raise Refused("Give the target: `lely apply -t <target>`.")
+            running.check_applies(run.config, target)
             running.check_from(run.config, target, from_step)
             approved = planning.plan(
                 run.config,
                 target=target,
-                source=source.read(run.config.root),
+                source=_unsaved(run.config.root),
                 **run.edges,
             )
             at_waiting = _at_waiting(approved, run, yes)
@@ -647,7 +653,7 @@ def apply(
             **run.edges,
         )
     except LelyError as error:
-        raise _stopped("apply", target, error, output_format) from None
+        raise _stopped(known, error, output_format) from None
     _finish(result, output_format)
 
 
@@ -665,8 +671,11 @@ def destroy(
     profile: ProfileOption = None,
 ) -> None:
     """Take a target down again: plan the destroy, show it, ask, and run."""
+    known = _Known("destroy", target)
     try:
         run = _run(path, profile)
+        known.workspace = run.workspace
+        planning.runs_for(run.config, target)
         running.check_from(run.config, target, from_step)
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
@@ -685,7 +694,7 @@ def destroy(
             approved = planning.plan(
                 run.config,
                 target=target,
-                source=source.read(run.config.root),
+                source=_unsaved(run.config.root),
                 kind="destroy",
                 **run.edges,
             )
@@ -694,7 +703,7 @@ def destroy(
             _consent_to_destroy(approved, run, yes)
         result = running.destroy(run.config, approved, from_step=from_step, **run.edges)
     except LelyError as error:
-        raise _stopped("destroy", target, error, output_format) from None
+        raise _stopped(known, error, output_format) from None
     _finish(result, output_format)
 
 
@@ -709,17 +718,39 @@ def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
     approval.same_source(approved, source.read(run.config.root, plan_file))
 
 
-def _stopped(
-    kind: str, target: str | None, error: LelyError, output_format: Format
-) -> typer.Exit:
+def _unsaved(root: Path) -> Source:
+    """What a plan that is run now, and never saved, was made on. Nothing will
+    be held to it, so git failing to say is no reason to stop."""
+    try:
+        return source.read(root)
+    except source.SourceError:
+        return Source()
+
+
+@dataclass
+class _Known:
+    """What is known of a run so far, for one that ends before its first step."""
+
+    kind: str
+    target: str | None
+    workspace: Workspace | None = None
+
+
+def _stopped(known: _Known, error: LelyError, output_format: Format) -> typer.Exit:
     """A run that ended before its first step. With `-f json` that is said on
     stdout too, in the shape of a result, so whatever reads it reads something."""
     refused = isinstance(error, Refused)
+    workspace = known.workspace
     if output_format is Format.json:
         _echo_json(
             {
-                "kind": kind,
-                "target": target,
+                "kind": known.kind,
+                "target": known.target,
+                "workspace": (
+                    None
+                    if workspace is None
+                    else {"host": workspace.host, "identity": workspace.identity}
+                ),
                 "outcome": "refused" if refused else "failed",
                 "message": str(error),
                 "ran": [],
@@ -777,7 +808,9 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
     else:
         render_plan(built, out)
     if output is not None:
-        out.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
+        # with `-f json`, stdout is for JSON and nothing else
+        said = err if output_format is Format.json else out
+        said.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 
 def _echo_json(document: dict[str, Any]) -> None:
@@ -787,4 +820,10 @@ def _echo_json(document: dict[str, Any]) -> None:
 
 
 def main() -> None:
+    # A stream that can't write `✓` or `←` — a redirected one on Windows —
+    # writes `?` instead of ending the command with a traceback.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(errors="replace")
     app()

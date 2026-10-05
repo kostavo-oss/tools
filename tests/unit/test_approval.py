@@ -170,22 +170,68 @@ def test_a_plan_made_against_one_workspace_is_refused_on_another() -> None:
 
 
 def test_a_plan_is_refused_on_another_tree() -> None:
-    approved = plan(tree="aaaaaaaaaaaaaaaa")
-    approval.same_source(approved, Source("aaaaaaaaaaaaaaaa"))
+    approved = plan(tree="aaaaaaaaaaaaaaaa", root=".")
+    approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="."))
     with pytest.raises(
         Refused, match="made on git tree aaaaaaaaaaaa.*now on bbbbbbbbbbbb"
     ):
-        approval.same_source(approved, Source("bbbbbbbbbbbbbbbb"))
+        approval.same_source(approved, Source("bbbbbbbbbbbbbbbb", root="."))
     with pytest.raises(
         Refused, match="uncommitted changes that the plan was made without"
     ):
-        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", dirty=True))
+        approval.same_source(approved, Source("bbbbbbbbbbbbbbbb", dirty=True, root="."))
     with pytest.raises(Refused, match="this isn't one"):
         approval.same_source(approved, Source())
 
 
-def test_a_plan_that_recorded_nothing_can_be_held_to_nothing() -> None:
-    """Outside a git repository, or with uncommitted changes: it said so when
-    it was made."""
-    approval.same_source(plan(), Source("bbbb"))
-    approval.same_source(plan(tree="aaaa", dirty=True), Source("bbbb", dirty=True))
+def test_a_plan_made_with_uncommitted_changes_is_held_to_those_changes() -> None:
+    """The tree holds them, so such a plan is no longer held to nothing."""
+    approved = plan(tree="cccccccccccccccc", dirty=True, root=".")
+    approval.same_source(approved, Source("cccccccccccccccc", dirty=True, root="."))
+    # the same changes, committed since: the same tree
+    approval.same_source(approved, Source("cccccccccccccccc", root="."))
+    with pytest.raises(
+        Refused, match="uncommitted changes that this checkout doesn't have"
+    ):
+        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="."))
+    with pytest.raises(Refused, match="made on git tree cccccccccccc"):
+        approval.same_source(approved, Source("dddddddddddddddd", dirty=True, root="."))
+
+
+def test_a_plan_for_one_project_of_a_repository_is_refused_for_another() -> None:
+    """Two projects that share a tree — and, started from one template, their
+    steps as written — are still two projects."""
+    approved = plan(tree="aaaaaaaaaaaaaaaa", root="team-a")
+    approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="team-a"))
+    with pytest.raises(Refused) as caught:
+        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="team-b"))
+    assert str(caught.value) == (
+        "The plan was made for the project in `team-a`, and this is the one in "
+        "`team-b`. Plan again."
+    )
+    with pytest.raises(Refused, match="in `team-a`, and this is the one in the top of"):
+        approval.same_source(approved, Source("aaaaaaaaaaaaaaaa", root="."))
+
+
+def test_a_plan_made_outside_git_recorded_nothing_it_can_be_held_to() -> None:
+    """It said so when it was made."""
+    approval.same_source(plan(), Source("bbbb", root="."))
+    approval.same_source(plan(), Source())
+
+
+def test_the_same_value_means_the_same_as_it_would_be_written() -> None:
+    """`1` is not `true`, `14` is not `14.0` and not `"14"` — Python calls the
+    first two pairs equal. A tuple and a list of the same things are the same:
+    one is what a plugin gave, the other what a plan file read back."""
+
+    def took(value: Any) -> PlannedStep:
+        return PlannedStep("app", "bundle", "h", inputs=(Input("v", "model.v", value),))
+
+    def now(value: Any) -> list[Input]:
+        return [Input("v", "model.v", value)]
+
+    for was, is_ in ((1, True), (14, 14.0), (14, "14"), (0, False), (None, "")):
+        with pytest.raises(Refused, match="Step `app` takes model.v"):
+            approval.same_inputs(took(was), now(is_))
+    approval.same_inputs(took(["a", "b"]), now(("a", "b")))
+    approval.same_inputs(took({"b": 1, "a": 2}), now({"a": 2, "b": 1}))

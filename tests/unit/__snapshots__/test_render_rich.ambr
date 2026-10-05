@@ -46,7 +46,8 @@
   Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
   Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for 
   exists.
-  Planned with uncommitted changes: lely can't check that what is applied is what was planned.
+  Planned with uncommitted changes: from a file, this is applied only on a checkout that has those 
+  same changes.
   
   '''
 # ---

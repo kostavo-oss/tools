@@ -259,3 +259,63 @@ def test_the_programs_it_runs_are_named_for_doctor() -> None:
         "destroy": [],
     }
     assert Command.programs(written) == ("./p.sh", "./a.sh")
+
+
+# -- found in the second review ------------------------------------------------------
+
+
+def test_the_run_that_gives_an_output_is_in_every_plan_beside_the_other_changes(
+    tmp_path: Path,
+) -> None:
+    printed = {"changes": [{"key": "users", "action": "create"}]}
+    options = Command.Options(
+        apply=("./seed.sh",), plan=printing(printed), outputs=("count",)
+    )
+    plan = Command().plan(context(options, name="seed", root=tmp_path))
+    assert plan.changes == (
+        Change("users", "create", "users"),
+        Change("seed", "run", "runs ./seed.sh", detail=("to give count",)),
+    )
+    # nothing left to change, and the output still to give: the same run
+    idle = Command.Options(apply=("./seed.sh",), plan=printing({}), outputs=("count",))
+    assert Command().plan(context(idle, name="seed", root=tmp_path)).changes == (
+        plan.changes[1],
+    )
+    # everything given at plan, nothing to change: nothing to do
+    given = Command.Options(
+        apply=("./seed.sh",),
+        plan=printing({"outputs": {"count": 3}}),
+        outputs=("count",),
+    )
+    assert Command().plan(context(given, name="seed", root=tmp_path)).changes == ()
+
+
+def test_a_plan_command_cant_use_the_key_of_the_steps_own_run(tmp_path: Path) -> None:
+    printed = {"changes": [{"key": "seed", "action": "create"}]}
+    options = Command.Options(
+        apply=("./seed.sh",), plan=printing(printed), outputs=("count",)
+    )
+    with pytest.raises(LelyError, match="prints a change keyed `seed`"):
+        Command().plan(context(options, name="seed", root=tmp_path))
+
+
+def test_a_value_written_as_text_that_the_plan_gave_as_json_keeps_its_type(
+    tmp_path: Path,
+) -> None:
+    for printed, wrote, expected in (
+        (14, "14", 14),
+        (True, "true", True),
+        ("a b", "a b", "a b"),
+        (14, "15", "15"),  # another value: the apply command's word, as text
+    ):
+        options = Command.Options(
+            apply=script(
+                tmp_path, f"open(os.environ['LELY_OUTPUTS'], 'a').write('v={wrote}\\n')"
+            ),
+            plan=printing(
+                {"changes": [{"key": "k", "action": "run"}], "outputs": {"v": printed}}
+            ),
+            outputs=("v",),
+        )
+        ctx = context(options, root=tmp_path)
+        assert Command().apply(ctx, Command().plan(ctx)) == {"v": expected}

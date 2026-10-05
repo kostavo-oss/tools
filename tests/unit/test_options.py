@@ -190,3 +190,62 @@ def test_fields_describe_the_options() -> None:
     assert described["tags"].type == "list of strings"
     assert described["mode"].type == "'fast' | 'safe'"
     assert described["retries"].default == "3"
+
+
+# -- found in the second review ------------------------------------------------------
+
+
+def test_a_number_meant_as_text_is_passed_on_as_it_was_written() -> None:
+    """`1.10` isn't `1.1`, `0123` isn't octal 83, and `yes` is `yes`: an option
+    that wants text gets what was written, not what YAML made of it."""
+    for written, expected in (
+        ("1.10", "1.10"),
+        ("0123", "0123"),
+        ("1e3", "1e3"),
+        ("yes", "yes"),
+        ("true", "true"),
+        ("14", "14"),
+    ):
+        built = build(Options, block(f"      model: {written}\n"), plain, "s")
+        assert built.model == expected, written
+
+
+def test_text_that_came_from_a_reference_is_written_the_way_json_would() -> None:
+    def resolver(scalar: Scalar) -> Any:
+        return {"${a}": 14, "${b}": True, "${c}": 1.5}.get(
+            str(scalar.value), scalar.value
+        )
+
+    for reference, expected in (("${a}", "14"), ("${b}", "true"), ("${c}", "1.5")):
+        built = build(Options, block(f"      model: '{reference}'\n"), resolver, "s")
+        assert built.model == expected
+
+
+def test_a_value_known_to_be_secret_is_checked_without_being_there() -> None:
+    """Offline, a value from the environment isn't looked up — and isn't faked
+    either: the plugin's options are not built with a stand-in for it."""
+    built_with: list[Any] = []
+
+    @dataclass(frozen=True)
+    class Checked:
+        token: Secret
+        note: str = ""
+
+        def __post_init__(self) -> None:
+            built_with.append(self.token)
+
+    def offline(scalar: Scalar) -> Any:
+        if "${env." in str(scalar.value):
+            return Unknown("offline", secret=True)
+        return scalar.value
+
+    fits = build(Checked, block("      token: ${env.TOKEN}\n"), offline, "s")
+    assert fits == Unresolved(("offline",))
+    assert built_with == []  # `__post_init__` never saw a placeholder
+    with pytest.raises(OptionsError, match="`note` would hold a secret"):
+        build(
+            Checked,
+            block("      token: ${env.TOKEN}\n      note: ${env.TOKEN}\n"),
+            offline,
+            "s",
+        )

@@ -48,7 +48,6 @@ from lely.model import (
     Plan,
     PlanKind,
     PlannedStep,
-    Secret,
     Skip,
     Source,
     StepPlan,
@@ -173,11 +172,9 @@ def _offline(
                     f"{KNOWN['run']}: it waits on every deploy, and a plan applied "
                     "from a file always stops before it"
                 )
-        if secret:
-            # A value from the environment is a secret whatever it turns out to
-            # be, so where it may not go is known without looking it up.
-            return Secret("")
-        return Unknown("offline") if refs else text
+        # A value from the environment is a secret whatever it turns out to
+        # be, so where it may not go is known without looking it up.
+        return Unknown("offline", secret=secret) if refs else text
 
     return resolver
 
@@ -340,8 +337,7 @@ class Session:
         where = prepared.where
         self.log.info(f"planning {prepared.step.name}")
         result = self._call(prepared, "plan", lambda plugin, ctx: plugin.plan(ctx))
-        _check_plan(result, where)
-        assert isinstance(result, StepPlan)
+        result = _checked_plan(result, where)
         _check_outputs(result.outputs, prepared.declared, where, planning=True)
         if result.waiting is None:
             missing = [
@@ -383,6 +379,7 @@ class Session:
                 f"{where}: `apply` returned {type(returned).__name__}, not its outputs"
             )
         _check_outputs(returned, prepared.declared, where, planning=False)
+        returned = planfile.normalised_outputs(returned, f"{where}: `apply`")
         outputs = {**plan.outputs, **returned}
         missing = [
             output.name
@@ -407,8 +404,7 @@ class Session:
         )
         if isinstance(result, Skip):
             return result
-        _check_plan(result, where, method="plan_destroy")
-        assert isinstance(result, StepPlan)
+        result = _checked_plan(result, where, method="plan_destroy")
         # everything in a destroy is destructive, whatever the plugin marked
         return dataclasses.replace(
             result,
@@ -493,7 +489,10 @@ class Session:
             ) from error
 
 
-def _check_plan(result: object, where: str, method: str = "plan") -> None:
+def _checked_plan(result: object, where: str, method: str = "plan") -> StepPlan:
+    """A plugin's plan, held to its shape and made plain: as it would read back
+    from a plan file, so the plan that is approved and the plan that is made
+    again can be compared whether or not a file came between them."""
     if not isinstance(result, StepPlan):
         raise LelyError(
             f"{where}: `{method}` returned {type(result).__name__}, not a StepPlan"
@@ -509,7 +508,9 @@ def _check_plan(result: object, where: str, method: str = "plan") -> None:
             )
     if not all(isinstance(line, str) for line in (*result.notes, *result.later)):
         raise LelyError(f"{where}: a plan's `notes` and `later` are text")
-    planfile.step_plan_to_json(result, where)  # refuses secrets in the payload
+    if result.waiting is not None and not isinstance(result.waiting, str):
+        raise LelyError(f"{where}: a plan's `waiting` is text")
+    return planfile.normalised(result, where)  # refuses a secret in the payload
 
 
 def _check_outputs(
@@ -559,6 +560,7 @@ def plan(
     from the bottom up.
     """
     check(config)
+    runs_for(config, target)
     session = Session(config, target, workspace, env, databricks, log, connect)
     steps: list[PlannedStep] = []
     for step in config.steps:
@@ -577,6 +579,19 @@ def plan(
         workspace=workspace,
         source=source,
         steps=tuple(session.shown(step) for step in steps),
+    )
+
+
+def runs_for(config: Config, target: str) -> None:
+    """Refuse a target no step runs for. lely keeps no list of targets, so a
+    mistyped one is otherwise caught only by a plugin that checks it — and when
+    every step's `targets` leave it out, no plugin is asked."""
+    if any(step.runs_for(target) for step in config.steps):
+        return
+    named = sorted({name for step in config.steps for name in step.targets or ()})
+    raise Refused(
+        f"No step runs for target `{target}`: every step's `targets` leave it out "
+        f"({', '.join(named)})."
     )
 
 

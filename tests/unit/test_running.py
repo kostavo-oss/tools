@@ -750,3 +750,187 @@ def test_from_is_checked_before_anything_is_planned(tmp_path: Path) -> None:
         running.check_from(p.config, "dev", "warm")  # it is for prod only
     running.check_from(p.config, "dev", "app")
     running.check_from(p.config, "dev", None)
+
+
+# -- found in the second review ------------------------------------------------------
+
+SEEDS = """\
+from dataclasses import dataclass
+from lely.model import Change, Output, StepPlan
+
+class Tables:
+    '''Says part of its destroy plan has to wait, and shows the rest.'''
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    def plan(self, ctx):
+        return StepPlan()
+    def apply(self, ctx, plan):
+        return {}
+    def plan_destroy(self, ctx):
+        dropped = (ctx.root / "dropped.txt").exists()
+        changes = () if dropped else (Change("t1", "delete", "drops table t1"),)
+        return StepPlan(changes, waiting="t2 is still being written to")
+    def destroy(self, ctx, plan):
+        (ctx.root / "dropped.txt").write_text("t1")
+
+class Names:
+    '''Gives a tuple, and a change with no summary: what a plan file reads
+    back as a list, and as the change's key.'''
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    outputs = (Output("names"),)
+    def plan(self, ctx):
+        return StepPlan((Change("k", "run", ""),), {"names": ("a", "b")})
+    def apply(self, ctx, plan):
+        return {"names": ("a", "b")}
+
+class Takes:
+    @dataclass(frozen=True)
+    class Options:
+        names: object = None
+    def plan(self, ctx):
+        return StepPlan((Change("took", "run", f"takes {ctx.options.names}"),))
+    def apply(self, ctx, plan):
+        return {}
+
+class Dated(Names):
+    outputs = (Output("when", "run"),)
+    def plan(self, ctx):
+        return StepPlan((Change("k", "run", "k"),))
+    def apply(self, ctx, plan):
+        import datetime
+        return {"when": datetime.date(2026, 10, 5)}
+"""
+
+
+def test_a_destroy_step_that_says_part_has_to_wait_destroys_what_it_showed(
+    tmp_path: Path,
+) -> None:
+    """A plugin's own "part of this has to wait" is not the same as a step
+    lely skipped: what it showed was approved."""
+    (tmp_path / "seeds.py").write_text(SEEDS)
+    p = Project(tmp_path, "steps:\n  - name: tables\n    uses: ./seeds.py:Tables\n")
+    approved = p.plan("destroy")
+    assert approved.steps[0].state == "waiting"
+    assert [c.summary for c in approved.steps[0].plan.changes] == ["drops table t1"]
+    result = p.destroy(approved)
+    assert result.outcome == "done", result.message
+    assert (tmp_path / "dropped.txt").read_text() == "t1"
+
+
+def test_a_plan_is_the_same_whether_or_not_it_went_through_a_file(
+    tmp_path: Path,
+) -> None:
+    """A tuple a plugin gave reads back from a file as a list; a change with no
+    summary reads back named by its key. Planning hands on the plain form, so
+    what was approved and what is planned again compare equal either way."""
+    from lely import planfile
+
+    (tmp_path / "seeds.py").write_text(SEEDS)
+    text = (
+        "steps:\n  - name: tables\n    uses: ./seeds.py:Names\n"
+        "  - name: after\n    uses: ./seeds.py:Takes\n"
+        "    with: {names: '${steps.tables.names}'}\n"
+    )
+    p = Project(tmp_path, text)
+    approved = p.plan()
+    assert approved.steps[0].plan.outputs == {"names": ["a", "b"]}
+    assert approved.steps[0].plan.changes[0].summary == "k"
+    assert planfile.loads(planfile.dumps(approved)) == approved
+    assert p.apply(approved).outcome == "done"  # without a file
+    through_a_file = planfile.loads(planfile.dumps(p.plan()))
+    assert p.apply(through_a_file).outcome == "done"
+
+
+def test_what_apply_gives_has_to_be_json_and_says_so(tmp_path: Path) -> None:
+    (tmp_path / "seeds.py").write_text(SEEDS)
+    p = Project(tmp_path, "steps:\n  - name: stamp\n    uses: ./seeds.py:Dated\n")
+    result = p.apply()
+    assert result.outcome == "failed"
+    assert "`apply`: an output holds a date, which isn't JSON" in result.message
+
+
+def test_a_command_that_failed_further_down_can_be_finished_from_the_same_file(
+    tmp_path: Path,
+) -> None:
+    """R22, and R7's "fewer changes is fine". The run that gives the step's
+    output is in every plan of it, beside its other changes — not only once
+    those are gone, when it would be a change the approved plan didn't show."""
+    (tmp_path / "ops").mkdir()
+    seed = tmp_path / "ops" / "seed.sh"
+    seed.write_text('#!/bin/sh\ntouch seeded\necho "count=3" >> "$LELY_OUTPUTS"\n')
+    seed.chmod(0o755)
+    seeding = (
+        "import json, os; print(json.dumps({'changes': [] if os.path.exists('seeded') "
+        "else [{'key': 'users', 'action': 'create', 'summary': 'seeds 3 users'}]}))"
+    )
+    text = (
+        "steps:\n"
+        "  - name: seed\n    uses: command\n    with:\n"
+        f"      plan: {json.dumps([sys.executable, '-c', seeding])}\n"
+        "      apply: [./ops/seed.sh]\n      outputs: [count]\n"
+        "  - name: after\n    uses: command\n    with: {apply: [./ops/notify.sh, x]}\n"
+    )
+    p = Project(tmp_path, text)
+    approved = p.plan()
+    assert [(c.key, c.action) for c in approved.steps[0].plan.changes] == [
+        ("users", "create"),
+        ("seed", "run"),
+    ]
+    (tmp_path / "ops" / "notify.sh").write_text("#!/bin/sh\nexit 9\n")
+    assert p.apply(approved).outcome == "failed"
+    project.write(tmp_path, text)  # the script is fixed
+    again = p.apply(approved)
+    assert again.outcome == "done", again.message
+    assert [c.key for c in again.steps[0].changes] == ["seed"]
+
+
+def test_a_value_the_plan_command_printed_and_the_apply_command_wrote_is_one_value(
+    tmp_path: Path,
+) -> None:
+    """The plan command prints JSON, the apply command writes text: `14` and
+    `"14"` are the same output, and the step below still takes what it took."""
+    (tmp_path / "ops").mkdir()
+    seed = tmp_path / "ops" / "seed.sh"
+    seed.write_text('#!/bin/sh\necho "count=14" >> "$LELY_OUTPUTS"\n')
+    seed.chmod(0o755)
+    printed = {"changes": [{"key": "k", "action": "run"}], "outputs": {"count": 14}}
+    plan_command = json.dumps([sys.executable, "-c", f"print({json.dumps(printed)!r})"])
+    text = (
+        "steps:\n"
+        "  - name: seed\n    uses: command\n    with:\n"
+        f"      plan: {plan_command}\n"
+        "      apply: [./ops/seed.sh]\n      outputs: [count]\n"
+        "  - name: after\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+    )
+    p = Project(tmp_path, text)
+    result = p.apply()
+    assert result.outcome == "done", result.message
+    assert p.notified() == ["14"]
+
+
+def test_a_target_no_step_runs_for_is_refused(tmp_path: Path) -> None:
+    """R37. lely keeps no list of targets, so a mistyped one is caught by a
+    plugin that checks it — unless every step's `targets` leave it out, and no
+    plugin is asked. That used to end "Nothing to do", exit 0."""
+    text = (
+        "steps:\n  - name: app\n    uses: bundle\n    targets: [dev, prod]\n"
+        "    with: {vars: {model_version: 1}}\n"
+    )
+    p = Project(tmp_path, text)
+    for call in (
+        lambda: planning.plan(p.config, target="prd", source=Source(), **edges(p.fake)),
+        lambda: running.status(p.config, target="prd", **edges(p.fake)),
+        lambda: running.check_applies(p.config, "prd"),
+    ):
+        with pytest.raises(Refused) as caught:
+            call()
+        assert str(caught.value) == (
+            "No step runs for target `prd`: every step's `targets` leave it out "
+            "(dev, prod)."
+        )
+    assert p.fake.calls == []
+    planning.runs_for(p.config, "prod")

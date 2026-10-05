@@ -753,3 +753,217 @@ def test_a_reviewed_file_covers_a_bundle_outside_the_configs_folder(
     assert result.exit_code == 2
     assert "The plan was made on git tree" in said(result)
     assert lely.fake.calls == []
+
+
+# -- found in the second review ------------------------------------------------------
+
+TEAM = """\
+steps:
+  - name: app
+    uses: bundle
+  - name: migrate
+    uses: command
+    with:
+      apply: [./ops/migrate.sh]
+      destroy: [./ops/migrate.sh, --drop]
+"""
+
+
+def two_teams(lely: Lely) -> None:
+    """Two projects in one repository, started from the same template."""
+    from fakes import write_bundle
+
+    for path in ("lely.yml", "fake-bundle.json"):
+        (lely.root / path).unlink()
+    for name in ("team-a", "team-b"):
+        folder = lely.root / name
+        (folder / "ops").mkdir(parents=True)
+        (folder / "lely.yml").write_text(TEAM)
+        script = folder / "ops" / "migrate.sh"
+        script.write_text(f'#!/bin/sh\necho "{name} $1" >> ../migrated.txt\n')
+        script.chmod(0o755)
+        resources = {"jobs": {"etl": {"name": f"etl of {name}"}}}
+        write_bundle(folder, {"name": name, "resources": resources})
+    (lely.root / ".gitignore").write_text(
+        ".world/\nmigrated.txt\n*.json\n!fake-bundle.json\n"
+    )
+    identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+    for args in (["init", "-q"], ["add", "."], ["commit", "-q", "-m", "two teams"]):
+        subprocess.run(["git", *identity, *args], cwd=lely.root, check=True)
+
+
+def test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository(
+    lely: Lely,
+) -> None:
+    """R5, R36. Both projects share the repository's tree and, as written,
+    their steps. The plan says which project it is for, and is held to it."""
+    two_teams(lely)
+    planned_ = lely("plan", "-t", "dev", "-c", "team-a/lely.yml", "-o", "plan.json")
+    assert planned_.exit_code == 0, said(planned_)
+    assert "lely plan · project team-a · target dev" in said(planned_)
+    other = lely("apply", "plan.json", "-c", "team-b/lely.yml", "--yes")
+    assert other.exit_code == 2
+    assert (
+        "The plan was made for the project in `team-a`, and this is the one in `team-b`."
+    ) in said(other)
+    assert lely.fake.deployed("team-b") == {}
+    assert not (lely.root / "migrated.txt").exists()
+    own = lely("apply", "plan.json", "-c", "team-a/lely.yml", "--yes")
+    assert own.exit_code == 0, said(own)
+    assert (lely.root / "migrated.txt").read_text() == "team-a \n"
+
+    # and the same for a destroy
+    assert (
+        lely(
+            "plan",
+            "-t",
+            "dev",
+            "--destroy",
+            "-c",
+            "team-a/lely.yml",
+            "-o",
+            "destroy.json",
+        ).exit_code
+        == 0
+    )
+    wrong = lely("destroy", "destroy.json", "-t", "dev", "-c", "team-b/lely.yml", "--yes")
+    assert wrong.exit_code == 2
+    assert "team-a --drop" not in (lely.root / "migrated.txt").read_text()
+    assert set(lely.fake.deployed("team-a")) == {"jobs.etl"}
+
+
+def test_a_plan_made_with_uncommitted_changes_is_held_to_them(ready: Lely) -> None:
+    """R36. It used to be held to nothing: any later commit could be applied."""
+
+    def git(*args: str) -> None:
+        identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", *identity, *args], cwd=ready.root, check=True)
+
+    (ready.root / ".gitignore").write_text(".world/\nplan.json\nnotified.txt\n")
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-q", "-m", "first")
+    script = ready.root / "ops" / "notify.sh"
+    script.write_text('#!/bin/sh\necho "v2 $1" >> notified.txt\n')
+    result = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert "Planned with uncommitted changes" in said(result)
+    script.write_text('#!/bin/sh\necho "v3 $1" >> notified.txt\n')  # and then another
+    changed = ready("apply", "plan.json", "--yes")
+    assert changed.exit_code == 2
+    assert "The plan was made on git tree" in said(changed)
+    git("commit", "-q", "-am", "v3")
+    assert ready("apply", "plan.json", "--yes").exit_code == 2
+    assert ready.notified() == []
+    # the changes it was planned with, committed: the same tree
+    script.write_text('#!/bin/sh\necho "v2 $1" >> notified.txt\n')
+    git("commit", "-q", "-am", "v2 after all")
+    assert ready("apply", "plan.json", "--yes").exit_code == 0
+    assert ready.notified() == ["v2", "771"]
+
+
+def test_git_refusing_fails_a_plan_and_doesnt_stop_an_unsaved_run(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R36. In a container the checkout is often someone else's, and git
+    refuses it. That used to read as "not in a git repository", and the plan
+    file was then held to nothing."""
+    subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
+    monkeypatch.setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+    result = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert result.exit_code == 1
+    assert "dubious ownership" in said(result)
+    assert not (ready.root / "plan.json").exists()
+    # a plan that is run now and not saved is held to nothing anyway
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+
+
+def test_an_empty_target_in_a_plan_file_is_refused(ready: Lely) -> None:
+    planned(ready)
+    path = ready.root / "plan.json"
+    document = json.loads(path.read_text())
+    document["target"] = ""
+    path.write_text(json.dumps(document))
+    result = ready("apply", "plan.json", "--yes")
+    assert result.exit_code == 2
+    assert "`target` is empty" in said(result)
+    assert ready.fake.calls == []
+
+
+def test_a_target_no_step_runs_for_isnt_nothing_to_do(lely: Lely) -> None:
+    """R37."""
+    (lely.root / "lely.yml").write_text(
+        "steps:\n  - name: app\n    uses: bundle\n    targets: [dev, prod]\n"
+        "    with: {vars: {model_version: 1}}\n"
+    )
+    for command, code in (
+        (("plan", "-t", "prd"), 1),
+        (("status", "-t", "prd"), 1),
+        (("apply", "-t", "prd", "--yes"), 2),
+        (("destroy", "-t", "prd", "--yes"), 2),
+    ):
+        result = lely(*command)
+        assert result.exit_code == code, said(result)
+        assert "No step runs for target `prd`" in said(result)
+    assert lely.fake.calls == []
+
+
+def test_a_project_that_cant_be_applied_is_refused_before_the_question(
+    ready: Lely,
+) -> None:
+    empty = project.FAKE_STEVIN.parent / "fixtures" / "stevin-empty.json"
+    stevin = (
+        "  - name: tables\n    uses: stevin\n    with:\n"
+        f"      executable: [{sys.executable}, {project.FAKE_STEVIN}, {empty}]\n"
+    )
+    (ready.root / "lely.yml").write_text(READY + stevin)
+    ready.terminal(True)
+    result = ready("apply", "-t", "dev", typed="y\n")
+    assert result.exit_code == 2
+    assert "`stevin`, which can plan and can't apply yet" in said(result)
+    assert "Apply this plan" not in said(result)
+    assert ready.fake.calls == []
+
+
+def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:
+    written = ready("plan", "-t", "dev", "-f", "json", "-o", "plan.json")
+    assert written.exit_code == 0
+    assert written.stdout == ""  # the plan is in the file; "Wrote …" is on stderr
+    assert "Wrote plan.json" in written.stderr
+    # a run that ends before its first step says which run it was
+    refused = ready("apply", "plan.json", "-f", "json")  # no terminal, no --yes
+    document = json.loads(refused.stdout)
+    assert (document["kind"], document["target"], document["outcome"]) == (
+        "apply",
+        "dev",
+        "refused",
+    )
+    assert document["workspace"] == {
+        "host": project.WORKSPACE.host,
+        "identity": project.WORKSPACE.identity,
+    }
+
+
+def test_escape_sequences_in_a_plan_file_dont_reach_the_terminal(ready: Lely) -> None:
+    planned(ready)
+    path = ready.root / "plan.json"
+    document = json.loads(path.read_text())
+    document["steps"][1]["plan"]["changes"][0]["summary"] = "\x1b[1A\x1b[2Kjobs.bar"
+    path.write_text(json.dumps(document))
+    shown = ready("show", "plan.json")
+    assert "\x1b[1A" not in shown.output
+    assert "�[1A�[2Kjobs.bar" in shown.output
+
+
+def test_a_stream_that_cant_write_a_checkmark_doesnt_end_in_a_traceback(
+    lely: Lely,
+) -> None:
+    """A redirected stdout on Windows is cp1252: `✓` and `←` aren't in it."""
+    done = subprocess.run(
+        [sys.executable, "-m", "lely", "validate"],
+        cwd=lely.root,
+        env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"},
+        capture_output=True,
+    )
+    assert done.returncode == 0, done.stderr.decode("cp1252", "replace")
+    assert b"lely.yml: 5 steps" in done.stdout
+    assert b"Traceback" not in done.stderr

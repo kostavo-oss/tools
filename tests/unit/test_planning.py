@@ -632,3 +632,67 @@ def test_a_plugin_whose_own_code_raises_is_named_not_a_traceback(tmp_path: Path)
         tmp_path, "steps:\n  - name: x\n    uses: ./raises.py:BadOutputs\n"
     )
     assert "`./raises.py:BadOutputs`: its `outputs` failed: KeyError: 'nope'" in outputs
+
+
+# -- found in the second review ------------------------------------------------------
+
+PICKY = """\
+from dataclasses import dataclass
+from lely.model import Secret, StepPlan
+
+class Picky:
+    '''Checks its token when its options are built.'''
+    @dataclass(frozen=True)
+    class Options:
+        token: Secret
+        def __post_init__(self):
+            if len(self.token.reveal()) < 8:
+                raise ValueError("token is too short to be one")
+    def plan(self, ctx):
+        return StepPlan()
+    def apply(self, ctx, plan):
+        return {}
+"""
+
+
+def test_validate_doesnt_hand_a_plugin_a_made_up_secret(tmp_path: Path) -> None:
+    """Offline, an environment value is unknown and known to be a secret. It is
+    not stood in for: a plugin that checks its token would refuse the stand-in."""
+    (tmp_path / "picky.py").write_text(PICKY)
+    text = (
+        "steps:\n  - name: hook\n    uses: ./picky.py:Picky\n"
+        "    with: {token: '${env.HOOK_TOKEN}'}\n"
+    )
+    project.write(tmp_path, text)
+    planning.check(load(tmp_path / "lely.yml"))
+    assert plan(tmp_path, env={"HOOK_TOKEN": "long-enough-to-be-one"}).steps[0].state == (
+        "ready"
+    )
+    with pytest.raises(LelyError, match="token is too short to be one"):
+        plan(tmp_path, env={"HOOK_TOKEN": "short"})
+
+
+def test_validate_refuses_an_environment_value_as_a_bundle_variable(
+    tmp_path: Path,
+) -> None:
+    """002/R18. A bundle's variables end up in its deployed config, so one can't
+    hold a secret — and that is known without the value."""
+    text = project.LELY_YML.replace(
+        "model_version: ${steps.model.version}", "model_version: ${env.VERSION}"
+    )
+    [problem] = problems(tmp_path, text)
+    assert "`vars` would hold a secret; only a `Secret` option may" in problem
+
+
+def test_a_bundle_variable_is_passed_as_it_was_written(tmp_path: Path) -> None:
+    text = (
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "    with: {vars: {model_version: 3.10, catalog: 0123}}\n"
+    )
+    project.write(tmp_path, text)
+    fake = project.databricks(tmp_path)
+    plan(tmp_path, fake)
+    assert [word for word in fake.calls[0] if word.startswith("--var")] == [
+        "--var=model_version=3.10",
+        "--var=catalog=0123",
+    ]

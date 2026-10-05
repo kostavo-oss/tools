@@ -137,8 +137,8 @@ rounds, and every one after it takes one.
   only if every change is one the approved plan showed. Fewer is fine; anything new stops the
   run.
 - **Destructive changes need `--allow-destructive`.**
-- **A plan file is held to what it was made for:** the workspace, the project's steps and their
-  options, the values each step took, and the repository's git tree.
+- **A plan file is held to what it was made for:** the workspace, the project and its steps as
+  written, the values each step took, and every tracked file of the repository as it was.
 - **No rollback.** The first failing step stops the run; running it again finishes it.
 - **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again.
 

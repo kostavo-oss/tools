@@ -105,7 +105,7 @@ class Bundle:
         #: The directory holding `databricks.yml`, relative to the config.
         path: str = "."
         #: Passed to the bundle as `--var`, on every call. Single values only.
-        vars: Mapping[str, object] = field(default_factory=dict)
+        vars: Mapping[str, str | None] = field(default_factory=dict)
 
     outputs = (
         Output("target", doc="the bundle target"),
@@ -255,7 +255,7 @@ def _csv(pair: str) -> str:
     second variable nobody wrote. TODO(verify): V8 — from the CLI's source, not
     seen live: `databricks bundle validate --var='a=1,b=2' -o json`.
     """
-    if not any(char in pair for char in ',"\n\r'):
+    if "," not in pair and '"' not in pair:
         return pair
     line = io.StringIO()
     csv.writer(line, lineterminator="").writerow([pair])
@@ -263,6 +263,9 @@ def _csv(pair: str) -> str:
 
 
 def _variables(given: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
+    """A step's `vars` as `--var` pairs. The options have made them text
+    already, and refused a secret, a list or a mapping where they were written;
+    this holds when a plugin's options are built by hand, too."""
     variables: list[tuple[str, str]] = []
     for name, value in given.items():
         if isinstance(value, Secret):
@@ -278,9 +281,17 @@ def _variables(given: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
                 "passes single values only"
             )
         if isinstance(value, bool):
-            variables.append((name, "true" if value else "false"))
+            text = "true" if value else "false"
         else:
-            variables.append((name, "" if value is None else str(value)))
+            text = "" if value is None else str(value)
+        if any(char in f"{name}{text}" for char in "\n\r"):
+            # the CLI's CSV reader and Python's don't agree on a line break
+            # inside a quoted field (V8), so lely doesn't send one
+            raise LelyError(
+                f"bundle variable `{name}` holds a line break, which `--var` can't "
+                "carry reliably"
+            )
+        variables.append((name, text))
     return tuple(variables)
 
 

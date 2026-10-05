@@ -21,7 +21,7 @@ from lely.testing import check_plan, context
 APP = Linked(
     "app",
     "bundle",
-    Bundle.Options(vars={"model_version": 14}),
+    Bundle.Options(vars={"model_version": "14"}),
     outputs={"resources.jobs.backfill.id": "771"},
     later=("resources.jobs.bar.id",),
 )

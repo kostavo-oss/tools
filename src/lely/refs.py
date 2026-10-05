@@ -63,9 +63,15 @@ class Ref:
 
 @dataclass(frozen=True, slots=True)
 class Unknown:
-    """A value that isn't known yet: the output a step is waiting for."""
+    """A value that isn't known yet: the output a step is waiting for.
+
+    `secret` says that whatever it turns out to be, it will be a secret — a
+    value from the environment, checked offline — so where it may not go is
+    known without the value.
+    """
 
     waits_for: str
+    secret: bool = False
 
 
 def parse(text: str, loc: Loc) -> tuple[Ref, ...]:
