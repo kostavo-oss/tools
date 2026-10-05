@@ -1,6 +1,6 @@
-# 004 — first release
+# 009 — first release
 
-**Status:** not started. Independent of 002 and 003 except for the last line.
+**Status:** not started. Independent of the phases; it happens when the owner says.
 
 ## Why
 
@@ -45,8 +45,8 @@ between the repository and `uvx lely`.
   `authors`, as stevin and maeslant do. It becomes public metadata on PyPI with the first
   release. Keep, or name only?
 - **D5 — What the first version is.** `0.0.1` today, classified pre-alpha. Does a first release
-  wait for `apply` ([002](002-apply.md)), or go out read-only so the name is taken and `plan` can
-  be tried?
+  wait for `apply` ([005](005-plan-apply-destroy.md)), or go out read-only so the name is taken and
+  `plan` can be tried?
 
 ## Done when
 

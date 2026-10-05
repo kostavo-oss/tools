@@ -1,6 +1,8 @@
-# 001 — read-only
+# 001 — what is built
 
-**Status:** built (milestone 1, 2026-09-29). 125 unit tests; no live run against a workspace yet.
+**Status:** built (the design's milestone 1, 2026-09-29). 125 unit tests; no live run against a
+workspace yet. Built under the earlier shape — pre steps, *the bundle*, post steps — so some of
+it moves; see [What changes](#what-changes).
 
 ## Why
 
@@ -38,23 +40,42 @@ Each line names where it is tested, under `tests/unit/`.
 Found while writing this; none is fixed yet. Each is small, and each needs one of the two changed.
 
 - **G1 — `doctor` is mentioned and doesn't exist.** An error in `bundle.py` tells the user to
-  "check `lely doctor`". It arrives with [002](002-apply.md).
+  "check `lely doctor`". It arrives with [005/R18](005-plan-apply-destroy.md).
 - **G2 — What a `command` step is given.** The design promises `LELY_TARGET`, `LELY_PLAN` and
-  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. Settled in
-  [002/R17](002-apply.md).
+  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. To settle when
+  `command` gets its apply: all five, or which.
 - **G3 — How stevin is called.** The design says `stevin plan -t <target> -o <tmp> -f json`. The
   code spells the flags out and adds `--config` and `--select`. The code is right; the design
   needs the line updated.
 - **G4 — `py.typed` was promised by the package's classifiers and missing** until 2026-10-05.
   Fixed; listed so nobody looks for it.
 
+## What changes
+
+The owner's direction of 2026-10-05 ([000](000-what-lely-is.md)) keeps all of the above as
+behaviour and moves some of it:
+
+- **The bundle leaves the core.** Asking the CLI to validate, plan and summarise a bundle, and
+  turning its plan into changes, becomes the `bundle` plugin ([004](004-asset-bundle.md)). R3 and
+  R8 then hold for any plugin, not for the bundle by name.
+- **The config loses its bundle keys.** `bundle:` and `bundle_vars:` become a step and its
+  options, in whichever shape [003/D1](003-config.md#to-decide) settles.
+- **References to the bundle become a step's outputs** ([002/R14](002-plugins.md)); whether the
+  short spellings stay is [002/D4](002-plugins.md#to-decide).
+- **The plan file's format changes with it,** so its format version goes up. Nothing is
+  published, so no old plan file has to be read.
+
+What stays as it is: finding plugins (R6), options checked offline (R1), the two formats (R4),
+secrets (R9), and the `stevin`, `bundle.run` and `command` plugins' plan halves (R7).
+
 ## Not in this spec
 
-- Markdown output (`-f md`) → [003](003-ci.md)
-- `apply`, `doctor`, the apply half of the contract kit → [002](002-apply.md)
-- Live probes: every assumption about the Databricks CLI here was settled from its source and its
-  recorded tests, not from a workspace → [002/D5](002-apply.md#to-decide)
+- Markdown output (`-f md`) → [008](008-github-actions.md)
+- `apply`, `destroy`, `doctor` → [005](005-plan-apply-destroy.md)
+- Live checks: every assumption about the Databricks CLI here was settled from its source and its
+  recorded tests, not from a workspace → [005/D7](005-plan-apply-destroy.md#to-decide)
 
 ## Done when
 
-Already done, except: G1–G3 are closed by the specs they point to.
+Already done, except: G1–G3 are closed by the specs they point to, and "What changes" is carried
+out by [002](002-plugins.md)–[004](004-asset-bundle.md) without losing a test.

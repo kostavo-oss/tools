@@ -1,87 +1,98 @@
 # 000 — what lely is
 
-**Status:** draft. Everything below except [To decide](#to-decide) restates `docs/DESIGN.md`
-(Why, Goals, Non-goals); the scope itself is waiting on a decision.
+**Status:** draft. The direction is the owner's, given on 2026-10-05; it replaces parts of
+`docs/DESIGN.md`, listed under [What this changes](#what-this-changes).
+
+Requirements are marked *(owner)* where they come from that direction, *(design)* where
+`docs/DESIGN.md` already says them, and *(proposed)* where neither does and this is a suggestion.
 
 ## In one line
 
-One `plan` and one `apply` for a whole Databricks deploy: the steps before the bundle, the bundle,
-and the steps after it.
+lely plans, applies and destroys everything a Databricks deploy consists of — as an ordered list
+of steps, each done by a plugin — and keeps no state of its own. The Asset Bundle is one of those
+plugins.
 
 ## Who it is for
 
-A team that deploys with a Declarative Automation Bundle (`databricks.yml`) and has things a
-bundle can't deploy: table schemas, what is inside a database, a job that has to run between two
-other things, a lookup the bundle needs as a variable. Today those live in shell scripts around
-`bundle deploy`, and nobody reviews them before they run.
+A team that deploys to Databricks and has more to deploy than one tool covers: a bundle, table
+schemas, a job that has to run in between, a lookup one step needs from another. Today that is a
+shell script around `bundle deploy`, which nobody reviews before it runs and nothing can undo.
 
 ## What it does
 
-- **R1 — One plan.** Every step's changes and the bundle's own, in one plan that can be read in a
-  terminal, saved as a file, and posted as one pull-request comment. *(design: Goals)*
-- **R2 — One apply.** Pre steps, then `bundle deploy`, then post steps, in the order written.
-  What a step produces is available to the steps after it. *(design: Goals)*
-- **R3 — Nothing changes at plan time.** `plan` can run on every pull request. *(design: step
-  rules)*
-- **R4 — A destructive change is named, and refused unless allowed.** Deleting, replacing or
-  dropping data shows as destructive in the plan, and `apply` won't do it without
-  `--allow-destructive`. *(design: step rules)*
-- **R5 — A second apply finishes an interrupted one.** There is no rollback and no history; each
-  system a step touches is its own state. *(design: Failure model)*
-- **R6 — A step is small and yours to write.** A Python class in the repo, an installed package,
-  or a pair of commands — all under the same rules as the built-in steps. *(design: The step
-  interface)*
-- **R7 — The bundle stays the bundle.** lely asks the Databricks CLI what a bundle resolves to and
-  never works it out itself. Pre steps feed the bundle variables, nothing else. *(design: Goals,
-  Non-goals)*
-- **R8 — Tables are stevin's.** The built-in `stevin` step runs the `stevin` command and reads its
-  plan file. stevin is not a dependency: a project without tables never installs it. *(design:
-  Built-in steps)*
+- **R1 — Steps, in order.** A project lists its steps in a config file. What comes before the
+  bundle is a pre-deploy step and what comes after is a post-deploy step; to lely they are all
+  steps. *(owner)*
+- **R2 — Every step is a plugin's.** The Asset Bundle is a plugin. stevin is a plugin. Running a
+  command is a plugin. The core knows none of them by name. → [002](002-plugins.md) *(owner)*
+- **R3 — Three verbs: `plan`, `apply`, `destroy`.** Plan says what would change and changes
+  nothing. Apply does it. Destroy takes it down again. → [005](005-plan-apply-destroy.md)
+  *(owner; plan and apply are also the design's)*
+- **R4 — No state.** lely writes no state file and keeps no history. Whatever a plugin needs to
+  know, it reads from the system it manages — the bundle from the Databricks CLI, stevin from
+  Unity Catalog. *(owner, design)*
+- **R5 — Its own config, in its own file or in `pyproject.toml`.** → [003](003-config.md)
+  *(owner)*
+- **R6 — A plugin can say, in detail, what it created.** Not "3 changes": which things, under
+  which names, with their ids and links. → [002/R6](002-plugins.md), [004/R7](004-asset-bundle.md)
+  *(owner)*
+- **R7 — A plan can be looked at in a UI,** each step with its own detail. → [007](007-ui.md)
+  *(owner)*
+- **R8 — It keeps GitHub Actions up to date.** → [008](008-github-actions.md) *(owner — what
+  exactly is updated is that spec's first question)*
+- **R9 — A destructive change is named, and refused unless allowed.** *(design)*
+- **R10 — What isn't known at plan time is said, not guessed.** *(design)*
+- **R11 — A plugin is small and yours to write:** a Python class in the repo, an installed
+  package, or a pair of commands, under the same rules as the ones lely ships. *(design)*
 
 ## What it does not do
 
-From the design's non-goals, unchanged:
+Kept from the design:
 
-- anything a bundle resource can manage — when a resource type appears, the step that covered it
-  is retired
-- generate YAML for the bundle to include
-- be a workflow engine: three ordered lists, no DAG, no parallel steps, no retries
-- roll back
-- build artifacts
+- be a workflow engine — one ordered list, no DAG, no parallel steps, no retries
+- roll back a failed apply; running it again finishes it
 - keep a state file or a run history
-- support the Terraform engine — the direct engine is required
-- `bundle destroy` and teardown, in v1
-- CI systems other than GitHub Actions, in v1
+- build artifacts
+- do through a step what a bundle resource can do
+- generate YAML for a bundle to include: a bundle is fed variables, nothing else
+- support the Terraform engine
+- CI systems other than GitHub Actions, for now
 
-## v1
+No longer excluded: `bundle destroy` and teardown.
 
-Three milestones, in order: [read-only](001-read-only.md) (built), [apply](002-apply.md),
-[CI](003-ci.md). After v1, and only written down so v1 doesn't block them: Lakebase schemas and
-MLflow steps (design: Later).
+## Phases
+
+1. **The default plugins.** First the Asset Bundle — [002](002-plugins.md),
+   [003](003-config.md), [004](004-asset-bundle.md), [005](005-plan-apply-destroy.md) — then
+   stevin, [006](006-stevin.md). *(owner: "start with asset bundles")*
+2. **Around them:** the UI ([007](007-ui.md)) and GitHub Actions
+   ([008](008-github-actions.md)). Which first is [D1](#to-decide).
+
+[009 — first release](009-first-release.md) is independent and happens when the owner says.
+
+## What this changes
+
+Against `docs/DESIGN.md` and the code as built ([001](001-what-is-built.md)):
+
+| Was | Becomes |
+|---|---|
+| `bundle destroy` and teardown are a non-goal | `destroy` is the third verb |
+| The bundle is the fixed middle: pre steps, *the bundle*, post steps | The bundle is a plugin like any other, at whatever place it is listed |
+| The core resolves the bundle: targets, `${var.…}`, `${resources.…}`, `bundle_vars` | The bundle plugin does, and hands them on as its outputs |
+| Config is `lely.yml` | `lely.yml` or `pyproject.toml` |
+| Three renderers: terminal, Markdown, JSON | Those, and a UI |
+| A step reports changes | A plugin can also report, in detail, what exists because of it |
+
+`docs/DESIGN.md` is rewritten to match once these specs are agreed — not before, so there is one
+place to argue in.
 
 ## To decide
 
-- **D1 — Is this still the product?** The setup plan for the Kostavo tools (2026-10-05) describes
-  lely as "better Databricks Asset Bundle deployments", says to *port the existing bundle tooling*
-  into it with anything client-specific replaced by config, and calls it done at "feature parity
-  with the old tooling for the generic parts". The design above was written a week earlier, under
-  the name sluis, without that tooling in view — and the tooling isn't in this repository or next
-  to it, so nothing here says what it does.
-
-  Three ways this can go:
-
-  1. *The design is the product.* The old tooling was the motivation, not a feature list. Nothing
-     changes here.
-  2. *The design, plus specific things the old tooling does.* Each becomes a requirement here, or
-     a built-in step with its own spec.
-  3. *The old tooling is the product* and the design bends to it. Then 002 and 003 wait until this
-     spec is rewritten.
-
-  Until this is answered, 002 is written against the design.
-
-- **D2 — What comes right after v1?** The design lists Lakebase schemas and three MLflow steps as
-  "later" without an order. Which one is first decides what 002 must not close off.
+- **D1 — After the default plugins: the UI first, or GitHub Actions first?**
+- **D2 — Further plugins.** The design names Lakebase schemas and three MLflow steps as "later".
+  Still the next ones after stevin, and in which order?
 
 ## Done when
 
-D1 is answered and this page says, without a "to decide", what lely is for.
+Every "to decide" in this folder that touches phase one is answered, and this page describes
+lely without one.
