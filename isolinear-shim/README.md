@@ -17,4 +17,4 @@ has the short list of what moved.
 Until you switch, the `isolinear` and `iso` commands still run — they say the new name on
 stderr, then open the app.
 
-Community project, not affiliated with or endorsed by Databricks. MIT.
+Community project, not affiliated with or endorsed by Databricks. Apache-2.0.

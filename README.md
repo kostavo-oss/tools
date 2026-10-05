@@ -8,7 +8,7 @@ values — all from a fast, calm three-pane TUI.
 [![PyPI](https://img.shields.io/pypi/v/maeslant.svg)](https://pypi.org/project/maeslant/)
 [![Python](https://img.shields.io/pypi/pyversions/maeslant.svg)](https://pypi.org/project/maeslant/)
 [![Docs](https://img.shields.io/badge/docs-maeslant-8b7cff.svg)](https://kostavo-oss.github.io/maeslant/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 ![Maeslant browsing secrets](docs/img/browse.svg)
@@ -172,4 +172,4 @@ Community project, not affiliated with or endorsed by Databricks.
 
 ## License
 
-[MIT](LICENSE) © Misja Pronk
+Apache-2.0 — see [LICENSE](LICENSE).

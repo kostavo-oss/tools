@@ -26,6 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - A profile saved without a name is now written as `[maeslant]` in
     `~/.databrickscfg`; an existing `[isolinear]` section is found as before.
 
+- **The license is Apache-2.0**, the same as every other Kostavo tool. Releases
+  up to 0.4.1, as `isolinear`, were and remain MIT.
+
 ## [0.4.1] - 2026-07-03
 
 ### Fixed

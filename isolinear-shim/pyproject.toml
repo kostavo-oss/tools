@@ -15,7 +15,7 @@ version = "0.5.0"
 description = "isolinear is now maeslant — this release installs it"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
 authors = [{ name = "Misja Pronk" }]
 classifiers = [
     "Development Status :: 7 - Inactive",

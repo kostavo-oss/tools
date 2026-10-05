@@ -59,7 +59,7 @@ Keep business logic out of the UI, keep the SDK out of everything but
 - Small, focused PRs are easiest to review.
 - Describe the *why*, not just the *what*.
 - By contributing you agree your work is licensed under the project's
-  [MIT License](LICENSE).
+  [Apache-2.0 License](LICENSE).
 
 ## Releasing
 

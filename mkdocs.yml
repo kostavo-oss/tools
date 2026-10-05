@@ -7,7 +7,7 @@ repo_name: kostavo-oss/maeslant
 repo_url: https://github.com/kostavo-oss/maeslant
 edit_uri: edit/main/docs/
 
-copyright: MIT © Misja Pronk
+copyright: Apache-2.0 © Misja Pronk
 
 theme:
   name: material
