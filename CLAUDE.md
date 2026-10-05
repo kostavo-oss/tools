@@ -4,6 +4,13 @@
 post-deploy steps. Read `docs/DESIGN.md` first; it is the source of truth. If code and
 design disagree, flag it instead of silently picking one.
 
+`spec/` says *what* each piece of work must deliver and when it is done; the design says
+*how*. The owner set a new direction on 2026-10-05 that the design doesn't have yet — plugins,
+destroy, the bundle as one of them — so **where `spec/` and `docs/DESIGN.md` disagree today, the
+spec is right**, and the design is rewritten once the specs are agreed. Before starting any
+work, read its spec, and don't build past a "To decide" that is still open — those are the
+owner's to answer. A requirement marked *(proposed)* is not agreed either.
+
 ## Rules
 
 - The core is pure: config, references, ordering, plan assembly, the approval check and
