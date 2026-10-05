@@ -1,49 +1,58 @@
 """References: where they may stand, and what they answer."""
 
-from typing import Any
-
 import pytest
 
 from lely.config import Loc
-from lely.model import Secret
-from lely.refs import Position, Ref, RefError, Scope, Unknown, check, parse, resolve
+from lely.model import Output, Secret
+from lely.refs import (
+    Above,
+    Given,
+    Position,
+    Ref,
+    RefError,
+    Scope,
+    Unknown,
+    check,
+    check_step,
+    match,
+    parse,
+    resolve,
+)
 
 LOC = Loc("lely.yml", 3, 7)
 
-CONFIG: dict[str, Any] = {
-    "bundle": {"name": "shop", "target": "dev"},
-    "variables": {"catalog": {"default": "dev", "value": "dev"}},
-    "resources": {"jobs": {"nightly": {"name": "[dev jane] nightly"}}},
-    "workspace": {"current_user": {"short_name": "jane"}},
-}
-DEPLOYED: dict[str, Any] = {
-    "resources": {
-        "jobs": {"nightly": {"id": "662311427418745", "url": "https://x/jobs/1"}}
-    }
-}
-
-
-def scope(**kwargs: Any) -> Scope:
-    return Scope(CONFIG, **kwargs)
+#: What a bundle step declares, as far as these tests need it.
+BUNDLE = (
+    Output("target"),
+    Output("var.<name>"),
+    Output("workspace.<field>"),
+    Output("resources.<type>.<key>.<field>"),
+    Output("resources.<type>.<key>.id", "exists"),
+)
+MODEL = (Output("version"),)
+SEED = (Output("count", "run"),)
 
 
 # -- shape --------------------------------------------------------------------
 
 
 def test_finds_every_reference_in_a_string() -> None:
-    refs = parse("${var.catalog}.ml.${steps.model.name}", LOC)
-    assert refs == (Ref(("var", "catalog")), Ref(("steps", "model", "name")))
+    refs = parse("${steps.app.var.catalog}.ml.${steps.model.name}", LOC)
+    assert refs == (
+        Ref(("steps", "app", "var", "catalog")),
+        Ref(("steps", "model", "name")),
+    )
+    assert (refs[0].step, refs[0].output) == ("app", ("var", "catalog"))
 
 
 @pytest.mark.parametrize(
     ("text", "message"),
     [
-        ("${vars.catalog}", "unknown namespace `vars`"),
-        ("${var}", "a variable is `${var.<name>}`"),
-        ("${var.a.b}", "a variable is `${var.<name>}`"),
-        ("${resources.jobs.nightly}", "a resource field is"),
-        ("${steps.model}", "a step's output is"),
-        ("${var..x}", "is not a reference"),
+        ("${vars.catalog}", "unknown namespace `vars`; expected one of steps, env"),
+        ("${env}", "an environment variable is `${env.<NAME>}`"),
+        ("${env.A.B}", "an environment variable is `${env.<NAME>}`"),
+        ("${steps.model}", "a step's output is `${steps.<name>.<output>}`"),
+        ("${steps..x}", "is not a reference"),
     ],
 )
 def test_a_malformed_reference_says_what_is_expected(text: str, message: str) -> None:
@@ -51,67 +60,145 @@ def test_a_malformed_reference_says_what_is_expected(text: str, message: str) ->
         parse(text, LOC)
 
 
+@pytest.mark.parametrize(
+    ("text", "now"),
+    [
+        ("${var.catalog}", "${steps.<bundle step>.var.catalog}"),
+        (
+            "${resources.jobs.nightly.id}",
+            "${steps.<bundle step>.resources.jobs.nightly.id}",
+        ),
+        ("${workspace.host}", "${steps.<bundle step>.workspace.host}"),
+        ("${bundle.target}", "${steps.<bundle step>.target}"),
+    ],
+)
+def test_the_short_spellings_are_gone_and_say_what_to_write(text: str, now: str) -> None:
+    with pytest.raises(RefError) as caught:
+        parse(text, LOC)
+    assert "every reference names the step its value comes from" in str(caught.value)
+    assert f"write `{now}`" in str(caught.value)
+
+
+# -- which declared output ------------------------------------------------------
+
+
+def test_a_plain_name_matches_and_the_rest_walks_into_the_value() -> None:
+    found = match(MODEL, ("version", "major"))
+    assert found is not None
+    assert (found.name, found.rest) == ("version", ("major",))
+
+
+def test_a_shape_stands_for_one_part_each() -> None:
+    found = match(BUNDLE, ("resources", "jobs", "nightly", "name"))
+    assert found is not None
+    assert found.output.name == "resources.<type>.<key>.<field>"
+    assert found.name == "resources.jobs.nightly.name"
+    assert match(BUNDLE, ("resources", "jobs", "nightly")) is None
+    assert match(BUNDLE, ("nope",)) is None
+
+
+def test_the_most_literal_declaration_wins() -> None:
+    found = match(BUNDLE, ("resources", "jobs", "nightly", "id"))
+    assert found is not None
+    assert found.output.known == "exists"
+
+
 # -- where it stands ----------------------------------------------------------
 
-PRE = Position("step `model`", "pre", earlier=(), later=("model", "tables"), this="model")
-POST = Position(
-    "step `tables`",
-    "post",
-    earlier=("model",),
-    later=("tables",),
-    fed=frozenset({"v"}),
-    this="tables",
-)
+ABOVE = {"model": Above(MODEL), "app": Above(BUNDLE), "seed": Above(SEED, ("dev",))}
+HERE = Position(this="tables", above=ABOVE, below=("backfill",))
 
 
-def test_a_step_may_use_an_earlier_steps_outputs() -> None:
-    check(Ref(("steps", "model", "version")), POST, LOC)
+def test_a_step_may_use_the_outputs_of_a_step_above() -> None:
+    assert check(Ref(("steps", "model", "version")), HERE, LOC) == MODEL[0]
+    assert check(Ref(("env", "TOKEN")), HERE, LOC) is None
 
 
-def test_a_step_may_not_use_a_later_steps_outputs() -> None:
-    later = Position("step `a`", "pre", earlier=(), later=("a", "b"), this="a")
-    with pytest.raises(RefError, match="step `b` runs after step `a`"):
-        check(Ref(("steps", "b", "x")), later, LOC)
+def test_a_reference_down_the_list_says_to_move_it() -> None:
+    with pytest.raises(RefError) as caught:
+        check(Ref(("steps", "backfill", "x")), HERE, LOC)
+    assert "step `backfill` is listed below step `tables`" in str(caught.value)
+    assert "move `backfill` up, or `tables` down" in str(caught.value)
 
 
 def test_a_step_may_not_use_its_own_outputs() -> None:
     with pytest.raises(RefError, match="its own outputs"):
-        check(Ref(("steps", "tables", "x")), POST, LOC)
+        check(Ref(("steps", "tables", "x")), HERE, LOC)
 
 
 def test_an_unknown_step_is_an_error() -> None:
     with pytest.raises(RefError, match="there is no step `nope`"):
-        check(Ref(("steps", "nope", "x")), POST, LOC)
+        check(Ref(("steps", "nope", "x")), HERE, LOC)
 
 
-def test_a_deployed_id_is_for_post_steps_only() -> None:
-    check(Ref(("resources", "jobs", "nightly", "id")), POST, LOC)
-    with pytest.raises(RefError, match="known only once the bundle has deployed"):
-        check(Ref(("resources", "jobs", "nightly", "id")), PRE, LOC)
-    check(Ref(("resources", "jobs", "nightly", "name")), PRE, LOC)
+def test_an_output_the_plugin_doesnt_declare_is_an_error() -> None:
+    with pytest.raises(RefError) as caught:
+        check(Ref(("steps", "model", "verison")), HERE, LOC)
+    assert "step `model` gives no output `verison`; it gives: version" in str(
+        caught.value
+    )
+    with pytest.raises(RefError, match="gives no output `resources.jobs`"):
+        check(Ref(("steps", "app", "resources", "jobs")), HERE, LOC)
 
 
-def test_a_pre_step_may_not_read_a_variable_lely_sets() -> None:
-    fed = Position("step `a`", "pre", (), ("a",), fed=frozenset({"v"}), this="a")
-    with pytest.raises(RefError, match="set by bundle_vars"):
-        check(Ref(("var", "v")), fed, LOC)
-    check(Ref(("var", "v")), POST, LOC)
+def test_a_step_whose_plugin_wasnt_found_isnt_checked_twice() -> None:
+    position = Position(this="x", above={"broken": Above(None)})
+    assert check(Ref(("steps", "broken", "anything")), position, LOC) is None
+
+
+def test_a_step_for_fewer_targets_cant_feed_one_for_more() -> None:
+    with pytest.raises(RefError) as caught:
+        check(Ref(("steps", "seed", "count")), HERE, LOC)
+    assert "step `seed` runs only for dev" in str(caught.value)
+    assert "step `tables` also runs for every other target" in str(caught.value)
+    wider = Position(this="tables", above=ABOVE, targets=("dev", "prod"))
+    with pytest.raises(RefError, match="also runs for prod"):
+        check(Ref(("steps", "seed", "count")), wider, LOC)
+    same = Position(this="tables", above=ABOVE, targets=("dev",))
+    assert check(Ref(("steps", "seed", "count")), same, LOC) == SEED[0]
+
+
+def test_a_named_step_follows_the_same_rules() -> None:
+    assert check_step("app", HERE, "lely.yml:1:1: `app`") is ABOVE["app"]
+    with pytest.raises(RefError, match="is listed below"):
+        check_step("backfill", HERE, "lely.yml:1:1: `backfill`")
 
 
 # -- answers ------------------------------------------------------------------
 
+APP = Given(
+    BUNDLE,
+    outputs={
+        "target": "dev",
+        "var.catalog": "dev",
+        "workspace.current_user": {"short_name": "jane"},
+        "resources.jobs.nightly.name": "[dev jane] nightly",
+        "resources.jobs.nightly.id": "662311427418745",
+        "resources.jobs.weekly.name": "weekly",
+    },
+    later=frozenset({"resources.jobs.weekly.id"}),
+)
+
+
+def scope(**steps: Given) -> Scope:
+    return Scope({"app": APP, **steps}, env={"TOKEN": "s3cret"})
+
 
 def test_a_whole_reference_keeps_its_type() -> None:
     answer = resolve(
-        "${steps.model.version}", scope(outputs={"model": {"version": 14}}), LOC
+        "${steps.model.version}", scope(model=Given(MODEL, {"version": 14})), LOC
     )
     assert answer == 14
 
 
 def test_references_in_a_longer_string_are_formatted_in() -> None:
-    assert resolve("${var.catalog}.ml.churn", scope(), LOC) == "dev.ml.churn"
+    assert resolve("${steps.app.var.catalog}.ml.churn", scope(), LOC) == "dev.ml.churn"
     assert (
-        resolve("${workspace.current_user.short_name}-${bundle.target}", scope(), LOC)
+        resolve(
+            "${steps.app.workspace.current_user.short_name}-${steps.app.target}",
+            scope(),
+            LOC,
+        )
         == "jane-dev"
     )
 
@@ -120,71 +207,76 @@ def test_a_string_without_references_is_itself() -> None:
     assert resolve("plain", scope(), LOC) == "plain"
 
 
-def test_a_missing_variable_is_an_error_not_an_empty_string() -> None:
-    with pytest.raises(RefError, match="the bundle has no variable `schema`"):
-        resolve("${var.schema}", scope(), LOC)
-
-
-def test_a_resource_field_comes_from_the_resolved_config() -> None:
-    assert resolve("${resources.jobs.nightly.name}", scope(), LOC) == "[dev jane] nightly"
-    with pytest.raises(RefError, match=r"there is no `resources\.jobs\.weekly`"):
-        resolve("${resources.jobs.weekly.name}", scope(), LOC)
-
-
-def test_a_deployed_id_comes_from_the_summary() -> None:
-    answer = resolve("${resources.jobs.nightly.id}", scope(deployed=DEPLOYED), LOC)
+def test_a_value_that_exists_is_answered() -> None:
+    answer = resolve("${steps.app.resources.jobs.nightly.id}", scope(), LOC)
     assert answer == "662311427418745"
 
 
-def test_the_id_of_something_this_deploy_creates_is_unknown() -> None:
-    answer = resolve(
-        "run ${resources.jobs.nightly.id}",
-        scope(deployed=DEPLOYED, created=frozenset({"jobs.nightly"})),
-        LOC,
+def test_a_value_still_to_come_is_unknown_and_named() -> None:
+    answer = resolve("run ${steps.app.resources.jobs.weekly.id}", scope(), LOC)
+    assert answer == Unknown("app.resources.jobs.weekly.id")
+
+
+def test_a_name_neither_given_nor_promised_is_an_error() -> None:
+    with pytest.raises(RefError) as caught:
+        resolve("${steps.app.resources.jobs.monthly.id}", scope(), LOC)
+    assert "step `app` has no `resources.jobs.monthly.id`" in str(caught.value)
+    assert "(it has: resources.jobs.nightly.id, resources.jobs.weekly.id)" in str(
+        caught.value
     )
-    assert answer == Unknown("resources.jobs.nightly is created by this deploy")
+    with pytest.raises(RefError, match="has no `var.schema`"):
+        resolve("${steps.app.var.schema}", scope(), LOC)
 
 
-def test_the_id_of_something_never_deployed_is_unknown() -> None:
-    answer = resolve("${resources.jobs.weekly.id}", scope(deployed=DEPLOYED), LOC)
-    assert answer == Unknown("resources.jobs.weekly hasn't been deployed yet")
+def test_a_plain_output_that_exists_only_after_apply_is_unknown() -> None:
+    made = Given((Output("id", "exists"),))
+    assert resolve("${steps.wh.id}", scope(wh=made), LOC) == Unknown("wh.id")
 
 
-def test_a_missing_output_names_the_ones_there_are() -> None:
-    with pytest.raises(RefError, match=r"has no output `version` \(its outputs: name\)"):
-        resolve("${steps.model.version}", scope(outputs={"model": {"name": "x"}}), LOC)
-
-
-def test_the_output_of_a_deferred_step_is_unknown() -> None:
-    answer = resolve(
-        "${steps.model.version}",
-        scope(outputs={"model": {}}, deferred={"model": "later"}),
-        LOC,
+def test_an_output_of_every_run_is_never_known_at_plan() -> None:
+    assert resolve("${steps.seed.count}", scope(seed=Given(SEED)), LOC) == Unknown(
+        "seed.count"
     )
-    assert answer == Unknown("step `model` is decided at apply")
 
 
-def test_a_pending_variable_is_unknown() -> None:
-    answer = resolve("${var.catalog}", scope(pending={"catalog": "set at apply"}), LOC)
-    assert answer == Unknown("set at apply")
+def test_a_plan_that_withholds_what_it_declared_is_an_error() -> None:
+    with pytest.raises(RefError, match="declares `version` as known at plan"):
+        resolve("${steps.model.version}", scope(model=Given(MODEL)), LOC)
 
 
-def test_the_environment_is_read_or_left_as_written() -> None:
-    env = scope(env={"TOKEN": "s3cret"})
-    assert resolve("Bearer ${env.TOKEN}", env, LOC) == "Bearer s3cret"
-    assert (
-        resolve("Bearer ${env.TOKEN}", env, LOC, redact_env=True) == "Bearer ${env.TOKEN}"
+def test_nothing_a_waiting_step_gives_is_known() -> None:
+    waiting = Given(MODEL, planned=False)
+    assert resolve("${steps.model.version}", scope(model=waiting), LOC) == Unknown(
+        "model.version"
     )
+
+
+def test_what_is_still_missing_after_the_step_ran_will_not_come() -> None:
+    ran = Given(SEED, applied=True)
+    with pytest.raises(RefError, match="has run and still gives no `count`"):
+        resolve("${steps.seed.count}", scope(seed=ran), LOC)
+
+
+def test_walking_past_the_value_is_an_error() -> None:
+    with pytest.raises(
+        RefError, match=r"there is no `steps\.app\.workspace\.current_user\.nope`"
+    ):
+        resolve("${steps.app.workspace.current_user.nope}", scope(), LOC)
+
+
+def test_the_environment_is_a_secret() -> None:
+    answer = resolve("Bearer ${env.TOKEN}", scope(), LOC)
+    assert isinstance(answer, Secret)
+    assert answer.reveal() == "Bearer s3cret"
+    assert str(answer) == "***"
     with pytest.raises(RefError, match="`NOPE` isn't set"):
-        resolve("${env.NOPE}", env, LOC)
+        resolve("${env.NOPE}", scope(), LOC)
 
 
 def test_a_secret_makes_the_whole_string_one() -> None:
-    answer = resolve(
-        "Bearer ${steps.login.token}",
-        scope(outputs={"login": {"token": Secret("t0k")}}),
-        LOC,
-    )
+    login = Given((Output("token"),), {"token": Secret("t0k")})
+    answer = resolve("Bearer ${steps.login.token}", scope(login=login), LOC)
     assert isinstance(answer, Secret)
     assert answer.reveal() == "Bearer t0k"
-    assert str(answer) == "***"
+    with pytest.raises(RefError, match="a secret has no fields"):
+        resolve("${steps.login.token.x}", scope(login=login), LOC)

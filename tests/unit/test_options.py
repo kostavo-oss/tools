@@ -10,7 +10,7 @@ from typing import Any, Literal
 import pytest
 
 from lely.config import Map, Scalar, load_text
-from lely.model import Secret
+from lely.model import Linked, Secret
 from lely.options import OptionsError, Unresolved, build, fields_of
 from lely.refs import Unknown
 
@@ -30,8 +30,8 @@ class Options:
 
 
 def block(yaml: str) -> Map | None:
-    config = load_text(f"post:\n  - uses: x\n    with:\n{yaml}", Path("lely.yml"))
-    return config.post[0].options
+    config = load_text(f"steps:\n  - uses: x\n    with:\n{yaml}", Path("lely.yml"))
+    return config.steps[0].options
 
 
 def plain(scalar: Scalar) -> Any:
@@ -113,16 +113,54 @@ def test_a_wrong_type_says_what_it_wanted() -> None:
     assert "must be a single value" in problem("      model: [m]\n")
 
 
-def test_a_value_decided_at_apply_leaves_the_options_unresolved() -> None:
+def test_a_value_that_isnt_known_yet_leaves_the_options_unresolved() -> None:
     def resolver(scalar: Scalar) -> Any:
         return (
-            Unknown("created by this deploy")
+            Unknown("app.resources.jobs.x.id")
             if "${" in str(scalar.value)
             else scalar.value
         )
 
-    result = build(Options, block("      model: ${resources.jobs.x.id}\n"), resolver, "s")
-    assert result == Unresolved(("created by this deploy",))
+    result = build(
+        Options,
+        block(
+            "      model: ${steps.app.resources.jobs.x.id}\n"
+            "      tags: ['${steps.app.resources.jobs.x.id}']\n"
+        ),
+        resolver,
+        "s",
+    )
+    # named once, however often it is taken
+    assert result == Unresolved(("app.resources.jobs.x.id",))
+
+
+@dataclass(frozen=True, slots=True)
+class Runs:
+    bundle: Linked
+    resource: str
+
+
+def test_an_option_can_name_a_step() -> None:
+    app = Linked("app", "bundle", options=object())
+    built = build(
+        Runs,
+        block("      bundle: app\n      resource: jobs.x\n"),
+        plain,
+        "s",
+        link=lambda scalar: app,
+    )
+    assert built == Runs(bundle=app, resource="jobs.x")
+    waiting = build(
+        Runs,
+        block("      bundle: app\n      resource: jobs.x\n"),
+        plain,
+        "s",
+        link=lambda scalar: Unknown("app"),
+    )
+    assert waiting == Unresolved(("app",))
+    with pytest.raises(OptionsError, match="`bundle` must be the name of a step"):
+        build(Runs, block("      bundle: [app]\n      resource: x\n"), plain, "s")
+    assert fields_of(Runs)[0].type == "the name of a step"
 
 
 def test_a_secret_goes_only_where_a_secret_is_expected() -> None:
@@ -138,6 +176,11 @@ def test_a_secret_goes_only_where_a_secret_is_expected() -> None:
     assert built.token.reveal() == "t0k"
     with pytest.raises(OptionsError, match="would hold a secret"):
         build(Options, block("      model: ${steps.login.token}\n"), resolver, "s")
+
+
+def test_a_secret_option_takes_a_plain_number_too() -> None:
+    built = build(Options, block("      model: m\n      token: 8080\n"), plain, "s")
+    assert built.token.reveal() == "8080"
 
 
 def test_fields_describe_the_options() -> None:

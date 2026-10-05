@@ -1,1 +1,2 @@
-"""Renderers: the same plan for a terminal, and (milestone 3) a PR comment."""
+"""Renderers: the same plan, result and overview for a terminal — and, in
+phase two, for a page and a pull-request comment."""

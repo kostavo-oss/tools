@@ -185,8 +185,8 @@ neither given nor promised is an error at plan, before anything changes.
 
 ```python
 class Plugin(Protocol):
-    Options: type                       # a frozen dataclass; `with:` is checked against it
-    outputs: tuple[Output, ...]         # optional; or a function of the options as written
+    Options: type  # a frozen dataclass; `with:` is checked against it
+    outputs: tuple[Output, ...]  # optional; or a function of the options as written
 
     def plan(self, ctx: Context) -> StepPlan: ...
     def apply(self, ctx: Context, plan: StepPlan) -> Outputs: ...
@@ -198,42 +198,42 @@ class Plugin(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class Context:                          # everything a step is given
-    target: str                         # `-t`, as typed; each plugin reads it its own way
-    name: str                           # the step's own name
-    options: Options                    # its `with:`, references resolved
-    root: Path                          # the project's directory
-    host: str                           # the workspace this run talks to
-    env: Mapping[str, str]              # for a program the step runs
-    databricks: Cli                     # the Databricks CLI, with this run's credentials
+class Context:  # everything a step is given
+    target: str  # `-t`, as typed; each plugin reads it its own way
+    name: str  # the step's own name
+    options: Options  # its `with:`, references resolved
+    root: Path  # the project's directory
+    host: str  # the workspace this run talks to
+    env: Mapping[str, str]  # for a program the step runs
+    databricks: Cli  # the Databricks CLI, with this run's credentials
     log: Log
-    workspace: WorkspaceClient          # the SDK, connected on first use
+    workspace: WorkspaceClient  # the SDK, connected on first use
 
 
 @dataclass(frozen=True, slots=True)
 class StepPlan:
     changes: tuple[Change, ...] = ()
-    outputs: Outputs = {}               # what is known now, by declared name
-    later: tuple[str, ...] = ()         # declared outputs that exist only after apply
-    waiting: str | None = None          # why part of this plan can't be made yet
-    notes: tuple[str, ...] = ()         # lines shown with the plan that are not changes
-    payload: Json = None                # the plugin's own data, carried in the plan file
+    outputs: Outputs = {}  # what is known now, by declared name
+    later: tuple[str, ...] = ()  # declared outputs that exist only after apply
+    waiting: str | None = None  # why part of this plan can't be made yet
+    notes: tuple[str, ...] = ()  # lines shown with the plan that are not changes
+    payload: Json = None  # the plugin's own data, carried in the plan file
 
 
 @dataclass(frozen=True, slots=True)
 class Change:
-    key: str                            # identity across plans: "jobs.backfill"
+    key: str  # identity across plans: "jobs.backfill"
     action: Literal["create", "update", "delete", "replace", "run"]
     summary: str
-    destructive: bool = False           # delete and replace always are
+    destructive: bool = False  # delete and replace always are
     detail: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
-class Item:                             # one line of an overview
-    kind: str                           # "job"
-    key: str                            # "jobs.backfill"
-    name: str                           # "shop-backfill"
+class Item:  # one line of an overview
+    kind: str  # "job"
+    key: str  # "jobs.backfill"
+    name: str  # "shop-backfill"
     deployed: bool
     id: str | None = None
     url: str | None = None

@@ -1,1 +1,1 @@
-"""The built-in steps. Each registers under `lely.steps` like a plugin would."""
+"""The plugins lely ships. Each registers under `lely.steps` like anyone's would."""

@@ -1,17 +1,19 @@
-"""Finding the step a `uses:` names."""
+"""Finding the plugin a `uses:` names."""
 
 from pathlib import Path
 
 import pytest
 
 from lely.registry import StepNotFound, find, installed
+from lely.steps.bundle import Bundle
 from lely.steps.bundle_run import BundleRun
 from lely.steps.command import Command
 from lely.steps.stevin import Stevin
 
 
-def test_the_built_ins_register_like_plugins() -> None:
-    assert {"command", "stevin", "bundle.run"} <= set(installed())
+def test_the_plugins_lely_ships_register_like_anyones() -> None:
+    assert {"bundle", "command", "stevin", "bundle.run"} <= set(installed())
+    assert find("bundle", Path.cwd()).cls is Bundle
     assert find("stevin", Path.cwd()).cls is Stevin
     assert find("bundle.run", Path.cwd()).cls is BundleRun
     assert find("command", Path.cwd()).source == "built-in"
@@ -42,7 +44,9 @@ def test_a_class_in_a_file_of_the_repo(tmp_path: Path) -> None:
 
 
 def test_an_unknown_name_lists_what_is_installed() -> None:
-    with pytest.raises(StepNotFound, match="No step named `nope` is installed .*stevin"):
+    with pytest.raises(
+        StepNotFound, match="No plugin named `nope` is installed .*bundle"
+    ):
         find("nope", Path.cwd())
 
 
@@ -54,9 +58,24 @@ def test_a_missing_file_or_class(tmp_path: Path) -> None:
         find("./s.py:Y", tmp_path)
 
 
-def test_a_class_that_isnt_a_step(tmp_path: Path) -> None:
-    (tmp_path / "s.py").write_text("class NotAStep:\n    def plan(self, ctx): pass\n")
+def test_a_class_that_isnt_a_plugin(tmp_path: Path) -> None:
+    (tmp_path / "s.py").write_text("class NotOne:\n    def plan(self, ctx): pass\n")
     with pytest.raises(
         StepNotFound, match="needs an `Options` dataclass and a `apply` method"
     ):
-        find("./s.py:NotAStep", tmp_path)
+        find("./s.py:NotOne", tmp_path)
+
+
+def test_destroying_is_planned_first_or_not_at_all(tmp_path: Path) -> None:
+    (tmp_path / "s.py").write_text(
+        "from dataclasses import dataclass\n"
+        "class Half:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pass\n"
+        "    def plan(self, ctx): pass\n"
+        "    def apply(self, ctx, plan): pass\n"
+        "    def destroy(self, ctx, plan): pass\n"
+    )
+    with pytest.raises(StepNotFound, match="a `plan_destroy` method to go with"):
+        find("./s.py:Half", tmp_path)

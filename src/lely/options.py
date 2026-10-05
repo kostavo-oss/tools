@@ -1,15 +1,15 @@
-"""A step's `with:` block, into the step's own `Options` dataclass.
+"""A step's `with:` block, into its plugin's own `Options` dataclass.
 
-A step declares its options as a frozen dataclass; this reads the located YAML
-into it, strictly: an unknown key, a missing required one or a wrong type is an
-error at the line and column it was written. References in string values are
-resolved on the way in (by a callback, so this module stays pure), and a value
-decided at apply makes the whole block `Unresolved` — the core then plans the
-step as deferred rather than calling it with half its options.
+A plugin declares its options as a frozen dataclass; this reads the located
+config into it, strictly: an unknown key, a missing required one or a wrong
+type is an error at the line and column it was written. References in string
+values are resolved on the way in (by a callback, so this module stays pure),
+and a value that isn't known yet makes the whole block `Unresolved` — the step
+is then waiting, rather than planned with half its options.
 
-The field types a step may use: `str`, `int`, `float`, `bool`, `Secret`,
-`Literal[...]`, `tuple[T, ...]`, `Mapping[str, T]` (or `dict`), `T | None`, and
-`object` for anything JSON.
+The field types a plugin may use: `str`, `int`, `float`, `bool`, `Secret`,
+`Literal[...]`, `tuple[T, ...]`, `Mapping[str, T]` (or `dict`), `T | None`,
+`object` for anything JSON, and `Linked` for the name of another step.
 """
 
 from __future__ import annotations
@@ -21,12 +21,14 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from lely.config import Item, Map, Scalar, Seq
+from lely.config import Map, Node, Scalar, Seq
 from lely.errors import LelyError
-from lely.model import Secret, Value
+from lely.model import Linked, Secret, Value
 from lely.refs import Unknown
 
 Resolver = Callable[[Scalar], Value | Unknown]
+#: Answers an option that names a step: the step, or what it is waiting for.
+Linker = Callable[[Scalar], Linked | Unknown]
 
 
 class OptionsError(LelyError):
@@ -35,9 +37,9 @@ class OptionsError(LelyError):
 
 @dataclass(frozen=True, slots=True)
 class Unresolved:
-    """Options that hold a value decided at apply; why, per value."""
+    """Options that hold a value that isn't known yet: the outputs waited for."""
 
-    reasons: tuple[str, ...]
+    waits_for: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +51,7 @@ class OptionField:
 
 
 def fields_of(cls: type) -> tuple[OptionField, ...]:
-    """What a step's options are, for `lely steps` and the editors' schema."""
+    """What a plugin's options are, for `lely steps` and the editors' schema."""
     hints = typing.get_type_hints(cls)
     result: list[OptionField] = []
     for f in dataclasses.fields(cast(Any, cls)):
@@ -65,13 +67,19 @@ def fields_of(cls: type) -> tuple[OptionField, ...]:
     return tuple(result)
 
 
-def build(cls: type, block: Map | None, resolve: Resolver, where: str) -> Any:
+def build(
+    cls: type,
+    block: Map | None,
+    resolve: Resolver,
+    where: str,
+    link: Linker | None = None,
+) -> Any:
     """`block` as an instance of `cls`, or `Unresolved`. Raises `OptionsError`."""
     if not dataclasses.is_dataclass(cls):
         raise OptionsError(f"{where}: its `Options` is not a dataclass")
     hints = typing.get_type_hints(cls)
     fields = {f.name: f for f in dataclasses.fields(cast(Any, cls))}
-    reader = _Reader(resolve)
+    reader = _Reader(resolve, link)
     values: dict[str, Any] = {}
     given = {entry.key: entry for entry in block.entries} if block else {}
     for key, entry in given.items():
@@ -94,20 +102,21 @@ def build(cls: type, block: Map | None, resolve: Resolver, where: str) -> Any:
             "\n".join(f"{problem} ({where})" for problem in reader.problems)
         )
     if reader.unknowns:
-        return Unresolved(tuple(reader.unknowns))
+        return Unresolved(tuple(dict.fromkeys(reader.unknowns)))
     return cls(**values)
 
 
 class _Pending:
-    """Stands in for a value decided at apply, so conversion can go on."""
+    """Stands in for a value that isn't known yet, so conversion can go on."""
 
 
 _PENDING = _Pending()
 
 
 class _Reader:
-    def __init__(self, resolve: Resolver) -> None:
+    def __init__(self, resolve: Resolver, link: Linker | None) -> None:
         self.resolve = resolve
+        self.link = link
         self.problems: list[str] = []
         self.unknowns: list[str] = []
 
@@ -118,12 +127,12 @@ class _Reader:
         if isinstance(item.value, str):
             resolved = self.resolve(item)
             if isinstance(resolved, Unknown):
-                self.unknowns.append(resolved.reason)
+                self.unknowns.append(resolved.waits_for)
                 return _PENDING
             return resolved
         return item.value
 
-    def convert(self, tp: Any, item: Item, name: str) -> Any:
+    def convert(self, tp: Any, item: Node, name: str) -> Any:
         origin = typing.get_origin(tp)
         args = typing.get_args(tp)
         if origin in (types.UnionType, typing.Union):
@@ -137,6 +146,8 @@ class _Reader:
             return self.convert(members[0], item, name)
         if tp is object or tp is Any:
             return self.plain(item)
+        if tp is Linked:
+            return self.linked(item, name)
         if origin in (tuple, list):
             if not isinstance(item, Seq):
                 self.problem(item.loc, f"`{name}` must be a list")
@@ -178,8 +189,8 @@ class _Reader:
         if tp is Secret:
             if isinstance(value, Secret):
                 return value
-            if isinstance(value, str):
-                return Secret(value)
+            if isinstance(value, str | int | float) and not isinstance(value, bool):
+                return Secret(str(value))
         elif isinstance(value, Secret):
             self.problem(
                 item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
@@ -200,7 +211,19 @@ class _Reader:
         self.problem(item.loc, f"`{name}` must be {_describe(tp)}, not {value!r}")
         return None
 
-    def plain(self, item: Item) -> Any:
+    def linked(self, item: Node, name: str) -> Any:
+        if not isinstance(item, Scalar) or not isinstance(item.value, str):
+            self.problem(item.loc, f"`{name}` must be the name of a step")
+            return None
+        if self.link is None:  # pragma: no cover - the core always gives one
+            raise OptionsError(f"option `{name}`: nothing here can name a step")
+        found = self.link(item)
+        if isinstance(found, Unknown):
+            self.unknowns.append(found.waits_for)
+            return _PENDING
+        return found
+
+    def plain(self, item: Node) -> Any:
         if isinstance(item, Seq):
             return [self.plain(child) for child in item.items]
         if isinstance(item, Map):
@@ -228,6 +251,8 @@ def _describe(tp: Any) -> str:
         return "null"
     if tp is object or tp is Any:
         return "anything"
+    if tp is Linked:
+        return "the name of a step"
     return {
         str: "a string",
         int: "an integer",

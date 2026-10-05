@@ -1,12 +1,12 @@
-"""The plan: what every step, and the bundle, would change.
+"""What lely talks in: changes, plans, outputs, overviews, results.
 
-A step answers `plan` with a `StepPlan` of `Change`s; the core puts those, and
-the bundle's own plan, into one `Plan`. That is what `plan -o` writes, what
-`show` renders, and — from milestone 2 — what `apply` checks a fresh plan
-against before it lets a step run.
+A plugin answers `plan` with a `StepPlan` of `Change`s; the core puts every
+step's into one `Plan`. That is what `plan -o` writes, what `show` renders, and
+what `apply` and `destroy` check a fresh plan against before they let a step
+run. A `Result` is what a run leaves behind.
 
 Frozen, slotted dataclasses. `outputs` is a mapping rather than a tuple of
-pairs because step authors read it by name; nothing hashes a plan.
+pairs because plugin authors read it by name; nothing hashes a plan.
 """
 
 from __future__ import annotations
@@ -20,15 +20,27 @@ from lely.errors import LelyError
 Json: TypeAlias = None | bool | int | float | str | list["Json"] | dict[str, "Json"]
 
 #: What a change does. `run` is the odd one: it isn't a difference between two
-#: states but an action, so a plan that holds one is never empty.
+#: states but something that happens on every apply — a job run, a script, a
+#: bundle's files uploaded — so a plan that holds one is never empty.
 Action: TypeAlias = Literal["create", "update", "delete", "replace", "run"]
 ACTIONS: tuple[Action, ...] = ("create", "update", "delete", "replace", "run")
 
-#: Actions that lose something by definition. A step may mark any other change
+#: Actions that lose something by definition. A plugin may mark any other change
 #: destructive too (an update that drops a column); it can't unmark these.
 DESTRUCTIVE_ACTIONS: frozenset[str] = frozenset({"delete", "replace"})
 
-Phase: TypeAlias = Literal["pre", "post"]
+#: When an output is known: always when planning; when planning if the thing is
+#: there already, otherwise after apply; or never when planning, because it is
+#: produced by running.
+Known: TypeAlias = Literal["plan", "exists", "run"]
+KNOWN: dict[str, str] = {
+    "plan": "at plan",
+    "exists": "once it exists",
+    "run": "after every run",
+}
+
+PlanKind: TypeAlias = Literal["apply", "destroy"]
+StepState: TypeAlias = Literal["ready", "waiting", "skipped"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,12 +71,43 @@ Outputs: TypeAlias = Mapping[str, Value]
 
 
 @dataclass(frozen=True, slots=True)
-class Change:
-    """One thing a step (or the bundle) would do.
+class Output:
+    """Something a step gives, and when it is known.
 
-    `key` is the change's identity across plans — a table name, a resource key,
-    a revision — so the plan made at apply can be matched against the one that
-    was approved. It must be unique within a step's plan.
+    `name` is a plain name (`version`) or a shape, for a name that depends on
+    the project: `resources.<type>.<key>.id`, where each `<…>` stands for
+    exactly one part.
+    """
+
+    name: str
+    known: Known = "plan"
+    doc: str = ""
+
+    def __post_init__(self) -> None:
+        if self.known not in KNOWN:
+            raise LelyError(
+                f"Output `{self.name}`: `known` must be one of {', '.join(KNOWN)}, "
+                f"not {self.known!r}."
+            )
+        if not self.name or not all(self.parts):
+            raise LelyError(f"`{self.name}` is not an output's name: dotted parts.")
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        return tuple(self.name.split("."))
+
+    @property
+    def shape(self) -> bool:
+        return any(part.startswith("<") for part in self.parts)
+
+
+@dataclass(frozen=True, slots=True)
+class Change:
+    """One thing a step would do.
+
+    `key` is the change's identity across plans — a table name, a resource key
+    — so the plan made at apply can be matched against the one that was
+    approved. It must be unique within a step's plan.
     """
 
     key: str
@@ -85,22 +128,25 @@ class Change:
 
 @dataclass(frozen=True, slots=True)
 class StepPlan:
-    """A step's answer to `plan`.
+    """A plugin's answer to `plan`, and to `plan_destroy`.
 
-    `outputs` are what the step knows now, for the steps after it (and the
-    bundle's variables). `deferred` says why part of the plan can only be
-    decided at apply — something this deploy creates. `payload` is the step's
-    own data, carried through the plan file to its `apply` untouched.
+    `outputs` are what the step knows now, by declared name. `later` names the
+    declared outputs that will exist only once the step has been applied — the
+    id of a job this deploy creates. `waiting` says why part of the plan can't
+    be made yet. `notes` are lines shown with the plan that are not changes.
+    `payload` is the plugin's own data, carried through the plan file.
     """
 
     changes: tuple[Change, ...] = ()
     outputs: Outputs = field(default_factory=dict)
-    deferred: str | None = None
+    later: tuple[str, ...] = ()
+    waiting: str | None = None
+    notes: tuple[str, ...] = ()
     payload: Json = None
 
     @property
     def empty(self) -> bool:
-        return not self.changes and self.deferred is None
+        return not self.changes and self.waiting is None
 
     @property
     def destructive(self) -> bool:
@@ -108,34 +154,122 @@ class StepPlan:
 
 
 @dataclass(frozen=True, slots=True)
-class PlannedStep:
-    """A step as planned: which one, where it runs, and its plan.
+class Skip:
+    """A plugin's answer when there is nothing to destroy, or nothing to list."""
 
-    `options_hash` covers the step's resolved options, so a plan whose step was
-    reconfigured since is refused rather than applied. Values read from the
-    environment count by name, not by value: a rotated token isn't a new plan.
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class Item:
+    """One line of an overview: a thing that exists because of a step."""
+
+    kind: str
+    key: str
+    name: str
+    deployed: bool
+    id: str | None = None
+    url: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Overview:
+    """What exists because of a step. `notes` say whose view it is."""
+
+    items: tuple[Item, ...] = ()
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Linked:
+    """An option that names a whole step: `bundle: app`.
+
+    The plugin is given that step's own options, resolved, and what it gives.
+    The named step stands above the one that names it, like any reference.
     """
 
     name: str
     uses: str
-    phase: Phase
-    options_hash: str
-    plan: StepPlan
+    options: object
+    outputs: Outputs = field(default_factory=dict)
+    later: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
-class BundlePlan:
-    """The bundle's part: its changes, and the variables lely passes it.
+class Input:
+    """One thing a step takes: where it goes, where it comes from, its value.
 
-    `document` is the Databricks CLI's own plan, kept whole so apply can hand it
-    back to `bundle deploy --plan`. It is `None` when the bundle couldn't be
-    planned yet (`deferred` says why).
+    `label` is the option it fills (`model_version`), empty for an item of a
+    list. `source` is `<step>.<output>`, or `<step>` for a linked step. `value`
+    is there only when `known`; a secret is shown as `***` and never written.
     """
 
-    changes: tuple[Change, ...] = ()
-    variables: tuple[tuple[str, str], ...] = ()
-    document: Json = None
-    deferred: str | None = None
+    label: str
+    source: str
+    value: Value = None
+    known: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class Workspace:
+    """Which workspace a run talks to, and as whom."""
+
+    host: str
+    identity: str
+
+    def __str__(self) -> str:
+        return f"{self.host} as {self.identity}"
+
+
+@dataclass(frozen=True, slots=True)
+class Source:
+    """The version of the project a plan was made from.
+
+    `tree` is the git tree it was planned on, `None` outside a repository.
+    `dirty` says tracked files had uncommitted changes.
+    """
+
+    tree: str | None = None
+    dirty: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedStep:
+    """A step as planned.
+
+    `made_from` is a hash of the step's plugin and its options as written, so a
+    plan whose step was reconfigured since is refused rather than applied.
+    `waits_for` names the outputs it takes that aren't known yet; `every_deploy`
+    says one of them is only ever produced by a run, so the step waits not just
+    the first time. `skipped` says why the step isn't part of this run.
+    """
+
+    name: str
+    uses: str
+    made_from: str
+    plan: StepPlan = field(default_factory=StepPlan)
+    inputs: tuple[Input, ...] = ()
+    waits_for: tuple[str, ...] = ()
+    skipped: str | None = None
+    every_deploy: bool = False
+
+    @property
+    def state(self) -> StepState:
+        if self.skipped is not None:
+            return "skipped"
+        if self.waits_for or self.plan.waiting is not None:
+            return "waiting"
+        return "ready"
+
+    @property
+    def waiting(self) -> str | None:
+        """What a waiting step waits for, in words."""
+        if self.waits_for:
+            words = "waiting for " + ", ".join(self.waits_for)
+            return words + (" — on every deploy" if self.every_deploy else "")
+        if self.plan.waiting is not None:
+            return f"waiting: {self.plan.waiting}"
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,40 +277,116 @@ class Summary:
     changes: int
     runs: int
     destructive: int
-    deferred: int
+    waiting: int
 
     @property
     def empty(self) -> bool:
-        return not (self.changes or self.runs or self.deferred)
+        return not (self.changes or self.runs or self.waiting)
 
 
 @dataclass(frozen=True, slots=True)
 class Plan:
-    """A whole deploy: the pre steps, the bundle, the post steps, in order."""
+    """A whole deploy, or a whole teardown: every step, in the order written."""
 
     tool_version: str
+    kind: PlanKind
     target: str
-    bundle: str
-    config_hash: str
-    pre: tuple[PlannedStep, ...]
-    deploy: BundlePlan
-    post: tuple[PlannedStep, ...]
-
-    @property
-    def steps(self) -> tuple[PlannedStep, ...]:
-        return self.pre + self.post
+    workspace: Workspace
+    source: Source
+    steps: tuple[PlannedStep, ...]
 
     @property
     def summary(self) -> Summary:
-        changes = [c for s in self.steps for c in s.plan.changes] + list(
-            self.deploy.changes
-        )
-        deferred = sum(1 for s in self.steps if s.plan.deferred) + (
-            1 if self.deploy.deferred else 0
-        )
+        active = [step for step in self.steps if step.state != "skipped"]
+        changes = [change for step in active for change in step.plan.changes]
         return Summary(
             changes=sum(1 for c in changes if c.action != "run"),
             runs=sum(1 for c in changes if c.action == "run"),
             destructive=sum(1 for c in changes if c.destructive),
-            deferred=deferred,
+            waiting=sum(1 for step in active if step.state == "waiting"),
         )
+
+    @property
+    def waiting(self) -> tuple[PlannedStep, ...]:
+        return tuple(step for step in self.steps if step.state == "waiting")
+
+    def step(self, name: str) -> PlannedStep | None:
+        for step in self.steps:
+            if step.name == name:
+                return step
+        return None
+
+
+#: What a run did to a thing an overview lists, by the action that was applied.
+HAPPENED: dict[str, str] = {
+    "create": "created",
+    "update": "changed",
+    "replace": "replaced",
+    "delete": "deleted",
+}
+
+#: How a step ended. `passed` is a step `--from` went past: planned for what it
+#: gives the others, not applied.
+Outcome: TypeAlias = Literal[
+    "done", "nothing", "skipped", "passed", "failed", "refused", "not started"
+]
+RunOutcome: TypeAlias = Literal["done", "failed", "refused"]
+
+
+@dataclass(frozen=True, slots=True)
+class StepResult:
+    """What became of one step in an apply or a destroy.
+
+    `happened` says, per overview key, what this run did to it: created,
+    changed, replaced, deleted. It comes from the plan that was just applied,
+    in the same run; nothing is remembered.
+    """
+
+    name: str
+    uses: str
+    outcome: Outcome
+    detail: str = ""
+    changes: tuple[Change, ...] = ()
+    overview: Overview | None = None
+    happened: Mapping[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class Result:
+    """A run: every step, in the order it was taken."""
+
+    kind: PlanKind
+    target: str
+    workspace: Workspace
+    steps: tuple[StepResult, ...]
+    outcome: RunOutcome = "done"
+    message: str = ""
+
+    @property
+    def ran(self) -> tuple[StepResult, ...]:
+        return tuple(s for s in self.steps if s.outcome in ("done", "nothing"))
+
+    @property
+    def failed(self) -> tuple[StepResult, ...]:
+        return tuple(s for s in self.steps if s.outcome in ("failed", "refused"))
+
+    @property
+    def not_started(self) -> tuple[StepResult, ...]:
+        return tuple(s for s in self.steps if s.outcome == "not started")
+
+
+@dataclass(frozen=True, slots=True)
+class StepStatus:
+    """One step in `lely status`: what exists because of it, or why not shown."""
+
+    name: str
+    uses: str
+    overview: Overview | None = None
+    note: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Status:
+    target: str
+    workspace: Workspace
+    steps: tuple[StepStatus, ...]
