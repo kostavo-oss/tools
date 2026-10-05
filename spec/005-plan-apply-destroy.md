@@ -46,8 +46,13 @@ promises and become code. And `destroy` is the one verb that can't be taken back
   `-t`; there is no default target to destroy. *(owner, 2026-10-05)*
 - **R10** — Steps are destroyed in the reverse of the order they are applied in: what was made
   last goes first. *(proposed)*
-- **R11** — A step with nothing to destroy — one that only runs something — is listed as
-  skipped, with the reason. *(proposed; see [002/D3](002-plugins.md#to-decide))*
+- **R11** — A step with nothing to destroy — one that only runs something — is listed in the
+  destroy plan as skipped, with the reason, and the rest is destroyed.
+  *(owner, 2026-10-05; [002/R8a](002-plugins.md))*
+- **R11a — A destroy can be saved and reviewed first, like an apply.**
+  `lely plan -t <target> --destroy -o destroy.json` writes it, `lely show` renders it, and
+  `lely apply destroy.json` runs exactly that. One file format for both; a destroy can go through
+  a pull request. *(owner, 2026-10-05)*
 - **R12** — The approval check of R6 holds for a destroy as well: each step is planned again
   before it is destroyed, and anything that wasn't in the approved plan stops the run.
   *(proposed)*
@@ -72,9 +77,8 @@ promises and become code. And `destroy` is the one verb that can't be taken back
 
 ### On demand
 
-- **R17** — A command that changes nothing and shows the overview of every step for a target —
-  what is deployed right now, in detail. *(proposed, from the owner's "detailed overview"; the
-  name is [D5](#to-decide))*
+- **R17 — `lely status -t <target>`** changes nothing and shows the overview of every step for
+  that target — what is deployed right now, in detail. *(owner, 2026-10-05)*
 - **R18** — `lely doctor` reports whether each plugin's tool is installed and usable (the
   Databricks CLI and its engine, a `command` step's executable) and whether the target
   can be reached. It changes nothing. An error message in the code already points at it.
@@ -99,28 +103,55 @@ promises and become code. And `destroy` is the one verb that can't be taken back
   `--allow-destructive` plays no part in a destroy: everything in one is destructive.
   *(owner, 2026-10-05)*
 
+- **A destroy plan as a file** (was D3): yes, the same as for apply — R11a.
+  *(owner, 2026-10-05)*
+- **The command that shows what is deployed** (was D5): `lely status` — R17.
+  *(owner, 2026-10-05)*
+- **What has to be proven on a workspace** (was D7): nothing, for now. This work is tested against
+  fake tools only, and everything it assumes about the real Databricks CLI stays marked as
+  unverified — in the code, and in the README where a user would rely on it — until a real run
+  is done. The list of what is assumed is [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace).
+  *(owner, 2026-10-05)*
+
 ## To decide
 
-- **D3 — A destroy plan as a file.** For apply there is `plan -o` and `apply plan.json`, so that
-  what runs is what was reviewed. The same for destroy — `lely plan --destroy -o plan.json`, then
-  `lely apply plan.json` — or is destroy always run in one go? *(proposed: the same; one file
-  format, and a destroy can be reviewed in a pull request like anything else)*
-- **D4 — A step that could only be planned at apply.** It was approved as "decided at apply",
-  without its changes. When it is finally planned: run it straight away, or — when there is a
-  terminal — show that part and ask once more?
-- **D5 — The name of R17.** `lely status`, `lely overview`, `lely show -t <target>`?
+- **D4 — A step that can't be planned yet.** Under discussion with the owner; the model on the
+  table:
+
+  *A plan reaches as far as lely can see.* Every value a step takes is either known when
+  planning or only exists after something above it has been applied
+  ([002/R14](002-plugins.md)). A step whose inputs are all known is **ready**: the plan shows its
+  changes, and approving the plan approves them. A step that takes something that doesn't exist
+  yet is **waiting**: the plan shows the step, names what it waits for, and shows no changes —
+  because there are none anyone could know.
+
+  Where a step stands in the list doesn't decide this; what it takes does. In practice it is
+  narrow: a step *below* the bundle that needs the id or link of something the bundle creates
+  *in this very deploy*. The second time, that thing exists, its id is known, and the step is
+  ready like any other. A step above the bundle, or one that takes nothing from it, never waits.
+  A destroy never has a waiting step: everything it removes exists.
+
+  *Consent covers what was shown.* Apply walks down the list and may pass a step only with
+  consent for what that step does:
+
+  | How apply was started | Consent given for | At a waiting step |
+  |---|---|---|
+  | `lely apply plan.json` | exactly what is in the file | stops: "plan again" — the next plan shows the step, now ready |
+  | `lely apply -t dev` at a terminal | what was shown and answered | plans the step, shows it, asks once more |
+  | `lely apply -t dev --yes` | whatever the config plans to, unasked | plans the step and runs it |
+
+  A destructive change still needs `--allow-destructive` in every row. Steps never run out of
+  order: apply doesn't skip a waiting step to get to the ones below it.
+
+  So a first deploy through a reviewed plan file takes two rounds — everything down to the
+  waiting step, then the rest — and every deploy after it takes one. *(proposed)*
 - **D6 — Exit codes.** *(proposed)* 0 done; 1 a step failed; 2 refused before or between steps —
   a stale plan, a change that wasn't approved, a destructive change that wasn't allowed. A
   pipeline can then tell "plan again" from "something broke".
-- **D7 — What has to be proven on a workspace.** lely has no live tests, and this is the first
-  work that changes anything. Which of these must have run for real before this is called done:
-  a first deploy, a second apply after a failure, a refused stale plan, a destroy, a destroy
-  after a failed destroy? And on which workspace — stevin's test workspace is the obvious one,
-  and its token has expired.
 
 ## Done when
 
 - R1–R19 each have a test, against fake tools.
-- Whatever D7 names has run on a workspace.
-- The README no longer says lely "shows you a whole deploy and runs none of it".
-- D3–D7 are answered here.
+- The README no longer says lely "shows you a whole deploy and runs none of it" — and says
+  instead that apply and destroy have not yet been run against a real workspace.
+- D4 and D6 are answered here.

@@ -69,8 +69,8 @@ listed below can use what it gives.
   | `resources.<type>.<key>.name`, and the other fields the bundle's own config has | at plan |
   | `resources.<type>.<key>.id` and `.url` | at plan for what is already deployed; after apply for what this deploy creates |
 
-  *(built, as `${var.…}` and `${resources.…}` in the core; whether those short spellings stay is
-  [002/D4](002-plugins.md#to-decide))*
+  *(built, as `${var.…}` and `${resources.…}` in the core; from here on they are spelled with
+  the step's name, [002/R15a](002-plugins.md))*
 - **R10b** — A step that uses an id this deploy creates is shown in the plan as decided at apply,
   waiting for `<bundle step>.resources.<type>.<key>.id` by name. *(built)*
 
@@ -92,8 +92,11 @@ listed below can use what it gives.
 
 ## To verify on a workspace
 
-lely's rule is that nothing about Databricks is assumed without a test and a link. Three things
-here are assumed so far:
+lely's rule is that nothing about Databricks is assumed without a test and a link. The owner
+decided on 2026-10-05 that this plugin is built against a fake CLI for now, with no run on a real
+workspace. So these four stay **assumed**: each is marked as unverified where the code depends on
+it, and the README says that apply and destroy are untried on a real workspace until they are
+settled.
 
 - **V1** — Whether the CLI can list what `bundle destroy` would remove without removing it, or
   whether the destroy plan has to be built from `bundle summary`.
@@ -118,6 +121,8 @@ here are assumed so far:
 
 - Each of R1–R13 has a test against the fake `databricks`.
 - The plugin passes the whole contract kit ([002/R25](002-plugins.md)).
-- V1–V4 have each been run on a workspace, and what they found is written beside the code that
-  depends on it.
-- A bundle has been planned, applied, listed and destroyed on a real target, end to end.
+- V1–V4 are each marked as unverified in the code that depends on them, and listed in the README
+  as what has not been tried on a real workspace.
+
+Not part of done, by the owner's decision, and the first thing to do afterwards: a bundle
+planned, applied, listed and destroyed on a real target, end to end, settling V1–V4.

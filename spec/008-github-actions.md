@@ -1,65 +1,72 @@
 # 008 — GitHub Actions
 
-**Status:** draft. Phase two. Its first question, [D1](#to-decide), decides what this spec is.
+**Status:** draft; its scope is decided. Phase two.
 
 ## Why
 
-A plan is reviewed where code is reviewed: on the pull request. And a deploy that only runs from
-a laptop isn't a deploy process. The owner's direction names "a way to update GitHub Actions";
-what follows is the part of that which the design already had, with the open reading kept open.
+A plan is reviewed where code is reviewed: on the pull request. Until lely puts its plan there —
+and keeps it current as the branch changes — the one plan for the whole deploy is something
+people have to go and fetch from a log.
 
 ## Requirements
 
+The owner's "a way to update GitHub Actions" means: **update what GitHub shows** (decided
+2026-10-05). So:
+
 - **R1** — `lely plan -f md` and `lely show plan.json -f md` render a plan as Markdown, from the
-  same plan the terminal, the JSON file and the UI show. *(design)*
-- **R2** — A GitHub Action, in this repository, that runs `plan`, `apply` or `destroy` for a
-  target. *(design, with destroy added)*
-- **R3 — It keeps the pull request up to date.** On a pull request, `plan` posts one comment that
-  covers every step, and *updates* that comment on later pushes instead of adding another. One
-  comment per target. *(design)*
-- **R4 — It keeps the run's page up to date.** The plan, and after an apply the overview of what
-  was created ([004/R7](004-asset-bundle.md)), go to the job summary, so a run can be read
-  without opening its log. *(proposed)*
-- **R5** — On merge, `apply` runs. Which plan it runs is [D2](#to-decide).
-- **R6** — `destroy` never runs on its own: only when someone starts the workflow by hand and
-  names the target. *(proposed)*
-- **R7** — No input is put into a script as text: values reach it through the environment, and a
-  test enforces that, as in stevin. *(design)*
-- **R8** — The Action installs lely from its own checkout, so the Action and the tool are always
-  the same version. *(proposed — it is how stevin's does it)*
-- **R9** — The docs show the `concurrency:` group that keeps two runs for one target from
-  overlapping. *(design)*
-
-## To decide
-
-- **D1 — What "update GitHub Actions" means.** Three readings, and they are different pieces of
-  work:
-  1. *Update what GitHub shows* — the pull-request comment and the job summary. That is R3 and
-     R4 above.
-  2. *Update the workflow files* — lely writes `.github/workflows/…` for a project from its
-     config, and rewrites them when the config changes: a `lely ci` command, say. Then adding a
-     step or a target never means editing YAML by hand.
-  3. *Keep the Action itself current* — a moving `v1` tag, as stevin has `v0`, so `uses:
-     kostavo-oss/lely@v1` follows releases.
-
-  This spec covers 1 and assumes 3. If 2 is what was meant, it is a spec of its own: say so and
-  it becomes 010.
-- **D2 — Which plan does `apply` run on merge?** The file the pull request produced, kept as an
-  artifact — so what runs is exactly what was reviewed, and a stale one is refused — or a new
-  plan made on `main`? The first is stricter and has to find the artifact again; the second is
-  simpler and runs something nobody looked at.
-- **D3 — A pull request from a fork** has no credentials. Skip quietly, or say so in the job
-  summary?
+  same plan the terminal, the JSON file and the page show. A destroy plan renders the same way.
+  *(design)*
+- **R2 — The pull request is kept up to date.** On a pull request, the plan is posted as one
+  comment that covers every step, and that comment is *updated* on later pushes instead of
+  another being added. One comment per target. *(owner)*
+- **R3 — The run's page is kept up to date.** The plan goes to the job summary; after an apply,
+  so does what each step did and the overview of what now exists
+  ([004/R7](004-asset-bundle.md)), with links into the workspace. A run can be read without
+  opening its log. *(owner)*
+- **R4 — lely does this itself.** A project adds it to the workflow it already has; there is
+  nothing separate to install or to keep in step with lely's version. How it is asked for is
+  [D4](#to-decide). *(follows from the owner's answer: no ready-made Action was asked for)*
+- **R5** — Outside a GitHub Actions run, or without permission to comment, it says what it
+  couldn't do and why, and the plan itself still succeeds or fails on its own merits.
+  *(proposed)*
+- **R6** — The token is never printed and never written to a plan, a comment or a summary.
+  *(proposed)*
+- **R7 — The docs carry a workflow to copy:** plan on a pull request, apply on merge, destroy
+  only when started by hand with the target named — with the `concurrency:` group that keeps two
+  runs for one target from overlapping, and with no input pasted into a script as text.
+  *(design, as an example instead of an Action)*
 
 ## Not in this spec
 
-- CI systems other than GitHub Actions
-- A lock of lely's own
+Asked on 2026-10-05, and not chosen:
+
+- **Writing the workflow files.** lely does not generate or rewrite `.github/workflows/…`.
+- **A ready-made Action** (`uses: kostavo-oss/lely@v1`) with a moving version tag.
+
+Also not here: CI systems other than GitHub Actions; a lock of lely's own.
+
+## Decided
+
+- **What "update GitHub Actions" means** (was D1): what GitHub shows — the pull-request comment
+  and the job summary. *(owner, 2026-10-05)*
+
+## To decide
+
+- **D4 — How a project asks for it.** A flag on the commands it already runs
+  (`lely plan -t dev --github`), or on by itself whenever lely notices it is inside a GitHub
+  Actions run? *(proposed: the flag. Something that posts to a pull request shouldn't happen
+  because of where a command was run.)*
+- **D2 — Which plan does `apply` run on merge,** in the workflow the docs show? The file the pull
+  request produced, kept as an artifact — so what runs is exactly what was reviewed, and a stale
+  one is refused — or a new plan made on `main` with `--yes`? This is the same choice as
+  [005/D4](005-plan-apply-destroy.md#to-decide), seen from CI.
+- **D3 — A pull request from a fork** has no credentials. Skip quietly, or say so in the job
+  summary?
 
 ## Done when
 
-- R1–R9 each have a test; the Action's script is tested the way stevin's is, with the commands
-  stubbed.
+- R1–R7 each have a test; posting and updating a comment is tested against a fake GitHub, the way
+  stevin tests its own.
 - A pull request in a real repository has carried a plan comment that changed in place, and a
-  merge has applied it.
-- D1–D3 are answered here.
+  merge has left a summary of what was created.
+- D2–D4 are answered here.

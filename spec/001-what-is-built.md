@@ -60,8 +60,8 @@ behaviour and moves some of it:
   R8 then hold for any plugin, not for the bundle by name.
 - **The config loses its bundle keys.** `pre:`, `post:`, `bundle:` and `bundle_vars:` become one
   list of steps, the bundle one of them with `vars` among its options ([003/R1](003-config.md)).
-- **References to the bundle become a step's outputs** ([002/R14](002-plugins.md)); whether the
-  short spellings stay is [002/D4](002-plugins.md#to-decide).
+- **References to the bundle become a step's outputs** ([002/R14](002-plugins.md)), and the
+  short spellings go ([002/R15a](002-plugins.md)).
 - **The plan file's format changes with it,** so its format version goes up. Nothing is
   published, so no old plan file has to be read.
 
@@ -73,7 +73,8 @@ secrets (R9), and the `stevin`, `bundle.run` and `command` plugins' plan halves 
 - Markdown output (`-f md`) → [008](008-github-actions.md)
 - `apply`, `destroy`, `doctor` → [005](005-plan-apply-destroy.md)
 - Live checks: every assumption about the Databricks CLI here was settled from its source and its
-  recorded tests, not from a workspace → [005/D7](005-plan-apply-destroy.md#to-decide)
+  recorded tests, not from a workspace, and stays that way for now
+  → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
 
 ## Done when
 

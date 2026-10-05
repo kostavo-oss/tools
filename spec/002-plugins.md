@@ -39,10 +39,13 @@ What the bundle needs, every plugin can then have.
 - **R8 — Show itself.** Optionally, give the UI its own detailed view of a plan. Without one, the
   UI shows the plan's changes. → [007](007-ui.md) *(owner)*
 
-Not every plugin has something to destroy or to show: `command` runs what it is told, and a step
-that only *runs* a job deploys nothing. A plugin says which of R6–R8 it supports, and
-`lely steps` lists that. What `destroy` does with a step that can't destroy is
-[D3](#to-decide).
+- **R8a — A plugin with nothing to undo says so.** Not every plugin has something to destroy or
+  to show: a step that only *runs* a job deploys nothing. A plugin says which of R6–R8 it
+  supports, `lely steps` lists that, and `destroy` skips a step that can't destroy — visibly,
+  with the reason. *(owner, 2026-10-05)*
+- **R8b — `command` can be given a destroy command,** beside its plan and apply commands. With
+  one, the step is destroyed by running it; without one, it is skipped as in R8a.
+  *(owner, 2026-10-05)*
 
 ### Rules every plugin follows
 
@@ -74,6 +77,9 @@ clearly defined")*
   only by writing `${steps.<name>.<output>}` in its own options. There is no other channel: no
   file left behind, no environment handed on, no lookup behind the scenes. Whatever a step
   depends on can be read in its `with:`. *(design)*
+- **R15a — There is one spelling.** Every reference names the step the value comes from. The
+  short `${var.…}`, `${bundle.…}` and `${resources.…}` that exist today, from when the bundle was
+  built in, go. `${env.<NAME>}` stays: the environment is not a step. *(owner, 2026-10-05)*
 - **R16 — References point up the list, never down.** A step can use the outputs of steps listed
   before it. So the order of the list *is* the order of dependency, and it reads top to bottom:
   what feeds the bundle is written above it, what needs something from the bundle below it.
@@ -137,20 +143,16 @@ plan half exists in the code and is left as it is.
 
 - **The target and the workspace** (was D2): a bare name each plugin reads its own way, and the
   workspace from `--profile` or the environment — R23 and R24. *(owner, 2026-10-05)*
+- **A step that can't destroy** (was D3): skipped, and the destroy plan says so — R8a. A
+  `command` step may bring a destroy command — R8b. *(owner, 2026-10-05)*
+- **One spelling for a reference** (was D4): always `${steps.<name>.<output>}` — R15a.
+  *(owner, 2026-10-05)*
 
 ## To decide
 
 - **D1 — Is "plugin" the word in the config too?** The config says `uses:`, the entry-point group
   is `lely.steps`, the command is `lely steps`. Nothing is published, so all three can still
   change — to `lely plugins`, say. *(proposed: keep them; a step uses a plugin)*
-- **D3 — A step that can't destroy.** Skip it and say so in the destroy plan, or refuse to destroy
-  at all until the project says, per step, that skipping is fine? *(proposed: skip and say so —
-  a `command` that seeds data shouldn't block taking a dev target down)*
-- **D4 — One spelling for a reference.** `${var.catalog}` and `${resources.jobs.backfill.id}`
-  exist today because the bundle is built in. As a plugin's outputs they are
-  `${steps.app.var.catalog}` and `${steps.app.resources.jobs.backfill.id}`. Keep the short forms
-  as a second spelling? *(proposed: no. One spelling, which always names the step a value comes
-  from, is what R15 is for — and nothing is published, so nobody has to change a file.)*
 
 ## Done when
 
@@ -161,4 +163,4 @@ plan half exists in the code and is left as it is.
 - `lely validate` on a project with a reference pointing down the list, and on one naming an
   output that doesn't exist, fails with a message that says what to change.
 - R25's checks exist and the plugins above pass the ones that apply to them.
-- D1, D3 and D4 are answered here.
+- D1 is answered here.
