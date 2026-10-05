@@ -25,7 +25,11 @@ the overview.
 - **R3** — It needs the direct engine. A bundle on the Terraform engine is refused with a message
   that says so. *(design)*
 - **R3a — A project can have more than one bundle step.** Each has its own name, its own path
-  and its own outputs, and one can feed another like any two steps. *(owner, 2026-10-05)*
+  and its own outputs, and one can feed another like any two steps. All of them are deployed to
+  the one workspace the run talks to ([002/R24](002-plugins.md)). *(owner, 2026-10-05)*
+- **R3b — The bundle's target is lely's, unless the step says otherwise.** `-t dev` selects the
+  bundle target `dev`. A step may name another with a `target` option, for a bundle whose
+  targets are called something else. *(proposed)*
 
 ### Plan
 
@@ -33,7 +37,13 @@ the overview.
   named by type and key (`jobs.backfill`), from `bundle plan -o json`. A delete, a recreate and a
   change of id are destructive. *(built, in the core)*
 - **R5** — What only exists after the deploy — the id and link of a resource this deploy creates
-  — is shown as decided at apply, and a later step that needs it waits for it. *(built)*
+  — is shown as not known yet, and a later step that needs it is *waiting*
+  ([005/R25](005-plan-apply-destroy.md)). *(built, as "decided at apply")*
+- **R5a — A deploy uploads the bundle's files even when no resource changes.** `bundle plan`
+  speaks of resources; a changed notebook or a rebuilt wheel isn't one. So the plan always
+  carries one line for the bundle saying its files are uploaded, the deploy always runs, and "no
+  changes" is never shown for a bundle step. *(proposed — without it, a plan that says nothing
+  changes would be followed by a deploy that ships new code; see V5)*
 
 ### Apply
 
@@ -45,8 +55,11 @@ the overview.
 
 - **R7** — After an apply, and on its own at any time, the plugin lists every resource the bundle
   has deployed for this target: its type, its key, the name it has in the workspace, its id and
-  a link to it. Right after an apply each line also says what happened to it: created, changed,
-  unchanged, deleted. *(owner)*
+  a link to it. *(owner)*
+- **R7a — Right after an apply, each line also says what happened to it:** created, changed,
+  unchanged, deleted. That comes from the plan that was just applied, in the same run — it is
+  not remembered. `lely status`, run later, says what exists and nothing about how it got there.
+  *(owner; the limit follows from keeping no state)*
 - **R8** — The same overview is available four ways: a table in the terminal, a section in the
   UI ([007](007-ui.md)), Markdown for a pull request or a job summary
   ([008](008-github-actions.md)), and JSON for anything else. *(proposed)*
@@ -76,13 +89,14 @@ listed below can use what it gives.
 
   *(built, as `${var.…}` and `${resources.…}` in the core; from here on they are spelled with
   the step's name, [002/R15a](002-plugins.md))*
-- **R10b** — A step that uses an id this deploy creates is shown in the plan as decided at apply,
-  waiting for `<bundle step>.resources.<type>.<key>.id` by name. *(built)*
+- **R10b** — A step that uses an id this deploy creates is shown in the plan as waiting for
+  `<bundle step>.resources.<type>.<key>.id`, by name. *(built, as "decided at apply")*
 
 ### Destroy
 
 - **R11** — A destroy plan lists every resource that would be removed — the same list as the
-  overview — each marked destructive. *(owner)*
+  overview — each marked destructive, and says that the bundle's uploaded files go with them.
+  *(owner)*
 - **R12** — Destroying runs `bundle destroy` for the target and nothing else: no resource is
   deleted by lely itself. *(proposed — the CLI knows the order and what it may not delete)*
 - **R13** — A target the bundle was never deployed to has an empty destroy plan, and says so.
@@ -99,7 +113,7 @@ listed below can use what it gives.
 
 lely's rule is that nothing about Databricks is assumed without a test and a link. The owner
 decided on 2026-10-05 that this plugin is built against a fake CLI for now, with no run on a real
-workspace. So these four stay **assumed**: each is marked as unverified where the code depends on
+workspace. So these five stay **assumed**: each is marked as unverified where the code depends on
 it, and the README says that apply and destroy are untried on a real workspace until they are
 settled.
 
@@ -112,6 +126,8 @@ settled.
   the ones in the CLI's recorded tests (jobs and pipelines).
 - **V4** — What the CLI does when the bundle's target names one workspace and the credentials at
   hand reach another ([002/R24](002-plugins.md)): lely expects a refusal it can pass on.
+- **V5** — Whether `bundle plan` says anything about files that would be uploaded, or only about
+  resources (R5a assumes: only resources).
 
 ## Decided
 
@@ -126,8 +142,8 @@ settled.
 
 - Each of R1–R13 has a test against the fake `databricks`.
 - The plugin passes the whole contract kit ([002/R25](002-plugins.md)).
-- V1–V4 are each marked as unverified in the code that depends on them, and listed in the README
+- V1–V5 are each marked as unverified in the code that depends on them, and listed in the README
   as what has not been tried on a real workspace.
 
 Not part of done, by the owner's decision, and the first thing to do afterwards: a bundle
-planned, applied, listed and destroyed on a real target, end to end, settling V1–V4.
+planned, applied, listed and destroyed on a real target, end to end, settling V1–V5.

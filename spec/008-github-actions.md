@@ -59,8 +59,8 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
 - **D2 — Which plan does `apply` run on merge,** in the workflow the docs show? The file the pull
   request produced, kept as an artifact — so what runs is exactly what was reviewed, and a stale
   one is refused — or a new plan made on `main` with `--yes`? With the file, a first deploy that
-  has a waiting step takes two runs ([005/R22](005-plan-apply-destroy.md)); with `--yes`, one
-  ([005/R23](005-plan-apply-destroy.md)).
+  has a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)); with `--yes`, one
+  ([005/R28](005-plan-apply-destroy.md)).
 - **D3 — A pull request from a fork** has no credentials. Skip quietly, or say so in the job
   summary?
 

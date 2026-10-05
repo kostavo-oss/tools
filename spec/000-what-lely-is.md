@@ -1,7 +1,8 @@
 # 000 — what lely is
 
 **Status:** draft. The direction is the owner's, given on 2026-10-05; it replaces parts of
-`docs/DESIGN.md`, listed under [What this changes](#what-this-changes).
+`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). The positioning —
+[Why it exists](#why-it-exists) and [Where it stands](#where-it-stands) — is a proposal.
 
 Requirements are marked *(owner)* where they come from that direction, *(design)* where
 `docs/DESIGN.md` already says them, and *(proposed)* where neither does and this is a suggestion.
@@ -12,11 +13,57 @@ lely plans, applies and destroys everything a Databricks deploy consists of — 
 of steps, each done by a plugin — and keeps no state of its own. The Asset Bundle is one of those
 plugins.
 
+That is the *definition*. The line people should meet first is a different question:
+[D3](#to-decide).
+
+## Why it exists
+
+A real deploy to Databricks is an Asset Bundle and the things around it: a table that has to
+exist first, a model version looked up and handed to the bundle, a job that has to run once the
+bundle is there, a seed, a migration. The bundle has a plan and a deploy. The things around it
+have a shell script, or a list of steps in a CI workflow.
+
+That glue is what lely replaces, because glue fails in four ways a team feels:
+
+1. **Nobody sees the whole deploy before it runs.** The bundle can be planned; the script around
+   it can't. A reviewer approves a pull request without knowing what the merge will do.
+2. **What one step hands the next is invisible.** An environment variable set three lines up, a
+   file left in a temp directory. It works until someone reorders two lines.
+3. **Nothing is guarded the same way twice.** Whether a destructive change asks first depends on
+   who wrote that part of the script.
+4. **It only goes one way.** There is a deploy script and no teardown, so dev and pull-request
+   environments are made and never removed.
+
+lely's answer to each, in the same order: one plan for every step (R3); values that pass between
+steps written down and checked (R4a); one rule for consent and for destructive changes (R9); and
+`destroy` (R3).
+
+## Where it stands
+
+*(proposed)*
+
+- **Beside the bundle, not instead of it.** The bundle stays the bundle and the Databricks CLI
+  stays the tool that deploys it. If a bundle resource can do something, the bundle does it, and
+  when Databricks adds one, the step that covered it is retired.
+- **Not a small Terraform.** `plan`, `apply`, `destroy` sound like one. But lely manages no
+  resource itself and remembers nothing: each plugin's own tool knows what exists. lely owns the
+  order, the review and the consent — not the resources. Terraform is still for the platform.
+- **Not a task runner.** Make and a CI workflow run commands in order. A lely step can say what
+  it *would* do before it does it, and can be undone.
+- **Not a workflow engine.** It runs at deploy time, once, top to bottom. What runs every night
+  is a job, and jobs are the bundle's.
+- **In the Kostavo line** — "Terraform for your platform, Asset Bundles for your code, stevin for
+  your data model" — lely is not a fourth layer. It is what carries the layers out together, as
+  one deploy. Whether the line should say so is [D4](#to-decide).
+
+**When not to use it.** One bundle and nothing around it: `databricks bundle deploy` is all you
+need, and lely would add a file and no value. That is worth saying on the first page.
+
 ## Who it is for
 
-A team that deploys to Databricks and has more to deploy than one tool covers: a bundle, table
-schemas, a job that has to run in between, a lookup one step needs from another. Today that is a
-shell script around `bundle deploy`, which nobody reviews before it runs and nothing can undo.
+A team that deploys to Databricks with a bundle and has more to deploy than the bundle covers,
+to more than one target, through pull requests — and that today keeps a deploy script it would
+rather not own. Which of them lely speaks to *first* is [D3](#to-decide).
 
 ## What it does
 
@@ -42,9 +89,10 @@ shell script around `bundle deploy`, which nobody reviews before it runs and not
   *(owner)*
 - **R7 — A plan can be looked at in a UI,** each step with its own detail. → [007](007-ui.md)
   *(owner)*
-- **R8 — It keeps GitHub Actions up to date.** → [008](008-github-actions.md) *(owner — what
-  exactly is updated is that spec's first question)*
-- **R9 — A destructive change is named, and refused unless allowed.** *(design)*
+- **R8 — It keeps GitHub up to date:** the plan as one comment on the pull request, and the
+  result on the run's page. → [008](008-github-actions.md) *(owner)*
+- **R9 — Nothing that changes a workspace runs unasked, and a destructive change is named and
+  refused unless allowed.** → [005](005-plan-apply-destroy.md) *(owner, design)*
 - **R10 — What isn't known at plan time is said, not guessed.** *(design)*
 - **R11 — A plugin is small and yours to write:** a Python class in the repo, an installed
   package, or a pair of commands, under the same rules as the ones lely ships. *(design)*
@@ -66,11 +114,12 @@ No longer excluded: `bundle destroy` and teardown.
 
 ## Phases
 
-1. **The Asset Bundle, as a plugin** — [002](002-plugins.md), [003](003-config.md),
-   [004](004-asset-bundle.md), [005](005-plan-apply-destroy.md). *(owner: "start with asset
-   bundles")*
-2. **Around it:** the UI ([007](007-ui.md)) and GitHub Actions
-   ([008](008-github-actions.md)). Which first is [D1](#to-decide).
+1. **The Asset Bundle, as a plugin, with steps around it** — [002](002-plugins.md),
+   [003](003-config.md), [004](004-asset-bundle.md), [010](010-command-and-bundle-run.md),
+   [005](005-plan-apply-destroy.md). *(owner: "start with asset bundles")* In what order these
+   become usable is [D5](#to-decide).
+2. **Around it:** the UI ([007](007-ui.md)) and GitHub ([008](008-github-actions.md)). Which
+   first is [D1](#to-decide).
 
 Outside the phases: **stevin** ([006](006-stevin.md)) is the owner's to take up separately, and
 [009 — first release](009-first-release.md) happens when the owner says.
@@ -93,11 +142,33 @@ place to argue in.
 
 ## To decide
 
-- **D1 — After the Asset Bundle: the UI first, or GitHub Actions first?**
+- **D1 — After phase one: the UI first, or GitHub first?**
 - **D2 — Further plugins.** The design names Lakebase schemas and three MLflow steps as "later".
   Still the next ones, and in which order?
+- **D3 — The first line, and who it is said to.** The definition above is accurate and sells
+  nothing. Three ways to lead, each for a different reader:
+  1. *The reviewed deploy* — "One plan for your whole Databricks deploy: the bundle and
+     everything around it, reviewed before anything runs." For the team that got burned by a
+     merge.
+  2. *The deploy script, gone* — "Replace the script around `bundle deploy`: steps before and
+     after, with a plan, a teardown, and nothing passed along by accident." For the person who
+     maintains that script.
+  3. *Environments that go away again* — "Stand up a whole Databricks environment for a branch,
+     and take it down again: plan, apply, destroy." For teams that want a workspace per pull
+     request.
+
+  *(proposed: 1 as the headline, with 2 as the sentence under it. 3 is real, but it only becomes
+  true once destroy has run against a workspace.)*
+- **D4 — The Kostavo line.** Today: "Terraform for your platform, Asset Bundles for your code,
+  stevin for your data model." lely is in none of the three. Extend it — "…and lely to deploy
+  them as one" — or leave the line alone and describe lely next to it? *(proposed: extend it;
+  otherwise the family's own tagline has no place for one of its three tools)*
+- **D5 — The first usable cut of phase one.** All of phase one before anything can be used, or
+  in slices: first plan and apply for a bundle with `command` steps around it and `status`; then
+  destroy; then `bundle.run`, `pyproject.toml` and `doctor`? *(proposed: slices, in that order —
+  each one a tool somebody could run)*
 
 ## Done when
 
-Every "to decide" in this folder that touches phase one is answered, and this page describes
-lely without one.
+Every "to decide" in this folder that touches phase one is answered, D3 and D4 have an answer the
+README can open with, and this page describes lely without a proposal in it.

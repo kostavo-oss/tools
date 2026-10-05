@@ -40,10 +40,10 @@ Each line names where it is tested, under `tests/unit/`.
 Found while writing this; none is fixed yet. Each is small, and each needs one of the two changed.
 
 - **G1 — `doctor` is mentioned and doesn't exist.** An error in `bundle.py` tells the user to
-  "check `lely doctor`". It arrives with [005/R18](005-plan-apply-destroy.md).
+  "check `lely doctor`". It arrives with [005/R33](005-plan-apply-destroy.md).
 - **G2 — What a `command` step is given.** The design promises `LELY_TARGET`, `LELY_PLAN` and
-  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. To settle when
-  `command` gets its apply: all five, or which.
+  `LELY_OUTPUTS`. The code sets `LELY_TARGET`, `LELY_STEP` and `LELY_PHASE`. Settled as all five,
+  in [010/R4](010-command-and-bundle-run.md).
 - **G3 — How stevin is called.** The design says `stevin plan -t <target> -o <tmp> -f json`. The
   code spells the flags out and adds `--config` and `--select`. The code is right; the design
   needs the line updated.
@@ -80,3 +80,7 @@ secrets (R9), and the `stevin`, `bundle.run` and `command` plugins' plan halves 
 
 Already done, except: G1–G3 are closed by the specs they point to, and "What changes" is carried
 out by [002](002-plugins.md)–[004](004-asset-bundle.md) without losing a test.
+
+One more thing changes for anyone who used it as built: `-t` may stop having a default
+([005, To decide](005-plan-apply-destroy.md#to-decide)); today it falls back to the bundle's own
+default target.

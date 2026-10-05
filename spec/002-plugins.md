@@ -73,6 +73,11 @@ clearly defined")*
   when its value is known — *at plan*, before anything is deployed, or only *after apply*.
   `lely steps` prints them next to the options. *(proposed; today a plugin declares only its
   options, so an output's name can't be checked until it is used)*
+- **R14a — An output whose name depends on the project is declared as a shape.** The bundle
+  plugin can't list `resources.jobs.backfill.id` ahead of time: the job is the project's. It
+  declares `resources.<type>.<key>.id`. Offline, a reference is checked against the shape; that
+  the job itself exists is checked when the step is planned, with the same kind of message.
+  *(proposed)*
 - **R15 — An input is a reference, and nothing else.** A step takes a value from another step
   only by writing `${steps.<name>.<output>}` in its own options. There is no other channel: no
   file left behind, no environment handed on, no lookup behind the scenes. Whatever a step
@@ -86,24 +91,27 @@ clearly defined")*
   *(built, as pre and post)*
 - **R17 — A step that needs both is two steps.** One above the bundle, one below. Because of R16
   there is no way to write a circle. *(follows from R16)*
-- **R18 — All of it is checked offline.** `lely validate` refuses a reference to a step that
-  isn't there; to one listed further down, with a message that says to move it; to an output its
-  plugin doesn't declare; and to a step that is skipped for a target the referring step runs
-  for. *(the first two built; the last two need R14)*
+- **R18 — As much as can be is checked offline.** `lely validate` refuses a reference to a step
+  that isn't there; to one listed further down, with a message that says to move it; to an output
+  its plugin doesn't declare, or that doesn't fit a declared shape; and to a step whose `targets:`
+  leave out a target the referring step runs for. What can only be known with the tool at hand —
+  that a named job is really in the bundle — is refused by `plan`, before anything changes.
+  *(the first two built; the rest need R14)*
 - **R19 — A value that isn't known yet is never guessed.** If a step's input is only known after
   apply — the id of a job this deploy creates — the plan shows that step as *waiting* and names
   the output it is waiting for. What apply then does with it is
-  [005/R20–R25](005-plan-apply-destroy.md). *(built, as "decided at apply")*
+  [005/R25–R30](005-plan-apply-destroy.md). *(built, as "decided at apply")*
 - **R20 — The wiring is shown.** In a plan — terminal, page or Markdown — every step lists what it
   takes, from which step, and the value where it is known:
   `model_version = 14  ← model.version`. And `lely validate` prints the wiring of the whole
   project: for each step, what it takes and what it gives. *(proposed)*
-- **R21 — Destroy reads the same wiring.** Inputs are resolved from the top of the list down, as
-  for a plan; removal then goes from the bottom up. So a step above the bundle that only looks
-  something up still does its lookup, and the bundle can be resolved and destroyed; and a step
-  below the bundle is destroyed while the bundle, and the id it needed, still exist. A value a
-  destroy needs that can't be had without applying stops the destroy plan, with the reason.
-  *(proposed)*
+- **R21 — Destroy reads the same wiring.** Inputs are resolved from the top of the list down;
+  removal then goes from the bottom up. While destroying, a step's outputs are what it can give
+  without changing anything: what it knows at plan, and — for what already exists — what its
+  overview reports. So a step above the bundle that only looks something up still does its
+  lookup, and the bundle can be resolved and destroyed; and a step below the bundle is destroyed
+  while the bundle, and the id it needed, still exist. A value a destroy needs that can't be had
+  that way stops the destroy plan, with the reason. *(proposed)*
 
 ### What a step is given
 
@@ -113,8 +121,8 @@ clearly defined")*
   every step as it is: the bundle plugin takes it as a bundle target. lely keeps no list of
   targets of its own. *(owner, 2026-10-05)*
 - **R24 — The workspace comes from the command line or the environment:** `--profile`, or the
-  variables the Databricks SDK and CLI already read. One run talks to one workspace.
-  *(owner, 2026-10-05)*
+  variables the Databricks SDK and CLI already read. One run talks to one workspace — every
+  step in it, two bundle steps included. *(owner, 2026-10-05)*
 
 ### For people writing one
 
@@ -129,8 +137,9 @@ clearly defined")*
 | `uses:` | Does | State |
 |---|---|---|
 | `bundle` | Deploys an Asset Bundle | to build — [004](004-asset-bundle.md) |
-| `bundle.run` | Runs a job, pipeline or app from a bundle | plan half built |
-| `command` | Runs commands you give it | plan half built |
+| `command` | Runs commands you give it | plan half built — [010](010-command-and-bundle-run.md) |
+| `bundle.run` | Runs a job, pipeline or app from a bundle | plan half built — [010](010-command-and-bundle-run.md) |
+| a class in the repo | Whatever a team writes | plan half built; the contract above is its spec |
 
 `stevin` is not part of this phase: the owner takes it up separately ([006](006-stevin.md)). Its
 plan half exists in the code and is left as it is.

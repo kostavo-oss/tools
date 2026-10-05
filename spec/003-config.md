@@ -45,7 +45,10 @@ are errors, with file, line and column.
   [002/R14–R21](002-plugins.md). Reading a step's `with:` is enough to know everything it depends
   on. *(owner)*
 - **R3 — A step has a name, the plugin it uses, its options, and optionally the targets it runs
-  for.** Names are unique in a project: they are what a reference says. *(built)*
+  for.** Names are unique in a project: they are what a reference says. `targets:` is a list of
+  names compared with `-t` as written; for any other target the step is skipped — in a plan, an
+  apply, a destroy and `status` alike — and each says that it was. *(built for plan; the rest
+  follows)*
 - **R4 — `lely.yml`,** as today. *(built)*
 - **R5 — Or `[tool.lely]` in `pyproject.toml`,** with the same keys and the same meaning, so a
   Python project needs no extra file. *(owner)*
