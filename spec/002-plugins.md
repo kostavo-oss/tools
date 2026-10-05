@@ -173,23 +173,23 @@ clearly defined"; the principle is decided, the mechanics below are agreed where
 
 ```python
 class Plugin(Protocol):
-    Options: type                      # a frozen dataclass; `with:` is checked against it
-    outputs: tuple[Output, ...]        # R14: name or shape, and when it is known
+    Options: type  # a frozen dataclass; `with:` is checked against it
+    outputs: tuple[Output, ...]  # R14: name or shape, and when it is known
 
-    def plan(self, ctx) -> StepPlan: ...                 # R4
-    def apply(self, ctx, plan) -> Outputs: ...           # R5
+    def plan(self, ctx) -> StepPlan: ...  # R4
+    def apply(self, ctx, plan) -> Outputs: ...  # R5
 
     # optional — a plugin without one says so by not having it (R8a)
-    def overview(self, ctx) -> tuple[Item, ...]: ...     # R6
-    def plan_destroy(self, ctx) -> StepPlan: ...         # R7
-    def destroy(self, ctx, plan) -> None: ...            # R7
+    def overview(self, ctx) -> tuple[Item, ...]: ...  # R6
+    def plan_destroy(self, ctx) -> StepPlan: ...  # R7
+    def destroy(self, ctx, plan) -> None: ...  # R7
 
 
 @dataclass(frozen=True, slots=True)
-class Item:                            # one line of an overview
-    kind: str                          # "job"
-    key: str                           # "jobs.backfill"
-    name: str                          # "shop-backfill"
+class Item:  # one line of an overview
+    kind: str  # "job"
+    key: str  # "jobs.backfill"
+    name: str  # "shop-backfill"
     deployed: bool
     id: str | None = None
     url: str | None = None
