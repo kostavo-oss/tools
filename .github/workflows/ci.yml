@@ -1,0 +1,13 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # ruff and the tests on every supported Python — the same gate for every
+  # Kostavo tool, kept in one place. `mise run check` also runs ty, which the
+  # shared gate doesn't yet.
+  python:
+    uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
