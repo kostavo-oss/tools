@@ -42,19 +42,27 @@ All on 2026-10-05, by the owner.
 
 **The shape**
 
-- **The config is one ordered list of steps,** the bundle one entry in it. → [003/R1](003-config.md)
+- **The config is one ordered list of steps,** the bundle one entry in it — and there may be more
+  than one bundle. → [003/R1](003-config.md), [004/R3a](004-asset-bundle.md)
 - **What flows between steps is written down and checked:** outputs are declared, an input is a
   reference in a step's own options, and references only point up the list — so what feeds the
   bundle is above it and what needs something from it is below. → [002/R14](002-plugins.md)
 - **One spelling for a reference:** always `${steps.<name>.<output>}`. → [002/R15a](002-plugins.md)
 - **The target is a bare name** each plugin reads its own way, and the workspace comes from
   `--profile` or the environment. → [002/R23](002-plugins.md)
+- **The config is found from a subfolder,** by walking up. → [003/R5a](003-config.md)
 
-**Destroy and consent**
+**Consent**
 
-- **Destroy asks for the target's name at a terminal; headless, consent is `--yes` in the
-  command.** Without either, nothing that changes a workspace runs.
-  → [005/R9a](005-plan-apply-destroy.md)
+- **Nothing that changes a workspace runs unasked.** Destroy asks for the target's name at a
+  terminal; headless, consent is `--yes` in the command. → [005/R9a](005-plan-apply-destroy.md)
+- **A step that can't be planned yet** is shown as waiting. A reviewed plan file stops there and
+  asks for a new plan; `--yes` without a file runs it; the same rule above the bundle as below.
+  → [005/R20](005-plan-apply-destroy.md)
+- **Three exit codes:** done, failed, refused. → [005/R26](005-plan-apply-destroy.md)
+
+**Destroy**
+
 - **A destroy can be saved to a file and reviewed first,** like an apply.
   → [005/R11a](005-plan-apply-destroy.md)
 - **A step that can't destroy is skipped, visibly;** a `command` step may bring a destroy command.
@@ -62,8 +70,9 @@ All on 2026-10-05, by the owner.
 
 **Seeing what is there**
 
-- **`lely status`** shows what every step has deployed, without changing anything.
-  → [005/R17](005-plan-apply-destroy.md)
+- **`lely status`** shows what every step has deployed, without changing anything — and before a
+  first deploy, what would exist. → [005/R17](005-plan-apply-destroy.md),
+  [004/R9a](004-asset-bundle.md)
 - **The UI is a web page,** like `stevin ui`. → [007](007-ui.md)
 - **"Update GitHub Actions" means what GitHub shows:** the pull-request comment and the job
   summary. Not generating workflow files, and no ready-made Action. → [008](008-github-actions.md)
@@ -75,33 +84,27 @@ All on 2026-10-05, by the owner.
   → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
 - **stevin is out of this for now.** → [006](006-stevin.md)
 
-## Decisions waiting on the owner
+## Still open
 
-A proposal is given with each, in its spec; "go with the proposals" is an answer.
+Nothing here stops phase one from being built. Each has a proposal in its spec.
 
-**Under discussion**
+**In phase one — marked *(proposed)* where they stand, to confirm or change**
 
-1. **A step that can't be planned yet** — what apply does when it reaches one, and the mental
-   model behind it. → [005/D4](005-plan-apply-destroy.md#to-decide)
-
-**Small, with a proposal each**
-
-2. Exit codes. → [005/D6](005-plan-apply-destroy.md#to-decide)
-3. More than one bundle in a project, and what `status` shows before a first deploy.
-   → [004](004-asset-bundle.md#to-decide)
-4. Whether the config file is looked for in parent directories.
-   → [003/D2](003-config.md#to-decide)
-5. Whether the word in the config stays "step" (`uses:`, `lely steps`).
-   → [002/D1](002-plugins.md#to-decide)
+1. At a terminal, apply asks again before a step that was waiting; apply never skips ahead.
+   → [005/R24](005-plan-apply-destroy.md)
+2. `lely.yml` and `[tool.lely]` both present is an error. → [003/R6](003-config.md)
+3. The word in the config stays "step" (`uses:`, `lely steps`). → [002/D1](002-plugins.md#to-decide)
+4. Declared outputs, the wiring printed by `validate`, and how destroy reads it.
+   → [002/R14](002-plugins.md), [002/R20](002-plugins.md), [002/R21](002-plugins.md)
 
 **Before phase two**
 
-6. How a project asks for the pull-request comment, and which plan a merge applies.
+5. How a project asks for the pull-request comment, and which plan a merge applies.
    → [008](008-github-actions.md#to-decide)
-7. Whether the page only shows, and how a plugin supplies its own view. → [007](007-ui.md#to-decide)
-8. The UI first, or GitHub first. → [000/D1](000-what-lely-is.md#to-decide)
+6. Whether the page only shows, and how a plugin supplies its own view. → [007](007-ui.md#to-decide)
+7. The UI first, or GitHub first. → [000/D1](000-what-lely-is.md#to-decide)
 
 **Whenever**
 
-9. How lely releases, and whether the recorded Databricks CLI outputs in the tests can stay.
+8. How lely releases, and whether the recorded Databricks CLI outputs in the tests can stay.
    → [009](009-first-release.md#to-decide)

@@ -57,6 +57,10 @@ are errors, with file, line and column.
   with = { path = ".", vars = { model_version = "${steps.model.version}" } }
   ```
 
+- **R5a — It is found from a subfolder.** lely walks up from the working directory until it
+  finds a `lely.yml`, or a `pyproject.toml` with a `[tool.lely]` section; `--config` names one
+  outright. A step's paths are relative to that file, not to where the command was run.
+  *(owner, 2026-10-05; the last sentence is today's behaviour)*
 - **R6 — One of the two, not both.** With both present lely stops and names the two files; it
   does not merge them and does not pick. *(proposed)*
 - **R7 — Everything is checked offline by `lely validate`:** unknown keys, options against the
@@ -80,11 +84,8 @@ are errors, with file, line and column.
 
 - **The shape** (was D1): one ordered list — R1. `pre:`, `post:`, `bundle:` and `bundle_vars:`
   go. Nothing is published, so there is no file to migrate. *(owner, 2026-10-05)*
-
-## To decide
-
-- **D2 — Where the file is looked for.** Today: the working directory only. stevin walks up from
-  the working directory to find its project file. Same here? *(proposed: yes, for both formats)*
+- **Where the file is looked for** (was D2): upwards from the working directory — R5a.
+  *(owner, 2026-10-05)*
 
 ## Done when
 
@@ -92,3 +93,4 @@ are errors, with file, line and column.
   plan, byte for byte.
 - `lely validate` reports the same mistakes, with a position, in both.
 - The README's quickstart is written as R1.
+- R6, the one still marked as proposed here, is agreed or changed.

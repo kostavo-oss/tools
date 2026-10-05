@@ -24,6 +24,8 @@ the overview.
   targets, variables, names, ids. *(design)*
 - **R3** — It needs the direct engine. A bundle on the Terraform engine is refused with a message
   that says so. *(design)*
+- **R3a — A project can have more than one bundle step.** Each has its own name, its own path
+  and its own outputs, and one can feed another like any two steps. *(owner, 2026-10-05)*
 
 ### Plan
 
@@ -50,6 +52,9 @@ the overview.
   ([008](008-github-actions.md)), and JSON for anything else. *(proposed)*
 - **R9** — It comes from the CLI (`bundle summary -o json`), not from anything lely remembered.
   Run on another machine, a week later, it gives the same answer. *(owner: no state)*
+- **R9a — Before a first deploy, it shows what would exist.** For a target the bundle was never
+  deployed to, the overview lists the resources the bundle declares, each marked as not deployed
+  — the shape of the target and what is missing from it. *(owner, 2026-10-05)*
 
 ### What it takes and what it gives
 
@@ -108,14 +113,14 @@ settled.
 - **V4** — What the CLI does when the bundle's target names one workspace and the credentials at
   hand reach another ([002/R24](002-plugins.md)): lely expects a refusal it can pass on.
 
-## To decide
+## Decided
 
-- **D1 — More than one bundle in a project.** It falls out of the bundle being a plugin: two
-  steps, two paths. Allow it from the start, or one bundle per project for now? *(proposed: allow
-  it; it costs nothing now that the config is one list, [003/R1](003-config.md))*
-- **D2 — The overview when nothing is deployed yet.** An empty table, or the resources the bundle
-  *would* create, marked as not there? *(proposed: the second — it is the same list a first plan
-  shows)*
+- **More than one bundle in a project** (was D1): yes, from the start — R3a.
+  *(owner, 2026-10-05)*
+- **The overview when nothing is deployed yet** (was D2): what would exist, marked as not
+  deployed — R9a. *(owner, 2026-10-05)*
+- **No run on a real workspace for now:** see [To verify](#to-verify-on-a-workspace).
+  *(owner, 2026-10-05)*
 
 ## Done when
 

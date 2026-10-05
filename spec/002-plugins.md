@@ -91,8 +91,9 @@ clearly defined")*
   plugin doesn't declare; and to a step that is skipped for a target the referring step runs
   for. *(the first two built; the last two need R14)*
 - **R19 — A value that isn't known yet is never guessed.** If a step's input is only known after
-  apply — the id of a job this deploy creates — the plan shows that step as *decided at apply*
-  and names the output it is waiting for. *(built)*
+  apply — the id of a job this deploy creates — the plan shows that step as *waiting* and names
+  the output it is waiting for. What apply then does with it is
+  [005/R20–R25](005-plan-apply-destroy.md). *(built, as "decided at apply")*
 - **R20 — The wiring is shown.** In a plan — terminal, page or Markdown — every step lists what it
   takes, from which step, and the value where it is known:
   `model_version = 14  ← model.version`. And `lely validate` prints the wiring of the whole

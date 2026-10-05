@@ -75,6 +75,41 @@ promises and become code. And `destroy` is the one verb that can't be taken back
 - **R16** — There is no rollback. A failure half-way leaves what was done, done, and the result
   says so in those words. *(design)*
 
+### A step that can't be planned yet
+
+*A plan reaches as far as lely can see, and consent covers what was shown.*
+
+- **R20 — Ready or waiting.** A step whose inputs are all known is *ready*: the plan shows its
+  changes, and approving the plan approves them. A step that takes something that doesn't exist
+  yet is *waiting*: the plan shows the step and names what it waits for
+  (`app.resources.jobs.backfill.id`), and shows no changes, because nobody can know them.
+  *(owner, 2026-10-05; the showing is built, as "decided at apply")*
+- **R21 — One rule, wherever the step stands.** A step waits when it takes something an earlier
+  step only has after it is applied — below the bundle or above it. In practice that is narrow:
+  the first deploy of something a later step needs the id or link of. The second time it exists,
+  and the step is ready. *(owner, 2026-10-05)*
+- **R22 — A reviewed file runs what was reviewed.** `lely apply plan.json` stops at a waiting
+  step and says to plan again; the next plan shows that step, now ready. So a first deploy through
+  a reviewed file can take two rounds, and every deploy after it takes one.
+  *(owner, 2026-10-05)*
+- **R23 — `--yes` without a file runs it.** `lely apply -t <target> --yes` plans a waiting step
+  when it gets there and runs it: nobody reviewed a plan in that run, and `--yes` said not to
+  ask. *(owner, 2026-10-05)*
+- **R24 — At a terminal, lely asks again.** `lely apply -t <target>` shows the waiting step's
+  plan when it gets there, and asks once more before running it. *(proposed — the same consent,
+  given at the moment it can be)*
+- **R25 — Never out of order, and never past the other rules.** Apply doesn't skip a waiting step
+  to reach the ones below it. A destructive change in a step that was waiting needs
+  `--allow-destructive` like any other. A destroy has no waiting steps: everything it removes
+  exists. *(proposed)*
+
+### How a run ends
+
+- **R26 — Three exit codes.** 0: done. 1: a step failed. 2: lely refused, before or between
+  steps — a plan that went stale, a waiting step in a reviewed file, a change that wasn't
+  approved, a destructive change that wasn't allowed, no consent. A pipeline can tell "plan
+  again" from "something broke" without reading the message. *(owner, 2026-10-05)*
+
 ### On demand
 
 - **R17 — `lely status -t <target>`** changes nothing and shows the overview of every step for
@@ -112,46 +147,14 @@ promises and become code. And `destroy` is the one verb that can't be taken back
   unverified — in the code, and in the README where a user would rely on it — until a real run
   is done. The list of what is assumed is [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace).
   *(owner, 2026-10-05)*
-
-## To decide
-
-- **D4 — A step that can't be planned yet.** Under discussion with the owner; the model on the
-  table:
-
-  *A plan reaches as far as lely can see.* Every value a step takes is either known when
-  planning or only exists after something above it has been applied
-  ([002/R14](002-plugins.md)). A step whose inputs are all known is **ready**: the plan shows its
-  changes, and approving the plan approves them. A step that takes something that doesn't exist
-  yet is **waiting**: the plan shows the step, names what it waits for, and shows no changes —
-  because there are none anyone could know.
-
-  Where a step stands in the list doesn't decide this; what it takes does. In practice it is
-  narrow: a step *below* the bundle that needs the id or link of something the bundle creates
-  *in this very deploy*. The second time, that thing exists, its id is known, and the step is
-  ready like any other. A step above the bundle, or one that takes nothing from it, never waits.
-  A destroy never has a waiting step: everything it removes exists.
-
-  *Consent covers what was shown.* Apply walks down the list and may pass a step only with
-  consent for what that step does:
-
-  | How apply was started | Consent given for | At a waiting step |
-  |---|---|---|
-  | `lely apply plan.json` | exactly what is in the file | stops: "plan again" — the next plan shows the step, now ready |
-  | `lely apply -t dev` at a terminal | what was shown and answered | plans the step, shows it, asks once more |
-  | `lely apply -t dev --yes` | whatever the config plans to, unasked | plans the step and runs it |
-
-  A destructive change still needs `--allow-destructive` in every row. Steps never run out of
-  order: apply doesn't skip a waiting step to get to the ones below it.
-
-  So a first deploy through a reviewed plan file takes two rounds — everything down to the
-  waiting step, then the rest — and every deploy after it takes one. *(proposed)*
-- **D6 — Exit codes.** *(proposed)* 0 done; 1 a step failed; 2 refused before or between steps —
-  a stale plan, a change that wasn't approved, a destructive change that wasn't allowed. A
-  pipeline can then tell "plan again" from "something broke".
+- **A step that can't be planned yet** (was D4): ready or waiting, by what a step takes and not by
+  where it stands; a reviewed file stops there and asks for a new plan; `--yes` without a file
+  runs it — R20 to R25. *(owner, 2026-10-05)*
+- **Exit codes** (was D6): 0 done, 1 failed, 2 refused — R26. *(owner, 2026-10-05)*
 
 ## Done when
 
-- R1–R19 each have a test, against fake tools.
+- R1–R26 each have a test, against fake tools.
 - The README no longer says lely "shows you a whole deploy and runs none of it" — and says
   instead that apply and destroy have not yet been run against a real workspace.
-- D4 and D6 are answered here.
+- R24 and R25, the two still marked as proposed here, are agreed or changed.
