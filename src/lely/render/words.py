@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import NamedTuple
 
 from lely.model import Overview, Plan, PlannedStep, Result, Secret, StepResult, Value
@@ -104,21 +104,31 @@ class Warning(NamedTuple):
     loud: bool
 
 
-def warnings(plan: Plan, saved: bool = True) -> Iterator[Warning]:
+def _ticked(name: str) -> str:
+    return f"`{name}`"
+
+
+def warnings(
+    plan: Plan, saved: bool = True, *, quoted: Callable[[str], str] = _ticked
+) -> Iterator[Warning]:
     """What a reader of the plan has to know before running it. `saved` is
     false for a plan that is run now and never written: what it was made on is
-    held to nothing either way, so nothing is said about it."""
+    held to nothing either way, so nothing is said about it.
+
+    `quoted` is how a renderer writes a step's name inside a sentence.
+    """
     waiting = plan.waiting
     if plan.kind == "apply" and waiting and saved:
         first = waiting[0]
+        name = quoted(first.name)
         yield Warning(
-            f"Applied from a file, this stops before `{first.name}`: a waiting "
+            f"Applied from a file, this stops before {name}: a waiting "
             "step is planned once what it waits for exists.",
             loud=True,
         )
         if first.every_deploy:
             yield Warning(
-                f"`{first.name}` waits for what only a run produces, so a file can "
+                f"{name} waits for what only a run produces, so a file can "
                 "never take it further: `lely apply -t <target>` does.",
                 loud=True,
             )
@@ -145,6 +155,17 @@ def warnings(plan: Plan, saved: bool = True) -> Iterator[Warning]:
 
 
 # -- a run ----------------------------------------------------------------------
+
+#: How a step ended, in one character.
+MARKS = {
+    "done": "✓",
+    "nothing": "·",
+    "skipped": "–",
+    "passed": "·",
+    "failed": "✗",
+    "refused": "✗",
+    "not started": "·",
+}
 
 
 def outcome(step: StepResult) -> str:

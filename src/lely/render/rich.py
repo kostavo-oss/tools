@@ -60,13 +60,13 @@ STYLES = {
 }
 
 _OUTCOMES = {
-    "done": ("✓", "green"),
-    "nothing": ("·", "dim"),
-    "skipped": ("–", "dim"),
-    "passed": ("·", "dim"),
-    "failed": ("✗", "bold red"),
-    "refused": ("✗", "bold red"),
-    "not started": ("·", "dim"),
+    "done": "green",
+    "nothing": "dim",
+    "skipped": "dim",
+    "passed": "dim",
+    "failed": "bold red",
+    "refused": "bold red",
+    "not started": "dim",
 }
 
 
@@ -247,7 +247,7 @@ def _result_lines(result: Result) -> Iterator[Text]:
 
 
 def _step_result(step: StepResult) -> Iterator[Text]:
-    symbol, style = _OUTCOMES[step.outcome]
+    symbol, style = words.MARKS[step.outcome], _OUTCOMES[step.outcome]
     line = Text.assemble(
         "  ", (symbol, style), " ", (step.name, "bold"), "  ", (step.uses, "dim")
     )
