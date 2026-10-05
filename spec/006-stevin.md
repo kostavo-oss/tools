@@ -8,6 +8,8 @@ for this, and nothing here is agreed.
 The plan half of a `stevin` plugin is in the code: it runs the `stevin` command, reads its plan
 file, and shows one change per table. stevin is not a dependency of lely. That code is left as it
 is — kept working when the contract around it changes ([002](002-plugins.md)), and not extended.
+Since phase one it says of itself that it can plan and can't apply, and `lely apply` refuses a
+project that uses it before anything runs.
 
 ## Notes for when it is taken up
 

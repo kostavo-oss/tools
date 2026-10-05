@@ -3,8 +3,16 @@
 `lely`, after Cornelis Lely, who got the Zuiderzee Works built. It was designed under the working
 name `sluis` — Dutch for a lock, which moves a ship through one chamber at a time — and that is
 still how it works.
-It is one `plan` and one `apply` for a whole Databricks deploy. Pre-deploy steps run, then the bundle
-deploys, then post-deploy steps run. Each step can see what the ones before it produced.
+
+**One plan for your whole Databricks deploy.** The bundle and everything around it — the steps
+before, the steps after — reviewed before anything runs, and taken down again when you say so.
+
+lely plans, applies and destroys an ordered list of steps, each done by a plugin, and keeps no
+state of its own. The Asset Bundle is one of those plugins.
+
+`spec/` says *what* each piece must deliver and when it is done. This file says *how* it is built.
+It was rewritten on 2026-10-05 to the direction the owner set that day, and phase one was built to
+it the same day — against fake tools only. Where the two disagree, say so instead of picking one.
 
 "Bundle" means a Declarative Automation Bundle, formerly Databricks Asset Bundle: `databricks.yml`,
 deployed by the Databricks CLI.
@@ -28,354 +36,496 @@ What a bundle offers for everything else, checked 2026-09-29 against CLI v1.18.0
 - https://docs.databricks.com/aws/en/dev-tools/bundles/python/
 - https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands
 
+So a real deploy is a bundle and glue around it, and the glue fails in four ways: nobody sees the
+whole deploy before it runs; what one step hands the next is invisible; nothing is guarded the same
+way twice; and it only goes one way. lely's answer to each: one plan for every step, values between
+steps written down and checked, one rule for consent, and `destroy`.
+
 ## Goals
 
-- One plan for the whole deploy: every step's changes plus the bundle's, reviewable as one PR comment.
-- One apply: pre steps, then `bundle deploy`, then post steps. Typed outputs flow forward, and running
-  it again finishes an interrupted deploy.
-- A small, explicit step interface. A step can be a Python class in the repo, an installed package,
-  or a pair of commands.
-- v1 ships two built-in steps: `stevin` and `bundle.run`. Lakebase and MLflow come later
-  ([Later](#later)).
-- The bundle stays the bundle. lely asks the Databricks CLI and never reimplements what the CLI
-  resolves.
+- One plan for the whole deploy: every step's changes, reviewable in one place.
+- Three verbs — `plan`, `apply`, `destroy` — and `status` to see what is there.
+- No state: whatever a plugin needs to know, it reads from the system it manages.
+- What passes between steps is declared, checked offline, and shown.
+- Nothing that changes a workspace runs unasked; a destructive change is named and refused unless
+  allowed.
+- A small plugin contract. A plugin is a Python class in the repo, an installed package, or a pair
+  of commands, under the same rules as the ones lely ships.
+- The bundle stays the bundle. The bundle plugin asks the Databricks CLI and never reimplements what
+  the CLI resolves.
 
 ## Non-goals
 
 - **Anything a bundle resource can manage.** If a resource type exists, the bundle does it. When a
-  new resource type makes a step redundant, the step is deprecated, not defended.
-- **Feeding the bundle anything but variables.** Pre-step outputs become `--var`s. Steps never
-  generate YAML for the bundle to include, so everything the bundle deploys stays readable in its
-  own files. Python for bundles already covers generating resources from code.
-- **A workflow engine.** There are three phases, each an ordered list. There is no DAG, no
-  parallelism between steps and no retries.
-- **Rollback.** See [Failure model](#failure-model).
+  new resource type makes a step redundant, the step is retired, not defended.
+- **Feeding the bundle anything but variables.** A step never generates YAML for the bundle to
+  include, so everything the bundle deploys stays readable in its own files.
+- **A workflow engine.** One ordered list: no DAG, no parallel steps, no retries.
+- **Rollback.** See [When something fails](#when-something-fails).
 - **Building artifacts.** The bundle's `artifacts` does that.
-- **A state file or run history.** Each system a step touches is its own state.
-- **The Terraform engine.** lely requires the direct engine: `bundle deploy --plan` is direct-only,
-  and Terraform is deprecated. `lely doctor` reports a bundle's engine.
-- **MCP.** Nothing is needed now. For the record: managed servers need no deploy; a custom server is
-  an app (the bundle, plus `bundle.run` for its code); an external one needs a UC HTTP connection,
-  which isn't a bundle resource.
-- **`bundle destroy` and teardown**, in v1.
-- **CI systems other than GitHub Actions**, in v1.
+- **A state file or run history** — and so lely cannot see what the config no longer names. A step
+  that is removed or renamed, a target taken out of `targets:`, a bundle moved to another path:
+  what they deployed stays. Destroy first, then remove the step.
+- **The Terraform engine.** The bundle plugin needs the direct engine: `bundle deploy --plan` is
+  direct-only.
+- **CI systems other than GitHub Actions**, for now.
 
-## Pipeline
+## How a run goes
 
 ```
-lely.yml ───────┐
-databricks.yml ──┼─> resolve ─> context ─> plan: pre steps ─> bundle plan ─> post steps ─> Plan (JSON) ─> renderer
-                 │  (bundle validate)                                                        │
-                 │                                                                           └─> apply
-                 │
-apply:  pre[i]: re-plan, check, apply ─> bundle deploy --plan ─> bundle summary ─> post[i]: re-plan, check, apply
+lely.yml  or  pyproject.toml [tool.lely]
+        │
+        ▼
+   config ──▶ check ──▶ for each step, top to bottom:
+   (one list)  (offline)   resolve its options from the outputs above it
+                           ├─ all known  → the plugin plans it          (ready)
+                           └─ something missing → no plan, by name      (waiting)
+                                   │
+                                   ▼
+                              Plan ──▶ terminal · JSON file
+
+apply:    top to bottom, each step planned again, checked against what was approved, applied
+destroy:  options resolved top to bottom, then bottom to top: planned again, checked, destroyed
+status:   options resolved top to bottom, each plugin asked what exists
 ```
 
-1. **Config**: `lely.yml` becomes frozen dataclasses. It is validated at this edge only, with
-   file:line:column errors and strict unknown-key errors. Each step's `with:` block is validated
-   against that step's `Options`.
-2. **Resolve**: `databricks bundle validate -o json -t <target>` gives targets, variables and resource
-   names as a deploy would produce them.
-3. **Plan**: each pre step plans, then the bundle (`bundle plan -o json`, with pre-step outputs as
-   `--var`), then each post step. Nothing changes anywhere.
-4. **Render**: Rich, Markdown for PR comments, and JSON, all from the same plan.
-5. **Apply**: steps run in order. Each step is re-planned just before it runs and checked against
-   what was approved. After the bundle deploys, `bundle summary -o json` adds IDs and URLs to the
-   context.
+The core does no I/O: config, references, the wiring, plan assembly, the approval check and the
+renderers are pure. I/O happens at the edges: the plugins, the Databricks CLI runner, the workspace
+client, `git`, and the command line.
 
-The core does no I/O: config, references, ordering, plan assembly, the approval check and the
-renderers. I/O happens only at the edges: the CLI runner, the workspace client, and the steps.
+| Module | Does |
+|---|---|
+| `config` | `lely.yml` or `pyproject.toml` → one list of steps, every value with its file, line and column |
+| `refs` | `${steps.<name>.<output>}` and `${env.<NAME>}`: shape, where one may stand, what it answers |
+| `options` | a step's `with:` → the plugin's `Options` dataclass, strictly |
+| `registry` | `uses:` → a plugin class |
+| `step` | the plugin contract and what a step is given |
+| `model` | plans, changes, outputs, overviews, results — frozen dataclasses |
+| `planning` | `check` (offline) and `plan`; one `Session` that resolves steps in order |
+| `approval` | what may run: the plan file against the project, a fresh plan against the approved one |
+| `running` | `apply`, `destroy`, `status` |
+| `planfile` | the plan and the result, to JSON and back |
+| `schema` | the config's shape as JSON Schema, built from the plugins, for editors |
+| `render` | the terminal |
+| `steps/` | the plugins lely ships: `bundle`, `bundle.run`, `command`, and `stevin`'s plan half |
+| `databricks`, `source`, `process` | the Databricks CLI, `git`, any other program |
+| `cli` | the commands, consent, exit codes |
 
-## Config: `lely.yml`
+No module outside `steps/` knows a plugin by name.
 
-Next to `databricks.yml`. The targets are the bundle's targets; there is no second list.
+## Config
+
+One ordered list. `lely.yml`, or `[tool.lely]` in `pyproject.toml` with the same keys; lely walks up
+from the working directory to the first folder that has either. Both in one folder is an error that
+names the two files.
 
 ```yaml
-bundle: .                            # directory holding databricks.yml
+steps:
+  - name: model                  # feeds the bundle: it is above it …
+    uses: ./ops/steps.py:LatestModel
+    with: {model: main.ml.churn, alias: candidate}
 
-pre:
-  - name: model
-    uses: ./ops/steps.py:LatestModel # a step in the repo: looks something up, changes nothing
+  - name: app
+    uses: bundle
     with:
-      model: ${var.catalog}.ml.churn
-      alias: candidate
+      path: .
+      vars:
+        model_version: ${steps.model.version}     # … and the bundle says what it takes
 
-bundle_vars:                         # pre-step outputs into the bundle, as --var
-  model_version: ${steps.model.version}
-
-post:
-  - name: tables
-    uses: stevin
-    with: {config: stevin.yml}
-  - name: backfill
-    uses: bundle.run
-    with: {resource: jobs.backfill}
-  - name: seed
+  - name: backfill               # needs something from the bundle: it is below it …
     uses: command
-    with: {apply: [./ops/seed.sh]}
-    targets: [dev]                   # skipped for other targets
+    with:
+      apply: [./ops/backfill.sh, "${steps.app.resources.jobs.backfill.id}"]
+    targets: [dev]               # skipped, visibly, for any other target
 ```
 
-**References**, resolved by the core and checked offline by `lely validate`:
+A step has `name`, `uses`, `with` and `targets`. Unknown keys are errors where they were written,
+in either format. YAML is read through its node tree, so every value keeps its line and column.
+TOML is read with `tomllib`, which keeps none: positions are found by scanning the text for each
+key in the order it was read, which is exact for files written the usual way and a best effort
+otherwise.
 
-| Reference | Source | Available |
+A step's paths are relative to the config file, not to where the command was run.
+
+## What flows between steps
+
+One step's output is another step's input, and there is one way to say so.
+
+**Outputs are declared.** A plugin lists what a step of it gives, each with when it is known:
+
+| Known | Means | Example |
 |---|---|---|
-| `${var.<name>}`, `${bundle.target}`, `${bundle.name}` | `bundle validate` | everywhere |
-| `${resources.<type>.<key>.<field>}` | `bundle validate` | everywhere |
-| `${resources.<type>.<key>.id}` / `.url` | `bundle summary` | post only |
-| `${steps.<name>.<output>}` | an earlier step's outputs | after that step |
-| `${env.<NAME>}` | the environment | everywhere; never printed, never written to a plan file |
+| `plan` — *at plan* | always, before anything is deployed | a looked-up model version |
+| `exists` — *once it exists* | at plan if the thing is there already, otherwise after apply | the id of a job the bundle deploys |
+| `run` — *after every run* | never at plan: it is produced by running | what a script writes while it applies |
 
-A reference that can't be resolved in its position is an error, never an empty string. That covers
-an `.id` in a pre step, a step that runs later, and a missing variable.
+A name that depends on the project is declared as a shape — `resources.<type>.<key>.id` — where
+each `<…>` stands for exactly one part. A reference is matched against the declared names; the most
+literal one wins, and any parts left over walk into the value.
 
-**Bundle variables**: scalars go through `--var`. Complex variables can't be passed that way.
-`TODO(verify)`: whether `.databricks/bundle/<target>/variable-overrides.json` is the supported route
-for them.
+**An input is a reference in the step's own options:** `${steps.<name>.<output>}`. There is no other
+channel. `${env.<NAME>}` reads the environment, which is not a step; its value is a `Secret`, so it
+can only go where a plugin asked for one and is never shown or written.
 
-## The step interface
+An option can also name a whole step — `bundle: app` on a `bundle.run` step — when its type is
+`Linked`. The plugin is then given that step's options and outputs. It is the same rule: the
+dependency is written in `with:`, and the named step must stand above.
+
+**References point up the list.** So the order of the list is the order of dependency, and there is
+no way to write a circle. `lely validate` refuses, offline: a step that isn't there; one listed
+further down; an output the plugin doesn't declare or that fits no shape; a step whose `targets:`
+leave out a target the referring step runs for. It then prints the wiring: per step, what it takes
+and what it gives.
+
+**A value that isn't known yet is never guessed.** While planning, a step's plan may leave out a
+declared *once it exists* output and name it in `later`. A step that takes a value that isn't there
+is *waiting*, and the plan says for what, by name: `app.resources.jobs.bar.id`. A name that is
+neither given nor promised is an error at plan, before anything changes.
+
+## The plugin contract
 
 ```python
-class Step[O](Protocol):
-    Options: type[O]  # frozen dataclass; `with:` is validated into it
+class Plugin(Protocol):
+    Options: type  # a frozen dataclass; `with:` is checked against it
+    outputs: tuple[Output, ...]  # optional; or a function of the options as written
 
-    def plan(self, ctx: Context[O]) -> StepPlan: ...
-    def apply(self, ctx: Context[O], plan: StepPlan) -> Outputs: ...
+    def plan(self, ctx: Context) -> StepPlan: ...
+    def apply(self, ctx: Context, plan: StepPlan) -> Outputs: ...
+
+    # optional — a plugin without one says so by not having it
+    def overview(self, ctx: Context) -> Overview | Skip: ...
+    def plan_destroy(self, ctx: Context) -> StepPlan | Skip: ...
+    def destroy(self, ctx: Context, plan: StepPlan) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
-class Context[O]:
-    target: str
-    options: O  # references already resolved
-    bundle: Bundle  # `bundle validate -o json`
-    deployed: Deployed | None  # `bundle summary -o json`; None before deploy
-    outputs: Mapping[str, Outputs]  # earlier steps, by name
-    workspace: WorkspaceClient  # the target's workspace, same auth as the CLI
-    root: Path
-    log: Log  # progress lines; a heartbeat while waiting
+class Context:  # everything a step is given
+    target: str  # `-t`, as typed; each plugin reads it its own way
+    name: str  # the step's own name
+    options: Options  # its `with:`, references resolved
+    root: Path  # the project's directory
+    host: str  # the workspace this run talks to
+    env: Mapping[str, str]  # for a program the step runs
+    databricks: Cli  # the Databricks CLI, with this run's credentials
+    log: Log
+    workspace: WorkspaceClient  # the SDK, connected on first use
 
 
 @dataclass(frozen=True, slots=True)
 class StepPlan:
-    changes: tuple[Change, ...]
-    outputs: Outputs  # what is known at plan time
-    deferred: str | None = None  # why part of this is decided at apply
-    payload: Json = None  # the step's own data, carried in plan.json
+    changes: tuple[Change, ...] = ()
+    outputs: Outputs = {}  # what is known now, by declared name
+    later: tuple[str, ...] = ()  # declared outputs that exist only after apply
+    waiting: str | None = None  # why part of this plan can't be made yet
+    notes: tuple[str, ...] = ()  # lines shown with the plan that are not changes
+    payload: Json = None  # the plugin's own data, carried in the plan file
 
 
 @dataclass(frozen=True, slots=True)
 class Change:
-    key: str  # stable identity: "orders.amount", "jobs.backfill"
+    key: str  # identity across plans: "jobs.backfill"
     action: Literal["create", "update", "delete", "replace", "run"]
     summary: str
-    destructive: bool = False  # delete and replace are always destructive
+    destructive: bool = False  # delete and replace always are
     detail: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Item:  # one line of an overview
+    kind: str  # "job"
+    key: str  # "jobs.backfill"
+    name: str  # "shop-backfill"
+    deployed: bool
+    id: str | None = None
+    url: str | None = None
 ```
 
-**Rules every step follows.** The contract kit (see [Testing](#testing)) checks each one:
+A step is not handed the other steps' outputs, or the bundle. What it depends on is in its options.
 
-- **Stateless.** `plan` and `apply` may run on different machines, days apart. Only the `StepPlan`
-  passes between them, serialised in `plan.json`.
-- **`plan` changes nothing.** It runs on every pull request.
-- **`apply` does what the plan says, and no more.** For a convergent step (no `run` changes),
-  planning again right after `apply` gives an empty plan.
-- **Only what the options name.** A step never touches what its config doesn't mention. Anything else
-  is reported as unmanaged, never removed.
-- **Destructive is declared.** Deleting, replacing or dropping data is `destructive`, and `apply`
-  refuses it without `--allow-destructive`.
-- **No secrets in plans.** Outputs may hold `Secret` values. They are rendered as `***`, never
-  written to `plan.json`, and fetched again at apply.
+`run` is the action for what happens on every apply rather than being a difference between two
+states: running a job, running a script, uploading a bundle's files. A plan that holds one is never
+"nothing to do", and it is counted as a run, not as a change.
 
-**Finding a step** (`uses:`):
+**Rules every plugin follows.** `lely.testing` checks each as something that can fail:
 
-1. A registered name, from the entry-point group `lely.steps`. Built-ins register the same way.
-2. `package.module:Class`.
-3. `./path/to/file.py:Class`, loaded from the repo.
+- **No state.** `plan` and `apply` may run on different machines, days apart; only the plan passes
+  between them.
+- **`plan` changes nothing**, and neither does `overview`. Both run on every pull request.
+- **`apply` does what the plan says, and no more.** For a plugin that converges, planning again
+  right after gives no changes.
+- **Only what the options name.** Anything else is not its own, and never changed.
+- **It destroys only what it can show is its own.** `command` is the exception by its nature, and
+  its destroy plan shows the command line in full.
+- **Destructive is declared.** A change the plugin's tool reports and the plugin doesn't recognise
+  is destructive.
+- **Outputs are as declared.** Nothing undeclared is given; nothing declared *at plan* is missing.
+- **No secret in a plan.** A secret output is a `Secret`; a payload holds none.
 
-`lely steps` lists what's installed and each step's options. The editors' JSON Schema for
-`lely.yml` is built from the same `Options` classes.
+**Planning runs the project's own code.** A plugin that is a file in the repo is loaded even by
+`validate`; a `command` step's plan command is run by `plan`. On a pull request, `plan` must be
+given credentials that can read and nothing more. lely can't enforce that; `lely doctor` and the
+docs say it.
 
-## Built-in steps (v1)
+**Finding a plugin** (`uses:`): a registered name from the entry-point group `lely.steps`;
+`package.module:Class`; or `./path/to/file.py:Class` in the repo. The plugins lely ships register
+the same way. `lely steps` lists the registered ones and the ones the project names, each with its
+options, its outputs and when each is known, and whether it can list and destroy.
 
-### `stevin`
+## The plugins of phase one
 
-Runs the stevin CLI. The contract is stevin's CLI and its plan file (`PLAN_FORMAT_VERSION`), not
-its Python modules, so stevin stays a standalone tool with its own releases.
+### `bundle`
 
-- **plan**: `stevin plan -t <target> -o <tmp> -f json`. The payload is that plan file. stevin's
-  `destructive` maps to `destructive`, and every other risk class maps to `update`. A `rewrite` is
-  named in the detail.
-- **apply**: writes the payload back to a file, then runs `stevin apply <file> --yes`, with
-  `--allow-destructive` only if lely was given it. stevin's own state fingerprint catches a stale
-  plan.
-- **Placement**: usually post, because a bundle that declares the schema creates it. It goes pre only
-  when the schemas already exist.
+Deploys an Asset Bundle. Options: `path`, the directory holding `databricks.yml`, and `vars`, passed
+as `--var` to every CLI call the step makes. A project can have several; each takes `-t` as its own
+bundle target, and all deploy to the one workspace the run talks to. A bundle whose target names
+another workspace is refused.
 
-### `bundle.run`
+- **plan**: `bundle summary` and `bundle plan`, both `-o json` — not `bundle validate`, which
+  creates a folder in the workspace. One change per
+  resource that is created, updated, replaced or deleted, keyed `jobs.backfill`. A delete, a
+  `recreate`, an `update_id` and any action lely doesn't know are destructive. One more line, a
+  `run`: *uploads the bundle's files* — a deploy ships notebooks and wheels even when no resource
+  changes, and `bundle plan` speaks only of resources. The payload is the CLI's own plan.
+- **apply**: the core has just planned the step again and checked it. That fresh plan is written to
+  a file and handed to `bundle deploy --plan`. The CLI checks its own part too: it refuses a plan
+  whose state `lineage` or `serial` has moved on. A refusal by the CLI is passed on word for word
+  and ends the run as refused.
+- **overview**: from `bundle summary`, and from nothing else: every resource the bundle declares,
+  with its name, and its id and link once deployed. It says whose view it is — the identity and the
+  bundle's root path — because what a bundle deployed is recorded under a path that can depend on
+  who deploys.
+- **destroy**: the plan lists every resource the summary shows as deployed, each destructive, and
+  says the uploaded files go with them. Destroying runs `bundle destroy` and nothing else.
 
-Runs a bundle resource (a job, pipeline or app) at its place in the order, via
-`databricks bundle run <key>`. It is how a post step goes *between* things without a DAG: create the
-tables, then run the backfill that fills them. Plain `bundle deploy` doesn't deploy app code, so this
-is also how an app's code ships. Its plan is always one `run` change: it runs on every apply.
+It gives: `target` and `name`; `workspace.<field>`; `var.<name>`;
+`resources.<type>.<key>.<field>` for every field the resolved config has — all *at plan* — and
+`resources.<type>.<key>.id` and `.url`, *once it exists*. The id of a resource this deploy creates
+or replaces is `later`.
 
 ### `command`
 
-The escape hatch, for steps that don't need Python:
+Runs commands the project gives it. Each is a list — a program and its arguments — never passed
+through a shell.
 
 ```yaml
 - name: seed
   uses: command
   with:
-    plan: [./ops/seed.sh, --plan]  # optional; prints StepPlan JSON on stdout
+    plan: [./ops/seed.sh, --plan]      # optional; prints the step's plan as JSON on stdout
     apply: [./ops/seed.sh]
+    destroy: [./ops/seed.sh, --drop]   # optional
+    outputs: [count]                   # optional; what the step gives
 ```
 
-- **Environment**: the command inherits lely's environment, plus `DATABRICKS_HOST` (and
-  `DATABRICKS_CONFIG_PROFILE` when a profile is used), so the CLI and the SDK inside it reach the
-  same workspace. It also gets `LELY_TARGET`, `LELY_PLAN` (the step's plan, as a file) and
-  `LELY_OUTPUTS`, a file it writes outputs to, as in GitHub Actions.
-- **No `plan:` command**: the step's plan is one `run` change.
+- **plan**: with a plan command, what it prints. Without one, a single `run` line that shows the
+  command.
+- **apply**: the apply command, from the project's directory. It is given the environment lely was
+  run in, the step's `env`, `LELY_TARGET` and `LELY_STEP`, and on apply `LELY_PLAN` (a file holding
+  the plan that was approved for this step) and `LELY_OUTPUTS` (a file it writes outputs to, one
+  `name=value` to a line).
+- **outputs**: the step lists them. One the plan command prints is known at plan; one the apply
+  command writes is known after the run. Without a plan command they are all *after every run*;
+  with one, lely can't know before running it which it prints, so they are *once it exists*. A name
+  it lists and gives in neither way is a failed step.
+- **destroy**: with a destroy command, the plan shows that command line in full, marked
+  destructive. Without one the step is skipped, visibly.
+- No secret in its arguments: they would be visible to every process on the machine. `env` may hold
+  one.
 
-### Python classes
+### `bundle.run`
 
-A class implementing `Step`, referenced by `module:Class` or `./file.py:Class`. This is how a team
-writes its own plan/apply step, with the same rules and contract kit as the built-ins.
+Runs a job, pipeline or app from a bundle step, via `databricks bundle run <key>`. Options:
+`bundle`, the bundle step it belongs to — always named; `resource` (`jobs.backfill`); and `args`.
+Its plan is one `run` line. It has nothing to destroy and nothing to list.
 
-## Planning what doesn't exist yet
+### A class in the repo
 
-At plan time nothing is deployed. A post step plans against the workspace as it is now, with the
-bundle's resolved config beside it:
+Whatever a team writes, through the contract above.
 
-1. **The target exists**: a normal plan.
-2. **This deploy creates or changes the target**: the step plans what it can from files alone, and
-   sets `deferred` to say why the rest waits. Example: "schema `sales` is created by this deploy:
-   every table is new".
-3. **Bundle variables from pre steps**: known at plan time in the common case, because a step
-   computes its outputs in `plan`. If a variable isn't known, the bundle is planned at apply instead,
-   and the plan says so.
+### `stevin`
 
-**The approval check.** `apply` re-plans every step right before running it. It may continue only if
-every change in the new plan matches an approved change by `key`, and none has become destructive.
-Fewer changes is fine: someone else did part of the work. Anything new stops the run and asks for a
-new plan. The bundle gets the same check: a resource key with an action, and `delete`, `recreate` and
-`update_id` count as destructive. The CLI checks its own part too: `bundle deploy --plan` refuses a
-plan whose state `lineage` or `serial` has moved on ("the state has been modified since the plan
-was created"). Source: `bundle/direct/bundle_plan.go`, `ValidatePlanAgainstState`, and the acceptance
-tests `deploy/readplan/serial-mismatch` and `lineage-mismatch`, at CLI commit `e41a5c8`.
+Parked: the owner takes it up separately ([spec 006](../spec/006-stevin.md)). Its plan half exists
+— `stevin plan --target <t> --config <c> --output <tmp> --format json`, the plan file as payload —
+and is left as it is. A project that uses it can plan; `apply` refuses before anything runs.
 
-`apply` also refuses a plan file whose `lely.yml`, or any step's resolved options, differ from the
-ones it was planned with.
+## Ready, waiting, skipped
 
-## Failure model
+Every step in a plan is one of three things.
+
+- **Ready**: all its inputs are known. The plan shows its changes, and approving the plan approves
+  them.
+- **Waiting**: it takes something that doesn't exist yet, or its plugin says part of its plan can't
+  be made yet. The plan shows the step and what it waits for, and no changes.
+- **Skipped**: its `targets:` leave this target out; or, in a destroy, its plugin has nothing to
+  destroy or it needs something that isn't there. The plan says why.
+
+At a waiting step, `apply` does one of three things, and never goes past it out of order:
+
+| How it was started | At a waiting step |
+|---|---|
+| `lely apply plan.json` | stops, and says to plan again — a reviewed file runs what was reviewed |
+| `lely apply -t <target>` at a terminal | plans it now, shows it, asks once more |
+| `lely apply -t <target> --yes` | plans it now and runs it — lely's unreviewed way of running |
+
+A step that waits for a *once it exists* output waits on the first deploy only; one that waits for
+an *after every run* output waits on every deploy, and `validate` says so.
+
+## What may run
+
+**The plan file against the project.** A file is refused when the steps for its target, or any
+step's options as written, differ from what it was planned with; when an input that was known at
+plan has another value now — for an apply and for a destroy alike; when it was made against
+another workspace, or for another project of the repository; or when the repository is not on
+a clean checkout of the tree it was planned on. Environment values count by name. A plan made with
+uncommitted changes says so and is not run from a file; one made outside a git repository says
+that nothing could be recorded.
+
+**The approval check.** Each step is planned again immediately before it runs. It may run only if
+every change in the new plan is one that was shown: the same key, the same action, the same lines.
+Fewer changes is fine — someone else did part of the work, or an earlier run did. Anything new, or
+anything that reads differently, stops the run and asks for a new plan. A destroy gets the same
+check.
+
+**Destructive changes** need `--allow-destructive`. Where the plan already shows one, the refusal
+comes before anything runs. In a destroy everything is destructive, and the flag plays no part.
+
+**Consent.** `apply` and `destroy` either ask or were given `--yes`. With no terminal and no `--yes`
+they refuse. To destroy at a terminal, the answer is the target's name, typed. A saved destroy plan
+is run only by `lely destroy <file> -t <target>`: a command that destroys always has both words in
+it. Every question names the workspace and the identity.
+
+## When something fails
 
 Nothing here is transactional, and there is no rollback.
 
-- The first failing step stops the run. Nothing after it runs.
-- **Running `apply` again finishes the job.** Convergent steps re-plan and do what's left. `run`
-  changes run again, so `apply --from <step>` resumes past them. Resuming is explicit, not based on a
-  history.
-- A failure after `bundle deploy` leaves the bundle deployed. The summary says which steps ran, which
-  failed, and which never started.
-- Concurrency: `bundle deploy` holds the bundle's own lock only while it deploys. v1 relies on a
-  GitHub Actions `concurrency:` group per target, and the docs will show the snippet. Open question:
-  a lely lock file in the bundle's state path.
+- The first failing step stops the run. Nothing after it starts. The result has three lists: what
+  ran, what failed (or was refused), what never started. A step with nothing to do didn't run.
+- After a *failure*, running the same command again finishes the job: a step that already did its
+  work plans as nothing to do, and the bundle deploys again, which only uploads its files.
+- After a *refusal* — a stale plan, a waiting step in a reviewed file, a change that wasn't
+  approved — the same file is refused again: it takes a new plan.
+- `--from <step>` starts at a named step; in a destroy, it names where to start going up the list.
+  The steps it passes over are still planned, for what they give the others.
+- Exit codes: 0 done, 1 failed, 2 refused.
+- Concurrency: `bundle deploy` holds the bundle's own lock only while it deploys. A GitHub Actions
+  `concurrency:` group per target does the rest, for now.
 
 ## CLI
 
 ```
-lely validate                          # config, references, step options: offline
-lely steps                             # installed steps and their options
-lely plan -t <target> [-o plan.json] [-f rich|md|json]
-lely show plan.json [-f rich|md|json]
+lely validate                          # config, options, references: offline; prints the wiring
+lely steps                             # plugins: options, outputs, what each can do
+lely schema [-o lely.schema.json]      # a JSON Schema of the config, for editors
+lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
+lely show plan.json [-f rich|json]
 lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
-lely doctor                            # CLI version and engine, auth, each step's tools on PATH
+lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
+lely status -t <target> [-f rich|json]
+lely doctor                            # tools, workspace, identity
 ```
 
-`apply` without a plan file plans, shows the plan, asks, and runs, like stevin.
+`-t` is always given to a command that touches a workspace; there is no default target. The
+workspace comes from `--profile` or from the variables the Databricks SDK and CLI already read. One
+run talks to one workspace.
 
-## Plan output (target look)
+## The plan, in a terminal
 
 ```
-lely plan · shop · target prod
+lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@example.com
 
-pre
-  model        LatestModel     = churn@candidate → version 14
+  model  ./ops/steps.py:LatestModel
+    → version = 14
+  app  bundle
+    model_version = 14  ← model.version
+    + jobs.bar
+    ± pipelines.foo  destructive
+        replaced: storage (immutable)
+    ▶ uploads the bundle's files
+  notify  command
+    ⏸ waiting for app.resources.jobs.bar.id
+  backfill  bundle.run
+    bundle  ← app
+    ▶ runs jobs.backfill
+  warm  command
+    – skipped: not for target dev
 
-bundle                         + 1 job · ~ 2 jobs · ~ 1 serving endpoint
-  var model_version = 14  (from model)
-
-post
-  tables       stevin       ~ 2 tables · 5 steps
-                                 ⏸ schema sales is created by this deploy: checked again before running
-  backfill     bundle.run      ▶ runs jobs.backfill
-
-Plan: 4 changes · 1 run · 0 destructive · 1 decided at apply
+Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
+Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.
 ```
 
-## CI
+Where a step gives something another step takes, it is shown there (`→ version = 14`) and where
+it is taken (`model_version = 14  ← model.version`). The rest of what a step gives is in the plan
+file.
 
-A composite GitHub Action. It posts `lely plan -f md` as a single comment on the pull request that
-covers the bundle and every step, and updates that comment rather than adding new ones. It runs
-`apply` on merge. As in stevin: no `${{ }}` interpolated into a `run:` script.
+## The plan file
+
+JSON, format 2. At the top: the format version; lely's version; whether it is a plan to apply or to
+destroy; the target; the workspace's host and the identity it was planned as; and the git tree it
+was made on. Then every step in order: its name and plugin; ready, waiting (for what) or skipped
+(why); a hash of its options as written; what it takes and from where, with the value where it was
+known; its changes; the outputs it showed; and the plugin's payload.
+
+It never holds a secret: a secret output is a marker, a payload with one is refused, and an
+environment value is a secret. Nothing in it is kept for apply — every step is planned again, and
+gives its values again.
 
 ## Testing
 
-- **Unit**: config, references, ordering, the approval check and the renderers are pure, tested
-  with golden plans.
-- **Fake CLI**: a fake `databricks` on PATH answers from recorded JSON (transcripts of real runs). A
-  command it has no recording for fails loudly. The same goes for a fake `stevin`.
-- **Contract kit, `lely.testing`**, which every built-in step passes and plugin authors reuse:
-  - `plan` makes no writes;
-  - `plan`, then `apply`, then `plan` again gives an empty plan (for convergent steps);
-  - `StepPlan` round-trips through `plan.json`;
-  - no `Secret` reaches the file.
-- **Live**: every assumption about Databricks behaviour is a probe with a doc link, in the pattern of
-  stevin's `probes.py`.
+- **Unit**: config, references, the wiring, the approval check and the renderers are pure.
+- **A fake `databricks`** (`tests/fake_databricks.py`), as a program and in process. It answers
+  from recordings — the CLI's own acceptance-test outputs, `tests/fixtures/cli/` — or simulates a
+  bundle in a small workspace kept in a folder: `plan`, `deploy`, `summary`, `destroy`, `run`. A
+  call it can't answer fails loudly.
+- **The contract kit, `lely.testing`**, which every plugin lely ships passes where it applies, and
+  plugin authors reuse.
 
 Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8`, see
-`tests/fixtures/cli/README.md`). A live probe should still confirm each one:
-- `bundle summary -o json` is the resolved config plus `id` and `url` per deployed resource, and
-  `modified_status: created` before the first deploy. This was recorded on a real workspace
-  (`templates/default-python/integration_classic`, `resources/jobs/check-metadata`).
-- `--var` is a persistent flag of `bundle`, so `validate`, `plan` and `deploy` all take it
-  (`cmd/bundle/variables.go`).
-- `bundle deploy --plan` checks `lineage` and `serial` (see [the approval check](#planning-what-doesnt-exist-yet)).
+`tests/fixtures/cli/README.md`):
+- `bundle summary -o json` is the resolved config plus `id` and `url` per deployed resource.
+- `--var` is a persistent flag of `bundle`, so every verb takes it (`cmd/bundle/variables.go`).
+- `bundle deploy --plan` checks `lineage` and `serial` (`bundle/direct/bundle_plan.go`,
+  `ValidatePlanAgainstState`).
 - A failed `bundle validate` still prints JSON and exits 1. The exit code decides.
 
-`TODO(verify)`: whether `bundle deploy` asks before deleting or recreating, and fails when it can't
-ask.
+**Run on a real workspace once**, on 2026-10-06, with CLI v1.19.0 and one small bundle. Before
+that, apply and destroy were built against the fake only, on eight assumptions; the table says
+what became of each. [Spec 004](../spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
+the detail.
 
-## Milestones
+| | Assumed | Found |
+|---|---|---|
+| V1 | `bundle destroy` removes what `bundle summary` lists, and the bundle's files | so it did, for one job |
+| V2 | `--auto-approve` answers for `deploy` and `destroy` when nobody can | yes; without it `destroy` refuses |
+| V3 | `bundle summary -o json` has an `id` and a `url` for every resource type | for a job |
+| V4 | the CLI refuses a bundle whose target names another workspace | **no**: it goes there, with the token from the environment. lely's own check stops the run after that first call |
+| V5 | `bundle plan` speaks only of resources, not of files | yes |
+| V6 | `deploy --plan` with nothing to change still uploads the files | yes |
+| V7 | a bundle another identity deployed looks not deployed | not tried |
+| V8 | `--var` reads its value as a line of CSV | yes |
 
-1. **Read-only** (done, 2026-09-29): config and `validate`, references, resolve via the CLI, the
-   step interface and discovery, the `command`, Python-class and `stevin` steps, `bundle plan`,
-   `plan` and `show` (Rich and JSON), and the contract kit. Departures, each small:
-   - **`bundle validate` runs twice** when `bundle_vars` exist. The first run passes a placeholder
-     for each variable lely sets, so a variable without a default can't fail it. `check` makes sure
-     no pre step reads one. The second run passes the real values, for the post steps.
-   - **`bundle summary` runs at plan time** too, before this deploy. It gives the ids of resources
-     deployed already, so a post step that uses one plans normally. Only the ids of what this deploy
-     creates or replaces are *decided at apply*.
-   - **The core defers a step**, not the step itself, when its options hold a value decided at
-     apply. The step's `plan` isn't called with half its options.
-   - **A `command` step's plan command** prints its `StepPlan` as JSON on stdout. `LELY_PLAN` and
-     `LELY_OUTPUTS` come with apply.
-   - **`options_hash`** covers the resolved options, with environment values by name and values
-     decided at apply as `$unknown`, so a rotated token isn't a new plan.
-   - **Not yet**: `doctor`, the Markdown format, and the apply half of the contract kit.
-2. **Apply**: pre steps, then `bundle deploy --plan`, then `summary`, then post steps. Outputs,
-   `bundle_vars`, the approval check, `--from`, `--allow-destructive`, `bundle.run`.
-3. **CI**: the Markdown renderer and the GitHub Action with one comment.
+And one thing nobody had assumed: `bundle validate` creates a folder in the workspace. So the
+bundle plugin asks `bundle summary` for the resolved config instead, and a plan leaves the
+workspace as it was.
+
+What is still assumed is marked `TODO(verify)` where the code depends on it.
+
+## Phases
+
+1. **The Asset Bundle, as a plugin, with steps around it**: the contract, the config as one list,
+   the `bundle` plugin, `command` and `bundle.run`, and `apply`, `status`, `destroy`, `doctor`.
+   Called usable only when all of it is there.
+2. **Around it**: a page to look at a plan in ([spec 007](../spec/007-ui.md)), and GitHub — the plan
+   as one comment on the pull request, the result on the run's page
+   ([spec 008](../spec/008-github-actions.md)).
 
 ## Later
 
-Not in v1. Written down so v1 doesn't paint them into a corner.
+Not in phase one. Written down so it doesn't paint them into a corner.
 
 ### Lakebase: declarative schemas
 
-Desired state for the tables inside a Lakebase database, diffed and applied like stevin. This
-works by wrapping an existing Postgres schema differ, not by building one, and not by teaching
-stevin Postgres.
+Desired state for the tables inside a Lakebase database, diffed and applied like stevin, by wrapping
+an existing Postgres schema differ — not by building one, and not by teaching stevin Postgres.
 
 - **Which differ**: to evaluate, among Atlas, pgschema and psqldef. The criteria are a dry-run plan
   that can be read as structure, how it marks destructive changes, its license, and whether it runs
@@ -385,14 +535,8 @@ stevin Postgres.
   - password: `w.postgres.generate_database_credential(endpoint=…, ttl=…)`, a token valid for up to
     an hour
   - user: the identity lely runs as (an email, or a service principal's application ID)
-
-  These are passed as libpq variables (`PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`,
-  `PGSSLMODE=require`).
-- **An endpoint this deploy creates**: the plan is `deferred`, and everything in the spec is new.
-- **Testing a plan first**: apply it to a throwaway branch of the database. Autoscaling branches make
-  this cheap. It is the Lakebase version of stevin's `--clone`.
-- **Autoscaling only.** New instances are Autoscaling since 2026-03-12, and provisioned ones are
-  being upgraded.
+- **An endpoint this deploy creates**: the step waits.
+- **Autoscaling only.** New instances are Autoscaling since 2026-03-12.
 
 Sources:
 - https://docs.databricks.com/aws/en/oltp/projects/external-apps-connect
@@ -400,53 +544,84 @@ Sources:
 
 ### MLflow
 
-- **`mlflow.lookup`**: a model version by alias or tag, as an output. It is what a serving endpoint
-  in the bundle usually needs as a variable.
-- **`mlflow.alias`**: sets UC model version aliases and never removes an unlisted one. `TODO(verify)`:
-  `w.registered_models.set_alias` in the SDK, so this needs no mlflow.
-- **`mlflow.prompts`**: keeps a folder of prompt templates registered (`mlflow.genai.register_prompt`,
-  `set_prompt_alias`). The prompt registry is in Beta and needs mlflow ≥ 3.1, so it would be an extra.
+- **`mlflow.lookup`**: a model version by alias or tag, as an output.
+- **`mlflow.alias`**: sets UC model version aliases and never removes an unlisted one.
+  `TODO(verify)`: `w.registered_models.set_alias` in the SDK, so this needs no mlflow.
+- **`mlflow.prompts`**: keeps a folder of prompt templates registered. The prompt registry is in
+  Beta and needs mlflow ≥ 3.1, so it would be an extra.
 
 Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/prompt-registry/
 
 ## Suite
 
-lely is the hub. stevin is its first step and stays a standalone CLI. maeslant stays a TUI for
-people. The shared pieces are workspace auth and bundle resolution: stevin's `bundle.py` asks the
-CLI and falls back to reading the file, and maeslant's picker reads `databricks.yml`. They become a
-small shared package once lely is a second real user of them, not before.
+"Terraform for your platform, Asset Bundles for your code, stevin for your data model — and lely to
+deploy them as one." lely is not a fourth layer: it carries the layers out together. stevin stays a
+standalone CLI; maeslant stays a TUI for people.
 
 All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **maeslant**.
-Package names are plain, with no `kostavo-` prefix, so `uvx lely` works. Each README tells the
-story behind its own name.
+Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.
 
 ## Open questions
 
-- A lock file for concurrent applies outside CI.
+- A lock for concurrent applies outside CI.
+- Whether `.databricks/bundle/<target>/variable-overrides.json` is the supported route for bundle
+  variables that aren't single values (`TODO(verify)`); `--var` can't carry them.
+- Whether any API can say that credentials are read-only, for `lely doctor`.
 - Which Postgres differ for Lakebase, when it's built.
 
 ## Decided with the owner, 2026-09-29
 
-- MCP: nothing now; it was only an example.
-- Lakebase: declarative, by wrapping an existing tool. Not in v1.
-- v1 built-in steps: `stevin` and `bundle.run`, plus custom Python and `command` steps.
-- Pre steps feed the bundle variables only.
-- CI first after the core, on GitHub Actions only.
+- MCP: nothing now. Managed servers need no deploy; a custom one is an app; an external one needs a
+  UC HTTP connection, which isn't a bundle resource.
+- Lakebase: declarative, by wrapping an existing tool. Not in phase one.
 - The direct engine is required.
-- License: MIT. *Superseded on 2026-10-05, below.*
-- Names: deltaplan, sluis, kluis (isolinear renamed), with plain package names. `kostavo` is the org
-  and the landing page, not a prefix. *Superseded on 2026-10-05, below.*
-- Commit locally; no GitHub repo until the move to `kostavo-oss`.
+- Names and licence were decided here and superseded on 2026-10-05, below.
 
 ## Decided with the owner, 2026-10-05
 
-- Names: **stevin** (was deltaplan), **lely** (was sluis) and **maeslant** (was isolinear) — a Dutch
-  engineer or a work of Dutch engineering each, with its story in its README. Still plain package
-  names.
-- The built-in step for tables is `stevin`, and it runs the `stevin` command.
-- License: Apache-2.0, the same for every Kostavo tool. Nothing had been published under MIT.
+- Names: **stevin** (was deltaplan), **lely** (was sluis) and **maeslant** (was isolinear).
+- License: Apache-2.0, the same for every Kostavo tool.
+- The direction in `spec/`: every step is a plugin, the bundle among them; three verbs; no state;
+  one list of steps in `lely.yml` or `pyproject.toml`; declared outputs and one spelling for a
+  reference; consent in the command for a headless run; `lely status`; exit codes 0, 1 and 2;
+  stevin parked; fakes only for now.
+
+## Decided while building, 2026-10-05
+
+Each is the builder's call where the spec left room; none is the owner's yet.
+
+- **The bundle's file upload is a `run`.** The spec had no word for "files are uploaded". A `run`
+  already means "happens on every apply", is never "nothing to do", and is not counted as a change.
+- **An option of type `Linked` names a whole step.** `bundle.run` has to run the CLI exactly as its
+  bundle step does — same directory, same `--var`s — and a step is given nothing but its options.
+- **A `command` step's outputs are *once it exists* when it has a plan command.** Which ones the
+  plan command prints can't be known before running it.
+- **An environment value is a `Secret`.** It is the one way to keep it out of every plan, file and
+  line of output wherever it flows.
+- **"Made from" is two things**: a hash of each step's options as written, and the value of every
+  input that was known at plan.
+- **A plan file is for a clean checkout.** It is held to `HEAD`'s tree of the whole repository,
+  without the plan file itself, and to which project of the repository it is for. The whole
+  repository because a step can reach outside the config's folder; without the plan file so
+  that a plan committed for review doesn't refuse itself. A plan made while anything differed
+  from `HEAD` says so and is not run from a file, and no plan is run from a file on such a
+  checkout. git failing is not "no repository": it fails the plan.
+- **A target no step runs for is refused**, since no plugin would be asked about it.
+- **What a plugin hands back is made plain JSON when it is planned**, and inputs are compared as
+  they would be written, so a plan is the same whether or not it went through a file.
+- **Bundle variables are CSV-quoted** when they hold a comma or a quote, because `--var` is a list
+  flag (V8, unverified).
+- **The plan file keeps a step's named outputs and the ones another step takes**, not every field
+  of every bundle resource; and a plan in a terminal shows, where it is given, only what another
+  step takes.
+- **A step that waits for what only a run produces is marked** as waiting on every deploy, in the
+  plan and in its file.
+- **`doctor` reports what it can read off**: the CLI's version, the workspace, the identity,
+  whether it is a workspace admin, and whether each program a step runs is there. Not the
+  bundle's engine, and not whether credentials are read-only.
 
 ## Stack
 
 Python ≥ 3.11 · mise · uv · src layout · typer + rich · databricks-sdk · PyYAML · pytest · ruff · ty ·
-Apache-2.0. It needs a Databricks CLI with the direct engine (GA in v1.3.0); `doctor` checks the version.
+Apache-2.0. It needs a Databricks CLI with the direct engine (GA in v1.3.0); `lely doctor` shows the
+version.

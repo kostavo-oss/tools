@@ -1,15 +1,15 @@
-"""A step's `with:` block, into the step's own `Options` dataclass.
+"""A step's `with:` block, into its plugin's own `Options` dataclass.
 
-A step declares its options as a frozen dataclass; this reads the located YAML
-into it, strictly: an unknown key, a missing required one or a wrong type is an
-error at the line and column it was written. References in string values are
-resolved on the way in (by a callback, so this module stays pure), and a value
-decided at apply makes the whole block `Unresolved` — the core then plans the
-step as deferred rather than calling it with half its options.
+A plugin declares its options as a frozen dataclass; this reads the located
+config into it, strictly: an unknown key, a missing required one or a wrong
+type is an error at the line and column it was written. References in string
+values are resolved on the way in (by a callback, so this module stays pure),
+and a value that isn't known yet makes the whole block `Unresolved` — the step
+is then waiting, rather than planned with half its options.
 
-The field types a step may use: `str`, `int`, `float`, `bool`, `Secret`,
-`Literal[...]`, `tuple[T, ...]`, `Mapping[str, T]` (or `dict`), `T | None`, and
-`object` for anything JSON.
+The field types a plugin may use: `str`, `int`, `float`, `bool`, `Secret`,
+`Literal[...]`, `tuple[T, ...]`, `Mapping[str, T]` (or `dict`), `T | None`,
+`object` for anything JSON, and `Linked` for the name of another step.
 """
 
 from __future__ import annotations
@@ -21,12 +21,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from lely.config import Item, Map, Scalar, Seq
+from lely.config import Map, Node, Scalar, Seq
 from lely.errors import LelyError
-from lely.model import Secret, Value
+from lely.model import Linked, Secret, Value
 from lely.refs import Unknown
+from lely.step import quietly
 
 Resolver = Callable[[Scalar], Value | Unknown]
+#: Answers an option that names a step: the step, or what it is waiting for.
+Linker = Callable[[Scalar], Linked | Unknown]
 
 
 class OptionsError(LelyError):
@@ -35,9 +38,9 @@ class OptionsError(LelyError):
 
 @dataclass(frozen=True, slots=True)
 class Unresolved:
-    """Options that hold a value decided at apply; why, per value."""
+    """Options that hold a value that isn't known yet: the outputs waited for."""
 
-    reasons: tuple[str, ...]
+    waits_for: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,11 +51,18 @@ class OptionField:
     default: str | None
 
 
+def option_fields(cls: type) -> tuple[dataclasses.Field[Any], ...]:
+    """The fields of an `Options` class a config can set: the ones its
+    constructor takes. A field the class fills in itself (`init=False`) is not
+    an option."""
+    return tuple(f for f in dataclasses.fields(cast(Any, cls)) if f.init)
+
+
 def fields_of(cls: type) -> tuple[OptionField, ...]:
-    """What a step's options are, for `lely steps` and the editors' schema."""
+    """What a plugin's options are, for `lely steps` and the editors' schema."""
     hints = typing.get_type_hints(cls)
     result: list[OptionField] = []
-    for f in dataclasses.fields(cast(Any, cls)):
+    for f in option_fields(cls):
         required = (
             f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         )
@@ -65,13 +75,19 @@ def fields_of(cls: type) -> tuple[OptionField, ...]:
     return tuple(result)
 
 
-def build(cls: type, block: Map | None, resolve: Resolver, where: str) -> Any:
+def build(
+    cls: type,
+    block: Map | None,
+    resolve: Resolver,
+    where: str,
+    link: Linker | None = None,
+) -> Any:
     """`block` as an instance of `cls`, or `Unresolved`. Raises `OptionsError`."""
     if not dataclasses.is_dataclass(cls):
         raise OptionsError(f"{where}: its `Options` is not a dataclass")
     hints = typing.get_type_hints(cls)
-    fields = {f.name: f for f in dataclasses.fields(cast(Any, cls))}
-    reader = _Reader(resolve)
+    fields = {f.name: f for f in option_fields(cls)}
+    reader = _Reader(resolve, link)
     values: dict[str, Any] = {}
     given = {entry.key: entry for entry in block.entries} if block else {}
     for key, entry in given.items():
@@ -94,20 +110,31 @@ def build(cls: type, block: Map | None, resolve: Resolver, where: str) -> Any:
             "\n".join(f"{problem} ({where})" for problem in reader.problems)
         )
     if reader.unknowns:
-        return Unresolved(tuple(reader.unknowns))
-    return cls(**values)
+        return Unresolved(tuple(dict.fromkeys(reader.unknowns)))
+    try:
+        with quietly():
+            return cls(**values)
+    except LelyError as error:
+        raise OptionsError(f"{where}: {error}") from error
+    except Exception as error:  # a plugin's `__post_init__` is its own
+        raise OptionsError(
+            f"{where}: its options can't be built: {type(error).__name__}: {error}"
+        ) from error
 
 
 class _Pending:
-    """Stands in for a value decided at apply, so conversion can go on."""
+    """Stands in for a value that isn't known yet, so conversion can go on."""
 
 
 _PENDING = _Pending()
+#: … and for one that isn't known yet but is known to be a secret.
+_PENDING_SECRET = _Pending()
 
 
 class _Reader:
-    def __init__(self, resolve: Resolver) -> None:
+    def __init__(self, resolve: Resolver, link: Linker | None) -> None:
         self.resolve = resolve
+        self.link = link
         self.problems: list[str] = []
         self.unknowns: list[str] = []
 
@@ -118,12 +145,12 @@ class _Reader:
         if isinstance(item.value, str):
             resolved = self.resolve(item)
             if isinstance(resolved, Unknown):
-                self.unknowns.append(resolved.reason)
-                return _PENDING
+                self.unknowns.append(resolved.waits_for)
+                return _PENDING_SECRET if resolved.secret else _PENDING
             return resolved
         return item.value
 
-    def convert(self, tp: Any, item: Item, name: str) -> Any:
+    def convert(self, tp: Any, item: Node, name: str, optional: bool = False) -> Any:
         origin = typing.get_origin(tp)
         args = typing.get_args(tp)
         if origin in (types.UnionType, typing.Union):
@@ -134,9 +161,11 @@ class _Reader:
                 raise OptionsError(
                     f"option `{name}`: only `T | None` unions are supported"
                 )
-            return self.convert(members[0], item, name)
+            return self.convert(members[0], item, name, optional=True)
         if tp is object or tp is Any:
             return self.plain(item)
+        if tp is Linked:
+            return self.linked(item, name)
         if origin in (tuple, list):
             if not isinstance(item, Seq):
                 self.problem(item.loc, f"`{name}` must be a list")
@@ -157,6 +186,8 @@ class _Reader:
         value = self.value(item)
         if value is _PENDING:
             return value
+        if value is None and optional:
+            return None  # a null that came by reference is a null all the same
         return self.scalar(tp, origin, args, value, item, name)
 
     def scalar(
@@ -168,8 +199,16 @@ class _Reader:
         item: Scalar,
         name: str,
     ) -> Any:
+        if value is _PENDING_SECRET:
+            # not known yet, and a secret whatever it is: the same rule as below
+            if tp is not Secret:
+                self.problem(
+                    item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
+                )
+            return _PENDING
         if origin is Literal:
-            if value not in args:
+            # one of them, and of its kind: `true` is not the `1` of `Literal[1, 2]`
+            if not any(type(arg) is type(value) and arg == value for arg in args):
                 allowed = ", ".join(repr(a) for a in args)
                 self.problem(
                     item.loc, f"`{name}` must be one of {allowed}, not {value!r}"
@@ -178,19 +217,15 @@ class _Reader:
         if tp is Secret:
             if isinstance(value, Secret):
                 return value
-            if isinstance(value, str):
-                return Secret(value)
+            if isinstance(value, str | int | float | bool):
+                return Secret(_text(value, item))
         elif isinstance(value, Secret):
             self.problem(
                 item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
             )
             return None
-        if (
-            tp is str
-            and isinstance(value, str | int | float)
-            and not isinstance(value, bool)
-        ):
-            return str(value)
+        if tp is str and isinstance(value, str | int | float | bool):
+            return _text(value, item)
         if tp is bool and isinstance(value, bool):
             return value
         if tp is int and isinstance(value, int) and not isinstance(value, bool):
@@ -200,12 +235,40 @@ class _Reader:
         self.problem(item.loc, f"`{name}` must be {_describe(tp)}, not {value!r}")
         return None
 
-    def plain(self, item: Item) -> Any:
+    def linked(self, item: Node, name: str) -> Any:
+        if not isinstance(item, Scalar) or not isinstance(item.value, str):
+            self.problem(item.loc, f"`{name}` must be the name of a step")
+            return None
+        if self.link is None:  # pragma: no cover - the core always gives one
+            raise OptionsError(f"option `{name}`: nothing here can name a step")
+        found = self.link(item)
+        if isinstance(found, Unknown):
+            self.unknowns.append(found.waits_for)
+            return _PENDING
+        return found
+
+    def plain(self, item: Node) -> Any:
         if isinstance(item, Seq):
             return [self.plain(child) for child in item.items]
         if isinstance(item, Map):
             return {e.key: self.plain(e.value) for e in item.entries}
         return self.value(item)
+
+
+def _text(value: str | int | float | bool, item: Scalar) -> str:
+    """A value for an option that wants text.
+
+    A number or a boolean written in the config is passed on as it was written
+    — `1.10` stays `1.10` and not `1.1`, `0123` isn't read as octal, `yes` stays
+    `yes`. One that came from a reference is written the way JSON would.
+    """
+    if isinstance(value, str):
+        return value
+    if not isinstance(item.value, str) and item.raw is not None:
+        return item.raw
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _plural(tp: Any) -> str:
@@ -228,6 +291,8 @@ def _describe(tp: Any) -> str:
         return "null"
     if tp is object or tp is Any:
         return "anything"
+    if tp is Linked:
+        return "the name of a step"
     return {
         str: "a string",
         int: "an integer",

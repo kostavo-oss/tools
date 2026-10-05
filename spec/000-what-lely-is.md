@@ -1,8 +1,8 @@
 # 000 — what lely is
 
-**Status:** agreed, 2026-10-05. The direction is the owner's; it replaces parts of
-`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). Two questions about what
-comes *after* phase one are still open, under [To decide](#to-decide).
+**Status:** agreed, 2026-10-05; phase one is built, and was run on a real workspace once. The direction is the
+owner's. Two questions about what comes *after* phase one are still open, under
+[To decide](#to-decide).
 
 Requirements are marked *(owner)* where they come from that direction, *(design)* where
 `docs/DESIGN.md` already says them, and *(agreed)* where the spec's author proposed them and the
@@ -164,8 +164,7 @@ Against `docs/DESIGN.md` and the code as built ([001](001-what-is-built.md)):
 | Three renderers: terminal, Markdown, JSON | Those, and a UI |
 | A step reports changes | A plugin can also report, in detail, what exists because of it |
 
-`docs/DESIGN.md` is rewritten to match once these specs are agreed — not before, so there is one
-place to argue in.
+`docs/DESIGN.md` was rewritten to match on 2026-10-05, once these specs were agreed.
 
 ## Decided
 
@@ -186,5 +185,5 @@ All by the owner, on 2026-10-05.
 
 ## Done when
 
-The repository's README opens with the line above, `docs/DESIGN.md` says what this folder says,
-and the two questions under "To decide" are answered.
+The repository's README opens with the line above, `docs/DESIGN.md` says what this folder says
+— both done, 2026-10-05 — and the two questions under "To decide" are answered.

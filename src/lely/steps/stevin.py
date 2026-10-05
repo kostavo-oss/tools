@@ -1,13 +1,14 @@
 """`stevin`: tables, views and the rest, with stevin's own plan.
 
+**Parked.** The owner takes this plugin up separately (`spec/006-stevin.md`).
+Its plan half is built and left as it is; it can't apply yet, and says so
+before anything runs.
+
 The contract is stevin's CLI and its plan file, not its Python modules, so
 stevin stays a standalone tool with its own releases:
 
 - plan: `stevin plan --target <t> --config <c> --output <tmp> --format json`.
   The plan file becomes this step's payload, whole.
-- apply (milestone 2): the payload written back to a file, then
-  `stevin apply <file> --yes`, with `--allow-destructive` only when lely was
-  given it. stevin's own state fingerprint refuses a stale plan.
 
 stevin's risk classes map onto lely's: `destructive` stays destructive;
 `meta`, `feature` and `rewrite` are updates, with a rewrite named in the
@@ -39,11 +40,14 @@ _DROPS = frozenset({"drop_table"})
 
 
 class Stevin:
-    """Tables, views, functions and grants, planned and applied by stevin."""
+    """Tables, views, functions and grants, planned by stevin. Can't apply yet."""
+
+    #: `apply` refuses a project that uses this plugin before anything runs.
+    plan_only = True
 
     @dataclass(frozen=True, slots=True)
     class Options:
-        #: stevin's project file, relative to `lely.yml`.
+        #: stevin's project file, relative to the config.
         config: str = "stevin.yml"
         #: stevin's target; lely's target when not given.
         target: str | None = None
@@ -51,6 +55,13 @@ class Stevin:
         select: tuple[str, ...] = ()
         #: How to run stevin: `[uvx, stevin]` pins it to its own env.
         executable: tuple[str, ...] = ("stevin",)
+
+    @staticmethod
+    def programs(written: Mapping[str, Json]) -> tuple[str, ...]:
+        executable = written.get("executable")
+        if isinstance(executable, list) and executable:
+            return (str(executable[0]),)
+        return ("stevin",)
 
     def plan(self, ctx: Context[Stevin.Options]) -> StepPlan:
         options = ctx.options
@@ -86,7 +97,10 @@ class Stevin:
         return StepPlan(changes=changes(document), payload=document)
 
     def apply(self, ctx: Context[Stevin.Options], plan: StepPlan) -> Outputs:
-        raise NotImplementedError("apply is milestone 2")
+        raise LelyError(
+            "The `stevin` plugin can plan and can't apply yet: it is taken up "
+            "separately. Run `stevin apply` yourself for now."
+        )
 
 
 def changes(document: Mapping[str, Json]) -> tuple[Change, ...]:

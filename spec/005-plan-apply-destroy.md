@@ -1,7 +1,7 @@
 # 005 — plan, apply, destroy
 
-**Status:** agreed, 2026-10-05. Phase one. `plan` is built; `apply` and `destroy` are not started — every
-plugin's `apply` raises "apply is milestone 2" today.
+**Status:** built, 2026-10-05; run on a real workspace once, 2026-10-06 — see
+[As built](#as-built). Phase one.
 
 ## Why
 
@@ -223,6 +223,77 @@ All by the owner, on 2026-10-05.
 - **Whether `-t` is always needed** (was D8): yes — R37. *(go with the proposals)*
 - **How strict the approval check is** (was D9): every change in the new plan must be one that
   was shown; changes that are gone are fine — R7. *(go with the proposals)*
+
+## As built
+
+2026-10-05.
+
+- **"Made from" (R5) is two things.** A hash per step of its options *as written* — so the
+  environment counts by name — and, for every value a step took that was known at plan, that
+  value: a plan that showed `model_version = 14` is refused when the lookup now answers 15.
+  The bundle's own changes would read the same either way.
+- **A plan file is for a clean checkout (R36).** What is recorded is `HEAD`'s tree — not the
+  commit, so a merge that changes nothing keeps a plan valid — of the whole repository, because
+  a step can reach outside the folder its config is in (a bundle at `path: ../bundle`); in a
+  repository with several projects that makes a plan stale more often than it has to be.
+  **Which project of the repository** a plan is for is recorded beside the tree, shown in the
+  plan, and held: two projects that share a tree — and, started from one template, their steps
+  as written — are still two projects. And whether anything differed from `HEAD`: a changed,
+  staged, added or removed file, a submodule that moved or has changes of its own, a file git
+  was told not to look at (`assume-unchanged`, `skip-worktree`). **A plan made on such a
+  checkout says so and is not run from a file** — lely couldn't say what it was made on — and
+  no plan is run from a file on such a checkout. Run it without a file instead. (Two earlier
+  attempts were cleverer — hold such a plan to nothing; hold it to the exact contents of the
+  files — and each let something through.) **The plan file itself is left out**, so a plan
+  committed to be reviewed (R14: "a destroy can go through a pull request") doesn't refuse
+  itself; a second plan file in the repository is a change like any other. **Files git doesn't
+  track yet are not seen**, so a new, unadded notebook is deployed without the plan knowing. A
+  repository with no commit yet has no tree to record, and the plan says so.
+- **git failing is not "no repository".** Only git's own "not a git repository" means that.
+  Any other failure — git missing, a checkout owned by someone else, as in many containers —
+  fails `lely plan` and a run from a file, because a plan that quietly recorded nothing would
+  be held to nothing. A run that is planned and applied in one go is held to nothing anyway,
+  and goes on. lely writes nothing to the repository to find any of this out.
+- **A destroy is held to its inputs too (R15).** Every value a step took when the destroy was
+  planned is compared before anything is removed — `bundle destroy` with other variables, or a
+  destroy command with another id, is another destroy. The same holds for a step `--from`
+  passes over.
+- **A step the approved plan showed as skipped showed nothing**, so whatever it would remove
+  now was never approved; and a plan file in which a skipped or waiting step holds changes is
+  refused as one lely never wrote.
+- **The three lists (R21).** "Ran" is what did something: a step with nothing to do didn't run.
+  A step lely refused is listed as refused, not as failed, in the terminal and in the JSON.
+- **An empty target** (`-t ""`, what an unset variable leaves behind) is refused, on the command
+  line and in a plan file: the Databricks CLI would read it as "the default target", and there
+  is none (R37). So is **a target no step runs for** — every step's `targets` leave it out —
+  which no plugin would otherwise be asked about: it used to end "Nothing to do".
+- **The same value means the same as it would be written** (R5): `1` is not `true`, `14` is not
+  `14.0` and not `"14"`. What a plugin hands back is made plain JSON when it is planned, so a
+  plan compares the same whether or not it went through a file.
+- **A plan file is read strictly**: a key lely doesn't write, a flag that isn't `true` or
+  `false`, two steps with one name, or a step that isn't ready and holds changes is a file
+  lely didn't write.
+- **What a plan says is shown, never obeyed**: control characters in anything a plan file, a
+  plugin or a program said are made visible before they reach a terminal.
+- **With a plan file, a question names who is running**, and says who planned when that is
+  someone else (R35).
+- **The workspace (R35)** is compared by host. The identity is recorded and shown, and may
+  differ: a plan is made with credentials that can read, and applied with ones that can write.
+- **The overviews after an apply (R10)** are shown when the run is done. After a failure the
+  result has its three lists; `lely status` shows what is there.
+- **A step that waits on every deploy (R27)** is marked so in the plan and its file.
+- **Exit codes (R31):** a config that can't be read is a failure, 1. A command typer can't make
+  sense of ends with 2, as do the refusals — a plan file lely can't read among them, when it
+  was handed to `apply` or `destroy`. With `-f json`, a run that lely ends before its first
+  step still prints a result, and stdout holds JSON and nothing else. A command line typer
+  itself rejects — a missing or an empty `-t` — prints its usage on stderr and no JSON.
+- **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
+  each program a step runs is there. It can't tell whether a bundle is on the direct engine
+  without planning one, and says only which version brought it. It can't tell whether
+  credentials are read-only: it reports whether the identity is a workspace admin, and that it
+  knows no more.
+- **The workspace and the identity** are asked of the Databricks SDK, which reads the same
+  profile and variables as the CLI.
 
 ## Done when
 

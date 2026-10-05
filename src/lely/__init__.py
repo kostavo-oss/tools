@@ -1,8 +1,8 @@
-"""One plan and one apply for a whole Databricks deploy.
+"""One plan for your whole Databricks deploy.
 
-Pre-deploy steps, the bundle, post-deploy steps — each planned before anything
-changes, and each able to use what the ones before it produced. `docs/DESIGN.md`
-is the source of truth.
+The bundle and everything around it — the steps before, the steps after —
+reviewed before anything runs, and taken down again when you say so. `spec/`
+says what each piece must deliver; `docs/DESIGN.md` says how it is built.
 """
 
 from __future__ import annotations

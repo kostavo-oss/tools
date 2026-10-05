@@ -1,4 +1,7 @@
-"""The `stevin` step, against plan files stevin itself wrote.
+"""The `stevin` plugin's plan half, against plan files stevin itself wrote.
+
+Parked: the owner takes this plugin up separately. It plans, and says before
+anything runs that it can't apply yet.
 
 `tests/fixtures/stevin-*.json` were recorded by running stevin's CLI
 against its own fake warehouse (its `tests/screens.py` scenes), so these tests
@@ -102,3 +105,19 @@ def test_a_missing_stevin_says_how_to_get_it(tmp_path: Path) -> None:
     ctx = context(Stevin.Options(executable=("no-such-stevin",)), root=tmp_path)
     with pytest.raises(LelyError, match="uv tool install stevin"):
         Stevin().plan(ctx)
+
+
+def test_it_can_plan_and_cant_apply_yet(tmp_path: Path) -> None:
+    from lely.step import applies, destroys, lists
+
+    assert not applies(Stevin)
+    assert not destroys(Stevin)
+    assert not lists(Stevin)
+    with pytest.raises(LelyError, match="can plan and can't apply yet"):
+        Stevin().apply(context(Stevin.Options(), root=tmp_path), check_plan_stub())
+
+
+def check_plan_stub():  # a plan to hand to `apply`; it never looks at it
+    from lely.model import StepPlan
+
+    return StepPlan()

@@ -1,8 +1,9 @@
 # 001 — what is built
 
-**Status:** built (the design's milestone 1, 2026-09-29). 125 unit tests; no live run against a
-workspace yet. Built under the earlier shape — pre steps, *the bundle*, post steps — so some of
-it moves; see [What changes](#what-changes).
+**Status:** superseded. This describes the read-only half as it stood on 2026-09-29, before
+phase one. Everything under [What changes](#what-changes) has been carried out
+([002](002-plugins.md)–[005](005-plan-apply-destroy.md), [010](010-command-and-bundle-run.md));
+the suite went from 125 tests to 328, and still has no live run against a workspace.
 
 ## Why
 

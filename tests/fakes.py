@@ -1,21 +1,25 @@
 """Fakes for the edges: the Databricks CLI, in process.
 
-`FakeDatabricks` answers `validate`, `plan` and `summary` from JSON documents,
-the way the CLI would: a `--var` overrides the variable's `value` in what
-validate returns. It keeps every call, so a test can assert what lely asked.
-Anything it has no answer for fails loudly.
+`FakeDatabricks` is `fake_databricks.py` called as a function: the same
+answers the program gives, without a process per call. Its world is a folder,
+so a test can read back what lely asked (`calls`) and what the simulated
+workspace remembers (`state`).
 """
 
 from __future__ import annotations
 
-import copy
 import json
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+import subprocess
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import fake_databricks
+
 FIXTURES = Path(__file__).parent / "fixtures"
+HOST = fake_databricks.HOST
+USER = fake_databricks.USER
 
 
 def fixture(name: str) -> Any:
@@ -38,42 +42,88 @@ def bundle_config(
         },
         "resources": dict(resources or {}),
         "workspace": {
-            "host": "https://dbc-example.cloud.databricks.com",
-            "current_user": {"userName": "jane@example.com", "short_name": "jane"},
+            "host": HOST,
+            "current_user": {"userName": USER, "short_name": "jane"},
+            "root_path": f"/Workspace/Users/{USER}/.bundle/{name}/{target}",
         },
     }
 
 
-@dataclass
+@dataclass(frozen=True)
 class FakeDatabricks:
-    config: dict[str, Any]
-    plan_document: dict[str, Any] | None = None
-    summary_document: dict[str, Any] | None = None
-    calls: list[tuple[str, str | None, dict[str, str]]] = field(default_factory=list)
+    """The fake CLI over a world folder. `profile` is who is asking."""
 
-    def validate(
-        self, target: str | None, variables: Mapping[str, str]
+    world: Path
+    profile: str | None = None
+
+    def run(self, args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        if self.profile is not None:
+            at = command.index("--") if "--" in command else len(command)
+            command[at:at] = ["--profile", self.profile]
+        code, out, err = fake_databricks.answer(self.world, command, cwd)
+        return subprocess.CompletedProcess(command, code, out, err)
+
+    @property
+    def calls(self) -> list[list[str]]:
+        path = self.world / "calls.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text().splitlines()]
+
+    @property
+    def verbs(self) -> list[str]:
+        """What was asked, as `validate`, `plan`, `deploy`, …"""
+        return [call[1] for call in self.calls if call[:1] == ["bundle"]]
+
+    @property
+    def state(self) -> dict[str, Any]:
+        path = self.world / "state.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def deployed(
+        self, name: str = "shop", target: str = "dev", user: str = USER
     ) -> dict[str, Any]:
-        self.calls.append(("validate", target, dict(variables)))
-        return self._with(variables)
+        """What the workspace remembers of one bundle: `<type>.<key>` → record."""
+        root = f"/Workspace/Users/{user}/.bundle/{name}/{target}"
+        return self.state.get("bundles", {}).get(root, {}).get("deployed", {})
 
-    def plan(self, target: str, variables: Mapping[str, str]) -> dict[str, Any]:
-        self.calls.append(("plan", target, dict(variables)))
-        if self.plan_document is None:
-            raise AssertionError("the fake has no plan document")
-        return copy.deepcopy(self.plan_document)
+    def uploads(self, name: str = "shop", target: str = "dev") -> int:
+        root = f"/Workspace/Users/{USER}/.bundle/{name}/{target}"
+        return self.state.get("bundles", {}).get(root, {}).get("uploads", 0)
 
-    def summary(self, target: str) -> dict[str, Any]:
-        self.calls.append(("summary", target, {}))
-        if self.summary_document is None:
-            raise AssertionError("the fake has no summary document")
-        return copy.deepcopy(self.summary_document)
+    @property
+    def runs(self) -> list[dict[str, Any]]:
+        return self.state.get("runs", [])
 
-    def _with(self, variables: Mapping[str, str]) -> dict[str, Any]:
-        document = copy.deepcopy(self.config)
-        declared = document.setdefault("variables", {})
-        for key, value in variables.items():
-            if key not in declared:
-                raise AssertionError(f"--var {key}: the bundle declares no such variable")
-            declared[key]["value"] = value
-        return document
+    def clear_calls(self) -> None:
+        (self.world / "calls.jsonl").unlink(missing_ok=True)
+
+
+def write_bundle(folder: Path, bundle: Mapping[str, Any]) -> None:
+    """Put a simulated bundle where a `databricks.yml` would be."""
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / fake_databricks.BUNDLE_FILE).write_text(json.dumps(bundle, indent=1))
+
+
+def deploy(
+    world: Path,
+    resources: Mapping[str, Mapping[str, Any]],
+    *,
+    name: str = "shop",
+    target: str = "dev",
+    user: str = USER,
+) -> None:
+    """Make the simulated workspace remember resources as deployed already:
+    `{"jobs.backfill": {"id": "771", "config": {...}}}`."""
+    world.mkdir(parents=True, exist_ok=True)
+    path = world / "state.json"
+    state = json.loads(path.read_text()) if path.exists() else {}
+    root = f"/Workspace/Users/{user}/.bundle/{name}/{target}"
+    state.setdefault("bundles", {})[root] = {
+        "lineage": f"lineage-{name}",
+        "serial": 1,
+        "deployed": {key: dict(record) for key, record in resources.items()},
+        "uploads": 1,
+    }
+    path.write_text(json.dumps(state, indent=1))

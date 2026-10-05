@@ -4,9 +4,11 @@ What lely has to do, and how we will know that it does.
 
 `docs/DESIGN.md` says *how* lely is built and why. This folder says *what* each piece of work must
 deliver and when it counts as done. Where the two disagree, one of them is wrong: say which,
-don't pick one quietly. Right now they disagree on purpose — the owner set a new direction on
-2026-10-05, [000](000-what-lely-is.md) records it, and the design is rewritten once these specs
-are agreed.
+don't pick one quietly. The owner set a new direction on 2026-10-05,
+[000](000-what-lely-is.md) records it, and the design was rewritten to it the same day.
+
+**Phase one is built**, tested against fake tools, and was run on a real workspace once. Each spec that was built has an "As built"
+section: what the code does where the spec left room, and where it stops short.
 
 ## The specs
 
@@ -16,12 +18,12 @@ The numbers are names, not an order; the order of work is in
 | Spec | What it covers | Phase | Status |
 |---|---|---|---|
 | [000 — what lely is](000-what-lely-is.md) | Why it exists, where it stands, what it does and doesn't | — | agreed |
-| [001 — what is built](001-what-is-built.md) | `validate`, `steps`, `plan`, `show` — and what of it moves | — | built |
-| [002 — plugins](002-plugins.md) | The one contract; what flows between steps | 1 | agreed — **first to build** |
-| [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | agreed |
-| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | agreed |
-| [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | agreed |
-| [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | agreed |
+| [001 — what is built](001-what-is-built.md) | The read-only half as it stood before phase one | — | superseded |
+| [002 — plugins](002-plugins.md) | The one contract; what flows between steps | 1 | built |
+| [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | built |
+| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built; run on a workspace once |
+| [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | built |
+| [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
 | [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | agreed |
 | [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | agreed, one question open |
@@ -29,7 +31,7 @@ The numbers are names, not an order; the order of work is in
 
 ## How a spec is written
 
-- **Status** — draft, agreed, in progress, built, parked.
+- **Status** — draft, agreed, in progress, built, parked, superseded.
 - **Why** — the problem, in a few lines.
 - **Requirements** — numbered (`R1`, `R2`, …), each one a thing you can check. Refer to one as
   `004/R7`. Each says where it comes from:
@@ -63,8 +65,7 @@ All on 2026-10-05, by the owner.
 - **What flows between steps is written down and checked:** an input is a reference in a step's
   own options, and references only point up the list — so what feeds the bundle is above it and
   what needs something from it is below. → [002/R15](002-plugins.md), [002/R16](002-plugins.md).
-  *How* it is checked — plugins declaring their outputs — is still a proposal:
-  [002/R14](002-plugins.md).
+  *How* it is checked: plugins declare their outputs. → [002/R14](002-plugins.md)
 - **One spelling for a reference:** always `${steps.<name>.<output>}`. → [002/R15a](002-plugins.md)
 - **The target is a bare name** each plugin reads its own way, and the workspace comes from
   `--profile` or the environment. → [002/R23](002-plugins.md)
@@ -130,14 +131,19 @@ The ones worth remembering:
 
 ## Still open
 
-Nothing here stops phase one.
-
-1. **A risk taken knowingly:** phase one is built against a fake Databricks CLI, on seven
-   assumptions about the real one. → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
-2. **Which plan a merge applies** in the workflow the docs will show: the reviewed file, or a new
+1. **Phase one has run against a real workspace once**, on 2026-10-06, with one small bundle.
+   Six of the eight assumptions held, one could not be tried, and one was wrong: the CLI does
+   not refuse a bundle whose target names another host. What one run couldn't show is listed
+   with it. → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
+2. **What the builder decided where the specs left room** is in each spec's "As built", and in
+   `docs/DESIGN.md` under "Decided while building". None of it is the owner's yet. The one that
+   adds something the specs didn't name: an option that names a whole step.
+   → [002, As built](002-plugins.md#as-built)
+3. **What the bundle resolves from outside lely is not held**: `BUNDLE_VAR_x` at apply, or a
+   variable's lookup answering something else, changes what is deployed without changing a line
+   of the plan. Whether to fingerprint the resolved variables is the owner's to decide.
+   → [004, As built](004-asset-bundle.md#as-built)
+4. **Which plan a merge applies** in the workflow the docs will show: the reviewed file, or a new
    plan with `--yes`. → [008/D2](008-github-actions.md#to-decide)
-3. **After phase one: the UI first, or GitHub first — and which plugins come after.**
+5. **After phase one: the UI first, or GitHub first — and which plugins come after.**
    → [000](000-what-lely-is.md#to-decide)
-4. **How lely releases,** whether it gets a docs site, the recorded Databricks CLI outputs in the
-   tests, the email in the package, and what the first version is.
-   → [009](009-first-release.md#to-decide)

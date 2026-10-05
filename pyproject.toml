@@ -1,7 +1,7 @@
 [project]
 name = "lely"
 version = "0.0.1"
-description = "One plan and one apply for a whole Databricks deploy: pre-deploy steps, the bundle, post-deploy steps"
+description = "One plan for your whole Databricks deploy: the bundle and the steps around it, reviewed before anything runs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -36,8 +36,9 @@ Issues = "https://github.com/kostavo-oss/lely/issues"
 [project.scripts]
 lely = "lely.cli:main"
 
-# Built-in steps register exactly as a plugin's would.
+# The plugins lely ships register exactly as anyone's would.
 [project.entry-points."lely.steps"]
+bundle = "lely.steps.bundle:Bundle"
 command = "lely.steps.command:Command"
 stevin = "lely.steps.stevin:Stevin"
 "bundle.run" = "lely.steps.bundle_run:BundleRun"
@@ -51,6 +52,7 @@ packages = ["src/lely"]
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.20",
     "pytest>=8.0",
     "ruff>=0.6",
     "syrupy>=4.8",
