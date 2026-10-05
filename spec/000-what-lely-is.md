@@ -1,6 +1,6 @@
 # 000 — what lely is
 
-**Status:** agreed, 2026-10-05; phase one is built against fakes only. The direction is the
+**Status:** agreed, 2026-10-05; phase one is built, and was run on a real workspace once. The direction is the
 owner's. Two questions about what comes *after* phase one are still open, under
 [To decide](#to-decide).
 

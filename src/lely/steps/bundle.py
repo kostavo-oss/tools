@@ -7,39 +7,53 @@
         vars:
           model_version: ${steps.model.version}
 
-The bundle is the Databricks CLI's. This plugin asks it — `bundle validate`,
-`plan`, `summary`, `deploy`, `destroy`, each with the step's `vars` as `--var`
-— and never works out itself what the CLI resolves: targets, variables, names,
-ids. `-t` is taken as the bundle's own target.
+The bundle is the Databricks CLI's. This plugin asks it — `bundle summary`,
+`plan`, `deploy`, `destroy`, each with the step's `vars` as `--var` — and never
+works out itself what the CLI resolves: targets, variables, names, ids. `-t` is
+taken as the bundle's own target.
 
 What the CLI prints is someone else's format, so it is read leniently: only
 what lely uses is looked at.
 
-Settled from the CLI's source and recorded acceptance tests, commit `e41a5c8`
-(https://github.com/databricks/cli/tree/e41a5c87436a5b8fa81ce192e2aac77675d4b4c2,
-see `tests/fixtures/cli/README.md`):
+**Run on a real workspace on 2026-10-06** — CLI v1.19.0, one job, a target in
+development mode, a personal access token from the environment. What that
+settled, by its number in `spec/004-asset-bundle.md`:
 
-- `bundle validate -o json` is the resolved config. A failed validate still
-  prints JSON, so the exit code decides.
-- `bundle plan -o json` is the direct engine's plan. `--var` is a persistent
-  flag of `bundle`, so every verb takes it.
-- `bundle summary -o json` is the resolved config plus each deployed
-  resource's `id` and `url`.
-- `bundle deploy --plan <file>` deploys that plan, and refuses one whose state
-  `lineage` or `serial` has moved on (`ValidatePlanAgainstState`).
-
-Not tried on a real workspace — each is marked `TODO(verify)` below with its
-number from `spec/004-asset-bundle.md`:
-
-- V1: `bundle destroy` removes what `bundle summary` lists, and the files.
-- V2: `--auto-approve` answers for `deploy` and `destroy` when nobody can.
-- V3: the summary has an `id` and a `url` for every resource type.
-- V4: the CLI refuses a target on another workspace than the credentials reach.
+- `bundle summary -o json` is the resolved config — the same keys as
+  `bundle validate -o json` — plus each deployed resource's `id` and `url`,
+  and `modified_status: created` for one that isn't deployed yet.
+- **`bundle validate` is not read-only**: it creates the bundle's `files`
+  folder in the workspace. So planning doesn't call it; `summary` and `plan`
+  create nothing, and fail on a config error in the same words.
+- `bundle plan -o json` is the direct engine's plan (`plan_version: 2`), and
+  holds `lineage` and `serial` once something is deployed. On the Terraform
+  engine (`DATABRICKS_BUNDLE_ENGINE=terraform`) it has no `plan_version`.
+- V1: `bundle destroy` removed the job and the bundle's folder with it.
+- V2: without `--auto-approve` and nobody to ask, `bundle destroy` refuses
+  and names the flag. `deploy --plan … --auto-approve` runs unasked.
 - V5: `bundle plan` speaks only of resources, not of files.
-- V6: `deploy --plan` with no resource changes still uploads the files.
+- V6: `deploy --plan` with nothing to change succeeds and uploads the files.
+- V8: `--var` reads its value as a line of CSV. `--var=a=1,b=2` set both; a
+  pair in CSV quotes arrives whole.
+- `deploy --plan` with a plan the state has moved on from fails with "plan
+  serial 1 does not match state serial 2; the state has been modified since
+  the plan was created."
+
+**And what it corrected — V4.** The CLI does *not* refuse a bundle whose target
+names another host than the credentials are for: with a token from the
+environment it goes to the bundle's host and presents the token there. lely
+compares the hosts itself and stops the run, but only after that first call.
+
+Still not tried, each marked `TODO(verify)` below:
+
+- V3: the summary has an `id` and a `url` for every resource type — seen for
+  a job; pipelines in the CLI's own recordings.
 - V7: a bundle another identity deployed looks not deployed from here.
-- V8 (found in review, not in the spec's list): `--var` is a list flag that
-  reads its value as CSV, so a value with a comma needs quoting.
+- Whether `deploy` without `--auto-approve` asks before a delete.
+
+From the CLI's source, commit `e41a5c8`: `--var` is a persistent flag of
+`bundle`, so every verb takes it; `ValidatePlanAgainstState` checks `lineage`
+and `serial`.
 
 Docs: https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands
 """
@@ -88,12 +102,15 @@ _ACTIONS: dict[str, Action | None] = {
 }
 
 #: A deploy uploads the bundle's files even when no resource changes, and
-#: `bundle plan` speaks only of resources. So every plan carries this line, and
-#: a bundle step is never "nothing to do". TODO(verify): V5 and V6.
+#: `bundle plan` speaks only of resources (V5, V6: both seen on a workspace).
+#: So every plan carries this line, and a bundle step is never "nothing to do".
 UPLOAD = Change(key="files", action="run", summary="uploads the bundle's files")
 
+#: What the summary says of a resource's deployment, not of its config.
+_DEPLOYED = frozenset({"id", "url", "modified_status"})
+
 #: What the CLI says when `deploy --plan` is handed a plan the state has moved
-#: on from. TODO(verify): read from `bundle/direct/bundle_plan.go`, not seen live.
+#: on from — part of it, as CLI v1.19.0 said it on a workspace.
 _STALE = "since the plan was created"
 
 
@@ -124,13 +141,14 @@ class Bundle:
     def plan(self, ctx: Context[Bundle.Options]) -> StepPlan:
         bundle = open_bundle(ctx.databricks, ctx.root, ctx.target, ctx.options)
         ctx.log.info(f"{ctx.name}: resolving the bundle")
-        config = bundle.answer("validate")
-        _same_workspace(config, ctx)
+        # `summary`, not `validate`: the same resolved config, with what is
+        # deployed — and unlike `validate` it creates nothing in the workspace
+        summary = bundle.answer("summary")
+        _same_workspace(summary, ctx)
         ctx.log.info(f"{ctx.name}: planning the bundle")
         document = bundle.answer("plan")
         found = changes(document)
-        summary = bundle.answer("summary")
-        outputs, later = gives(config, summary, _moving(found))
+        outputs, later = gives(summary, _moving(found))
         return StepPlan(
             changes=(*found, UPLOAD), outputs=outputs, later=later, payload=document
         )
@@ -147,9 +165,9 @@ class Bundle:
             path = Path(scratch) / "plan.json"
             path.write_text(json.dumps(plan.payload), encoding="utf-8")
             ctx.log.info(f"{ctx.name}: bundle deploy")
-            # TODO(verify): V2 — that `--auto-approve` is what answers the CLI's
-            # own questions. lely has asked already, and checked for destructive
-            # changes.
+            # `--auto-approve` answers the CLI's own questions (V2): lely has
+            # asked already, and checked for destructive changes.
+            # TODO(verify): whether the CLI would ask, without it, before a delete.
             result = bundle.run("deploy", "--plan", str(path), "--auto-approve")
         if result.returncode != 0:
             said = result.stderr.strip() or result.stdout.strip()
@@ -159,7 +177,7 @@ class Bundle:
                 )
             raise CliError(str(failure("`databricks bundle deploy`", result)))
         summary = bundle.answer("summary")
-        outputs, _ = gives(summary, summary, frozenset())
+        outputs, _ = gives(summary, frozenset())
         return outputs
 
     def overview(self, ctx: Context[Bundle.Options]) -> Overview:
@@ -174,8 +192,9 @@ class Bundle:
 
     def plan_destroy(self, ctx: Context[Bundle.Options]) -> StepPlan:
         """Every resource lely can see the bundle has deployed — the same list
-        as the overview. TODO(verify): V1 — whether `bundle destroy` removes
-        more than the summary lists; until then the plan says so."""
+        as the overview. `bundle destroy` removed exactly that and the
+        bundle's folder when it was tried with one job (V1); whether it can
+        remove more than the summary lists is not known, so the plan says so."""
         bundle = open_bundle(ctx.databricks, ctx.root, ctx.target, ctx.options)
         summary = bundle.answer("summary")
         _same_workspace(summary, ctx)
@@ -204,7 +223,8 @@ class Bundle:
         order, and what it may not delete."""
         bundle = open_bundle(ctx.databricks, ctx.root, ctx.target, ctx.options)
         ctx.log.info(f"{ctx.name}: bundle destroy")
-        # TODO(verify): V2 — `--auto-approve`, as for deploy.
+        # Without `--auto-approve` and nobody to ask, the CLI refuses (V2). lely
+        # has asked: the target's name typed, or `--yes` in the command.
         result = bundle.run("destroy", "--auto-approve")
         if result.returncode != 0:
             raise CliError(str(failure("`databricks bundle destroy`", result)))
@@ -249,11 +269,10 @@ def open_bundle(cli: Cli, root: Path, target: str, options: Bundle.Options) -> O
 def _csv(pair: str) -> str:
     """One `name=value` as the CLI's `--var` reads it.
 
-    `--var` is a list flag (`StringSlice` in `cmd/bundle/variables.go`), and
-    such a flag reads its value as a line of CSV. Unquoted, a value with a comma
-    would be cut in two — and `14,catalog=prod` from a step above would set a
-    second variable nobody wrote. TODO(verify): V8 — from the CLI's source, not
-    seen live: `databricks bundle validate --var='a=1,b=2' -o json`.
+    `--var` is a list flag, and such a flag reads its value as a line of CSV
+    (V8, seen on CLI v1.19.0: `--var=a=1,b=2` set both variables). Unquoted, a
+    value with a comma would be cut in two — and `14,catalog=prod` from a step
+    above would set a second variable nobody wrote.
     """
     if "," not in pair and '"' not in pair:
         return pair
@@ -296,8 +315,13 @@ def _variables(given: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
 
 
 def _same_workspace(config: Mapping[str, Json], ctx: Context[Bundle.Options]) -> None:
-    """One run talks to one workspace. TODO(verify): V4 — the CLI is expected to
-    refuse this itself; lely doesn't wait to find out."""
+    """One run talks to one workspace.
+
+    The CLI doesn't hold a bundle to that (V4, seen on v1.19.0): with a token
+    from the environment it goes to the host the bundle's target names. So
+    lely compares the two — after the CLI's first call, which is the earliest
+    it can know the bundle's host without reading `databricks.yml` itself.
+    """
     bundles = host(config)
     if bundles is None or not ctx.host:
         return
@@ -376,33 +400,34 @@ def changes(document: Mapping[str, Json]) -> tuple[Change, ...]:
 
 
 def gives(
-    config: Mapping[str, Json], summary: Mapping[str, Json], moving: frozenset[str]
+    summary: Mapping[str, Json], moving: frozenset[str]
 ) -> tuple[dict[str, Json], tuple[str, ...]]:
     """A bundle step's outputs, and the ones that exist only after the deploy.
 
-    `moving` are the resources this deploy creates or replaces: whatever id one
-    has now, it isn't the id it will have.
+    `summary` is `bundle summary -o json`: the resolved config, with the `id`
+    and `url` of what is deployed. `moving` are the resources this deploy
+    creates or replaces: whatever id one has now, it isn't the id it will have.
     """
     outputs: dict[str, Json] = {}
     later: list[str] = []
-    bundle = _section(config, "bundle")
+    bundle = _section(summary, "bundle")
     outputs["target"] = bundle.get("target")
     outputs["name"] = bundle.get("name")
-    for name, value in _section(config, "workspace").items():
+    for name, value in _section(summary, "workspace").items():
         outputs[f"workspace.{name}"] = value
-    for name, entry in _section(config, "variables").items():
+    for name, entry in _section(summary, "variables").items():
         if isinstance(entry, dict) and "value" in entry:
             outputs[f"var.{name}"] = entry["value"]
-    deployed = resources(summary)
-    for key, entry in resources(config).items():
+    for key, entry in resources(summary).items():
+        if entry.get("modified_status") == "deleted":
+            continue  # deployed, and no longer declared: this deploy removes it
         for name, value in entry.items():
-            if name not in ("id", "url"):
+            if name not in _DEPLOYED:
                 outputs[f"resources.{key}.{name}"] = value
-        live = deployed.get(key, {})
         for name in ("id", "url"):
             # TODO(verify): V3 — that every resource type has both in the summary.
-            if key not in moving and live.get(name) is not None:
-                outputs[f"resources.{key}.{name}"] = live[name]
+            if key not in moving and entry.get(name) is not None:
+                outputs[f"resources.{key}.{name}"] = entry[name]
             else:
                 later.append(f"resources.{key}.{name}")
     return outputs, tuple(later)

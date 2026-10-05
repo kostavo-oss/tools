@@ -120,8 +120,8 @@ def test_every_step_is_planned_again_right_before_it_runs(tmp_path: Path) -> Non
     p.fake.clear_calls()
     p.apply(approved)
     verbs = p.fake.verbs
-    assert verbs[:3] == ["validate", "plan", "summary"]  # app, planned again
-    assert verbs[3] == "deploy"
+    assert verbs[:2] == ["summary", "plan"]  # app, planned again
+    assert verbs[2] == "deploy"
 
 
 def test_fewer_changes_than_approved_is_fine(tmp_path: Path) -> None:
@@ -545,7 +545,7 @@ def test_status_shows_every_step_and_changes_nothing(tmp_path: Path) -> None:
     before = p.fake.state
     found = running.status(p.config, target="dev", **edges(p.fake))
     assert p.fake.state == before
-    assert set(p.fake.verbs) <= {"validate", "plan", "summary"}
+    assert set(p.fake.verbs) <= {"summary", "plan"}
     notes = {s.name: s.note for s in found.steps}
     assert notes == {
         "model": "nothing to list",

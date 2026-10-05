@@ -102,9 +102,8 @@ def test_reads_host_and_resources_from_validate() -> None:
 
 
 def test_what_a_deployed_bundle_gives_from_the_clis_own_recordings() -> None:
-    config = fixture("cli/validate-default-python.json")
     summary = fixture("cli/summary-default-python.json")
-    given, later = bundle.gives(config, summary, frozenset())
+    given, later = bundle.gives(summary, frozenset())
     outputs: Any = given
     assert later == ()
     assert outputs["target"] == "dev"
@@ -118,10 +117,15 @@ def test_what_a_deployed_bundle_gives_from_the_clis_own_recordings() -> None:
 
 
 def test_the_id_of_what_this_deploy_creates_or_replaces_comes_later() -> None:
-    config = fixture("cli/validate-default-python.json")
-    summary = fixture("cli/summary-default-python.json")
-    outputs, later = bundle.gives(config, config, frozenset())  # nothing deployed
+    # before a first deploy the summary is the resolved config, and each
+    # resource says `modified_status: created` where its id would be
+    never: Any = fixture("cli/validate-default-python.json")
+    for entries in never["resources"].values():
+        for entry in entries.values():
+            entry["modified_status"] = "created"
+    outputs, later = bundle.gives(never, frozenset())
     assert "resources.jobs.sample_job.id" not in outputs
+    assert "resources.jobs.sample_job.modified_status" not in outputs  # not config
     assert later == (
         "resources.jobs.sample_job.id",
         "resources.jobs.sample_job.url",
@@ -129,9 +133,19 @@ def test_the_id_of_what_this_deploy_creates_or_replaces_comes_later() -> None:
         "resources.pipelines.project_name_etl.url",
     )
     # deployed, but replaced by this deploy: the id it has isn't the id it will have
-    outputs, later = bundle.gives(config, summary, frozenset({"jobs.sample_job"}))
+    summary = fixture("cli/summary-default-python.json")
+    outputs, later = bundle.gives(summary, frozenset({"jobs.sample_job"}))
     assert "resources.jobs.sample_job.id" in later
     assert "resources.pipelines.project_name_etl.id" in outputs
+
+
+def test_a_resource_this_deploy_removes_gives_nothing() -> None:
+    """Deployed, and no longer declared: the summary still lists it."""
+    summary: Any = fixture("cli/summary-default-python.json")
+    summary["resources"]["jobs"]["sample_job"]["modified_status"] = "deleted"
+    outputs, later = bundle.gives(summary, frozenset())
+    assert not any(name.startswith("resources.jobs.sample_job") for name in outputs)
+    assert not any(name.startswith("resources.jobs.sample_job") for name in later)
 
 
 # -- as a step -------------------------------------------------------------------
@@ -158,11 +172,14 @@ def test_plans_one_change_per_resource_and_the_upload(tmp_path: Path) -> None:
         Change("pipelines.foo", "create", "pipelines.foo"),
         UPLOAD,
     )
-    # the same vars go to every call
+    # the same vars go to every call — and `validate` isn't one of them: on a
+    # real workspace it creates the bundle's `files` folder, and a plan
+    # changes nothing
     assert fake.calls == [
         ["bundle", verb, "--target", "dev", "--var=model_version=14", "--output", "json"]
-        for verb in ("validate", "plan", "summary")
+        for verb in ("summary", "plan")
     ]
+    assert "folders" not in fake.state
     assert isinstance(plan.payload, dict)
     assert plan.payload["plan_version"] == 2  # the CLI's own plan, whole
 
@@ -224,7 +241,7 @@ def test_a_bundle_for_another_workspace_is_refused(tmp_path: Path) -> None:
 def test_a_failing_cli_is_shown_in_its_own_words(tmp_path: Path) -> None:
     step = ctx(tmp_path, vars={})  # model_version has no default
     with pytest.raises(
-        LelyError, match="(?s)`databricks bundle validate` failed.*model_version"
+        LelyError, match="(?s)`databricks bundle summary` failed.*model_version"
     ):
         Bundle().plan(step)
 
@@ -279,9 +296,10 @@ def test_a_plan_the_state_has_moved_on_from_is_refused_in_the_clis_words(
     Bundle().apply(step, Bundle().plan(step))  # someone else deploys in between
     with pytest.raises(Refused) as caught:
         Bundle().apply(step, stale)
-    assert "plan is stale: the state has been modified since the plan was created" in str(
-        caught.value
-    )
+    assert (
+        "plan serial 1 does not match state serial 2; the state has been modified "
+        "since the plan was created."
+    ) in str(caught.value)
 
 
 def test_a_deploy_that_fails_is_a_failure_not_a_refusal(tmp_path: Path) -> None:
@@ -526,3 +544,36 @@ def test_a_variable_with_a_line_break_isnt_sent(tmp_path: Path) -> None:
     a quoted field, so lely doesn't find out which one is right."""
     with pytest.raises(LelyError, match="`model_version` holds a line break"):
         Bundle().plan(ctx(tmp_path, vars={"model_version": "14\r\n15"}))
+
+
+# -- seen on a real workspace, 2026-10-06 --------------------------------------------
+
+
+def test_nothing_lely_does_to_look_calls_validate(tmp_path: Path) -> None:
+    """`bundle validate` creates the bundle's `files` folder in the workspace.
+    Planning, listing and planning a destroy leave the workspace as it was —
+    not even an empty folder — which is also what lets them run with
+    credentials that can only read."""
+    fake = project.databricks(tmp_path)
+    step = ctx(tmp_path, fake)
+    Bundle().plan(step)
+    Bundle().overview(step)
+    Bundle().plan_destroy(step)
+    assert "validate" not in fake.verbs
+    assert "folders" not in fake.state
+    # and the fake does what the real one was seen to
+    fake.run(["bundle", "validate", "--target", "dev", "--var=model_version=1"], tmp_path)
+    assert fake.state["folders"] == [
+        "/Workspace/Users/jane@example.com/.bundle/shop/dev/files"
+    ]
+
+
+def test_the_clis_own_refusal_to_destroy_unasked(tmp_path: Path) -> None:
+    """V2. lely always passes `--auto-approve` — it has asked. Without it, and
+    nobody to ask, the CLI refuses in these words."""
+    write_bundle(tmp_path, project.BUNDLE)
+    fake = project.databricks(tmp_path)
+    done = fake.run(["bundle", "destroy", "--target", "dev"], tmp_path)
+    assert done.returncode == 1
+    assert "To proceed, use --auto-approve." in done.stderr
+    assert fake.deployed() == project.DEPLOYED

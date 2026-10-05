@@ -1,6 +1,7 @@
 # 005 — plan, apply, destroy
 
-**Status:** built, 2026-10-05, against fakes only — see [As built](#as-built). Phase one.
+**Status:** built, 2026-10-05; run on a real workspace once, 2026-10-06 — see
+[As built](#as-built). Phase one.
 
 ## Why
 

@@ -1,6 +1,7 @@
 # 002 — plugins
 
-**Status:** built, 2026-10-05, against fakes only — see [As built](#as-built). The markers on
+**Status:** built, 2026-10-05, and tested against fakes; the bundle plugin was run on a real
+workspace once — see [As built](#as-built). The markers on
 the requirements below (*built*, *design*, "today …") say where each came from, and describe the
 code as it was before this was built.
 

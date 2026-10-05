@@ -9,10 +9,9 @@ lely replaces the script around `databricks bundle deploy`.
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model —
 > and lely to deploy them as one.**
 
-> **Status: pre-alpha, and untried on a real workspace.** `plan`, `apply`, `destroy` and
-> `status` are built and tested against a fake Databricks CLI only. Until someone has run a
-> bundle through all four on a real target, treat `apply` and `destroy` as unproven — see
-> [what has not been tried](#what-has-not-been-tried). [spec/](spec/README.md) says what each
+> **Status: pre-alpha.** `plan`, `apply`, `destroy` and `status` are built, tested against a
+> fake Databricks CLI, and have been run on a real workspace once, with one small bundle — see
+> [what has been tried](#what-has-been-tried). That is a first proof, not a track record. [spec/](spec/README.md) says what each
 > piece must do; [docs/DESIGN.md](docs/DESIGN.md) says how it is built.
 
 ## Why
@@ -162,25 +161,27 @@ what they can do.
 Planning runs your project's own code — a plugin in the repo, a `command` step's plan command.
 On a pull request, give `lely plan` credentials that can read and nothing more.
 
-## What has not been tried
+## What has been tried
 
-lely is built against a fake Databricks CLI. What that fake answers for `deploy` and `destroy`
-is what we believe the real one does, and no real workspace has confirmed it:
+lely is tested against a fake Databricks CLI, and has been run on a real workspace once
+(2026-10-06, CLI v1.19.0): a bundle with one job, on a development target, was planned,
+applied, listed, applied again, updated from a plan file, and destroyed. That run matched what
+lely assumed about the CLI, with one correction and one surprise:
 
-1. `bundle destroy` removes what `bundle summary` lists, and the bundle's files — and nothing
-   lely didn't show.
-2. `--auto-approve` is the flag that answers for `bundle deploy` and `bundle destroy` when
-   nobody can.
-3. `bundle summary -o json` has an id and a link for every resource type, not only jobs and
-   pipelines.
-4. The CLI refuses a bundle whose target names another workspace than the credentials reach.
-   (lely also checks this itself.)
-5. `bundle plan` speaks only of resources, never of the files a deploy uploads.
-6. `bundle deploy --plan`, given a plan with no resource changes, still uploads the files and
-   succeeds.
-7. A bundle that another identity deployed, or that was deployed under another root path,
-   looks "not deployed" from here.
-8. `--var` reads its value as a line of CSV, so lely quotes a variable that holds a comma.
+- **The CLI trusts the bundle with your credentials.** A bundle whose target names another
+  host is not refused: with a token from the environment, the CLI goes to that host and
+  presents the token. lely compares the two hosts and stops, but only after the CLI's first
+  call. Know whose `databricks.yml` you run.
+- **`bundle validate` writes.** It creates a folder in the workspace, so lely doesn't use it:
+  `lely plan`, `status` and a destroy plan were seen to leave the workspace as it was.
+
+What one run could not show:
+
+1. That a bundle another identity deployed looks "not deployed" from here.
+2. That every resource type has an id and a link in `bundle summary` — only a job was tried.
+3. `bundle.run`: no job was run.
+4. `lely plan` with credentials that can only read.
+5. That `bundle destroy` never removes more than `bundle summary` lists.
 
 `lely doctor` also can't tell whether credentials are read-only; it says so.
 

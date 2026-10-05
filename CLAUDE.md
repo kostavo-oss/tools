@@ -16,8 +16,9 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 - No module outside `src/lely/steps/` knows a plugin by name — the bundle included.
 - Domain model: frozen, slotted stdlib dataclasses with tuples.
 - The bundle is the Databricks CLI's: the `bundle` plugin asks it
-  (`bundle validate/plan/summary -o json`, `deploy --plan`, `destroy`) and never reimplements
-  what it resolves. If a bundle resource can manage something, no plugin does.
+  (`bundle summary/plan -o json`, `deploy --plan`, `destroy`) and never reimplements what it
+  resolves. Not `bundle validate`: on a real workspace it creates a folder, and a plan changes
+  nothing. If a bundle resource can manage something, no plugin does.
 - A step is given its own options and a way to reach the workspace, nothing else. What it takes
   from another step is `${steps.<name>.<output>}` in its `with:`, from a step above it.
 - A plugin declares its outputs, touches only what its options name, and destroys only what it
@@ -42,15 +43,17 @@ code of `tail`.
 
 ## Status
 
-**Phase one is built (2026-10-05), against fakes only.** `validate`, `steps`, `schema`, `plan`,
+**Phase one is built (2026-10-05) and was run on a real workspace once (2026-10-06).** `validate`, `steps`, `schema`, `plan`,
 `show`, `apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run`
 plugins and plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
 
 Not built, or not proven:
 
-- **Nothing has run against a real workspace.** What is assumed about the Databricks CLI is
-  V1–V7 in `spec/004-asset-bundle.md` and V8 in its "As built", each a `TODO(verify)` in
-  `src/lely/steps/bundle.py`, and listed in the README. Settling them is the first thing to do.
+- **One run on a real workspace is a first proof, not a track record.** What it settled, what
+  it corrected (the CLI goes to the bundle's host with the credentials at hand; `bundle
+  validate` writes, so the plugin uses `bundle summary`) and what it couldn't show is in
+  `spec/004-asset-bundle.md`, "Run on a workspace". What is still assumed is a `TODO(verify)`
+  in `src/lely/steps/bundle.py`.
 - **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
   that uses it. The owner takes it up separately — don't extend it.
 - **Phase two**: the page (`spec/007-ui.md`) and GitHub (`spec/008-github-actions.md`), whose

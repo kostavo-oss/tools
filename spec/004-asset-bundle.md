@@ -1,7 +1,7 @@
 # 004 — the Asset Bundle plugin
 
-**Status:** built, 2026-10-05, against a fake CLI only — see [As built](#as-built). Nothing here
-has run on a real workspace: [To verify](#to-verify-on-a-workspace) is the first thing to do.
+**Status:** built, 2026-10-05, and run on a real workspace once, on 2026-10-06 — see
+[Run on a workspace](#run-on-a-workspace-2026-10-06) for what that settled and what it didn't.
 
 ## Why
 
@@ -135,6 +135,9 @@ listed below can use what it gives.
 
 ## To verify on a workspace
 
+*Written before any real run. One was done on 2026-10-06:
+[Run on a workspace](#run-on-a-workspace-2026-10-06) says what became of each point below.*
+
 lely's rule is that nothing about Databricks is assumed without a test and a link. The owner
 decided on 2026-10-05 that this plugin is built against a fake CLI for now, with no run on a real
 workspace. So these seven stay **assumed**: each is marked as unverified where the code depends
@@ -166,6 +169,40 @@ workspace before those two are written would cost less than finding out afterwar
 decision stands; the risk is written here so that it is taken knowingly, and looked at again
 when apply is about to be built.
 
+## Run on a workspace, 2026-10-06
+
+One run, with the owner's token: Databricks CLI v1.19.0, an AWS workspace, a bundle with one job
+and a target in development mode, the token of a workspace admin taken from the environment.
+lely planned it, applied it, listed it, applied it again, applied an update from a plan file,
+planned its destroy and destroyed it; the job and the bundle's folder were gone afterwards.
+
+| | Assumed | Found |
+|---|---|---|
+| V1 | `bundle destroy` removes what the summary lists, and the files | **So it did**, for the one job, and the bundle's folder went with it. Whether it can remove more than the summary lists is still not known; the destroy plan keeps saying so. |
+| V2 | `--auto-approve` answers when nobody can | **Yes.** Without it and with nobody to ask, `bundle destroy` refuses, exits 1 and names the flag. `deploy --plan … --auto-approve` ran unasked. Not tried: whether `deploy` without it asks before a delete. |
+| V3 | the summary has an `id` and a `url` for every resource type | **For a job, yes.** Other types: only what the CLI's own recordings show (pipelines). |
+| V4 | the CLI refuses a target on another workspace than the credentials reach | **No.** With a token from the environment the CLI goes to the host the bundle's target names and presents the token there. lely's own comparison of the two hosts is what stops the run — after that first call, which is the earliest it can know the bundle's host. |
+| V5 | `bundle plan` speaks only of resources | **Yes.** |
+| V6 | `deploy --plan` with nothing to change still uploads the files | **Yes**, and it succeeds. |
+| V7 | a bundle another identity deployed looks not deployed from here | **Not tried**: one identity. The root path was seen to hold the deploying user's name. |
+| V8 | `--var` reads its value as a line of CSV | **Yes.** `--var=a=1,b=2` set both variables; a pair in CSV quotes arrived whole. |
+
+What the run found that nobody had assumed:
+
+- **`bundle validate` is not read-only.** It creates the bundle's `files` folder in the
+  workspace. lely's plan called it, so a plan left an empty folder behind — and would have
+  needed credentials that can write. `bundle summary` gives the same resolved config and
+  creates nothing, so the plugin asks that instead; `plan`, `status` and a destroy plan were
+  then seen to leave the workspace as it was.
+- **The words of a stale plan**: "plan serial 1 does not match state serial 2; the state has
+  been modified since the plan was created." lely recognises a refusal by the second half.
+- **The Terraform engine** (`DATABRICKS_BUNDLE_ENGINE=terraform`) answers `bundle plan -o json`
+  without a `plan_version`, which is how lely tells it from the direct engine (R3). A new
+  bundle was on the direct engine without being told.
+
+Still not tried: V7; resource types other than a job; `bundle.run` (it would have run a job);
+credentials that can only read; a second bundle in one project.
+
 ## Decided
 
 - **More than one bundle in a project** (was D1): yes, from the start — R3a.
@@ -183,8 +220,10 @@ when apply is about to be built.
   "happens on every apply": a plan that holds one is never "nothing to do", and it is counted
   as a run, not as a change. So a bundle with no resource to change plans as
   `Plan: 0 changes · 1 run`.
-- **Planning asks the CLI three things** — `validate`, `plan`, `summary` — each with the step's
-  `vars`. The summary is asked at plan time too: it has the ids of what is deployed already.
+- **Planning asks the CLI two things** — `summary` and `plan` — each with the step's `vars`. The
+  summary is the resolved config with the ids of what is deployed already. Not `validate`,
+  which R2's wording suggests: on a real workspace it creates a folder
+  ([Run on a workspace](#run-on-a-workspace-2026-10-06)).
 - **A resource this deploy replaces** is treated like one it creates: whatever id it has now is
   not the id it will have, so a step that takes it waits.
 - **Which of the CLI's refusals lely recognises (R6b)** is one: a plan the state has moved on
@@ -195,13 +234,15 @@ when apply is about to be built.
   with a message that says so. How such a bundle really answers `bundle plan -o json` is not
   verified.
 - **Another workspace (V4):** the plugin compares the host the bundle's target resolves to with
-  the one the run talks to, and refuses when they differ, rather than wait for the CLI to.
+  the one the run talks to, and refuses when they differ. The CLI doesn't: it was seen to go to
+  the bundle's host with whatever token the environment holds. So a bundle whose target names
+  a host is trusted with the credentials the moment the CLI is asked about it — by lely or by
+  hand — and lely can only stop what comes after.
 - **Right after an apply (R7a)**, a resource the deploy deleted is listed too, as deleted.
 - **An eighth assumption, found in review — V8.** `--var` is a list flag, which reads its
   value as a line of CSV. So a value with a comma or a quote is CSV-quoted; unquoted,
-  `14,catalog=prod` from a step above would have set a second variable nobody wrote. This is
-  from the CLI's source (`cmd/bundle/variables.go`), not seen live:
-  `databricks bundle validate --var='a=1,b=2' -o json` settles it.
+  `14,catalog=prod` from a step above would have set a second variable nobody wrote. Seen on
+  the real CLI.
 - **`vars` are text, passed as written.** `model_version: 3.10` goes out as `3.10`, not `3.1`,
   and `0123` isn't read as octal. A secret — a value from the environment included — and a
   list are refused where they are written, by `validate` already. A value with a line break
@@ -214,8 +255,8 @@ when apply is about to be built.
   owner's to decide.*
 - **A `path` that isn't a directory** is said so at plan. It used to read as "the Databricks
   CLI isn't installed".
-- **V1–V8** are each a `TODO(verify)` in `src/lely/steps/bundle.py`, are what
-  `tests/fake_databricks.py` simulates, and are listed in the README.
+- **What is still assumed** is a `TODO(verify)` in `src/lely/steps/bundle.py`; what was seen is
+  said there too. `tests/fake_databricks.py` simulates both, and says which is which.
 
 ## Done when
 

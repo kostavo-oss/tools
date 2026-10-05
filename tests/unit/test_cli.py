@@ -166,7 +166,7 @@ def test_plan_shows_the_plan_and_names_the_workspace(lely: Lely) -> None:
     ) in said(result)
     assert "Plan: 2 changes · 2 runs · 0 destructive · 1 waiting" in said(result)
     assert "Applied from a file, this stops before `notify`" in said(result)  # R27
-    assert set(lely.fake.verbs) == {"validate", "plan", "summary"}
+    assert set(lely.fake.verbs) == {"summary", "plan"}
 
 
 def test_plan_writes_a_file_and_show_renders_it(lely: Lely) -> None:
@@ -555,7 +555,7 @@ def test_status_shows_what_is_deployed_and_whose_view_it_is(lely: Lely) -> None:
     assert "as seen by jane@example.com under /Workspace/Users/jane@example.com" in text
     assert "nothing to list" in text
     assert "skipped: not for target `dev`" in text
-    assert set(lely.fake.verbs) <= {"validate", "plan", "summary"}
+    assert set(lely.fake.verbs) <= {"summary", "plan"}
     assert lely("status").exit_code == 2  # R37
 
 

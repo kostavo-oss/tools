@@ -13,22 +13,26 @@ variable's `value` for validate, as the CLI resolves it. The recordings in
 **By simulating a bundle.** When the directory the call runs in holds a
 `fake-bundle.json`, that is the bundle, and `<world>/state.json` is what the
 workspace remembers of it: what was deployed, under which root path, with which
-ids. `plan`, `deploy`, `summary`, `destroy` and `run` then behave the way lely
-believes the CLI does. That belief is the seven assumptions of
-`spec/004-asset-bundle.md`, written down as code — passing against this proves
-lely is consistent with them, not that they are true:
+ids. `plan`, `deploy`, `summary`, `destroy` and `run` then behave the way the
+real CLI was seen to on 2026-10-06 (v1.19.0, one job, a development target) —
+or, where that run couldn't show it, the way lely believes it does:
 
-- V1  `destroy` removes what `summary` lists as deployed, and the files.
-- V2  `deploy` and `destroy` refuse a destructive action without
-      `--auto-approve` when nobody can be asked.
-- V3  `summary` has an `id` and a `url` for every deployed resource.
-- V4  not simulated: the fake has no credentials. lely's own check of the
-      bundle's host against the run's is what is tested.
-- V5  `plan` speaks only of resources.
-- V6  `deploy --plan` with no resource changes still uploads the files.
+- V1  `destroy` removes what `summary` lists as deployed, and the files. Seen.
+- V2  `destroy` refuses without `--auto-approve` when nobody can be asked, in
+      the CLI's own words. Seen. That `deploy` does the same for a delete or a
+      recreate is believed.
+- V3  `summary` has an `id` and a `url` for every deployed resource. Seen for
+      a job.
+- V4  not simulated: the fake has no credentials. The real CLI does *not*
+      refuse a target on another host; lely's own check is what is tested.
+- V5  `plan` speaks only of resources. Seen.
+- V6  `deploy --plan` with no resource changes still uploads the files. Seen.
 - V7  what was deployed is recorded under the bundle's root path, which holds
       the deploying user's name: another identity sees nothing deployed.
-- V8  `--var` is a list flag whose value is read as a line of CSV.
+      Believed; the root path was seen to hold the name.
+- V8  `--var` is a list flag whose value is read as a line of CSV. Seen.
+-     `validate` creates the bundle's `files` folder. Seen: it is recorded in
+      `state.json` under `folders`, so a test can hold lely to not calling it.
 
 Anything it can't answer exits 1 — loudly, like the CLI would.
 """
@@ -209,7 +213,13 @@ class _Simulated:
         }
 
     def _validate(self) -> str:
-        return json.dumps(self._config()) + "\n"
+        # not read-only: the real CLI creates the bundle's `files` folder
+        # (seen on v1.19.0). lely's planning must not call this.
+        state = self._load()
+        config = self._config()
+        state.setdefault("folders", []).append(f"{self.root_path}/files")
+        self._save(state)
+        return json.dumps(config) + "\n"
 
     def _planned(self) -> dict[str, Any]:
         mine = self._mine(self._load())
@@ -263,9 +273,11 @@ class _Simulated:
             document = json.loads(Path(self.call.flags["--plan"]).read_text())
             was = (document.get("lineage"), document.get("serial", 0))
             if was != (mine["lineage"], mine["serial"]):
+                # the real CLI's words for a serial that moved on (v1.19.0)
                 raise _Fails(
-                    "plan is stale: the state has been modified since the plan was "
-                    f"created (state serial {mine['serial']}, plan serial {was[1]})"
+                    f"plan serial {was[1]} does not match state serial "
+                    f"{mine['serial']}; the state has been modified since the plan "
+                    "was created. Please run 'bundle plan' again"
                 )
         else:
             document = self._planned()
@@ -319,7 +331,12 @@ class _Simulated:
         state = self._load()
         mine = self._mine(state)
         if "--auto-approve" not in self.call.flags:  # V2
-            raise _Fails("destroying needs approval; use --auto-approve to proceed")
+            # the real CLI's words, with nobody to ask (v1.19.0)
+            raise _Fails(
+                "this command will destroy all resources deployed by this bundle, "
+                "including workspace files in the deployment directory.\n"
+                "To proceed, use --auto-approve."
+            )
         # V1: what the summary lists as deployed, and the files with them
         state["bundles"].pop(self.root_path)
         state.setdefault("destroyed", []).append(

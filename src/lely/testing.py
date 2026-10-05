@@ -44,8 +44,9 @@ from lely.step import Cli, Context, NullLog
 OptionsT = TypeVar("OptionsT")
 
 #: Calls of the Databricks CLI that change nothing, by how they start.
+#: `bundle validate` is not one of them: it creates the bundle's `files` folder
+#: in the workspace (seen on CLI v1.19.0).
 READS: tuple[tuple[str, ...], ...] = (
-    ("bundle", "validate"),
     ("bundle", "plan"),
     ("bundle", "summary"),
     ("current-user", "me"),

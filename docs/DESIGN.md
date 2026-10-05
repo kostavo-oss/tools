@@ -280,7 +280,8 @@ as `--var` to every CLI call the step makes. A project can have several; each ta
 bundle target, and all deploy to the one workspace the run talks to. A bundle whose target names
 another workspace is refused.
 
-- **plan**: `bundle validate`, `bundle plan` and `bundle summary`, all `-o json`. One change per
+- **plan**: `bundle summary` and `bundle plan`, both `-o json` — not `bundle validate`, which
+  creates a folder in the workspace. One change per
   resource that is created, updated, replaced or deleted, keyed `jobs.backfill`. A delete, a
   `recreate`, an `update_id` and any action lely doesn't know are destructive. One more line, a
   `run`: *uploads the bundle's files* — a deploy ships notebooks and wheels even when no resource
@@ -486,22 +487,27 @@ Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8
   `ValidatePlanAgainstState`).
 - A failed `bundle validate` still prints JSON and exits 1. The exit code decides.
 
-**Not tried on a real workspace.** By the owner's decision of 2026-10-05, apply and destroy are
-built against the fake only. What the simulator answers is what we believe, written down as code:
+**Run on a real workspace once**, on 2026-10-06, with CLI v1.19.0 and one small bundle. Before
+that, apply and destroy were built against the fake only, on eight assumptions; the table says
+what became of each. [Spec 004](../spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
+the detail.
 
-| | Assumed |
-|---|---|
-| V1 | `bundle destroy` removes what `bundle summary` lists, and the bundle's files; the destroy plan is built from the summary |
-| V2 | `--auto-approve` answers for `bundle deploy` and `bundle destroy` when nobody can |
-| V3 | `bundle summary -o json` has an `id` and a `url` for every resource type |
-| V4 | the CLI refuses a bundle whose target names another workspace than the credentials reach; lely checks the host itself as well |
-| V5 | `bundle plan` speaks only of resources, not of files |
-| V6 | `bundle deploy --plan`, given a plan with no resource changes, still uploads the files and succeeds |
-| V7 | a bundle another identity deployed, or deployed under another root path, looks not deployed |
-| V8 | `--var` reads its value as a line of CSV, so a value with a comma has to be quoted (found in review; not in the spec's list) |
+| | Assumed | Found |
+|---|---|---|
+| V1 | `bundle destroy` removes what `bundle summary` lists, and the bundle's files | so it did, for one job |
+| V2 | `--auto-approve` answers for `deploy` and `destroy` when nobody can | yes; without it `destroy` refuses |
+| V3 | `bundle summary -o json` has an `id` and a `url` for every resource type | for a job |
+| V4 | the CLI refuses a bundle whose target names another workspace | **no**: it goes there, with the token from the environment. lely's own check stops the run after that first call |
+| V5 | `bundle plan` speaks only of resources, not of files | yes |
+| V6 | `deploy --plan` with nothing to change still uploads the files | yes |
+| V7 | a bundle another identity deployed looks not deployed | not tried |
+| V8 | `--var` reads its value as a line of CSV | yes |
 
-Each is marked `TODO(verify)` where the code depends on it. The first thing to do after phase one is
-a bundle planned, applied, listed and destroyed on a real target.
+And one thing nobody had assumed: `bundle validate` creates a folder in the workspace. So the
+bundle plugin asks `bundle summary` for the resolved config instead, and a plan leaves the
+workspace as it was.
+
+What is still assumed is marked `TODO(verify)` where the code depends on it.
 
 ## Phases
 

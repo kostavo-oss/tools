@@ -76,7 +76,7 @@ def test_a_step_above_the_bundle_feeds_it_a_variable(tmp_path: Path) -> None:
     assert model.plan.outputs == {"version": 14}
     assert app.inputs == (Input("model_version", "model.version", 14),)
     assert all("--var=model_version=14" in call for call in fake.calls)
-    assert fake.verbs == ["validate", "plan", "summary"]
+    assert fake.verbs == ["summary", "plan"]
 
 
 def test_the_bundles_plan_is_one_steps_plan_like_any_other(tmp_path: Path) -> None:

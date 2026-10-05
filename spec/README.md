@@ -7,7 +7,7 @@ deliver and when it counts as done. Where the two disagree, one of them is wrong
 don't pick one quietly. The owner set a new direction on 2026-10-05,
 [000](000-what-lely-is.md) records it, and the design was rewritten to it the same day.
 
-**Phase one is built**, against fake tools only. Each spec that was built has an "As built"
+**Phase one is built**, tested against fake tools, and was run on a real workspace once. Each spec that was built has an "As built"
 section: what the code does where the spec left room, and where it stops short.
 
 ## The specs
@@ -21,7 +21,7 @@ The numbers are names, not an order; the order of work is in
 | [001 — what is built](001-what-is-built.md) | The read-only half as it stood before phase one | — | superseded |
 | [002 — plugins](002-plugins.md) | The one contract; what flows between steps | 1 | built |
 | [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | built |
-| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built — **untried on a real workspace** |
+| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built; run on a workspace once |
 | [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | built |
 | [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
@@ -131,11 +131,10 @@ The ones worth remembering:
 
 ## Still open
 
-1. **Phase one has never run against a real workspace.** It was built against a fake Databricks
-   CLI, on seven assumptions about the real one — a risk the owner took knowingly — and an
-   eighth that a review turned up (how `--var` reads a comma). Settling
-   them is the first thing to do, and the README says so to anyone who would rely on `apply` or
-   `destroy`. → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
+1. **Phase one has run against a real workspace once**, on 2026-10-06, with one small bundle.
+   Six of the eight assumptions held, one could not be tried, and one was wrong: the CLI does
+   not refuse a bundle whose target names another host. What one run couldn't show is listed
+   with it. → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
 2. **What the builder decided where the specs left room** is in each spec's "As built", and in
    `docs/DESIGN.md` under "Decided while building". None of it is the owner's yet. The one that
    adds something the specs didn't name: an option that names a whole step.
