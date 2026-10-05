@@ -10,6 +10,7 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -883,13 +884,13 @@ def test_before_the_first_commit_the_plan_says_so(ready: Lely) -> None:
 
 
 def test_git_refusing_fails_a_plan_and_doesnt_stop_an_unsaved_run(
-    ready: Lely, monkeypatch: pytest.MonkeyPatch
+    ready: Lely, git_refuses: Callable[[], None]
 ) -> None:
     """R36. In a container the checkout is often someone else's, and git
     refuses it. That used to read as "not in a git repository", and the plan
     file was then held to nothing."""
     subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
-    monkeypatch.setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+    git_refuses()
     result = ready("plan", "-t", "dev", "-o", "plan.json")
     assert result.exit_code == 1
     assert "dubious ownership" in said(result)

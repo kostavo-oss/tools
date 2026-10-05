@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -266,12 +267,12 @@ def test_a_folder_spelled_in_another_case_is_the_same_project(repo: Path) -> Non
 
 
 def test_git_refusing_is_not_the_same_as_no_repository(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, git_refuses: Callable[[], None]
 ) -> None:
     """Only git's own "not a git repository" means that. Any other failure
     fails the plan: one that quietly recorded nothing would be held to nothing.
     Here, the refusal a container gives a checkout owned by someone else."""
-    monkeypatch.setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+    git_refuses()
     with pytest.raises(SourceError) as caught:
         source.read(repo)
     assert "dubious ownership" in str(caught.value)
