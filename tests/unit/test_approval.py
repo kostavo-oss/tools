@@ -157,6 +157,23 @@ def test_what_wasnt_known_at_plan_and_what_is_secret_isnt_compared() -> None:
     )
 
 
+def test_a_secret_stays_a_secret_and_a_shown_value_stays_shown() -> None:
+    """Found in the fourth review: a value the plan showed as `14` that is a
+    secret now was not compared at all — nor one that was a secret and is in
+    the clear now."""
+    shown = PlannedStep("app", "bundle", "h", inputs=(Input("v", "model.v", 14),))
+    with pytest.raises(Refused) as caught:
+        approval.same_inputs(shown, [Input("v", "model.v", Secret("15"))])
+    assert str(caught.value) == (
+        "Step `app` takes model.v = a secret now; the plan was approved with 14. "
+        "Plan again."
+    )
+    hidden = PlannedStep("app", "bundle", "h", inputs=(Input("v", "model.v", Secret()),))
+    with pytest.raises(Refused, match="= 15 now; the plan was approved with a secret"):
+        approval.same_inputs(hidden, [Input("v", "model.v", 15)])
+    approval.same_inputs(hidden, [Input("v", "model.v", Secret("15"))])
+
+
 # -- the workspace (005/R35) and the tree (005/R36) ---------------------------------
 
 

@@ -197,6 +197,13 @@ class Linked:
 
     The plugin is given that step's own options, resolved, and what it gives.
     The named step stands above the one that names it, like any reference.
+
+    Unlike a referenced output, what a plugin reads here is not held to the
+    plan: a step gives things that differ from one run to the next without
+    anything having changed — who is running, for one — and lely can't tell
+    which of them the plugin acts on. So a plugin that acts on a value it
+    found here puts that value in the change it plans (`runs job 1001`): then
+    a run on another value is a change nobody approved, and is refused.
     """
 
     name: str
