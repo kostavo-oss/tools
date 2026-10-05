@@ -1,6 +1,6 @@
 # 003 — config
 
-**Status:** draft; the shape is decided. Phase one.
+**Status:** agreed, 2026-10-05; not started. Phase one.
 
 ## Why
 
@@ -65,7 +65,7 @@ are errors, with file, line and column.
   outright. A step's paths are relative to that file, not to where the command was run.
   *(owner, 2026-10-05; the last sentence is today's behaviour)*
 - **R6 — One of the two, not both.** With both present lely stops and names the two files; it
-  does not merge them and does not pick. *(proposed)*
+  does not merge them and does not pick. *(agreed)*
 - **R7 — Everything is checked offline by `lely validate`:** unknown keys, options against the
   plugin's, and every reference ([002/R18](002-plugins.md)). Errors point at the file, line and
   column, in either format. *(built for `lely.yml`)*
@@ -79,7 +79,7 @@ are errors, with file, line and column.
   backfill  takes  ← app.resources.jobs.backfill.id
   ```
 
-  *(proposed)*
+  *(agreed)*
 - **R9 — A schema for editors,** built from the plugins' own options and outputs, so a step's
   `with:` is completed and checked while it is typed. *(design; not built)*
 
@@ -97,4 +97,3 @@ are errors, with file, line and column.
   ([005/R5](005-plan-apply-destroy.md)), so a plan made from one is accepted with the other.
 - `lely validate` reports the same mistakes, with a position, in both.
 - The README's quickstart is written as R1.
-- Every requirement still marked *(proposed)* here is agreed or changed.

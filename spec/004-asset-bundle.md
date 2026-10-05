@@ -1,6 +1,6 @@
 # 004 — the Asset Bundle plugin
 
-**Status:** draft. Phase one, and the first plugin to be finished — after the contract
+**Status:** agreed, 2026-10-05; not started. Phase one, and the first plugin to be finished — after the contract
 ([002](002-plugins.md)) and the config's shape ([003/R1](003-config.md)), which it stands on.
 *(owner: "start with asset bundles")*
 
@@ -44,7 +44,7 @@ the overview.
   speaks of resources; a changed notebook or a rebuilt wheel isn't one. So the plan always
   carries one line for the bundle saying its files are uploaded, the deploy always runs, and "no
   changes" is never shown for a bundle step. That line is not counted as a change: a plan with
-  only that line is still "nothing changes in the workspace's resources". *(proposed — without
+  only that line is still "nothing changes in the workspace's resources". *(agreed — without
   it, a plan that says nothing changes would be followed by a deploy that ships new code; see
   V5)*
 
@@ -55,7 +55,7 @@ the overview.
   ([005/R7](005-plan-apply-destroy.md)), and that fresh plan is what `bundle deploy --plan` is
   given — not the document from the plan file, which the CLI would refuse as stale the moment
   anything had been deployed. The CLI's own check then only has to cover the seconds in between.
-  *(proposed; the design left open which of the two is handed over)*
+  *(agreed; the design left open which of the two is handed over)*
 - **R6a — So a second run finishes the first.** If an apply failed after the bundle deployed,
   running it again finds no resource left to change, deploys anyway — the files are uploaded
   again, nothing else moves — and goes on to the steps after it. *(follows from R5a and R6; see
@@ -75,7 +75,7 @@ the overview.
   *(owner; the limits follow from keeping no state)*
 - **R8** — The overview is a table in the terminal and JSON for anything else. The page and the
   Markdown for a pull request use the same data when they arrive ([007](007-ui.md),
-  [008](008-github-actions.md)). *(proposed)*
+  [008](008-github-actions.md)). *(agreed)*
 - **R9** — It comes from `bundle summary -o json` and from nothing else: nothing lely remembered,
   nothing in the plan file. *(owner: no state)*
 - **R9a — Before a first deploy, it shows what would exist.** For a target the bundle was never
@@ -86,7 +86,7 @@ the overview.
   `status` and `destroy` see what was deployed *by this identity, to this path, with these
   variables*, and print the identity and the path they looked under. A bundle that someone else
   deployed elsewhere looks "not deployed" from here, and lely says "not deployed, as far as
-  `<identity>` can see under `<path>`" — never a bare "nothing there". *(proposed — found in
+  `<identity>` can see under `<path>`" — never a bare "nothing there". *(agreed — found in
   review; see V7)*
 
 ### What it takes and what it gives
@@ -118,11 +118,11 @@ listed below can use what it gives.
 - **R11** — A destroy plan lists every resource lely can see the bundle has deployed — the same
   list as the overview — each marked destructive, and says that the bundle's uploaded files go
   with them. Whether the CLI would remove anything beyond that list is V1; until it is settled
-  the plan says "and whatever else `bundle destroy` removes". *(owner; the caveat is proposed)*
+  the plan says "and whatever else `bundle destroy` removes". *(owner; the caveat is agreed)*
 - **R12** — Destroying runs `bundle destroy` for the target and nothing else: no resource is
-  deleted by lely itself. *(proposed — the CLI knows the order and what it may not delete)*
+  deleted by lely itself. *(agreed — the CLI knows the order and what it may not delete)*
 - **R13** — A target with nothing deployed, as far as R9b can see, has an empty destroy plan and
-  says so in R9b's words. *(proposed)*
+  says so in R9b's words. *(agreed)*
 
 ## Not in this spec
 
@@ -182,7 +182,6 @@ when apply is about to be built.
 - The plugin passes the whole contract kit ([002/R25](002-plugins.md)).
 - V1–V7 are each marked as unverified in the code that depends on them, and listed in the README
   as what has not been tried on a real workspace.
-- Every requirement still marked *(proposed)* here is agreed or changed.
 
 Not part of done, by the owner's decision, and the first thing to do afterwards: a bundle
 planned, applied, listed and destroyed on a real target, end to end, settling V1–V7.

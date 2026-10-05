@@ -1,7 +1,7 @@
 # 002 — plugins
 
-**Status:** draft. Phase one, and the base for everything after it. Built first: nothing else in
-phase one can start before the bundle is out of the core.
+**Status:** agreed, 2026-10-05; not started. Phase one, and the base for everything after it.
+Built first: nothing else in phase one can start before the bundle is out of the core.
 
 ## Words
 
@@ -37,7 +37,7 @@ What the bundle needs, every plugin can then have.
 - **R6 — Overview.** Say what exists because of this step, one line per thing: its kind, its key
   and its name, always; its id and a link, where the system has them; and whether it is deployed.
   Available right after an apply and on its own, without changing anything.
-  *(owner: "a detailed overview of what it created"; the fields are proposed)*
+  *(owner: "a detailed overview of what it created"; the fields are agreed)*
 - **R7 — Destroy.** Say what `destroy` would remove, and then remove it. *(owner)*
 - **R8 — Show itself.** Optionally, give the UI its own detailed view of a plan. Without one, the
   UI shows the plan's changes. This arrives with the UI, in phase two. → [007](007-ui.md)
@@ -60,7 +60,7 @@ What the bundle needs, every plugin can then have.
 - **R11 — It destroys only what it can show is its own.** A plugin that can't tell what it made
   from what it merely found has nothing it may destroy. `command` is the one exception, by its
   nature: its destroy command is whatever the project wrote, lely can vouch for none of it, and
-  so the destroy plan shows that command line in full. *(proposed)*
+  so the destroy plan shows that command line in full. *(agreed)*
 - **R12 — Destructive is declared.** Deleting, replacing or dropping data is marked, in a plan and
   in a destroy plan alike. A change a plugin's tool reports and the plugin doesn't recognise is
   treated as destructive. *(design; the second sentence is built, for the bundle)*
@@ -71,7 +71,7 @@ What the bundle needs, every plugin can then have.
   `validate`. So wherever that code isn't trusted yet — a pull request — `plan` must be given
   credentials that can read and nothing more. lely can't enforce that. It says it where people
   will read it: in the docs' workflow ([008/R7](008-github-actions.md)) and in `lely doctor`.
-  *(proposed — found in review)*
+  *(agreed — found in review)*
 
 ### What flows between steps
 
@@ -79,7 +79,7 @@ Sometimes a step feeds the bundle: it looks up a model version, and the bundle n
 variable. Sometimes a step needs something from the bundle: the id of a job it just created.
 Both are the same thing — one step's output is another step's input — and these rules are what
 make it impossible to be vague about which is which. *(owner: "how can we make sure that is
-clearly defined"; the principle is decided, the mechanics below are proposed where marked)*
+clearly defined"; the principle is decided, the mechanics below are agreed where marked)*
 
 - **R14 — Outputs are declared.** A plugin lists what a step of it gives. Each output has a name
   and one of three answers to "when is it known?":
@@ -89,13 +89,13 @@ clearly defined"; the principle is decided, the mechanics below are proposed whe
   - **after every run** — never when planning: it is produced by running. What a script writes
     while it applies.
 
-  `lely steps` prints them next to the options. *(proposed; today a plugin declares only its
+  `lely steps` prints them next to the options. *(agreed; today a plugin declares only its
   options, so an output's name can't be checked until it is used)*
 - **R14a — An output whose name depends on the project is declared as a shape.** The bundle
   plugin can't list `resources.jobs.backfill.id` ahead of time: the job is the project's. It
   declares `resources.<type>.<key>.id`, where each `<…>` stands for exactly one part of the
   name. Offline, a reference is checked against the shape; that the job itself exists is checked
-  when the step is planned, with the same kind of message. *(proposed)*
+  when the step is planned, with the same kind of message. *(agreed)*
 - **R15 — An input is a reference, and nothing else.** A step takes a value from another step
   only by writing `${steps.<name>.<output>}` in its own options. There is no other channel: no
   file left behind, no environment handed on, no lookup behind the scenes. Whatever a step
@@ -121,17 +121,17 @@ clearly defined"; the principle is decided, the mechanics below are proposed whe
   run* output waits on every deploy, not only the first — and `validate` says so when it prints
   the wiring, because such a step can never be approved ahead of time. What apply does at a
   waiting step is [005/R25–R30](005-plan-apply-destroy.md). *(built, as "decided at apply"; the
-  warning is proposed)*
+  warning is agreed)*
 - **R20 — The wiring is shown.** In a plan, every step lists what it takes, from which step, and
   the value where it is known: `model_version = 14  ← model.version`. And `lely validate` prints
   the wiring of the whole project: for each step, what it takes and what it gives. In phase one
-  that is the terminal and the plan file; the page and Markdown follow in phase two. *(proposed)*
+  that is the terminal and the plan file; the page and Markdown follow in phase two. *(agreed)*
 - **R21 — Destroy reads the same wiring.** Inputs are resolved from the top of the list down, by
   planning each step as usual; removal then goes from the bottom up. So a step above the bundle
   that only looks something up still does its lookup, and a step below the bundle is destroyed
   while the bundle, and the id it needed, still exist. A step whose input doesn't exist — the
   job was never deployed, or the value only ever came from a run — is skipped, with the reason:
-  lely can't know what it would have to remove. The rest of the destroy goes on. *(proposed)*
+  lely can't know what it would have to remove. The rest of the destroy goes on. *(agreed)*
 
 ### What a step is given
 
@@ -169,7 +169,7 @@ clearly defined"; the principle is decided, the mechanics below are proposed whe
 
 ### The contract, as a sketch
 
-*(proposed — the names are settled when it is built, the parts are what the rules above need)*
+*(agreed — the names are settled when it is built, the parts are what the rules above need)*
 
 ```python
 class Plugin(Protocol):
@@ -220,12 +220,8 @@ plan half exists in the code and is left as it is.
   `command` step may bring a destroy command — R8b. *(owner, 2026-10-05)*
 - **One spelling for a reference** (was D4): always `${steps.<name>.<output>}` — R15a.
   *(owner, 2026-10-05)*
-
-## To decide
-
-- **D1 — Is "plugin" the word in the config too?** The config says `uses:`, the entry-point group
-  is `lely.steps`, the command is `lely steps`. Nothing is published, so all three can still
-  change — to `lely plugins`, say. *(proposed: keep them; a step uses a plugin)*
+- **The word in the config** (was D1): it stays "step" — `uses:`, `lely steps`, the entry-point
+  group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: go with the proposals)*
 
 ## Done when
 
@@ -236,4 +232,3 @@ plan half exists in the code and is left as it is.
 - `lely validate` on a project with a reference pointing down the list, and on one naming an
   output that doesn't exist, fails with a message that says what to change.
 - R25's checks exist and the plugins above pass the ones that apply to them.
-- Every requirement still marked *(proposed)* here is agreed or changed, and D1 is answered.

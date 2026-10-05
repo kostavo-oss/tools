@@ -1,6 +1,6 @@
 # 008 — GitHub
 
-**Status:** draft; its scope is decided. Phase two.
+**Status:** agreed, 2026-10-05, except one question ([D2](#to-decide)); not started. Phase two.
 
 ## Why
 
@@ -24,14 +24,18 @@ The owner's "a way to update GitHub Actions" means: **update what GitHub shows**
   so does what each step did and the overview of what now exists
   ([004/R7](004-asset-bundle.md)), with links into the workspace. A run can be read without
   opening its log. *(owner)*
-- **R4 — lely does this itself.** A project adds it to the workflow it already has; there is
-  nothing separate to install or to keep in step with lely's version. How it is asked for is
-  [D4](#to-decide). *(follows from the owner's answer: no ready-made Action was asked for)*
+- **R4 — lely does this itself, when asked.** A project adds `--github` to the commands its
+  workflow already runs (`lely plan -t dev --github`); there is nothing separate to install or to
+  keep in step with lely's version. It is never on just because of where a command was run.
+  *(follows from the owner's answer: no ready-made Action was asked for; the flag is agreed)*
+- **R4a — A pull request from a fork gets no plan, and is told so.** It has no credentials and
+  must not be given any: its code would run with them. The job summary says the plan was
+  skipped, and why. *(agreed)*
 - **R5** — Outside a GitHub Actions run, or without permission to comment, it says what it
   couldn't do and why, and the plan itself still succeeds or fails on its own merits.
-  *(proposed)*
+  *(agreed)*
 - **R6** — The token is never printed and never written to a plan, a comment or a summary.
-  *(proposed)*
+  *(agreed)*
 - **R7 — The docs carry a workflow to copy:** plan on a pull request, apply on merge, destroy
   only when started by hand with the target named — with the `concurrency:` group that keeps two
   runs for one target from overlapping, with no input pasted into a script as text, and with
@@ -52,20 +56,18 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
 
 - **What "update GitHub Actions" means** (was D1): what GitHub shows — the pull-request comment
   and the job summary. *(owner, 2026-10-05)*
+- **How a project asks for it** (was D4): a `--github` flag — R4.
+  *(owner, 2026-10-05: go with the proposals)*
+- **A pull request from a fork** (was D3): no plan, and the job summary says so — R4a.
+  *(owner, 2026-10-05: go with the proposals)*
 
 ## To decide
 
-- **D4 — How a project asks for it.** A flag on the commands it already runs
-  (`lely plan -t dev --github`), or on by itself whenever lely notices it is inside a GitHub
-  Actions run? *(proposed: the flag. Something that posts to a pull request shouldn't happen
-  because of where a command was run.)*
 - **D2 — Which plan does `apply` run on merge,** in the workflow the docs show? The file the pull
   request produced, kept as an artifact — so what runs is exactly what was reviewed, and a stale
   one is refused — or a new plan made on `main` with `--yes`? With the file, a first deploy that
   has a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)); with `--yes`, one
   ([005/R28](005-plan-apply-destroy.md)).
-- **D3 — A pull request from a fork** has no credentials, and must not be given any: its code
-  would run with them. Skip quietly, or say so in the job summary? *(proposed: say so)*
 
 ## Done when
 
@@ -73,4 +75,4 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
   stevin tests its own.
 - A pull request in a real repository has carried a plan comment that changed in place, and a
   merge has left a summary of what was created.
-- D2–D4 are answered here.
+- D2 is answered here.

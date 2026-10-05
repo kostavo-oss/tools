@@ -103,6 +103,5 @@ secrets (R9), and the `stevin`, `bundle.run` and `command` plugins' plan halves 
 Already done, except: G1–G3 are closed by the specs they point to, and "What changes" is carried
 out by [002](002-plugins.md)–[004](004-asset-bundle.md) without losing a test.
 
-One more thing changes for anyone who used it as built: `-t` may stop having a default
-([005, To decide](005-plan-apply-destroy.md#to-decide)); today it falls back to the bundle's own
-default target.
+One more thing changes for anyone who used it as built: `-t` no longer has a default
+([005/R37](005-plan-apply-destroy.md)); today it falls back to the bundle's own default target.

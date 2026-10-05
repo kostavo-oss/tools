@@ -1,11 +1,12 @@
 # 000 — what lely is
 
-**Status:** draft. The direction is the owner's, given on 2026-10-05; it replaces parts of
-`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). How lely is positioned
-was decided the same day; the wording around those decisions is still a proposal.
+**Status:** agreed, 2026-10-05. The direction is the owner's; it replaces parts of
+`docs/DESIGN.md`, listed under [What this changes](#what-this-changes). Two questions about what
+comes *after* phase one are still open, under [To decide](#to-decide).
 
 Requirements are marked *(owner)* where they come from that direction, *(design)* where
-`docs/DESIGN.md` already says them, and *(proposed)* where neither does and this is a suggestion.
+`docs/DESIGN.md` already says them, and *(agreed)* where the spec's author proposed them and the
+owner accepted them with "go with the proposals".
 
 ## In one line
 
@@ -14,7 +15,7 @@ Requirements are marked *(owner)* where they come from that direction, *(design)
 > anything runs, and taken down again when you say so.
 
 That is the line people meet first *(owner, 2026-10-05: lead with the reviewed deploy)*. Under it
-goes what lely replaces: the script around `databricks bundle deploy` *(proposed)*.
+goes what lely replaces: the script around `databricks bundle deploy` *(agreed)*.
 
 The definition, for whoever builds it: lely plans, applies and destroys an ordered list of
 steps, each done by a plugin, and keeps no state of its own. The Asset Bundle is one of those
@@ -55,7 +56,7 @@ steps written down and checked (R4a); one rule for consent and for destructive c
   *(owner, 2026-10-05: borrow the words, state the difference)*
 - **Not a task runner.** Make and a CI workflow run commands in order. A lely step can say what
   it *would* do before it does it, hands on what it produced in a way that is checked, and can be
-  undone. *(proposed)*
+  undone. *(agreed)*
 - **Not a workflow engine.** It runs at deploy time, once, top to bottom. What runs every night
   is a job, and jobs are the bundle's. *(design)*
 - **In the Kostavo line** lely is not a fourth layer: it is what carries the layers out
@@ -75,7 +76,7 @@ Said on the first page, because a tool that names who it isn't for is easier to 
   need state, and lely has none.
 - **Your CI isn't GitHub Actions,** for now.
 
-*(proposed)*
+*(agreed)*
 
 ## Who it is for
 
@@ -185,5 +186,5 @@ All by the owner, on 2026-10-05.
 
 ## Done when
 
-Every "to decide" in this folder that touches phase one is answered, the repository's README
-opens with the line above, and this page describes lely without a proposal in it.
+The repository's README opens with the line above, `docs/DESIGN.md` says what this folder says,
+and the two questions under "To decide" are answered.

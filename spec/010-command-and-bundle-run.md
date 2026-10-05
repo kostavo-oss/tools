@@ -1,6 +1,6 @@
 # 010 — the small plugins: `command` and `bundle.run`
 
-**Status:** draft. Phase one — found missing when the spec was reviewed: nothing said what these
+**Status:** agreed, 2026-10-05; not started. Phase one — found missing when the spec was reviewed: nothing said what these
 two do on apply, on destroy or in `status`.
 
 ## Why
@@ -25,7 +25,7 @@ plan.
 
 - **R1** — Options: `apply`, the command to run; and optionally `plan`, `destroy`, `outputs` and
   `env`. Each command is a list — a program and its arguments — and is never passed through a
-  shell. *(built, except `destroy`: owner, 2026-10-05; and `outputs`: D1)*
+  shell. *(built, except `destroy` and `outputs`: owner, 2026-10-05)*
 - **R2 — Plan.** With a `plan` command: it is run, and what it prints on stdout — a plan, as JSON
   — is the step's plan. Without one: the plan is a single line that shows the command, saying it
   runs on every apply. *(built)*
@@ -47,7 +47,7 @@ plan.
   ([002/R11](002-plugins.md)). Without one: the step is skipped, visibly
   ([002/R8a](002-plugins.md)). *(owner, 2026-10-05)*
 - **R7 — Status.** A command has nothing lely can list. `lely status` shows the step with the
-  words "runs a command; nothing to list". *(proposed)*
+  words "runs a command; nothing to list". *(agreed)*
 - **R8 — No secrets, for now.** A `command` step can't be handed a secret in its arguments —
   they would be visible to every process on the machine — and can't give one. A step that has to
   handle a secret is written as a Python class. *(built)*
@@ -57,27 +57,25 @@ plan.
 - **R9** — Options: `bundle`, the name of the bundle step it belongs to; `resource`, the key of a
   job, pipeline or app in that bundle (`jobs.backfill`); and `args`. The bundle is always named,
   even when a project has only one: what a step depends on is read in its options
-  ([002/R15](002-plugins.md)). *(`resource` and `args` built; `bundle` is proposed)*
+  ([002/R15](002-plugins.md)). *(`resource` and `args` built; `bundle` is agreed)*
 - **R10 — Plan.** One line: it runs that resource. It runs on every apply, so it is never
   "nothing to do". *(built)*
 - **R11 — Apply.** `databricks bundle run <key>`, with its `args`, waiting for it to finish. A
   failed run is a failed step. *(design)*
 - **R12 — It stands below the bundle step it names,** because it needs that bundle deployed — the
   same rule as any reference ([002/R16](002-plugins.md)). `lely validate` says so otherwise.
-  *(proposed)*
+  *(agreed)*
 - **R13 — Destroy and status.** Nothing to destroy: skipped, visibly. Nothing to list.
   *(owner, 2026-10-05, as [002/R8a](002-plugins.md))*
 - **R14 — It gives nothing, for now.** What a run produced — a run id, a result — is not an
-  output in phase one. *(proposed — it would be an "after every run" output, and nothing needs
+  output in phase one. *(agreed — it would be an "after every run" output, and nothing needs
   it yet)*
 
-## To decide
+## Decided
 
-- **D1 — How a `command` step says what it gives.** [002/R14](002-plugins.md) asks every plugin
-  to declare its outputs, but a command's outputs are whatever a script writes. So the step has
-  to list them itself — `outputs: [version]` in its options — or `command` steps can't feed
-  other steps at all. *(proposed: the step lists them; a name it lists and gives in neither way
-  is a failed step)*
+- **How a `command` step says what it gives** (was D1): the step lists them — `outputs:
+  [version]` in its options. `lely validate` can then check references to them, and a name it
+  lists and gives in neither way is a failed step. *(owner, 2026-10-05: go with the proposals)*
 
 ## Done when
 
@@ -87,4 +85,3 @@ plan.
   ([002/R25](002-plugins.md)).
 - A project with a `command` above a bundle, feeding it a variable from its plan command, and a
   `bundle.run` below it plans, applies and is destroyed in tests, end to end.
-- Every requirement still marked *(proposed)* here is agreed or changed, and D1 is answered.
