@@ -39,12 +39,13 @@ The rules a plugin follows, which `lely.testing` checks:
 from __future__ import annotations
 
 import contextlib
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Protocol, TextIO, TypeVar
 
 from lely.errors import LelyError
 from lely.model import Json, Output, Outputs, StepPlan
@@ -119,14 +120,74 @@ class Plugin(Protocol[OptionsT_contra]):
 
 
 @contextlib.contextmanager
-def quietly() -> Iterator[None]:
-    """Run a plugin's own code with what it prints sent to stderr.
+def quietly(whose: str = "its plugin") -> Iterator[None]:
+    """Run a plugin's own code — its module, its options, its methods — with
+    what it prints sent to stderr. `whose` names the plugin in an error.
 
     stdout is lely's: a plan or a result as JSON, a schema. A `print` left in a
-    plugin — on import, in `plan` — would otherwise land in the middle of it.
+    plugin would otherwise land in the middle of it. So would what goes round
+    `sys.stdout` — a program the plugin starts without taking its output,
+    `os.write(1, …)` — so the stream under it is pointed at stderr as well.
+
+    What the plugin prints to is a stream of its own, not `sys.stderr` itself:
+    a plugin that wraps or detaches "its" stdout to set an encoding would
+    otherwise take lely's stderr with it when it is done.
+
+    And a plugin doesn't end the program: `sys.exit` in one is an error like
+    any other, not lely ending with whatever the plugin said.
     """
-    with contextlib.redirect_stdout(sys.stderr):
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(_under_stdout())
+        stream = _for_prints()
+        stack.enter_context(contextlib.redirect_stdout(stream))
+        try:
+            yield
+        except SystemExit as error:
+            raise LelyError(
+                f"{whose} ended the program (`sys.exit({error.code!r})`). A plugin "
+                "returns, or raises an error."
+            ) from None
+        finally:
+            # closed or detached by the plugin: it was the plugin's to break
+            with contextlib.suppress(OSError, ValueError):
+                stream.flush()
+
+
+def _for_prints() -> TextIO:
+    """A stream to stderr that isn't `sys.stderr`: closing it closes nothing."""
+    try:
+        sys.stderr.flush()
+        return open(  # noqa: SIM115 — the plugin may keep it: a logging handler
+            sys.stderr.fileno(),
+            "w",
+            buffering=1,
+            encoding=getattr(sys.stderr, "encoding", None) or "utf-8",
+            errors="backslashreplace",
+            closefd=False,
+        )
+    except (AttributeError, OSError, ValueError):
+        return sys.stderr  # not a file — a test's capture: nothing to protect
+
+
+@contextlib.contextmanager
+def _under_stdout() -> Iterator[None]:
+    """Point file descriptor 1 at stderr, and back."""
+    try:
+        if sys.__stdout__ is not None:
+            sys.__stdout__.flush()  # lely's own, written before: it goes first
+        saved = os.dup(1)
+    except (OSError, ValueError):
+        yield  # no stdout at all
+        return
+    try:
+        os.dup2(2, 1)
         yield
+    finally:
+        with contextlib.suppress(OSError, ValueError):
+            if sys.__stdout__ is not None:
+                sys.__stdout__.flush()  # the plugin's, written round `sys.stdout`
+        os.dup2(saved, 1)
+        os.close(saved)
 
 
 def declared(cls: type, written: Mapping[str, Json]) -> tuple[Output, ...]:

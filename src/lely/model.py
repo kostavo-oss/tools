@@ -155,6 +155,31 @@ class StepPlan:
     notes: tuple[str, ...] = ()
     payload: Json = None
 
+    def __post_init__(self) -> None:
+        # One shape, whoever made it: a list is a tuple, one line is one line
+        # and not its letters — and what has no shape at all is said here, in
+        # the plugin's own code, not found out later as a traceback.
+        for name in ("changes", "later", "notes"):
+            value = getattr(self, name)
+            if isinstance(value, str) and name != "changes":
+                value = (value,)
+            if not isinstance(value, tuple | list):
+                raise LelyError(
+                    f"A plan's `{name}` is a tuple, not {type(value).__name__}."
+                )
+            if not isinstance(value, tuple) or value is not getattr(self, name):
+                object.__setattr__(self, name, tuple(value))
+        if not all(isinstance(change, Change) for change in self.changes):
+            raise LelyError("A plan's `changes` are `Change`s.")
+        if not all(isinstance(line, str) for line in (*self.later, *self.notes)):
+            raise LelyError("A plan's `later` and `notes` are text.")
+        if not isinstance(self.outputs, Mapping) or not all(
+            isinstance(name, str) for name in self.outputs
+        ):
+            raise LelyError("A plan's `outputs` are values by name: a mapping.")
+        if self.waiting is not None and not isinstance(self.waiting, str):
+            raise LelyError("A plan's `waiting` says why, in text.")
+
     @property
     def empty(self) -> bool:
         return not self.changes and self.waiting is None
@@ -169,6 +194,10 @@ class Skip:
     """A plugin's answer when there is nothing to destroy, or nothing to list."""
 
     reason: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise LelyError('A `Skip` says why, in text: `Skip("nothing deployed")`.')
 
 
 @dataclass(frozen=True, slots=True)

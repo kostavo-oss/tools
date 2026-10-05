@@ -63,16 +63,31 @@ def fields_of(cls: type) -> tuple[OptionField, ...]:
     hints = typing.get_type_hints(cls)
     result: list[OptionField] = []
     for f in option_fields(cls):
-        required = (
-            f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
-        )
-        default = None
-        if f.default is not dataclasses.MISSING:
-            default = repr(f.default)
-        elif f.default_factory is not dataclasses.MISSING:
-            default = repr(f.default_factory())
+        made = default_of(cls, f)
+        required = made is dataclasses.MISSING
+        default = None if required else repr(made)
         result.append(OptionField(f.name, _describe(hints[f.name]), required, default))
     return tuple(result)
+
+
+def default_of(cls: type, f: dataclasses.Field[Any]) -> Any:
+    """An option's default, or `MISSING` for an option that has to be given.
+    A default made by a function is the plugin's own code: what it prints is
+    not lely's output, and what it raises is said, not a traceback."""
+    if f.default is not dataclasses.MISSING:
+        return f.default
+    if f.default_factory is dataclasses.MISSING:
+        return dataclasses.MISSING
+    try:
+        with quietly(f"`{cls.__qualname__}`"):
+            return f.default_factory()
+    except LelyError:
+        raise
+    except Exception as error:
+        raise OptionsError(
+            f"`{cls.__qualname__}`: the default of its option `{f.name}` can't be "
+            f"made: {type(error).__name__}: {error}"
+        ) from error
 
 
 def build(
@@ -231,7 +246,11 @@ class _Reader:
         if tp is int and isinstance(value, int) and not isinstance(value, bool):
             return value
         if tp is float and isinstance(value, int | float) and not isinstance(value, bool):
-            return float(value)
+            try:
+                return float(value)
+            except OverflowError:  # a whole number of hundreds of digits
+                self.problem(item.loc, f"`{name}` is a number too large to hold")
+                return None
         self.problem(item.loc, f"`{name}` must be {_describe(tp)}, not {value!r}")
         return None
 

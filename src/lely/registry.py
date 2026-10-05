@@ -46,7 +46,7 @@ def installed() -> dict[str, EntryPoint]:
 
 
 def find(uses: str, root: Path) -> Found:
-    with quietly():  # importing a plugin runs its module
+    with quietly(f"`{uses}`"):  # importing a plugin runs its module
         if uses.startswith(("./", "../")):
             found = _from_file(uses, root)
         elif ":" in uses:

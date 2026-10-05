@@ -500,6 +500,27 @@ class Twice(Raises):
     def plan(self, ctx):
         change = Change("a", "create", "a")
         return StepPlan(changes=(change, change), outputs={"version": 1})
+
+# found in the fourth review: each of these was a traceback
+class NoChanges(Raises):
+    def plan(self, ctx):
+        return StepPlan(changes=None)
+
+class NotChanges(Raises):
+    def plan(self, ctx):
+        return StepPlan(changes=({"key": "k", "action": "create"},))
+
+class ListedOutputs(Raises):
+    def plan(self, ctx):
+        return StepPlan(outputs=["version"])
+
+class NumberedOutputs(Raises):
+    def plan(self, ctx):
+        return StepPlan(outputs={1: "x"})
+
+class Quits(Raises):
+    def plan(self, ctx):
+        raise SystemExit(3)
 """
 
 
@@ -514,6 +535,11 @@ class Twice(Raises):
         ("TooEarly", "declares `count` as known after every run, and its plan gave it"),
         ("Promises", "names `version` as coming later"),
         ("Twice", "two changes share a key"),
+        ("NoChanges", "step `x` (./broken.py:NoChanges): A plan's `changes` is a tuple"),
+        ("NotChanges", "A plan's `changes` are `Change`s."),
+        ("ListedOutputs", "A plan's `outputs` are values by name: a mapping."),
+        ("NumberedOutputs", "A plan's `outputs` are values by name: a mapping."),
+        ("Quits", "step `x` (./broken.py:Quits): its plugin ended the program"),
     ],
 )
 def test_a_misbehaving_plugin_is_named(tmp_path: Path, cls: str, message: str) -> None:
@@ -746,3 +772,22 @@ def test_no_step_runs_for_a_target_when_none_names_one(tmp_path: Path) -> None:
     project.write(tmp_path, text)
     with pytest.raises(LelyError, match=r"leave it out \(they name no target at all\)"):
         plan(tmp_path)
+
+
+# -- found in the fourth review ------------------------------------------------------
+
+
+def test_a_plan_has_one_shape_whoever_made_it() -> None:
+    """A list is a tuple, and one line is one line — not its letters."""
+    from typing import cast
+
+    from lely.model import Change, Skip, StepPlan
+
+    change = Change("k", "create", "makes k")
+    plan_ = StepPlan(
+        changes=cast(Any, [change]), notes=cast(Any, "one line"), later=cast(Any, ["id"])
+    )
+    assert plan_ == StepPlan(changes=(change,), notes=("one line",), later=("id",))
+    for reason in (None, 5, "", "  "):
+        with pytest.raises(LelyError, match="A `Skip` says why, in text"):
+            Skip(cast(Any, reason))

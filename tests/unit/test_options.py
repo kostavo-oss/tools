@@ -291,3 +291,45 @@ def test_a_literal_is_one_of_its_members_and_of_its_kind() -> None:
     assert build(Level, block("      level: 2\n"), plain, "s") == Level(2)
     with pytest.raises(OptionsError, match="`level` must be one of 1, 2, not True"):
         build(Level, block("      level: true\n"), plain, "s")
+
+
+# -- found in the fourth review ------------------------------------------------------
+
+
+def test_a_number_too_large_to_hold_is_said() -> None:
+    @dataclass(frozen=True)
+    class Options:
+        ratio: float = 0.5
+
+    with pytest.raises(OptionsError, match="`ratio` is a number too large to hold"):
+        build(Options, block("      ratio: 1" + "0" * 400 + "\n"), plain, "step `x`")
+
+
+def test_a_default_that_cant_be_made_is_said_and_what_it_prints_is_not_lelys(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from lely.options import fields_of
+
+    def loud() -> list[str]:
+        print("making a default")
+        return ["a"]
+
+    def broken() -> list[str]:
+        raise RuntimeError("no default today")
+
+    @dataclass(frozen=True)
+    class Loud:
+        names: list[str] = field(default_factory=loud)
+
+    @dataclass(frozen=True)
+    class Broken:
+        names: list[str] = field(default_factory=broken)
+
+    assert fields_of(Loud)[0].default == "['a']"
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "making a default\n")
+    with pytest.raises(OptionsError) as caught:
+        fields_of(Broken)
+    assert "the default of its option `names` can't be made: RuntimeError" in str(
+        caught.value
+    )

@@ -143,9 +143,16 @@ def _may_apply(
         raise Refused(f"Step `{step.name}` isn't in the approved plan. {approval.AGAIN}")
     if was.state == "waiting":
         if at_waiting is None:
+            # for a step that waits on what only a run produces, the next plan
+            # shows no more than this one did
+            again = (
+                "A file can never take it further: `lely apply -t <target>` does."
+                if was.every_deploy
+                else "Plan again: the next plan shows it."
+            )
             raise Refused(
                 f"Step `{step.name}` was {was.waiting} when this plan was made, so "
-                "nobody has seen what it will do. Plan again: the next plan shows it."
+                f"nobody has seen what it will do. {again}"
             )
         now = PlannedStep(
             step.name, step.uses, made_from(step), plan=fresh, inputs=prepared.inputs

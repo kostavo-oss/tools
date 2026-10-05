@@ -184,10 +184,17 @@ def normalised(plan: StepPlan, where: str = "a step's plan") -> StepPlan:
 
 
 def normalised_outputs(outputs: Outputs, where: str) -> dict[str, Value]:
-    return {
-        name: value if isinstance(value, Secret) else plain(value, f"{where}: an output")
-        for name, value in outputs.items()
-    }
+    try:
+        return {
+            name: value
+            if isinstance(value, Secret)
+            else plain(value, f"{where}: an output")
+            for name, value in outputs.items()
+        }
+    except RecursionError:
+        raise PlanFileError(
+            f"{where}: an output is nested too deep to write down"
+        ) from None
 
 
 def plain(value: Any, where: str) -> Json:

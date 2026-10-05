@@ -334,6 +334,21 @@ def test_a_value_written_as_text_that_the_plan_gave_as_json_keeps_its_type(
         (True, "true", True),
         ("a b", "a b", "a b"),
         (14, "15", "15"),  # another value: the apply command's word, as text
+        # found in the fourth review — a script's own spelling of the same
+        # value read as another one, and the step below was refused, on every run
+        (True, "True", True),
+        (False, "FALSE", False),
+        (3, "3.0", 3),
+        (1.0, "1", 1.0),
+        (14, " 14 ", 14),
+        (None, "null", None),
+        (None, "", None),
+        ([1, 2], "[1, 2]", [1, 2]),
+        ({"a": 1}, '{"a":1}', {"a": 1}),
+        ("14", "14", "14"),
+        (True, "1", "1"),  # … and what is another value still is
+        (1, "true", "true"),
+        ("true", "True", "True"),
     ):
         options = Command.Options(
             apply=script(
@@ -346,3 +361,33 @@ def test_a_value_written_as_text_that_the_plan_gave_as_json_keeps_its_type(
         )
         ctx = context(options, root=tmp_path)
         assert Command().apply(ctx, Command().plan(ctx)) == {"v": expected}
+
+
+# -- found in the fourth review ------------------------------------------------------
+
+
+def test_a_command_that_is_empty_is_said_not_run(tmp_path: Path) -> None:
+    with pytest.raises(LelyError, match="step `seed`: `plan` needs a command to run"):
+        Command().plan(
+            context(Command.Options(apply=("true",), plan=()), name="seed", root=tmp_path)
+        )
+    from lely import process
+
+    with pytest.raises(process.ProcessError, match="There is no command to run"):
+        process.run([], tmp_path)
+
+
+def test_an_output_is_listed_once() -> None:
+    with pytest.raises(LelyError, match="`outputs` lists count more than once"):
+        Command.outputs({"apply": ["true"], "outputs": ["count", "id", "count"]})
+
+
+def test_the_spaces_round_a_written_value_are_not_part_of_it(tmp_path: Path) -> None:
+    options = Command.Options(
+        apply=script(
+            tmp_path, "open(os.environ['LELY_OUTPUTS'], 'a').write('count = 3 \\n')"
+        ),
+        outputs=("count",),
+    )
+    ctx = context(options, root=tmp_path)
+    assert Command().apply(ctx, Command().plan(ctx)) == {"count": "3"}

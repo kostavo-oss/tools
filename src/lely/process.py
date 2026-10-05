@@ -28,6 +28,8 @@ def run(
     """Run `args`, capturing its output. A missing program raises; a failing
     one doesn't — the caller decides what its exit code means. `given` is what
     the program reads on its standard input."""
+    if not args:
+        raise ProcessError("There is no command to run: it is empty.")
     if not cwd.is_dir():
         # the same error a missing program gives: say which of the two it is
         raise ProcessError(f"There is no directory {cwd} to run `{args[0]}` in.")
