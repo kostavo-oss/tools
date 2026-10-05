@@ -269,9 +269,10 @@ def _result_lines(result: Result) -> Iterator[Text]:
     if result.outcome == "done":
         yield Text(_done(result), style="bold green")
         return
+    stopped = "refused" if result.outcome == "refused" else "failed"
     for title, steps in (
         ("ran", result.ran),
-        ("failed", result.failed),
+        (stopped, result.failed),
         ("never started", result.not_started),
     ):
         names = ", ".join(step.name for step in steps) or "nothing"
@@ -333,15 +334,18 @@ def _status_lines(status: Status) -> Iterator[Text]:
         if step.overview is None:
             yield Text(f"    {step.note}", style="dim")
         else:
-            yield from _overview(step.overview, {}, indent=4)
+            yield from _overview(step.overview, None, indent=4)
 
 
 def _overview(
-    overview: Overview, did: Mapping[str, str], *, indent: int
+    overview: Overview, happened: Mapping[str, str] | None, *, indent: int
 ) -> Iterator[Text]:
-    """One line per thing: kind, key, name, id — and, right after a run, what
-    the run did to it. Its link goes on a line of its own, so the columns hold
-    in a narrow terminal."""
+    """One line per thing: kind, key, name, id — and, right after a run
+    (`happened` is not `None`), what the run did to it: what it didn't touch is
+    unchanged. Its link goes on a line of its own, so the columns hold in a
+    narrow terminal."""
+    after_a_run = happened is not None
+    did = happened or {}
     pad = " " * indent
     rows = [
         (
@@ -349,7 +353,7 @@ def _overview(
             item.key,
             item.name,
             (item.id or "") if item.deployed else "not deployed",
-            did.get(item.key, "unchanged") if did else "",
+            did.get(item.key, "unchanged") if after_a_run else "",
             item.url or "",
         )
         for item in overview.items
@@ -365,7 +369,7 @@ def _overview(
         line.append(row[1].ljust(widths[1]) + "  ", style="bold")
         line.append(row[2].ljust(widths[2]) + "  ")
         line.append(row[3].ljust(widths[3]), style="dim")
-        if did:
+        if after_a_run:
             line.append("  " + row[4], style=_happened_style(row[4]))
         line.rstrip()
         yield line

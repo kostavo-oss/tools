@@ -343,17 +343,22 @@ def steps(path: ConfigOption = None) -> None:
             out.print(
                 f"    {escape(f.name)}: {escape(f.type)}  [dim]{escape(default)}[/]"
             )
-        out.print(f"    [dim]gives[/]  {escape(_gives(found.cls))}")
+        for line in _gives(found.cls):
+            out.print(f"    [dim]gives[/]  {escape(line)}")
         out.print(f"    [dim]can[/]    {escape(_can(found.cls))}")
 
 
-def _gives(cls: type) -> str:
+def _gives(cls: type) -> list[str]:
+    """What a plugin gives, one line per answer to "when is it known?"."""
     if callable(getattr(cls, "outputs", None)):
-        return "what a step lists, by its options"
+        return ["what a step lists, by its options"]
     declared = contract.declared(cls, {})
-    if not declared:
-        return "nothing"
-    return ", ".join(f"{output.name} ({KNOWN[output.known]})" for output in declared)
+    lines = []
+    for known, words in KNOWN.items():
+        names = [output.name for output in declared if output.known == known]
+        if names:
+            lines.append(f"{', '.join(names)} ({words})")
+    return lines or ["nothing"]
 
 
 def _can(cls: type) -> str:

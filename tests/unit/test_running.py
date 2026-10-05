@@ -530,6 +530,13 @@ def test_destroy_refuses_a_plan_to_apply(tmp_path: Path) -> None:
 # -- status ------------------------------------------------------------------------
 
 
+def test_status_says_of_a_command_that_it_has_nothing_to_list(tmp_path: Path) -> None:
+    """010/R7."""
+    p = Project(tmp_path, READY)
+    found = running.status(p.config, target="dev", **edges(p.fake))
+    assert found.steps[2].note == "runs a command; nothing to list"
+
+
 def test_status_shows_every_step_and_changes_nothing(tmp_path: Path) -> None:
     """R32."""
     p = Project(tmp_path)

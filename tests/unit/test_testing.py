@@ -22,7 +22,6 @@ from lely.model import (
     Output,
     Overview,
     Secret,
-    Skip,
     StepPlan,
 )
 from lely.step import Context
@@ -248,9 +247,6 @@ def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
 def test_command_and_bundle_run_pass_the_parts_that_apply(tmp_path: Path) -> None:
     """010, done when. Neither converges — both are runs — and neither lists."""
     check_plan(Command(), context(Command.Options(apply=("true",)), root=tmp_path))
-    assert check_overview(
-        Command(), context(Command.Options(apply=("true",)), root=tmp_path)
-    ) == Skip("runs a command; nothing to list")
     write_bundle(tmp_path, project.BUNDLE)
     fake = project.databricks(tmp_path)
     app = Linked(

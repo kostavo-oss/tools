@@ -18,6 +18,10 @@ methods — and up to three more:
         def plan_destroy(self, ctx) -> StepPlan | Skip: ...
         def destroy(self, ctx, plan: StepPlan) -> None: ...
 
+A plugin with nothing to list may say why, for `lely status`, in
+`nothing_to_list`; one that can plan and can't apply yet sets `plan_only`; one
+that runs programs names them for `lely doctor` in `programs(written)`.
+
 The rules a plugin follows, which `lely.testing` checks:
 
 - **No state.** `plan` and `apply` may run on different machines, days apart;

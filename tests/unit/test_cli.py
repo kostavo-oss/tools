@@ -126,8 +126,11 @@ def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> 
     text = said(result)
     assert "bundle  built-in" in text
     assert "path: a string  default '.'" in text
-    assert "resources.<type>.<key>.id (once it exists)" in text
-    assert "can    plan, apply, list, destroy" in text
+    assert (
+        "gives  resources.<type>.<key>.id, resources.<type>.<key>.url (once it exists)"
+    ) in text
+    assert "can    plan, apply, list, destroy\n" in text  # bundle
+    assert "can    plan, apply, destroy\n" in text  # command: nothing to list
     assert "bundle.run  built-in" in text
     assert "bundle: the name of a step  required" in text
     assert "can    plan, apply\n" in text
@@ -308,7 +311,7 @@ def test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round(
     assert first.exit_code == 2
     assert "Plan again: the next plan shows it." in said(first)
     assert "ran: model, app" in said(first)
-    assert "failed: notify" in said(first)
+    assert "refused: notify" in said(first)  # a refusal isn't a failure
     assert "never started: backfill" in said(first)
     assert "Nothing was rolled back." in said(first)
     # R22: after a refusal, the same file is refused again
@@ -317,6 +320,9 @@ def test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round(
     second = lely("apply", "plan.json", "--yes")
     assert second.exit_code == 0, said(second)
     assert len(lely.notified()) == 1
+    # 004/R7a: nothing is remembered — what the first round created shows as
+    # unchanged in the round that finishes it
+    assert re.search(r"jobs\.bar\s+job bar\s+\d+\s+unchanged", said(second))
 
 
 # -- apply: a plan file ------------------------------------------------------------

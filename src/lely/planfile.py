@@ -204,7 +204,11 @@ def overview_to_json(
                 "deployed": item.deployed,
                 "id": item.id,
                 "url": item.url,
-                **({"happened": happened.get(item.key, "unchanged")} if happened else {}),
+                **(
+                    {}
+                    if happened is None
+                    else {"happened": happened.get(item.key, "unchanged")}
+                ),
             }
             for item in overview.items
         ],

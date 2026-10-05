@@ -410,7 +410,7 @@ class Session:
         """What exists because of the step, as its plugin can show it."""
         where = prepared.where
         if not contract.lists(prepared.found.cls):
-            return Skip("nothing to list")
+            return Skip(getattr(prepared.found.cls, "nothing_to_list", "nothing to list"))
         result = self._call(prepared, "list", lambda plugin, ctx: plugin.overview(ctx))
         if isinstance(result, Skip):
             return result

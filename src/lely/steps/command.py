@@ -53,7 +53,7 @@ from pathlib import Path
 
 from lely import process
 from lely.errors import LelyError
-from lely.model import Change, Json, Output, Outputs, Overview, Secret, Skip, StepPlan
+from lely.model import Change, Json, Output, Outputs, Secret, Skip, StepPlan
 from lely.planfile import step_plan_from_json, step_plan_to_json
 from lely.step import Context
 
@@ -75,6 +75,9 @@ class Command:
         outputs: tuple[str, ...] = ()
         #: Extra environment for every command. May hold a secret.
         env: Mapping[str, Secret] = field(default_factory=dict)
+
+    #: A command has nothing lely can list; `lely status` says so in these words.
+    nothing_to_list = "runs a command; nothing to list"
 
     @staticmethod
     def outputs(written: Mapping[str, Json]) -> tuple[Output, ...]:
@@ -154,9 +157,6 @@ class Command:
                 "command wrote it to the file `LELY_OUTPUTS` names"
             )
         return {**plan.outputs, **written}
-
-    def overview(self, ctx: Context[Command.Options]) -> Overview | Skip:
-        return Skip("runs a command; nothing to list")
 
     def plan_destroy(self, ctx: Context[Command.Options]) -> StepPlan | Skip:
         command = ctx.options.destroy

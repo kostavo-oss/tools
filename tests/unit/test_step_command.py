@@ -12,8 +12,9 @@ import pytest
 
 from lely.errors import LelyError
 from lely.model import Change, Output, Secret, Skip, StepPlan
+from lely.step import lists
 from lely.steps.command import Command
-from lely.testing import check_overview, check_plan, context
+from lely.testing import check_plan, context
 
 PYTHON = sys.executable
 
@@ -244,9 +245,11 @@ def test_a_failing_destroy_command_is_shown(tmp_path: Path) -> None:
         Command().destroy(ctx, StepPlan())
 
 
-def test_status_has_nothing_to_list(tmp_path: Path) -> None:
-    ctx = context(Command.Options(apply=("true",)), root=tmp_path)
-    assert check_overview(Command(), ctx) == Skip("runs a command; nothing to list")
+def test_status_has_nothing_to_list() -> None:
+    """R7: a command has nothing lely can list, and the plugin says so by not
+    having an `overview` — with its own words for `lely status`."""
+    assert not lists(Command)
+    assert Command.nothing_to_list == "runs a command; nothing to list"
 
 
 def test_the_programs_it_runs_are_named_for_doctor() -> None:
