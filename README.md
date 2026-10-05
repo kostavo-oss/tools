@@ -110,4 +110,4 @@ mise run check   # lint + format check + types + unit tests
 
 ## License
 
-[MIT](LICENSE) © Misja Pronk
+Apache-2.0 — see [LICENSE](LICENSE).

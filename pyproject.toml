@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "One plan and one apply for a whole Databricks deploy: pre-deploy steps, the bundle, post-deploy steps"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Misja Pronk", email = "misja@prorexconsultancy.nl" }]
 keywords = ["databricks", "asset-bundles", "deployment", "infrastructure-as-code", "cli"]
@@ -14,6 +14,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Build Tools",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -22,6 +27,11 @@ dependencies = [
     "rich>=13.7",
     "typer>=0.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kostavo-oss/lely"
+Repository = "https://github.com/kostavo-oss/lely"
+Issues = "https://github.com/kostavo-oss/lely/issues"
 
 [project.scripts]
 lely = "lely.cli:main"

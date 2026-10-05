@@ -433,7 +433,7 @@ story behind its own name.
 - Pre steps feed the bundle variables only.
 - CI first after the core, on GitHub Actions only.
 - The direct engine is required.
-- License: MIT.
+- License: MIT. *Superseded on 2026-10-05, below.*
 - Names: deltaplan, sluis, kluis (isolinear renamed), with plain package names. `kostavo` is the org
   and the landing page, not a prefix. *Superseded on 2026-10-05, below.*
 - Commit locally; no GitHub repo until the move to `kostavo-oss`.
@@ -444,8 +444,9 @@ story behind its own name.
   engineer or a work of Dutch engineering each, with its story in its README. Still plain package
   names.
 - The built-in step for tables is `stevin`, and it runs the `stevin` command.
+- License: Apache-2.0, the same for every Kostavo tool. Nothing had been published under MIT.
 
 ## Stack
 
 Python ≥ 3.11 · mise · uv · src layout · typer + rich · databricks-sdk · PyYAML · pytest · ruff · ty ·
-MIT. It needs a Databricks CLI with the direct engine (GA in v1.3.0); `doctor` checks the version.
+Apache-2.0. It needs a Databricks CLI with the direct engine (GA in v1.3.0); `doctor` checks the version.
