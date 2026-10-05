@@ -51,11 +51,28 @@ the overview.
 - **R9** — It comes from the CLI (`bundle summary -o json`), not from anything lely remembered.
   Run on another machine, a week later, it gives the same answer. *(owner: no state)*
 
-### Outputs
+### What it takes and what it gives
 
-- **R10** — Later steps can use the bundle's resolved variables, and each resource's name, id and
-  link. *(built, as `${var.…}` and `${resources.…}`; the spelling is
+The whole of what passes between the bundle and the steps around it, declared as
+[002/R14](002-plugins.md) asks. A step listed above the bundle can fill what it takes; a step
+listed below can use what it gives.
+
+- **R10 — It takes** `vars`, and nothing else: each is passed to the bundle as `--var`. A step
+  that feeds the bundle does it here, in the bundle step's own options, where it can be read.
+  *(design: a bundle is fed variables, nothing else)*
+- **R10a — It gives:**
+
+  | Output | Known |
+  |---|---|
+  | `target`, `name` | at plan |
+  | `var.<name>` — every variable, resolved | at plan |
+  | `resources.<type>.<key>.name`, and the other fields the bundle's own config has | at plan |
+  | `resources.<type>.<key>.id` and `.url` | at plan for what is already deployed; after apply for what this deploy creates |
+
+  *(built, as `${var.…}` and `${resources.…}` in the core; whether those short spellings stay is
   [002/D4](002-plugins.md#to-decide))*
+- **R10b** — A step that uses an id this deploy creates is shown in the plan as decided at apply,
+  waiting for `<bundle step>.resources.<type>.<key>.id` by name. *(built)*
 
 ### Destroy
 
@@ -85,12 +102,14 @@ here are assumed so far:
   carries this as a `TODO(verify)` for deploy.)
 - **V3** — That `bundle summary -o json` has an id and a link for every resource type, not only
   the ones in the CLI's recorded tests (jobs and pipelines).
+- **V4** — What the CLI does when the bundle's target names one workspace and the credentials at
+  hand reach another ([002/R24](002-plugins.md)): lely expects a refusal it can pass on.
 
 ## To decide
 
 - **D1 — More than one bundle in a project.** It falls out of the bundle being a plugin: two
   steps, two paths. Allow it from the start, or one bundle per project for now? *(proposed: allow
-  it; it costs nothing once [003/D1](003-config.md#to-decide) is the list)*
+  it; it costs nothing now that the config is one list, [003/R1](003-config.md))*
 - **D2 — The overview when nothing is deployed yet.** An empty table, or the resources the bundle
   *would* create, marked as not there? *(proposed: the second — it is the same list a first plan
   shows)*
@@ -98,7 +117,7 @@ here are assumed so far:
 ## Done when
 
 - Each of R1–R13 has a test against the fake `databricks`.
-- The plugin passes the whole contract kit ([002/R16](002-plugins.md)).
-- V1–V3 have each been run on a workspace, and what they found is written beside the code that
+- The plugin passes the whole contract kit ([002/R25](002-plugins.md)).
+- V1–V4 have each been run on a workspace, and what they found is written beside the code that
   depends on it.
 - A bundle has been planned, applied, listed and destroyed on a real target, end to end.

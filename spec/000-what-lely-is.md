@@ -23,14 +23,18 @@ shell script around `bundle deploy`, which nobody reviews before it runs and not
 - **R1 — Steps, in order.** A project lists its steps in a config file. What comes before the
   bundle is a pre-deploy step and what comes after is a post-deploy step; to lely they are all
   steps. *(owner)*
-- **R2 — Every step is a plugin's.** The Asset Bundle is a plugin. stevin is a plugin. Running a
-  command is a plugin. The core knows none of them by name. → [002](002-plugins.md) *(owner)*
+- **R2 — Every step is a plugin's.** The Asset Bundle is a plugin. Running a command is a
+  plugin. stevin will be one. The core knows none of them by name. → [002](002-plugins.md)
+  *(owner)*
 - **R3 — Three verbs: `plan`, `apply`, `destroy`.** Plan says what would change and changes
   nothing. Apply does it. Destroy takes it down again. → [005](005-plan-apply-destroy.md)
   *(owner; plan and apply are also the design's)*
 - **R4 — No state.** lely writes no state file and keeps no history. Whatever a plugin needs to
-  know, it reads from the system it manages — the bundle from the Databricks CLI, stevin from
-  Unity Catalog. *(owner, design)*
+  know, it reads from the system it manages — the bundle plugin from the Databricks CLI.
+  *(owner, design)*
+- **R4a — What passes between steps is written down.** A step that feeds the bundle and a step
+  that needs something from it both say so in their own options, and lely checks it before
+  anything runs. → [002/R14–R21](002-plugins.md) *(owner)*
 - **R5 — Its own config, in its own file or in `pyproject.toml`.** → [003](003-config.md)
   *(owner)*
 - **R6 — A plugin can say, in detail, what it created.** Not "3 changes": which things, under
@@ -62,13 +66,14 @@ No longer excluded: `bundle destroy` and teardown.
 
 ## Phases
 
-1. **The default plugins.** First the Asset Bundle — [002](002-plugins.md),
-   [003](003-config.md), [004](004-asset-bundle.md), [005](005-plan-apply-destroy.md) — then
-   stevin, [006](006-stevin.md). *(owner: "start with asset bundles")*
-2. **Around them:** the UI ([007](007-ui.md)) and GitHub Actions
+1. **The Asset Bundle, as a plugin** — [002](002-plugins.md), [003](003-config.md),
+   [004](004-asset-bundle.md), [005](005-plan-apply-destroy.md). *(owner: "start with asset
+   bundles")*
+2. **Around it:** the UI ([007](007-ui.md)) and GitHub Actions
    ([008](008-github-actions.md)). Which first is [D1](#to-decide).
 
-[009 — first release](009-first-release.md) is independent and happens when the owner says.
+Outside the phases: **stevin** ([006](006-stevin.md)) is the owner's to take up separately, and
+[009 — first release](009-first-release.md) happens when the owner says.
 
 ## What this changes
 
@@ -88,9 +93,9 @@ place to argue in.
 
 ## To decide
 
-- **D1 — After the default plugins: the UI first, or GitHub Actions first?**
+- **D1 — After the Asset Bundle: the UI first, or GitHub Actions first?**
 - **D2 — Further plugins.** The design names Lakebase schemas and three MLflow steps as "later".
-  Still the next ones after stevin, and in which order?
+  Still the next ones, and in which order?
 
 ## Done when
 

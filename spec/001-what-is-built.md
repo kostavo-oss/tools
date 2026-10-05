@@ -58,8 +58,8 @@ behaviour and moves some of it:
 - **The bundle leaves the core.** Asking the CLI to validate, plan and summarise a bundle, and
   turning its plan into changes, becomes the `bundle` plugin ([004](004-asset-bundle.md)). R3 and
   R8 then hold for any plugin, not for the bundle by name.
-- **The config loses its bundle keys.** `bundle:` and `bundle_vars:` become a step and its
-  options, in whichever shape [003/D1](003-config.md#to-decide) settles.
+- **The config loses its bundle keys.** `pre:`, `post:`, `bundle:` and `bundle_vars:` become one
+  list of steps, the bundle one of them with `vars` among its options ([003/R1](003-config.md)).
 - **References to the bundle become a step's outputs** ([002/R14](002-plugins.md)); whether the
   short spellings stay is [002/D4](002-plugins.md#to-decide).
 - **The plan file's format changes with it,** so its format version goes up. Nothing is

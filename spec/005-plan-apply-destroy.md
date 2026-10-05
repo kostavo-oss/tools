@@ -39,6 +39,11 @@ promises and become code. And `destroy` is the one verb that can't be taken back
 
 - **R9** — `lely destroy -t <target>` plans the destroy, shows it, asks, and then runs. The plan
   lists, per step, what would be removed. *(owner)*
+- **R9a — At a terminal, the answer is the target's name.** Not `y`: the name, typed, so that
+  `prod` is never destroyed by a reflex. *(owner, 2026-10-05)*
+- **R9b — Without a terminal, consent is given in the command.** `lely destroy -t <target> --yes`
+  runs without asking — for a pipeline, where nobody can. It needs the target spelled out with
+  `-t`; there is no default target to destroy. *(owner, 2026-10-05)*
 - **R10** — Steps are destroyed in the reverse of the order they are applied in: what was made
   last goes first. *(proposed)*
 - **R11** — A step with nothing to destroy — one that only runs something — is listed as
@@ -47,6 +52,13 @@ promises and become code. And `destroy` is the one verb that can't be taken back
   before it is destroyed, and anything that wasn't in the approved plan stops the run.
   *(proposed)*
 - **R13** — Destroying a target that has nothing deployed does nothing, and says so. *(proposed)*
+
+### Consent
+
+- **R13a — Nothing that changes a workspace runs unasked.** `apply` and `destroy` either ask, or
+  were given `--yes` in the command. With no terminal and no `--yes` they refuse, and the message
+  names the flag: a forgotten flag is a failed job, never an unreviewed deploy.
+  *(owner, 2026-10-05, for destroy; the same rule is applied to apply)*
 
 ### When something fails — apply and destroy alike
 
@@ -64,7 +76,7 @@ promises and become code. And `destroy` is the one verb that can't be taken back
   what is deployed right now, in detail. *(proposed, from the owner's "detailed overview"; the
   name is [D5](#to-decide))*
 - **R18** — `lely doctor` reports whether each plugin's tool is installed and usable (the
-  Databricks CLI and its engine, `stevin`, a `command` step's executable) and whether the target
+  Databricks CLI and its engine, a `command` step's executable) and whether the target
   can be reached. It changes nothing. An error message in the code already points at it.
   *(design)*
 
@@ -75,22 +87,20 @@ promises and become code. And `destroy` is the one verb that can't be taken back
 
 ## Not in this spec
 
-- What each plugin does when applied or destroyed → [004](004-asset-bundle.md),
-  [006](006-stevin.md)
+- What each plugin does when applied or destroyed → [004](004-asset-bundle.md)
 - Markdown output, the pull-request comment → [008](008-github-actions.md)
 - A lock against two runs at once: for now a CI concurrency group does that job
 
+## Decided
+
+- **No terminal and no `--yes`** (was D1): refuse — R13a. *(owner, 2026-10-05)*
+- **What it takes to destroy** (was D2): at a terminal, typing the target's name; headless,
+  `--yes` in the command with the target spelled out — R9a and R9b. No flag in the config, and
+  `--allow-destructive` plays no part in a destroy: everything in one is destructive.
+  *(owner, 2026-10-05)*
+
 ## To decide
 
-- **D1 — No terminal and no `--yes`.** A pipeline has nobody to ask. Refuse, with a message that
-  names `--yes`, or run? *(proposed: refuse, for apply and destroy both — it keeps a forgotten
-  flag from becoming an unreviewed deploy)*
-- **D2 — What it takes to destroy.** Everything in a destroy plan is destructive, so
-  `--allow-destructive` adds nothing there. Is the command itself the permission — it always
-  shows the plan and asks — or does it need more: typing the target's name, or a target having to
-  be marked as destroyable in the config so that `prod` can't be taken down by a typo?
-  *(proposed: the question asks for the target's name, and `--yes` needs `--target` spelled
-  out; no config flag)*
 - **D3 — A destroy plan as a file.** For apply there is `plan -o` and `apply plan.json`, so that
   what runs is what was reviewed. The same for destroy — `lely plan --destroy -o plan.json`, then
   `lely apply plan.json` — or is destroy always run in one go? *(proposed: the same; one file
@@ -113,4 +123,4 @@ promises and become code. And `destroy` is the one verb that can't be taken back
 - R1–R19 each have a test, against fake tools.
 - Whatever D7 names has run on a workspace.
 - The README no longer says lely "shows you a whole deploy and runs none of it".
-- D1–D7 are answered here.
+- D3–D7 are answered here.
