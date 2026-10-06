@@ -61,6 +61,12 @@ written anywhere. → [006](006-safety.md)
   session ends. That makes a second look instant, and means a session left open for a day
   holds every value it was ever asked for. *The writer has no strong view;* forgetting a
   value some minutes after it was last used would cost one round-trip and is easy to build.
+- **D3 — A value that is not text does not survive caland.** A secret holding bytes — a
+  PKCS#12 bundle put in with the CLI — is shown as base64, which is fair. But moving it,
+  copying it, or taking back its delete writes that base64 back *as text*: the secret at
+  the new place is no longer the file it was. And no binary file can be put in at all: the
+  file field reads text. *Proposal:* values are carried as bytes end to end —
+  [008, R6](008-the-page.md) needs it for certificates anyway. *(found while writing 008)*
 
 ## Done when
 

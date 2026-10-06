@@ -1,13 +1,17 @@
 # 000 — what caland is
 
-**Status:** written 2026-10-06 from the tool as built. The direction is open
-([To decide](#to-decide)).
+**Status:** written 2026-10-06 from the tool as built. The owner gave the direction the same
+day ([Decided](#decided)); what follows from it is in [008](008-the-page.md) and
+[009](009-who-reads-a-secret.md).
 
 ## The line
 
 **A keyboard-driven terminal UI for managing Databricks secrets.** Browse scopes, secrets and
 permissions; create, edit and delete; reveal and copy values — from a fast, calm three-pane
 screen.
+
+That is the line today. With [008](008-the-page.md) the screen becomes a page, and the line
+changes with it.
 
 ## Why
 
@@ -23,7 +27,8 @@ deploy, a platform owner tidying up scopes and grants, someone rotating what has
 
 ## When not to use it
 
-- **In a pipeline.** caland is interactive; it has no command that runs unattended.
+- **In a pipeline.** caland is interactive; it has no command that runs unattended, and is
+  not to get one.
 - **To keep secrets in code.** It declares nothing and plans nothing: what it does, it does
   now, to the workspace it is connected to.
 - **For secrets outside Databricks secret scopes.** Key Vault-backed scopes are shown and
@@ -68,21 +73,16 @@ How it is built — the layers, the ports — is in `docs/architecture.md`.
 
 - **The name is caland.** *(owner, 2026-10-06: "the first ones are people, maeslant is not")*
 - **Specs come before any further work on the tool.** *(owner, 2026-10-06)*
+- **It stays a tool for people working with secrets in Databricks, and only that.** Of the
+  three directions the writer laid out — deepen it, a side that runs unattended, grants as
+  a lely step — the first. *(owner, 2026-10-06)*
+- **What is to be refined is how it is to use.** It becomes a local tool with an HTML face
+  in lely's design language, with a file picker for certificates; it shows who has access
+  and when a secret was last read; and it stays fast. *(owner, 2026-10-06)* →
+  [008](008-the-page.md), [009](009-who-reads-a-secret.md)
 
 ## To decide
 
-- **D1 — What should caland become?** Three directions, none decided, the writer's to lay
-  out and the owner's to pick from or replace:
-    - *Stay what it is, and deepen it*: a tool for people. The work is in what a person
-      needs next — more of the audit, rotation, comparing two workspaces.
-    - *Grow a side that runs unattended*: `caland get`, `caland export` and the like, for a
-      script. It would be the first part of caland a pipeline can use.
-    - *Meet lely*: scopes and their grants declared in a project and planned and applied as
-      a lely step — the secrets' names and who may read them as code, never their values.
-      That would be a plugin, and mostly not this repository's work.
-- **D2 — What is wrong with it today?** The owner said they want to refine the tool, and
-  named the name. What else — in how it looks, what it can do, how it behaves — is not
-  written down yet. The specs 001–006 are there to be pointed at.
-- **D3 — `docs/USER_STORIES.md`** describes the tool as of its first versions and is behind:
+- **D1 — `docs/USER_STORIES.md`** describes the tool as of its first versions and is behind:
   it lists bulk import and export as out of scope, and both are built; it has no search, no
   audit, no undo. *Proposal:* this folder replaces it, and the file goes.

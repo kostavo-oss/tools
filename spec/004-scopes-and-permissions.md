@@ -38,8 +38,8 @@ time. The questions people have go the other way: what can *I* touch, and what c
 
 - **Creating a Key Vault-backed scope.** It needs Azure's side; caland shows them.
 - **What a group contains.** R6 answers for the name typed, not for the groups it is in.
-- **Grants as code** — declared, planned, applied. That is direction, not this spec:
-  [000, D1](000-what-caland-is.md#to-decide).
+- **Grants as code** — declared, planned, applied. Not caland's to do: it is for people
+  ([000, Decided](000-what-caland-is.md#decided)).
 
 ## To decide
 
@@ -47,8 +47,7 @@ time. The questions people have go the other way: what can *I* touch, and what c
   made to that person by name, and not what they reach through `users` or a group — which
   is how most access is given, and what R3 does count for *you*. For an offboarding check
   that is the half that matters less. *Proposal:* say so in the view today; following
-  groups needs a call per principal and is feature work to decide on.
-  *(found while writing this spec)*
+  groups is [009, R2](009-who-reads-a-secret.md). *(found while writing this spec)*
 
 ## Done when
 

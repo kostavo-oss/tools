@@ -43,7 +43,7 @@ first under a name nobody has registered yet.
 ## Not in this spec
 
 - **Dropping the old commands.** Not before there has been a release with them.
-- **What the tool should do next.** → [000](000-what-caland-is.md#to-decide)
+- **What the tool should do next.** → [008](008-the-page.md), [009](009-who-reads-a-secret.md)
 
 ## Decided
 
@@ -58,6 +58,6 @@ first under a name nobody has registered yet.
 - **D2 — The address in the package.** `pyproject.toml` gives a personal work address as
   the author's, and PyPI shows it. For lely the owner chose a name without an address.
   *Proposal:* the same here.
-- **D3 — When.** *Proposal:* release the rename on its own, soon, before any refining: a
+- **D3 — When.** *Proposal:* release the rename on its own, soon, before the page: a
   name on PyPI belongs to whoever publishes first, and the people on `isolinear` hear about
   the move from the shim, not from a README they will not read.
