@@ -110,6 +110,7 @@ _USAGE = """\
 caland — a keyboard-driven terminal UI for managing Databricks secrets.
 
 usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
+       caland --page [WORKSPACE] [--no-open]
 
   WORKSPACE / --profile NAME
                 connect straight to a discovered workspace (a
@@ -117,6 +118,10 @@ usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
                 the picker
   --read-only   browse, reveal, and copy — but disable every mutation
                 (safe for poking around production)
+  --page        a preview: caland as a page in your browser, served from
+                this machine only. It browses, shows and copies; it does
+                not change anything yet
+  --no-open     with --page: print the link instead of opening a browser
 
 Run with no arguments to launch the TUI. Inside: ? for help, ctrl+p for the
 command palette, q to quit.
@@ -146,11 +151,32 @@ def main() -> None:
         positional = [a for a in args if not a.startswith("-")]
         if positional:
             profile = positional[0]
+    if "--page" in args:
+        raise SystemExit(_page(profile, args))
     CalandApp(
         read_only="--read-only" in args,
         settings_store=JsonSettingsStore(),
         profile=profile,
     ).run()
+
+
+def _page(profile: str | None, args: list[str]) -> int:
+    """`caland --page`: the same workspace, as a page in the browser."""
+    from importlib.metadata import version
+
+    from .interface import web
+
+    onboarding = OnboardingService(
+        DatabricksConnector(), DatabricksCfgProfileStore(), DatabricksBundleStore()
+    )
+    return web.run(
+        onboarding,
+        profile,
+        read_only="--read-only" in args,
+        settings=JsonSettingsStore().load(),
+        version=version("caland"),
+        open_browser="--no-open" not in args,
+    )
 
 
 if __name__ == "__main__":

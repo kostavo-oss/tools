@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>caland</title>
+<link rel="stylesheet" href="/page.css">
+<script src="/page.js" defer></script>
+</head>
+<body>
+
+<header>
+  <h1>caland</h1>
+  <span class="meta mono" id="host"></span>
+  <span class="state waiting" id="read-only" hidden>read-only</span>
+  <span class="meta who" id="who"></span>
+  <button id="help-open">Keys <kbd>?</kbd></button>
+</header>
+
+<div class="alert" id="trouble" role="alert" hidden></div>
+
+<div class="quiet" id="locked" hidden>
+  <p>This page has no key to caland.</p>
+  <p>Go to the terminal caland runs in and press <kbd>enter</kbd> for a new link. If it is
+    not running any more, start it again.</p>
+</div>
+
+<div id="app" hidden>
+  <div class="bar">
+    <div class="filter">
+      <input type="text" id="filter" placeholder="Filter scopes and secrets" autocomplete="off"
+             spellcheck="false" aria-label="Filter scopes and secrets">
+      <kbd>/</kbd>
+    </div>
+    <span class="meta" id="progress" role="status"></span>
+  </div>
+
+  <main>
+    <section aria-label="Scopes" data-pane="scopes">
+      <h2 id="scopes-title">Scopes</h2>
+      <ul class="rows" id="scopes" role="listbox" aria-labelledby="scopes-title" tabindex="0"></ul>
+      <p class="none" id="scopes-none" hidden></p>
+    </section>
+
+    <section aria-label="Secrets" data-pane="secrets">
+      <h2 id="secrets-title">Secrets</h2>
+      <div id="keys" tabindex="0" role="group" aria-labelledby="secrets-title">
+        <table class="keys">
+          <thead><tr><th>Key</th><th>Last changed</th><th>Age</th></tr></thead>
+          <tbody id="secrets"></tbody>
+        </table>
+      </div>
+      <p class="none" id="secrets-none" hidden></p>
+    </section>
+
+    <section aria-label="Detail" id="detail" data-pane="detail"></section>
+  </main>
+</div>
+
+<footer>
+  <span id="version">caland</span> &middot; served from this machine only &middot; a secret's
+  value is in this page only while it is shown
+</footer>
+
+<dialog id="code" aria-labelledby="code-title">
+  <h1 id="code-title">Copy how to reach it</h1>
+  <div id="code-rows"></div>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<dialog id="help" aria-labelledby="help-title">
+  <h1 id="help-title">Keys</h1>
+  <table><tbody>
+    <tr><td><kbd>tab</kbd></td><td>The next pane: scopes, secrets, detail. <kbd>shift</kbd> <kbd>tab</kbd> goes back</td></tr>
+    <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> &middot; <kbd>h</kbd> <kbd>l</kbd></td><td>Also from pane to pane</td></tr>
+    <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> &middot; <kbd>j</kbd> <kbd>k</kbd></td><td>Up and down inside a pane; <kbd>g</kbd> <kbd>G</kbd> to its ends</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Filter; <kbd>&darr;</kbd> picks while you type, <kbd>enter</kbd> goes to what is left, <kbd>esc</kbd> clears</td></tr>
+    <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
+    <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
+    <tr><td><kbd>f</kbd></td><td>Only the scopes you can reach, or all of them</td></tr>
+    <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
+  </tbody></table>
+  <p class="quiet">This is a preview: it reads, and changes nothing yet. Everything else is
+    in the terminal version, <span class="mono">caland</span> without
+    <span class="mono">--page</span>.</p>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+</body>
+</html>
