@@ -27,6 +27,11 @@ terminal version is **frozen** — fix what is broken in it, add nothing.
   Chrome's debugging pipe — no package). It skips without Chrome; CI has one. Run it after
   any change to `static/`.
 - Only the SDK: no query, no warehouse, no system table (`spec/000`).
+- A change goes through `WorkspaceService`, which takes one at a time and asks the
+  workspace what is there *now* before it writes, moves or puts back. Two names that differ
+  only in case are one name (`domain.same_name`): Databricks says so.
+- A file is somebody else's bytes: `application/files.py` never does work the file sets
+  the size of, and never raises. Nothing there opens a PKCS#12 bundle.
 
 ## Toolchain — use these, nothing else
 

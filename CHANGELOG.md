@@ -18,6 +18,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   byte for byte, so a PKCS#12 bundle or a DER certificate goes in and comes out the same;
   until now a value could only be text.
 
+### Fixed
+
+- **Renaming a secret to the same name in another case no longer deletes it.** To
+  Databricks `API-KEY` and `api-key` are one secret, so a rename that only changed the case
+  wrote the secret and then removed it — altogether. It is refused now, in the terminal
+  version and on the page.
+- Reading a scope again (`r`) lets go of the values read from it before, so that a value
+  changed elsewhere is not shown, or moved, as it used to be.
+
 ### Changed
 
 - `cryptography` is a dependency now: it is what reads a certificate you pick.

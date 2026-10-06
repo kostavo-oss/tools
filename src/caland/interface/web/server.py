@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from ...application import Loader, WorkspaceService, files
-from ...domain import StoreError, Workspace
+from ...domain import Exists, StoreError, Workspace, same_name
 from . import gate, views
 
 #: The most a request may say: the largest value a secret may hold, as the page
@@ -259,6 +259,8 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(404, "nothing here")
         try:
             told, status = route(self, service, body, query)
+        except Exists as exc:
+            raise _Refused(409, str(exc)) from exc
         except StoreError as exc:
             # what the workspace said, shortly: it is the person's own to read
             raise _Refused(502, str(exc)) from exc
@@ -316,17 +318,24 @@ class Handler(BaseHTTPRequestHandler):
         if ("text" in body) == ("base64" in body):
             raise _Refused(400, "a value is text or a file, one of the two")
         if "text" in body:
-            if not isinstance(body["text"], str) or not body["text"]:
-                # an empty value is taken for a slip, not for a wish to wipe
-                raise _Refused(400, "there is nothing to save: the value is empty")
-            data = body["text"].encode("utf-8")
+            if not isinstance(body["text"], str):
+                raise _Refused(400, "that is no text")
+            try:
+                data = body["text"].encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise _Refused(400, "that is no text") from exc
             if len(data) > files.LIMIT:
                 raise _Refused(413, _TOO_BIG)
         else:
             data = _bytes(body, "base64")
-        if body.get("new") is True and service.secret(scope, key) is not None:
-            raise _Refused(409, f"“{key}” is in “{scope}” already: edit it instead")
-        service.put_secret_bytes(scope, key, data)
+        if not data:
+            # an empty value is taken for a slip, not for a wish to wipe —
+            # typed, or a file with nothing in it
+            raise _Refused(400, "there is nothing to save: the value is empty")
+        if body.get("new") is True:
+            service.create_secret_bytes(scope, key, data)
+        else:
+            service.put_secret_bytes(scope, key, data)
         self._changed()
         return {}, 200
 
@@ -348,10 +357,8 @@ class Handler(BaseHTTPRequestHandler):
             self._may_change(service, scope)  # moving away is a change there too
         if service.secret(scope, key) is None:
             raise _Refused(404, "no such secret")
-        if (scope, key) == (to_scope, to_key):
-            raise _Refused(400, "that is where it is")
-        if service.secret(to_scope, to_key) is not None:
-            raise _Refused(409, f"“{to_key}” is in “{to_scope}” already")
+        # that the new place is free, and is not the old one, is the service's to
+        # say: it asks the workspace, and one change at a time
         service.move_secret(scope, key, to_scope, to_key, keep=keep)
         self._changed()
         return {}, 200
@@ -359,7 +366,7 @@ class Handler(BaseHTTPRequestHandler):
     def _undo(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         self._may_change(service)
         if service.taken is None:
-            raise _Refused(409, "there is nothing to put back")
+            raise _Refused(409, "There is nothing to put back.")
         try:
             scope, key = service.put_back()
         finally:
@@ -392,8 +399,9 @@ class Handler(BaseHTTPRequestHandler):
     ) -> _Told:
         name = _name(body, "name")
         self._may_change(service)
-        if service.scope(name) is not None:
-            raise _Refused(409, f"there is a scope “{name}” already")
+        there = next((s.name for s in service.scopes if same_name(s.name, name)), None)
+        if there is not None:
+            raise _Refused(409, f"there is a scope “{there}” already")
         service.create_scope(name)
         service.refresh_scope(name)  # so that who made it is seen to have it
         self._changed()
@@ -418,7 +426,7 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(413, "too much")
         try:
             said = json.loads(self.rfile.read(int(length)) or b"{}")
-        except (ValueError, UnicodeDecodeError) as exc:
+        except (ValueError, UnicodeDecodeError, RecursionError) as exc:
             raise _Refused(400, "not JSON") from exc
         if not isinstance(said, dict):
             raise _Refused(400, "not an object")

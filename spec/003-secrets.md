@@ -70,6 +70,11 @@ written anywhere. → [006](006-safety.md)
   **On the page this is so since 2026-10-06; the terminal version, which is frozen, is as
   it was.**
 
+- **D4 — A rename that only changes the case deleted the secret.** *Found 2026-10-06 while
+  the page was reviewed, and fixed the same day — here too, though the terminal version is
+  frozen: it was losing secrets.* To Databricks `API-KEY` is `api-key`; move wrote the one
+  and removed the other, which was the same. It is refused now.
+
 ## Done when
 
 Built. Held by `tests/test_ui_modals.py`, `test_ui_browse.py`, `test_ui_tools.py`,

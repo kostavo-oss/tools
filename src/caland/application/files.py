@@ -5,17 +5,20 @@ goes in: what kind of file, who it is for, who issued it, when it expires. This
 reads that out of the bytes and nothing else — no I/O, no clock, no workspace.
 
 Parsing is `cryptography`'s; what cannot be read is said to be what it looks
-like, never guessed at.
+like, never guessed at. A file is somebody else's bytes, so nothing here does
+work the file gets to set the size of: a PKCS#12 bundle says how many rounds
+its check takes — two thousand million, if it likes — and is therefore named
+by its shape and never opened.
 """
 
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 from cryptography import x509
-from cryptography.hazmat.primitives.serialization import pkcs12
 
 #: The most a Databricks secret may hold.
 #: https://docs.databricks.com/api/workspace/secrets/putsecret
@@ -91,49 +94,41 @@ def _pem(data: bytes, labels: list[str], size: int) -> Described:
         kind = f"PEM ({labels[0].lower()})"
     if not certificates:
         return Described(kind, size)
-    try:
-        first = x509.load_pem_x509_certificates(data)[0]
-    except (ValueError, IndexError):
+    read = _read(lambda: x509.load_pem_x509_certificates(data)[0])
+    if read is None:
         return Described(f"{kind} — it cannot be read", size)
-    return Described(kind, size, facts=_facts(first), expires=_expires(first))
+    return Described(kind, size, facts=read[0], expires=read[1])
 
 
 def _der(data: bytes, size: int) -> Described | None:
-    try:
-        certificate = x509.load_der_x509_certificate(data)
-    except ValueError:
+    if data[:1] != b"\x30":
         return None
-    return Described(
-        "DER certificate",
-        size,
-        binary=True,
-        facts=_facts(certificate),
-        expires=_expires(certificate),
-    )
+    read = _read(lambda: x509.load_der_x509_certificate(data))
+    if read is None:
+        return None
+    return Described("DER certificate", size, binary=True, facts=read[0], expires=read[1])
 
 
 def _pkcs12(data: bytes, size: int) -> Described | None:
     if not (data[:1] == b"\x30" and _PKCS7_DATA in data[:64]):
         return None
-    try:
-        bundle = pkcs12.load_pkcs12(data, None)
-    except ValueError:
-        # the right shape, and it will not open without its password
-        return Described(
-            "PKCS#12 bundle, protected by a password — its contents are not read",
-            size,
-            binary=True,
-        )
-    certificate = bundle.cert.certificate if bundle.cert else None
-    if certificate is None:
-        return Described("PKCS#12 bundle", size, binary=True)
     return Described(
-        "PKCS#12 bundle, not protected by a password",
+        "binary — it has the shape of a PKCS#12 bundle; its contents are not read",
         size,
         binary=True,
-        facts=_facts(certificate),
-        expires=_expires(certificate),
     )
+
+
+def _read(load: Any) -> tuple[tuple[tuple[str, str], ...], str] | None:
+    """A certificate's facts and its end, or None when it cannot be read.
+    Whatever goes wrong reading somebody's file is that file's, not ours."""
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            certificate = load()
+            return _facts(certificate), _expires(certificate)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _facts(certificate: x509.Certificate) -> tuple[tuple[str, str], ...]:
@@ -150,7 +145,7 @@ def _for(certificate: x509.Certificate) -> str:
         listed = certificate.extensions.get_extension_for_class(
             x509.SubjectAlternativeName
         ).value.get_values_for_type(x509.DNSName)
-    except x509.ExtensionNotFound:
+    except (x509.ExtensionNotFound, ValueError):  # none, or none that can be read
         listed = []
     if not listed:
         return _name(certificate.subject)

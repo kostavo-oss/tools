@@ -100,24 +100,69 @@ def test_a_der_certificate_is_binary_and_read():
     assert dict(told.facts)["Issued by"] == "Example CA" and told.expires
 
 
-def test_a_pkcs12_bundle_with_a_password_is_named_and_not_opened():
+@pytest.mark.parametrize("password", [b"hunter2", None])
+def test_a_pkcs12_bundle_is_named_by_its_shape_and_never_opened(password):
+    """It says itself how many rounds its check takes: a file of 785 bytes can
+    ask for two thousand million, and whoever opens it is busy for minutes."""
     cert, key = certificate()
-    data = pkcs12.serialize_key_and_certificates(
-        b"prod", key, cert, None, serialization.BestAvailableEncryption(b"hunter2")
+    how = (
+        serialization.BestAvailableEncryption(password)
+        if password
+        else serialization.NoEncryption()
     )
-    told = describe(data)
-    assert told.kind.startswith("PKCS#12 bundle, protected by a password")
+    told = describe(pkcs12.serialize_key_and_certificates(b"prod", key, cert, None, how))
+    assert (
+        told.kind
+        == "binary — it has the shape of a PKCS#12 bundle; its contents are not read"
+    )
     assert told.binary is True and told.facts == () and told.expires is None
 
 
-def test_a_pkcs12_bundle_without_a_password_is_read():
-    cert, key = certificate()
-    data = pkcs12.serialize_key_and_certificates(
-        b"prod", key, cert, None, serialization.NoEncryption()
-    )
-    told = describe(data)
-    assert told.kind == "PKCS#12 bundle, not protected by a password"
-    assert dict(told.facts)["For"] == "api.example.com"
+def test_nothing_here_can_open_a_pkcs12_bundle():
+    from caland.application import files
+
+    assert not hasattr(files, "pkcs12")
+
+
+def test_no_file_makes_it_raise_or_take_its_time():
+    """Whatever the bytes: random ones, and a real certificate cut off at every
+    length, as DER and as PEM."""
+    import os
+    import time
+
+    cert, _ = certificate()
+    der = cert.public_bytes(serialization.Encoding.DER)
+    files = [os.urandom(n) for n in range(0, 600, 7)]
+    files += [b"\x30\x82" + os.urandom(n) for n in range(0, 300, 5)]
+    files += [der[:n] for n in range(len(der))] + [
+        pem(cert)[:n] for n in range(0, 700, 3)
+    ]
+    files += [der[:40] + os.urandom(len(der) - 40), der + b"trailing"]
+    started = time.monotonic()
+    for data in files:
+        told = describe(data)
+        assert told.size == len(data) and told.kind
+    assert time.monotonic() - started < 5
+
+
+def test_a_certificate_that_cannot_be_read_is_said_to_be_that(monkeypatch):
+    from caland.application import files
+
+    def broken(certificate):
+        raise ValueError("an extension that makes no sense")
+
+    cert, _ = certificate()
+    monkeypatch.setattr(files, "_facts", broken)
+    assert describe(pem(cert)).kind == "PEM certificate — it cannot be read"
+    der = describe(cert.public_bytes(serialization.Encoding.DER))
+    assert der.binary is True and der.facts == ()
+
+
+def test_reading_a_certificate_prints_nothing(capfd, recwarn):
+    cert, _ = certificate(common="c" * 64, names=())
+    describe(pem(cert))
+    printed = capfd.readouterr()
+    assert printed.out == "" and printed.err == "" and len(recwarn) == 0
 
 
 def test_a_pem_that_is_not_what_it_says_is_said_to_be_unreadable():

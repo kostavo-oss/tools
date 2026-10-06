@@ -435,6 +435,15 @@ BUTTONS = (
     " [...n.childNodes].filter(c => c.nodeType === 3)"
     ".map(c => c.textContent).join('').trim())"
 )
+#: Paste TEXT into the value field, as the browser does; whether the page took it over.
+PASTE = """(() => {
+  const data = new DataTransfer();
+  data.setData('text/plain', TEXT);
+  const paste = new ClipboardEvent(
+    'paste', { clipboardData: data, bubbles: true, cancelable: true });
+  document.getElementById('form-value').dispatchEvent(paste);
+  return paste.defaultPrevented;
+})()"""
 #: A scope's grants as the dialog lists them: who=what.
 GRANTS = (
     "[...document.querySelectorAll('#grants-rows tr')]"
@@ -641,12 +650,12 @@ def test_escape_deletes_nothing(prod):
     prod.press("Escape")
     prod.wait(f"!{OPEN.format('confirm')}")
     prod.press("u")
-    assert prod.js(TOAST) == "There is nothing to put back."
+    prod.wait(f"{TOAST} === 'There is nothing to put back.'")
     assert wrote(prod.store) == []
 
 
-def test_d_in_the_scopes_is_the_scope_and_says_what_goes_with_it(prod):
-    prod.press("h", "d")
+def test_a_scope_has_a_key_of_its_own_and_says_what_goes_with_it(prod):
+    prod.press("h", "D")
     prod.wait(OPEN.format("confirm"))
     assert prod.js("document.getElementById('confirm-what').innerText") == (
         "Delete scope prod and its 4 secrets."
@@ -658,6 +667,137 @@ def test_d_in_the_scopes_is_the_scope_and_says_what_goes_with_it(prod):
     prod.wait("document.querySelectorAll('#scopes li').length === 2")
     assert ("delete_scope", "prod") in prod.store.calls
     assert prod.js(TOAST) == "Deleted scope prod."
+
+
+def test_d_is_the_secret_wherever_the_keyboard_is(prod):
+    """A `d` meant for a secret must never reach a scope: the page opens with the
+    keyboard in the scopes, and the detail offers `d` for the secret."""
+    prod.press("h")
+    assert prod.focus() == "scopes"
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    assert (
+        prod.js("document.getElementById('confirm-title').textContent") == "Delete secret"
+    )
+    assert prod.js("document.getElementById('confirm-what').innerText") == (
+        "Delete api-key from prod."
+    )
+
+
+def test_d_with_no_secret_deletes_nothing_and_says_which_key_would(prod):
+    prod.press("N")
+    prod.type("empty-scope")
+    prod.press("Enter")
+    prod.wait(f"{SELECTED_SCOPE} === 'empty-scope'")
+    prod.press("d")
+    prod.wait(f"{TOAST} === 'No secret is selected. D deletes the scope.'")
+    assert prod.js("document.querySelector('dialog[open]')") is None
+
+
+def test_a_scope_whose_secrets_cannot_be_listed_is_not_called_empty(page):
+    page.press("f")
+    page.wait("document.querySelectorAll('#scopes li').length === 4")
+    page.press("j", "j")
+    page.wait(f"{SELECTED_SCOPE} === 'shut'")
+    page.press("D")
+    page.wait(OPEN.format("confirm"))
+    assert page.js("document.getElementById('confirm-what').innerText") == (
+        "Delete scope shut and whatever is in it: its secrets cannot be listed from here."
+    )
+
+
+def test_after_a_delete_the_selection_stays_where_it_was(prod):
+    prod.press("j")
+    assert prod.js(SELECTED_KEY) == "db-password"
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    prod.press("y")
+    prod.wait(f"!{KEYS_SHOWN}.includes('db-password')")
+    assert prod.js(SELECTED_KEY) == "tls-cert"
+
+
+def test_u_pressed_before_the_delete_is_answered_loses_nothing(prod):
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    prod.press("y", "u")  # at once: the put-back waits its turn
+    prod.wait(f"{TOAST} === 'Put back prod/api-key.'")
+    assert "api-key" in prod.js(KEYS_SHOWN)
+    assert prod.store._values[("prod", "api-key")] == VALUE.encode()
+    assert prod.store.count("delete_secret") == 1
+
+
+def test_an_empty_file_is_refused_in_the_form(prod, tmp_path):
+    file = tmp_path / "nothing.pem"
+    file.write_bytes(b"")
+    prod.press("e")
+    prod.wait(OPEN.format("form"))
+    prod.choose_files("#file", str(file))
+    prod.wait("!document.getElementById('form-error').hidden")
+    assert "is empty" in prod.js("document.getElementById('form-error').textContent")
+    prod.press("Enter")
+    assert wrote(prod.store) == []
+
+
+def test_a_file_described_too_late_does_not_land_in_another_form(prod, tmp_path):
+    """Choose a file, close the form, open it for another secret and type: the
+    answer about the file must not replace what was typed."""
+    import time
+
+    file = tmp_path / "late.txt"
+    file.write_text("from a file chosen for another secret\n")
+    prod.js(
+        """(() => { const real = window.fetch;
+          window.fetch = (url, options) => String(url).includes('/api/describe')
+            ? new Promise((done) => setTimeout(done, 500)).then(() => real(url, options))
+            : real(url, options); })()"""
+    )
+    prod.press("n")
+    prod.wait(OPEN.format("form"))
+    prod.choose_files("#file", str(file))
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('form')}")
+    prod.press("j", "e")
+    prod.wait(OPEN.format("form"))
+    prod.type("typed for db-password")
+    time.sleep(0.9)  # the late answer has come by now
+    assert (
+        prod.js("document.getElementById('form-value').value") == "typed for db-password"
+    )
+    assert prod.js("document.getElementById('picked').hidden") is True
+    prod.press("Enter")
+    prod.wait(f"!{OPEN.format('form')}")
+    assert prod.store._values[("prod", "db-password")] == b"typed for db-password"
+
+
+def test_a_certificate_pasted_into_the_value_is_taken_line_for_line(prod):
+    import json
+
+    from test_files import certificate, pem
+
+    cert, _ = certificate()
+    text = pem(cert).decode()
+    prod.press("n")
+    prod.wait(OPEN.format("form"))
+    prod.type("pasted-cert")
+    prod.press("Tab")
+    prevented = prod.js(PASTE.replace("TEXT", json.dumps(text)))
+    assert prevented is True
+    prod.wait("!document.getElementById('picked').hidden")
+    card = prod.js("document.getElementById('picked').innerText")
+    assert (
+        "pasted text" in card and "PEM certificate" in card and "api.example.com" in card
+    )
+    assert prod.js("document.getElementById('form-key').value") == "pasted-cert"
+    prod.press("Enter")
+    prod.wait(f"{SELECTED_KEY} === 'pasted-cert'")
+    assert prod.store._values[("prod", "pasted-cert")] == pem(cert)
+
+
+def test_one_line_pasted_into_the_value_is_just_pasted(prod):
+    prod.press("n")
+    prod.wait(OPEN.format("form"))
+    prod.press("Tab")
+    assert prod.js(PASTE.replace("TEXT", "'one line'")) is False
 
 
 def test_a_rename_and_the_original_put_back(prod):

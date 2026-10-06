@@ -26,6 +26,13 @@ _SOURCE_LABELS = {
 }
 
 
+def same_name(one: str, other: str) -> bool:
+    """Whether two names are one name to Databricks, which does not tell a scope
+    or a secret apart by its case: `Api-Key` and `api-key` are the same secret.
+    (Tried on a workspace, 2026-10-06: the second put overwrote the first.)"""
+    return one.casefold() == other.casefold()
+
+
 @dataclass(frozen=True)
 class Workspace:
     """A connection target the login can offer, plus where it came from."""

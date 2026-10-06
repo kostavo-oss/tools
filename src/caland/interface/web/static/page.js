@@ -61,7 +61,7 @@ function lock() {
   for (const id of ["scopes", "secrets", "detail", "code-rows", "host", "who"]) $(id).replaceChildren();
   for (const node of document.querySelectorAll("dialog[open]")) node.close();
   // and nothing that was typed or chosen to be sent: no value, no file
-  picked = null; editing = null; moving = null; confirming = null; granting = null;
+  picked = null; editing = null; moving = null; confirming = null; granting = null; turn += 1;
   for (const id of ["form-value", "form-key", "move-key", "grant-who", "scope-name", "file"]) $(id).value = "";
   for (const id of ["picked", "grants-rows", "confirm-what"]) $(id).replaceChildren();
   $("app").hidden = true; $("locked").hidden = false;
@@ -248,7 +248,7 @@ function drawDetail(row) {
       : el("p", { className: "none", textContent: "No grants are listed. Listing them takes MANAGE on the scope." }),
     el("div", { className: "acts" }, button(may ? "Change" : "Look closer", "p", openGrants))];
   const whole = may ? [el("h2", { textContent: "Scope" }),
-    el("div", { className: "acts" }, button("Delete scope", "", deleteScope, "danger"))] : [];
+    el("div", { className: "acts" }, button("Delete scope", "D", deleteScope, "danger"))] : [];
   if (!row) {
     return $("detail").replaceChildren(el("h2", { textContent: "Scope" }),
       el("div", { className: "name mono", textContent: scope }),
@@ -353,14 +353,24 @@ function fail(id, error) {
   $(id).textContent = error ? error.message : "";
   $(id).hidden = !error;
 }
-// after a change: read the workspace again, go to what was changed, and say so
-async function changed(toScope, toKey, saying) {
+// One change at a time: the next is asked for when the one before has been answered and
+// the workspace read again. A key pressed in between waits its turn, and finds the page
+// as that change left it.
+let queue = Promise.resolve();
+const inTurn = (work) => (...args) => {
+  const next = queue.then(() => work(...args));
+  queue = next.catch(() => {});
+  return next;
+};
+// after a change: read the workspace again, go to what was changed — or, when it is gone,
+// stay at the place it had — and say so
+async function changed(toScope, toKey, saying, place = 0) {
   await look();
   if (toScope && told.scopes.some((s) => s.name === toScope)) {
-    scope = toScope; secret = 0;
+    scope = toScope;
     await fill(scope);
     const at = toKey ? visibleSecrets().findIndex(([key]) => key === toKey) : -1;
-    if (at >= 0) secret = at;
+    secret = at >= 0 ? at : Math.max(0, Math.min(place, visibleSecrets().length - 1));
   }
   hide(); draw();
   if (saying) toast(saying);
@@ -372,6 +382,8 @@ const options = (rows, picked) => rows.map((s) => el("option", { textContent: s.
 // a secret, new or edited
 let editing = null;       // { scope, key } when the form is for a secret that is there
 let picked = null;        // { name, base64 } — the file that was chosen
+let turn = 0;             // which filling-in of the form this is: an answer meant for
+                          // another — a file described too late — is dropped
 function clearPicked() {
   picked = null; $("file").value = "";
   $("picked").hidden = true; $("picked-note").hidden = true;
@@ -381,6 +393,7 @@ function openForm(edit) {
   if (edit && (!chosen() || detail.get(scope)?.keyvault)) return;
   if (!targets().length) return toast("There is no scope to put a secret in: make one with N.", true);
   editing = edit ? { scope, key: chosen()[0] } : null;
+  turn += 1;
   $("form-title").textContent = edit ? "Edit secret" : "New secret";
   $("form-scope").replaceChildren(...options(targets(), scope));
   $("form-scope").disabled = $("form-key").disabled = Boolean(edit);
@@ -400,14 +413,18 @@ const until = (ms) => {
   return days > 1 ? `in ${days} days` : days === 1 ? "tomorrow" : days === 0 ? "today"
     : days === -1 ? "expired yesterday" : `expired ${-days} days ago`;
 };
-// a file that was chosen or dropped: say what it is before it goes anywhere but here
-async function take(file) {
+// a file that was chosen or dropped — or text of more than one line that was pasted: say
+// what it is before it goes anywhere but here
+async function take(file, named = true) {
   if (!file) return;
+  const mine = turn;
   fail("form-error");
   try {
     if (file.size > LIMIT) throw new Error(`${file.name} is ${size(file.size)}: a secret holds 128 kB at most.`);
+    if (file.size === 0) throw new Error(`${file.name} is empty: there is nothing in it to save.`);
     const sent = base64(new Uint8Array(await file.arrayBuffer()));
     const what = await ask("/api/describe", { base64: sent });
+    if (mine !== turn) return;   // the form has moved on: this answer is for one that is gone
     picked = { name: file.name, base64: sent };
     $("form-value").value = "";
     const rows = [["Size", size(what.size)], ["Kind", what.kind], ...what.facts];
@@ -416,13 +433,14 @@ async function take(file) {
     $("picked").hidden = false;
     $("picked-note").textContent = what.binary
       ? "Stored byte for byte, and comes out the same. Written nowhere on the way."
-      : "Its content becomes the value. Written nowhere on the way.";
+      : "Its content becomes the value, every line of it. Written nowhere on the way.";
     $("picked-note").hidden = false;
-    if (!editing && !$("form-key").value) {
+    if (named && !editing && !$("form-key").value) {
       $("form-key").value = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9_.@-]+/g, "-");
     }
   } catch (error) {
     if (error instanceof Told) throw error;
+    if (mine !== turn) return;
     clearPicked(); fail("form-error", error);
   }
 }
@@ -458,31 +476,33 @@ function confirmFirst(title, what, note, label, work) {
 }
 function deleteSecret() {
   const row = chosen();
-  if (!canChange() || !row) return;
+  if (!canChange()) return;
+  if (!row) return toast("No secret is selected. D deletes the scope.");
   if (detail.get(scope)?.keyvault) return toast(`${scope} is Azure Key Vault's: its secrets are deleted in Azure.`, true);
-  const at = { scope, key: row[0] };
+  const at = { scope, key: row[0] }, place = secret;
   confirmFirst("Delete secret", [strong("Delete"), " ", mono(at.key), " from ", mono(at.scope), "."],
     "u puts it back, for as long as caland runs and nothing else is deleted.", "Delete", async () => {
       const done = await ask("/api/secret/delete", at);
       await changed(at.scope, null, done.kept ? `Deleted ${at.key} — press u to put it back.`
-        : `Deleted ${at.key}. Its value could not be read first, so it cannot be put back.`);
+        : `Deleted ${at.key}. Its value could not be read first, so it cannot be put back.`, place);
     });
 }
+// a scope has a key of its own, D: a d meant for a secret never reaches a scope
 function deleteScope() {
-  if (!canChange() || scope === null) return;
-  const name = scope, count = (keys.get(name) ?? []).length;
-  confirmFirst("Delete scope", [strong("Delete"), " scope ", mono(name),
-    count ? ` and its ${count} secret${count === 1 ? "" : "s"}.` : ", which is empty."],
+  const row = visibleScopes().find((s) => s.name === scope);
+  if (!canChange() || !row) return;
+  const name = row.name, count = (keys.get(name) ?? []).length;
+  const with_ = !row.loaded || !row.access ? " and whatever is in it: its secrets cannot be listed from here."
+    : count ? ` and its ${count} secret${count === 1 ? "" : "s"}.` : ", which is empty.";
+  confirmFirst("Delete scope", [strong("Delete"), " scope ", mono(name), with_],
     "A scope cannot be put back, and neither can what was in it.", "Delete", async () => {
       await ask("/api/scope/delete", { name });
       await changed(null, null, `Deleted scope ${name}.`);
     });
 }
-// d deletes what the keyboard is on: a scope in the scopes, a secret anywhere else
-const deleteWhat = () => pane === "scopes" || !chosen() ? deleteScope() : deleteSecret();
+// the server knows what there is to put back; this page may be a change behind
 async function undo() {
   if (!canChange()) return;
-  if (!told.taken) return toast("There is nothing to put back.");
   const back = await ask("/api/undo", {});
   await changed(back.scope, back.key, `Put back ${back.scope}/${back.key}.`);
 }
@@ -643,7 +663,8 @@ const KEYS = {
   ArrowRight: right, l: right, ArrowLeft: back, h: back, g: () => ends(false), G: () => ends(true),
   " ": toggle, Enter: () => pane === "scopes" ? right() : toggle(),
   c: copy, C: openCode, r: () => refresh(false), R: () => refresh(true),
-  n: () => openForm(false), N: openScope, e: () => openForm(true), m: openMove, d: deleteWhat, u: undo,
+  n: () => openForm(false), N: openScope, e: () => openForm(true), m: openMove,
+  d: deleteSecret, D: deleteScope, u: inTurn(undo),
   p: openGrants,
   f: () => {
     showAll = !showAll; draw();
@@ -683,31 +704,43 @@ document.querySelectorAll("dialog").forEach((node) => {
 $("help-open").onclick = () => $("help").showModal();
 $("new-open").onclick = () => openForm(false);
 $("scope-new").onclick = openScope;
-$("form-save").onclick = carefully(saveForm);
-$("move-save").onclick = carefully(saveMove);
-$("scope-save").onclick = carefully(saveScope);
-$("grant-give").onclick = carefully(giveGrant);
-$("confirm-yes").onclick = carefully(async () => {
+$("form-save").onclick = carefully(inTurn(saveForm));
+$("move-save").onclick = carefully(inTurn(saveMove));
+$("scope-save").onclick = carefully(inTurn(saveScope));
+$("grant-give").onclick = carefully(inTurn(giveGrant));
+$("confirm-yes").onclick = () => {
   const work = confirming;
   confirming = null;
   $("confirm").close();
-  if (work) await work();
-});
+  if (work) carefully(inTurn(work))();
+};
 // enter in a field of a dialog is its save
 for (const [ids, work] of [[["form-key", "form-value"], saveForm], [["move-key"], saveMove],
   [["grant-who"], giveGrant], [["scope-name"], saveScope]]) {
   for (const id of ids) {
     $(id).addEventListener("keydown", (event) => {
-      if (event.key === "Enter") { event.preventDefault(); carefully(work)(); }
+      if (event.key === "Enter") { event.preventDefault(); carefully(inTurn(work))(); }
     });
   }
 }
 // a form that is closed keeps nothing that was typed into it or chosen for it
-$("form").addEventListener("close", () => { $("form-value").value = ""; clearPicked(); });
+const formGone = () => { turn += 1; $("form-value").value = ""; clearPicked(); };
+// esc says so at once. That a dialog is closed is said a moment after it is — and by then
+// the form may be open again, with something typed into it that is not to be cleared.
+$("form").addEventListener("cancel", formGone);
+$("form").addEventListener("close", () => { if (!$("form").open) formGone(); });
+// A field holds one line, and joins what is pasted into it to one: a certificate pasted
+// there would be saved broken. More than one line is taken as it is, like a file.
+$("form-value").addEventListener("paste", (event) => {
+  const text = event.clipboardData?.getData("text") ?? "";
+  if (!/[\r\n]/.test(text)) return;
+  event.preventDefault();
+  carefully(() => take(new File([text], "pasted text", { type: "text/plain" }), false))();
+});
 // a file: chosen with the system's own dialog, or dropped on the form
 $("choose").onclick = () => $("file").click();
 $("file").onchange = carefully(() => take($("file").files[0]));
-$("form-value").oninput = () => { if ($("form-value").value) clearPicked(); };
+$("form-value").oninput = () => { if ($("form-value").value) { turn += 1; clearPicked(); } };
 $("drop").ondragover = (event) => { event.preventDefault(); $("drop").classList.add("over"); };
 $("drop").ondragleave = () => $("drop").classList.remove("over");
 $("drop").ondrop = carefully((event) => {

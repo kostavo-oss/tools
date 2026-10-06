@@ -314,8 +314,10 @@ def test_a_move_a_rename_and_a_copy(served):
 @pytest.mark.parametrize(
     ("change", "status"),
     [
-        ({"to_key": "api-key"}, 400),  # where it is
+        ({"to_key": "api-key"}, 409),  # where it is
+        ({"to_key": "API-KEY"}, 409),  # where it is, to Databricks
         ({"to_key": "db-password"}, 409),  # something is there
+        ({"to_key": "DB-Password"}, 409),  # something is there, to Databricks
         ({"key": "nope"}, 404),
         ({"to_scope": "nope"}, 404),
         ({"to_key": ""}, 400),
@@ -449,3 +451,86 @@ def test_what_is_no_file_is_not_described(served, body):
 def test_a_file_too_large_to_be_a_secret_is_said_to_be(served):
     status, told = post(served, "/api/describe", {"base64": b64(b"x" * (LIMIT + 1))})
     assert status == 413 and "128 kB" in told["error"]
+
+
+# ── what a second pair of eyes found ─────────────────────────────────
+@pytest.mark.parametrize("new", [True, False])
+def test_an_empty_file_wipes_nothing(served, new):
+    body = {
+        "scope": "prod",
+        "key": "api-key" if not new else "fresh",
+        "base64": "",
+        "new": new,
+    }
+    status, told = post(served, "/api/secret/put", body)
+    assert status == 400 and "empty" in told["error"] and wrote(served) == []
+
+
+def test_text_that_is_no_text_is_refused_not_failed_on(served):
+    raw = b'{"scope": "prod", "key": "k", "text": "\\ud800"}'
+    assert served.ask("POST", "/api/secret/put", raw=raw)[0] == 400
+
+
+def test_json_nested_beyond_reason_is_refused_not_failed_on(served):
+    raw = b"[" * 100_000 + b"]" * 100_000
+    assert served.ask("POST", "/api/secret/put", raw=raw)[0] in (400, 413)
+
+
+def test_a_new_secret_in_another_case_does_not_overwrite(served):
+    body = {"scope": "prod", "key": "API-Key", "text": "oops", "new": True}
+    status, told = post(served, "/api/secret/put", body)
+    assert status == 409 and "api-key" in told["error"] and wrote(served) == []
+
+
+def test_a_scope_in_another_case_is_there_already(served):
+    status, told = post(served, "/api/scope/create", {"name": "PROD"})
+    assert status == 409 and "“prod”" in told["error"] and wrote(served) == []
+
+
+def test_undo_does_not_overwrite_a_secret_made_since_and_keeps_what_it_holds(served):
+    post(served, "/api/secret/delete", {"scope": "prod", "key": "api-key"})
+    post(
+        served,
+        "/api/secret/put",
+        {"scope": "prod", "key": "api-key", "text": "ROTATED", "new": True},
+    )
+    status, told = post(served, "/api/undo", {})
+    assert status == 409 and "overwrite" in told["error"]
+    assert served.store._values[("prod", "api-key")] == b"ROTATED"
+    assert served.json("GET", "/api/state")[1]["taken"] == {
+        "scope": "prod",
+        "key": "api-key",
+    }
+
+
+def test_a_move_takes_the_value_that_is_there_now(served):
+    post(served, "/api/value", {"scope": "prod", "key": "api-key"})  # shown earlier
+    served.store._values[("prod", "api-key")] = b"rotated elsewhere"
+    move = {"scope": "prod", "key": "api-key", "to_scope": "prod", "to_key": "moved"}
+    assert post(served, "/api/secret/move", move)[0] == 200
+    assert served.store._values[("prod", "moved")] == b"rotated elsewhere"
+
+
+def test_reading_again_shows_the_value_that_is_there_now(served):
+    post(served, "/api/value", {"scope": "prod", "key": "api-key"})
+    served.store._values[("prod", "api-key")] = b"rotated elsewhere"
+    post(served, "/api/refresh", {"scope": "prod"})
+    for _ in range(200):
+        if served.page.loader.service.cache.raw == {}:
+            break
+        threading.Event().wait(0.01)
+    assert post(served, "/api/value", {"scope": "prod", "key": "api-key"})[1] == {
+        "value": "rotated elsewhere"
+    }
+
+
+def test_describing_any_file_answers(served):
+    import os
+
+    for data in (
+        os.urandom(300),
+        b"\x30\x82\x03\x0d" + os.urandom(200),
+        b"-----BEGIN CERTIFICATE-----\n",
+    ):
+        status, told = post(served, "/api/describe", {"base64": b64(data)})
+        assert status == 200 and told["kind"]

@@ -45,10 +45,19 @@ shown as what it is: so many bytes, as base64.
 
 ![The form for a new secret, with a certificate picked](img/page-form.png)
 
+A certificate pasted into the value field is taken line for line, like a file — a field
+holds one line, and would join the rest to it.
+
 **Grants and scopes.** ++p++ lists who has access to the scope, and gives, changes and
 removes a grant; removing asks first, and says so when the grant is your own. ++shift+n++
-makes a scope; ++d++ with the keyboard in the scopes deletes one, after saying how many
-secrets go with it.
+makes a scope; ++shift+d++ deletes one, after saying how many secrets go with it. A scope
+has a key of its own so that a ++d++ meant for a secret never reaches one.
+
+**Nothing lands on what is there.** A new secret does not overwrite an existing one, a move
+does not land on another secret, and ++u++ does not put a secret back over one made since.
+Databricks does not tell names apart by their case — `API-KEY` is `api-key` — and neither
+does Caland: a rename that only changes the case is refused, because it would write the
+secret and then remove it.
 
 **Read-only.** `caland --page prod --read-only` offers no change at all — and the server
 refuses one whatever the page shows.
@@ -70,7 +79,8 @@ Everything has a key, and everything can be clicked.
 | ++space++ | Show or hide the value; it hides itself after 30 s |
 | ++c++ / ++shift+c++ | Copy the value / copy how to reach it from code |
 | ++n++ / ++shift+n++ | New secret / new scope |
-| ++e++ · ++m++ · ++d++ | Edit · move, copy or rename · delete (a scope, with the keyboard in the scopes) |
+| ++e++ · ++m++ · ++d++ | Edit · move, copy or rename · delete the secret |
+| ++shift+d++ | Delete the scope |
 | ++u++ | Put back the secret last deleted or moved away |
 | ++p++ | Who has access to the scope |
 | ++f++ | Only the scopes you can reach, or all of them |
