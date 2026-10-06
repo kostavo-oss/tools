@@ -142,6 +142,9 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
 - A mock-up of the three main views — browse, a secret with its file form, a scope's grants
   — in lely's look, with made-up data, has been seen by the owner **before** any of it is
   wired to a workspace.
+  *Made 2026-10-06: [`mock/page.html`](mock/page.html) — one file, open it in a browser.
+  It answers to the keys, and its file form reads a real file's name, size and kind without
+  sending it anywhere. Not yet seen by the owner.*
 - The page passes the tests the terminal version's screens pass, against the same fake
   workspace, and a browser test in CI drives the real page.
 - R7's numbers are tests.

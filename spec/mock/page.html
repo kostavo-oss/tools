@@ -1,0 +1,506 @@
+<!doctype html>
+<!--
+  A mock-up for spec/008-the-page.md. Made-up data; it talks to no workspace and no server.
+
+  It is one file so that it can be opened by itself, which is why the style and the script
+  are written into the page here. The real page loads both from caland (008, R9).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>caland — mock-up</title>
+<style>
+/* lely's page, taken over as it is: the colours and what they mean, the type, the shapes */
+:root { color-scheme: light dark; --edge: #8884; --dim: #888c; --sunk: #8881;
+  --green: #2e8b57; --amber: #b8860b; --red: #c0392b; --blue: #3b7dd8; }
+* { box-sizing: border-box; }
+body { margin: 0 auto; padding: 1.4rem 1.5rem 3rem; max-width: 78rem;
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+code, pre, kbd, .mono { font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+h1 { font-size: 1.35rem; margin: 0; font-weight: 600; }
+h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--dim); font-weight: 600; margin: 0 0 .4rem; }
+.dim, .meta, footer { color: var(--dim); }
+.meta { font-size: .85rem; overflow-wrap: anywhere; }
+.destructive { color: var(--red); font-weight: 700; }
+.alert { border: 1px solid var(--red); border-left-width: .4rem; border-radius: .4rem;
+  padding: .6rem .9rem; margin: .8rem 0; }
+.warning { border-left: .25rem solid var(--amber); padding: .1rem .7rem; margin: .5rem 0; }
+.quiet { border-left: .25rem solid var(--edge); padding: .1rem .7rem; margin: .5rem 0;
+  color: var(--dim); }
+.state { font-size: .75rem; border: 1px solid var(--edge); border-radius: 1rem;
+  padding: 0 .55rem; white-space: nowrap; }
+.state.waiting { border-color: var(--amber); color: var(--amber); }
+footer { margin-top: 2.2rem; border-top: 1px solid var(--edge); padding-top: .8rem;
+  font-size: .82rem; }
+
+/* what a tool needs and a report does not: the same few shapes, nothing new in colour */
+.state.read { color: var(--dim); }
+.state.write { color: var(--blue); border-color: var(--blue); }
+.state.manage { color: var(--amber); border-color: var(--amber); font-weight: 700; }
+kbd { color: var(--dim); border: 1px solid var(--edge); border-radius: .3rem;
+  padding: 0 .3rem; font-size: 11.5px; }
+button, input, select { font: inherit; color: inherit; }
+button { background: none; border: 1px solid var(--edge); border-radius: .4rem;
+  padding: .22rem .7rem; cursor: pointer; }
+button:hover { background: var(--sunk); }
+button.main { font-weight: 600; border-color: currentColor; }
+button.danger { color: var(--red); border-color: var(--red); }
+button kbd { margin-left: .35rem; }
+input[type=text], input[type=password], select { background: none;
+  border: 1px solid var(--edge); border-radius: .4rem; padding: .32rem .6rem; width: 100%; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+dialog:focus-visible { outline: none; }
+
+header { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline;
+  border-bottom: 1px solid var(--edge); padding-bottom: .8rem; }
+header .who { margin-left: auto; }
+.bar { display: flex; gap: .6rem; align-items: center; margin: .9rem 0 1.1rem; }
+.bar .filter { flex: 1; position: relative; }
+.bar .filter kbd { position: absolute; right: .6rem; top: .5rem; }
+
+main { display: grid; grid-template-columns: 15rem minmax(0, 1fr) 23rem; gap: 0 1.6rem;
+  align-items: start; }
+section + section { border-left: 1px solid var(--edge); padding-left: 1.6rem; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li, table.keys tbody tr { cursor: pointer; }
+.rows li { display: flex; gap: .6rem; padding: .16rem .5rem; border-radius: .3rem; }
+.rows li .count { margin-left: auto; color: var(--dim); }
+.rows li small { color: var(--dim); }
+[aria-selected=true] { background: var(--sunk); font-weight: 600; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--edge);
+  padding: .25rem .6rem .25rem .5rem; }
+td { padding: .2rem .6rem .2rem .5rem; vertical-align: top; overflow-wrap: anywhere; }
+td.num { color: var(--dim); white-space: nowrap; font-weight: 400; }
+.none { color: var(--dim); padding: .4rem .5rem; }
+
+.name { font-weight: 600; font-size: 1.02rem; overflow-wrap: anywhere; }
+dl.facts { display: grid; grid-template-columns: 6.2rem 1fr; gap: .15rem .6rem;
+  margin: .5rem 0 1rem; }
+dl.facts dt { color: var(--dim); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+pre.value { background: var(--sunk); padding: .7rem .9rem; border-radius: .4rem;
+  margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  border-left: .25rem solid var(--edge); }
+pre.value.shown { border-left-color: var(--green); }
+.acts { display: flex; flex-wrap: wrap; gap: .45rem; margin: .5rem 0 1.2rem; }
+
+dialog { border: 1px solid var(--edge); border-radius: .6rem; padding: 1.2rem 1.4rem;
+  width: 34rem; max-width: calc(100vw - 2rem); background: Canvas; color: CanvasText; }
+dialog::backdrop { background: #0007; }
+dialog h1 { font-size: 1.1rem; margin-bottom: .8rem; }
+dialog label { display: block; margin: .7rem 0 .2rem; color: var(--dim); font-size: .85rem; }
+dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
+.or { display: flex; gap: .7rem; align-items: center; color: var(--dim);
+  font-size: .8rem; margin: .7rem 0 .5rem; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--edge); }
+.drop { border: 1px dashed var(--edge); border-radius: .4rem; padding: .8rem .9rem;
+  display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
+.drop.over { border-color: var(--blue); background: var(--sunk); }
+.picked { border: 1px solid var(--edge); border-left: .25rem solid var(--green);
+  border-radius: .4rem; padding: .5rem .9rem; margin-top: .6rem; }
+.picked dl.facts { margin: .3rem 0 0; }
+.grant { display: grid; grid-template-columns: 1fr 8rem auto; gap: .5rem; margin-top: .9rem; }
+#toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%);
+  background: Canvas; border: 1px solid var(--edge); border-left: .25rem solid var(--green);
+  border-radius: .4rem; padding: .4rem .9rem; max-width: 40rem; }
+[hidden] { display: none !important; }
+@media (max-width: 62rem) {
+  main { grid-template-columns: 1fr; gap: 1.4rem 0; }
+  section + section { border-left: 0; padding-left: 0; border-top: 1px solid var(--edge);
+    padding-top: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>caland</h1>
+  <span class="meta mono">dbc-example.cloud.databricks.com</span>
+  <span class="state waiting">mock-up</span>
+  <span class="meta who">ada@example.com</span>
+  <button id="help-open">Keys <kbd>?</kbd></button>
+</header>
+
+<div class="bar">
+  <div class="filter">
+    <input type="text" id="filter" placeholder="Filter scopes and secrets" autocomplete="off"
+           spellcheck="false" aria-label="Filter scopes and secrets">
+    <kbd>/</kbd>
+  </div>
+  <button class="main" id="new-open">New secret <kbd>n</kbd></button>
+  <button id="scope-new">New scope <kbd>N</kbd></button>
+</div>
+
+<main>
+  <section aria-label="Scopes">
+    <h2>Scopes</h2>
+    <ul class="rows" id="scopes" role="listbox" aria-label="Scopes"></ul>
+  </section>
+
+  <section aria-label="Secrets">
+    <h2 id="secrets-title">Secrets</h2>
+    <table class="keys">
+      <thead><tr><th>Key</th><th>Last changed</th><th>Age</th></tr></thead>
+      <tbody id="secrets"></tbody>
+    </table>
+    <p class="none" id="secrets-none" hidden></p>
+  </section>
+
+  <section aria-label="Detail" id="detail"></section>
+</main>
+
+<footer>
+  caland &middot; a mock-up for <span class="mono">spec/008-the-page.md</span> &middot;
+  every name and value on this page is made up, and nothing here talks to a workspace
+</footer>
+
+<!-- a secret, with its file form (008, R4–R6) -->
+<dialog id="new">
+  <h1>New secret</h1>
+  <label for="new-scope">Scope</label>
+  <select id="new-scope"></select>
+  <label for="new-key">Key</label>
+  <input type="text" id="new-key" class="mono" placeholder="tls-cert" autocomplete="off"
+         spellcheck="false">
+  <label for="new-value">Value</label>
+  <input type="password" id="new-value" class="mono" autocomplete="off">
+  <div class="or">or a file &mdash; a certificate, a key, anything of more than one line</div>
+  <div class="drop" id="drop">
+    <button id="choose">Choose a file&hellip;</button>
+    <span class="dim">or drop one here</span>
+    <button id="sample" style="margin-left:auto">Show a sample</button>
+    <input type="file" id="file" hidden>
+  </div>
+  <div class="picked" id="picked" hidden></div>
+  <p class="quiet" id="picked-note" hidden></p>
+  <div class="acts">
+    <button data-close>Cancel <kbd>esc</kbd></button>
+    <button class="main" data-close data-toast="Saved. (In the mock-up nothing is saved.)">Save</button>
+  </div>
+</dialog>
+
+<!-- a scope's grants (004, R4) -->
+<dialog id="grants">
+  <h1>Who has access to <span class="mono" id="grants-scope"></span></h1>
+  <table>
+    <thead><tr><th>Principal</th><th>May</th><th></th></tr></thead>
+    <tbody id="grants-rows"></tbody>
+  </table>
+  <p class="quiet">Grants are for a whole scope: whoever may read one secret in it may read
+    them all.</p>
+  <div class="grant">
+    <input type="text" placeholder="a user, a group or a service principal" autocomplete="off"
+           aria-label="Principal">
+    <select aria-label="Permission"><option>READ</option><option>WRITE</option>
+      <option>MANAGE</option></select>
+    <button class="main" data-toast="Granted. (In the mock-up nothing is changed.)">Grant</button>
+  </div>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<!-- nothing destructive without a deliberate y (006, R3) -->
+<dialog id="delete">
+  <h1>Delete secret</h1>
+  <div class="alert">
+    <span class="destructive">Delete</span> <span class="mono" id="delete-key"></span>
+    from <span class="mono" id="delete-scope"></span>.
+  </div>
+  <p class="dim"><kbd>u</kbd> puts it back, for as long as this session lasts and nothing
+    else is deleted.</p>
+  <div class="acts">
+    <button data-close>Cancel <kbd>esc</kbd></button>
+    <button class="danger" data-close id="delete-yes">Delete <kbd>y</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="help">
+  <h1>Keys</h1>
+  <table><tbody>
+    <tr><td><kbd>/</kbd></td><td>Filter scopes and secrets; <kbd>esc</kbd> clears</td></tr>
+    <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Next and previous secret</td></tr>
+    <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>Next and previous scope</td></tr>
+    <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
+    <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
+    <tr><td><kbd>n</kbd> &middot; <kbd>N</kbd></td><td>New secret &middot; new scope</td></tr>
+    <tr><td><kbd>e</kbd> &middot; <kbd>m</kbd> &middot; <kbd>d</kbd></td><td>Edit &middot; move, copy or rename &middot; delete</td></tr>
+    <tr><td><kbd>p</kbd></td><td>Who has access to the scope</td></tr>
+  </tbody></table>
+  <p class="quiet">The mock-up answers to these. The page keeps every key the terminal
+    version has.</p>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+// Made-up data. The dates are counted from one fixed day so that the page reads the same
+// whenever it is opened.
+const TODAY = Date.UTC(2026, 9, 6);
+const YOU = "ada@example.com";
+const SCOPES = [
+  { name: "prod", backend: "Databricks", grants: [[YOU, "MANAGE"], ["data-engineers", "WRITE"],
+      ["svc-ingest", "READ"], ["users", "READ"]],
+    secrets: [["api-key", "2026-09-28"], ["db-password", "2026-03-02"], ["storage-sas", "2026-08-11"],
+      ["tls-cert", "2025-11-20"], ["tls-key", "2025-11-20"], ["webhook-secret", "2026-06-30"]] },
+  { name: "staging", backend: "Databricks", grants: [[YOU, "MANAGE"], ["data-engineers", "MANAGE"]],
+    secrets: [["api-key", "2026-10-01"], ["db-password", "2026-07-15"], ["storage-sas", "2026-08-11"],
+      ["tls-cert", "2026-01-09"]] },
+  { name: "analytics", backend: "Databricks", grants: [["analysts", "READ"], ["data-engineers", "WRITE"]],
+    secrets: [["bi-token", "2026-05-19"], ["warehouse-password", "2025-12-03"], ["smtp-password", "2026-02-14"]] },
+  { name: "kv-shared", backend: "Azure Key Vault", grants: [["users", "READ"]],
+    secrets: [["tenant-id", "2025-08-01"], ["client-secret", "2026-04-22"]] },
+  { name: "scratch", backend: "Databricks", grants: [[YOU, "MANAGE"]], secrets: [] },
+];
+const VALUE = "sk_live_made_up_4f9a1c7e2b8d";   // one made-up value stands in for all of them
+const HIDE_AFTER = 30;
+const RANK = { READ: 1, WRITE: 2, MANAGE: 3 };
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...kids);
+  return node;
+};
+const age = (date) => {
+  const days = Math.round((TODAY - Date.parse(date)) / 864e5);
+  return days === 0 ? "today" : days === 1 ? "1 day" : `${days} days`;
+};
+const pill = (permission) => el("span", { className: `state ${permission.toLowerCase()}`, textContent: permission });
+const mine = (scope) => {
+  const best = scope.grants.filter(([who]) => who === YOU || who === "users")
+    .sort((a, b) => RANK[b[1]] - RANK[a[1]])[0];
+  return best ? best[1] : "READ";
+};
+
+let scope = SCOPES[0], secret = 0, shown = false, timer = null, left = 0, query = "";
+
+const matches = (text) => {
+  let at = 0;
+  const lower = text.toLowerCase();
+  for (const letter of query.toLowerCase()) { at = lower.indexOf(letter, at) + 1; if (!at) return false; }
+  return true;
+};
+const visibleSecrets = () => scope.secrets.filter(([key]) => matches(key) || matches(scope.name));
+const visibleScopes = () => SCOPES.filter((s) => !query || matches(s.name) || s.secrets.some(([key]) => matches(key)));
+
+function draw() {
+  const scopes = visibleScopes();
+  if (!scopes.includes(scope) && scopes.length) { scope = scopes[0]; secret = 0; hide(); }
+  $("scopes").replaceChildren(...scopes.map((s) => {
+    const row = el("li", { role: "option" }, el("span", { className: "mono", textContent: s.name }),
+      s.backend === "Databricks" ? "" : el("small", { textContent: "Key Vault" }),
+      el("span", { className: "count", textContent: String(s.secrets.length) }));
+    row.setAttribute("aria-selected", String(s === scope));
+    row.onclick = () => { scope = s; secret = 0; hide(); draw(); };
+    return row;
+  }));
+  const keys = visibleSecrets();
+  secret = Math.min(secret, Math.max(keys.length - 1, 0));
+  $("secrets-title").replaceChildren("Secrets in ", el("span", { className: "mono", textContent: scope.name,
+    style: "text-transform:none;letter-spacing:0" }));
+  $("secrets").replaceChildren(...keys.map(([key, date], index) => {
+    const row = el("tr", {}, el("td", { className: "mono", textContent: key }),
+      el("td", { className: "num", textContent: date }), el("td", { className: "num", textContent: age(date) }));
+    row.setAttribute("aria-selected", String(index === secret));
+    row.onclick = () => { secret = index; hide(); draw(); };
+    return row;
+  }));
+  const none = $("secrets-none");
+  none.hidden = keys.length > 0;
+  none.textContent = scope.secrets.length ? "Nothing here matches the filter." :
+    "No secrets in this scope yet.";
+  drawDetail(keys[secret]);
+}
+
+function drawDetail(row) {
+  const detail = $("detail");
+  const vault = scope.backend !== "Databricks";
+  const grants = el("table", {}, el("tbody", {}, ...scope.grants.map(([who, permission]) =>
+    el("tr", {}, el("td", { textContent: who === YOU ? `${who} (you)` : who }), el("td", {}, pill(permission))))));
+  const access = [el("h2", { textContent: "Who has access" }), grants,
+    el("div", { className: "acts" }, button("Change", "p", () => openGrants()))];
+  if (!row) {
+    detail.replaceChildren(el("h2", { textContent: "Scope" }), el("div", { className: "name mono", textContent: scope.name }),
+      facts([["Backed by", scope.backend], ["Your access", pill(mine(scope))]]), ...access);
+    return;
+  }
+  const [key, date] = row;
+  const value = el("pre", { className: `value mono${shown ? " shown" : ""}`,
+    textContent: shown ? VALUE : "•".repeat(16) });
+  const hint = el("div", { className: "meta", id: "hint",
+    textContent: shown ? `hides in ${left} s` : "read from the workspace when you ask, never before" });
+  detail.replaceChildren(el("h2", { textContent: "Secret" }),
+    el("div", { className: "name mono", textContent: key }),
+    facts([["Scope", el("span", { className: "mono", textContent: scope.name })], ["Backed by", scope.backend],
+      ["Your access", pill(mine(scope))], ["Last changed", `${date} · ${age(date)} ago`]]),
+    el("h2", { textContent: "Value" }), value, hint,
+    el("div", { className: "acts" }, button(shown ? "Hide" : "Show", "space", toggle), button("Copy", "c", copy),
+      button("Copy as code", "C", () => toast(`Copied dbutils.secrets.get(scope="${scope.name}", key="${key}")`))),
+    ...access,
+    el("h2", { textContent: "Change" }),
+    vault ? el("p", { className: "quiet", textContent: "This scope is backed by Azure Key Vault: its secrets are changed in Azure." })
+      : el("div", { className: "acts" }, button("Edit", "e", () => openNew(key)), button("Move or copy", "m",
+          () => toast("The move dialog is not in the mock-up.")), button("Delete", "d", openDelete, "danger")));
+}
+
+const facts = (pairs) => el("dl", { className: "facts" },
+  ...pairs.flatMap(([term, what]) => [el("dt", { textContent: term }), el("dd", {}, what)]));
+function button(label, key, action, kind = "") {
+  const node = el("button", { className: kind }, label, " ", el("kbd", { textContent: key }));
+  node.onclick = action;
+  return node;
+}
+
+function toggle() { shown ? hide() : show(); draw(); }
+function show() {
+  shown = true; left = HIDE_AFTER; clearInterval(timer);
+  timer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) { hide(); draw(); } else if ($("hint")) $("hint").textContent = `hides in ${left} s`;
+  }, 1000);
+}
+function hide() { shown = false; clearInterval(timer); }
+function copy() {
+  const row = visibleSecrets()[secret];
+  if (row) toast(`Copied ${row[0]} — by caland itself; the value never passed through this page.`);
+}
+let toasting = null;
+function toast(text) {
+  const node = $("toast");
+  node.textContent = text; node.hidden = false;
+  clearTimeout(toasting); toasting = setTimeout(() => { node.hidden = true; }, 3200);
+}
+
+// ── the dialogs ──────────────────────────────────────────────────────
+function openNew(key = "") {
+  $("new-scope").replaceChildren(...SCOPES.filter((s) => s.backend === "Databricks")
+    .map((s) => el("option", { textContent: s.name, selected: s === scope })));
+  $("new-key").value = key; $("new-value").value = "";
+  $("picked").hidden = true; $("picked-note").hidden = true; $("file").value = "";
+  $("new").querySelector("h1").textContent = key ? "Edit secret" : "New secret";
+  $("new").showModal(); (key ? $("new-value") : $("new-key")).focus();
+}
+function openGrants() {
+  $("grants-scope").textContent = scope.name;
+  $("grants-rows").replaceChildren(...scope.grants.map(([who, permission]) =>
+    el("tr", {}, el("td", { textContent: who === YOU ? `${who} (you)` : who }), el("td", {}, pill(permission)),
+      el("td", { style: "text-align:right;white-space:nowrap" },
+        button("Change", "", () => toast("In the mock-up nothing is changed.")), " ",
+        button("Remove", "", () => toast(who === YOU ? "Removing your own grant asks twice. (Nothing is changed here.)"
+          : "Removing a grant asks first. (Nothing is changed here.)"), "danger")))));
+  $("grants").querySelectorAll("kbd:empty").forEach((k) => k.remove());
+  $("grants").showModal();
+}
+function openDelete() {
+  const row = visibleSecrets()[secret];
+  if (!row) return;
+  $("delete-key").textContent = row[0]; $("delete-scope").textContent = scope.name;
+  $("delete").showModal(); $("delete").querySelector("[data-close]").focus();
+}
+$("delete-yes").dataset.toast = "Deleted — press u to put it back. (In the mock-up nothing is deleted.)";
+
+// ── choosing a file ──────────────────────────────────────────────────
+const size = (bytes) => bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(1)} kB`;
+function kindOf(head) {
+  const text = new TextDecoder("utf-8", { fatal: false }).decode(head);
+  const pem = /-----BEGIN ([A-Z0-9 ]+)-----/.exec(text);
+  if (pem) {
+    if (pem[1] === "CERTIFICATE") return ["PEM certificate", false];
+    if (pem[1].endsWith("PRIVATE KEY")) return ["PEM private key", false];
+    return [`PEM — ${pem[1].toLowerCase()}`, false];
+  }
+  if (head[0] === 0x30) return ["binary — a DER certificate or a PKCS#12 bundle", true];
+  if (head.some((byte) => byte === 0)) return ["binary", true];
+  return ["text", false];
+}
+function showPicked(name, bytes, kind, binary, more = []) {
+  $("picked").replaceChildren(el("div", { className: "name mono", textContent: name }),
+    facts([["Size", size(bytes)], ["Kind", kind], ...more]));
+  $("picked").hidden = false;
+  $("picked-note").textContent = binary
+    ? "Stored byte for byte, and comes out the same. Written nowhere on the way."
+    : "Its content becomes the value. Written nowhere on the way.";
+  $("picked-note").hidden = false;
+  if (!$("new-key").value) $("new-key").value = name.replace(/\.[^.]+$/, "").toLowerCase();
+}
+async function take(file) {
+  if (!file) return;
+  const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+  const [kind, binary] = kindOf(head);
+  // who a certificate is for and when it expires is read by caland, not by the page (008, D4)
+  showPicked(file.name, file.size, kind, binary);
+}
+function sample() {
+  showPicked("tls-prod.pem", 1942, "PEM certificate", false, [["For", "api.example.com"],
+    ["Issued by", "Example Issuing CA"], ["Expires", "2027-01-14 · in 100 days"]]);
+}
+$("choose").onclick = () => $("file").click();
+$("sample").onclick = sample;
+$("file").onchange = () => take($("file").files[0]);
+const drop = $("drop");
+drop.ondragover = (event) => { event.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (event) => { event.preventDefault(); drop.classList.remove("over"); take(event.dataTransfer.files[0]); };
+
+// ── buttons and keys ─────────────────────────────────────────────────
+document.querySelectorAll("dialog button").forEach((node) => node.addEventListener("click", () => {
+  if (node.dataset.toast) toast(node.dataset.toast);
+  if ("close" in node.dataset) node.closest("dialog").close();
+}));
+$("new-open").onclick = () => openNew();
+$("scope-new").onclick = () => toast("The new-scope dialog is not in the mock-up.");
+$("help-open").onclick = () => $("help").showModal();
+$("filter").oninput = () => { query = $("filter").value.trim(); secret = 0; hide(); draw(); };
+
+function step(by) {
+  const count = visibleSecrets().length;
+  if (count) { secret = (secret + by + count) % count; hide(); draw(); }
+}
+function stepScope(by) {
+  const scopes = visibleScopes();
+  if (scopes.length) { scope = scopes[(scopes.indexOf(scope) + by + scopes.length) % scopes.length]; secret = 0; hide(); draw(); }
+}
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const open = document.querySelector("dialog[open]");
+  if (open) {
+    if (open.id === "delete" && event.key === "y") { event.preventDefault(); $("delete-yes").click(); }
+    return;
+  }
+  const typing = event.target.matches("input, select, textarea");
+  if (typing) {
+    if (event.key === "Escape") { $("filter").value = ""; query = ""; event.target.blur(); draw(); }
+    if (event.key === "Enter") event.target.blur();
+    return;
+  }
+  const keys = {
+    "/": () => $("filter").focus(), "?": () => $("help").showModal(),
+    j: () => step(1), k: () => step(-1), ArrowDown: () => step(1), ArrowUp: () => step(-1),
+    J: () => stepScope(1), K: () => stepScope(-1),
+    " ": toggle, c: copy, n: () => openNew(), p: openGrants,
+    C: () => { const row = visibleSecrets()[secret]; if (row) toast(`Copied dbutils.secrets.get(scope="${scope.name}", key="${row[0]}")`); },
+    e: () => { const row = visibleSecrets()[secret]; if (row && scope.backend === "Databricks") openNew(row[0]); },
+    d: () => { if (scope.backend === "Databricks") openDelete(); },
+    N: () => $("scope-new").click(),
+    m: () => toast("The move dialog is not in the mock-up."),
+    u: () => toast("Nothing to put back."),
+  };
+  if (keys[event.key]) { event.preventDefault(); keys[event.key](); }
+});
+
+draw();
+// a view can be opened by its name, so that each can be looked at and pictured on its own
+({ "#new": () => openNew(), "#file": () => { openNew(); sample(); }, "#grants": openGrants,
+   "#delete": openDelete, "#shown": () => { show(); draw(); }, "#keys": () => $("help").showModal(),
+})[location.hash]?.();
+</script>
+</body>
+</html>
