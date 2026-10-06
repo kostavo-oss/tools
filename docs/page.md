@@ -133,9 +133,9 @@ asking.
 !!! warning "What it cannot defend"
     A browser extension that is allowed to read every page can read a value while it is
     shown, as anyone who can see your screen can. If that worries you for a workspace, use a
-    browser profile without extensions — or the terminal version.
+    browser profile without extensions.
 
-## The terminal version
+## If you want a terminal app
 
-`caland --tui` is Caland as it was: the same tool in a terminal. It is still there and gets
-nothing new; see [the terminal version](terminal.md).
+That is [isolinear](installation.md#if-you-want-a-terminal-app): what Caland was until 0.6,
+still on PyPI as it was, and a separate tool now.

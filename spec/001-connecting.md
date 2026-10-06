@@ -1,6 +1,8 @@
 # 001 — connecting
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -30,11 +32,14 @@ meant.
 - **R8 — Straight to a workspace by name.** `caland prod`, or `--profile prod`, skips the
   picker and connects to a workspace the picker would have listed. *(built, 0.4.0)*
 
-## On the page (2026-10-06)
+## What changed with the page
 
-All of it is on the page ([008](008-the-page.md), "which workspace"), with two rules the
-terminal version does not have: a profile is kept only under a name that is not in use, and
-going to another workspace (R7) forgets every value held of the one that is left.
+- R1, R5: the picker is the page's first dialog, and is not shown at all when there is no
+  doubt which workspace is meant.
+- R4: a sign-in is kept as a profile under a **new** name only — never over a profile that
+  is there, which keeps its own way of signing in.
+- R7: `w`. Going to another workspace forgets every value held of the one that is left.
+- R8: a name that is not there ends it before it starts, with the names that are.
 
 ## Not in this spec
 
@@ -49,5 +54,5 @@ Nothing.
 
 ## Done when
 
-Built. Held by `tests/test_bundle.py`, `test_profiles.py`, `test_session.py`,
-`test_ui_login.py` and the picker's snapshot.
+Built. Held by `tests/test_bundle.py`, `test_profiles.py`, `test_choose.py`,
+`test_web_picker.py`, and the browser tests under "which workspace".

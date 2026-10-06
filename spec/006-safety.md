@@ -1,6 +1,8 @@
 # 006 — what caland may do
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -37,6 +39,16 @@ it will not do has to be as firm as what it does.
   screens and the rules reach a workspace through the ports in `domain/`, and are tested
   against a fake behind the same ports. *(built, 0.2.0)*
 
+## What changed with the page
+
+- R3: one dialog is open at a time, and `y` reaches only the question that is showing.
+- R6: two preferences — whether all scopes are shown, and the stale report's number of
+  days. There is no theme.
+- R8: the door is `interface/web/`: the browser talks to a server on the person's machine,
+  and that to the same ports. What that server answers, and to whom, is
+  [008, R9](008-the-page.md).
+- D1: the docs say what R2 says now.
+
 ## Not in this spec
 
 - **Keeping an audit trail of its own.** Databricks logs who read and changed what.
@@ -61,5 +73,6 @@ it will not do has to be as firm as what it does.
 ## Done when
 
 Built. Held across the suite: `tests/test_settings.py` and `test_profiles.py` for what is
-written, `test_ui_browse.py` and `test_ui_permissions.py` for read-only, and
-`tests/fakes.py` — the fake workspace every screen is tested against.
+written, `test_web_gate.py` and `test_web_server.py` for what the server answers,
+`test_web_changing.py` for read-only and every refusal, and `tests/fakes.py` — the fake
+workspace everything is tested against.

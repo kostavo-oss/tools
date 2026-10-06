@@ -1,79 +1,50 @@
-"""Settings persistence — the JSON store and the app wiring."""
+"""Preferences: kept in a small file of caland's own, and forgiving about it."""
 
 from __future__ import annotations
 
-from typing import cast
+import json
 
-from caland.app import CalandApp
-from caland.application import WorkspaceService
 from caland.domain import Settings
 from caland.infrastructure import JsonSettingsStore
-from caland.interface.screens.main import MainScreen
-from fakes import seeded_store, stub_onboarding
+from caland.infrastructure.settings import settings_path
 
 
-def test_json_store_round_trip(tmp_path):
+def test_what_is_saved_is_what_is_loaded(tmp_path):
     store = JsonSettingsStore(tmp_path / "settings.json")
-    store.save(Settings(theme="phosphor", show_all_scopes=True, audit_threshold=180))
-    loaded = store.load()
-    assert loaded == Settings(theme="phosphor", show_all_scopes=True, audit_threshold=180)
+    store.save(Settings(show_all_scopes=True, audit_threshold=180))
+    assert store.load() == Settings(show_all_scopes=True, audit_threshold=180)
+    assert json.loads((tmp_path / "settings.json").read_text()) == {
+        "show_all_scopes": True,
+        "audit_threshold": 180,
+    }
 
 
-def test_json_store_tolerates_missing_and_corrupt_files(tmp_path):
-    assert JsonSettingsStore(tmp_path / "nope.json").load() == Settings()
-    bad = tmp_path / "bad.json"
-    bad.write_text("{not json")
-    assert JsonSettingsStore(bad).load() == Settings()
-    wrong_types = tmp_path / "types.json"
-    wrong_types.write_text('{"theme": 7, "show_all_scopes": "yes", "extra": 1}')
-    assert JsonSettingsStore(wrong_types).load() == Settings()
+def test_a_missing_or_broken_file_means_the_defaults_never_a_failure(tmp_path):
+    path = tmp_path / "settings.json"
+    assert JsonSettingsStore(path).load() == Settings()
+    for broken in ("{not json", "[1, 2]", '"text"', ""):
+        path.write_text(broken)
+        assert JsonSettingsStore(path).load() == Settings()
 
 
-def _app(store: JsonSettingsStore) -> CalandApp:
-    session = WorkspaceService(seeded_store(), "test")
-    return CalandApp(onboarding=stub_onboarding(), session=session, settings_store=store)
+def test_what_is_the_wrong_kind_or_not_known_is_passed_over(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text(
+        '{"show_all_scopes": "yes", "audit_threshold": true, "theme": "phosphor", "x": 1}'
+    )
+    assert JsonSettingsStore(path).load() == Settings()
+    path.write_text('{"show_all_scopes": true, "audit_threshold": 30.0}')
+    assert JsonSettingsStore(path).load() == Settings(show_all_scopes=True)
 
 
-async def test_theme_choice_survives_restart(tmp_path):
-    store = JsonSettingsStore(tmp_path / "settings.json")
-    app = _app(store)
-    async with app.run_test() as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        app.theme = "textual-dark"
-        await pilot.pause()
-    assert store.load().theme == "textual-dark"
-    fresh = _app(store)
-    async with fresh.run_test() as pilot:
-        await fresh.workers.wait_for_complete()
-        await pilot.pause()
-        assert fresh.theme == "textual-dark"
+def test_a_folder_that_cannot_be_written_does_not_stop_caland(tmp_path):
+    blocked = tmp_path / "a-file"
+    blocked.write_text("in the way")
+    JsonSettingsStore(blocked / "settings.json").save(Settings(show_all_scopes=True))
 
 
-async def test_scope_toggle_survives_restart(tmp_path):
-    store = JsonSettingsStore(tmp_path / "settings.json")
-    app = _app(store)
-    async with app.run_test() as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        await pilot.press("f")  # show all scopes
-        await pilot.pause()
-    assert store.load().show_all_scopes is True
-    fresh = _app(store)
-    async with fresh.run_test() as pilot:
-        await fresh.workers.wait_for_complete()
-        await pilot.pause()
-        assert cast(MainScreen, fresh.screen).show_all_scopes is True
-
-
-async def test_audit_threshold_survives_restart(tmp_path):
-    store = JsonSettingsStore(tmp_path / "settings.json")
-    app = _app(store)
-    async with app.run_test() as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        await pilot.press("A")  # audit at the default 90d
-        await pilot.press("t")  # -> 180d
-        await pilot.press("escape")
-        await pilot.pause()
-    assert store.load().audit_threshold == 180
+def test_the_file_is_calands_own(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert settings_path() == tmp_path / "caland" / "settings.json"
+    JsonSettingsStore().save(Settings(audit_threshold=365))
+    assert JsonSettingsStore().load().audit_threshold == 365

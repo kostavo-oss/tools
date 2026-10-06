@@ -1,6 +1,6 @@
 """Domain model — the ubiquitous language of Caland as plain value objects.
 
-No Textual, no Databricks SDK, no I/O. These are the nouns the whole app speaks:
+No UI, no Databricks SDK, no I/O. These are the nouns the whole app speaks:
 workspaces, scopes, secrets, ACLs, identity.
 """
 
@@ -70,10 +70,6 @@ class Scope:
     def is_keyvault(self) -> bool:
         return self.backend_type == "AZURE_KEYVAULT"
 
-    @property
-    def icon(self) -> str:
-        return "☁" if self.is_keyvault else "🔒"
-
 
 @dataclass
 class Secret:
@@ -109,9 +105,8 @@ class Acl:
 
 @dataclass
 class Settings:
-    """Persisted UI preferences — display choices only, never secret material."""
+    """Persisted preferences — how things are shown, never secret material."""
 
-    theme: str = "caland"
     show_all_scopes: bool = False
     audit_threshold: int = STALE_AFTER_DAYS
 

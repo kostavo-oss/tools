@@ -1,6 +1,8 @@
 # 005 — bulk work and audits
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -40,12 +42,13 @@ has in a `.env` file, and finding out which secrets nobody has rotated.
   honest behaviour for a tool with no state; naming the key it stopped at would help.
   *(found while writing this spec)*
 
-## On the page (2026-10-06)
+## What changed with the page
 
 All four are on the page ([008](008-the-page.md), "the tools"), with two things the
-terminal version does not have: an import says which key it stopped at (D1), and it treats
+terminal app did not have: an import says which key it stopped at (D1), and it treats
 a key in another case as the secret it is to Databricks when it says what is overwritten.
 
 ## Done when
 
-Built. Held by `tests/test_dotenv.py`, `test_ui_tools.py` and the audit's snapshot.
+Built. Held by `tests/test_dotenv.py`, `test_web_changing.py` (from ".env" down) and the
+browser tests under "the tools".

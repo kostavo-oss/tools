@@ -1,18 +1,34 @@
 # Security
 
-Caland is designed so that secret material is exposed as little as possible and is never written to disk.
+Caland shows secrets and can delete them, in workspaces that matter. What it will not do is
+as firm as what it does.
 
-## Security model
+## What it keeps to
 
-- **Values are never persisted.** Secret values are read on demand via the Databricks SDK and held only in memory for the duration of the session. They are never written to disk or to a cache.
-- **Reveal is lazy and short-lived.** Values are not bulk-pulled at startup — a value leaves Databricks only when you explicitly reveal or copy it — and a revealed value **hides itself after 30 seconds**.
-- **You can purge on demand.** The *Forget revealed values* command (in the palette, ++ctrl+p++) drops every cached value from memory immediately.
-- **Exports never touch disk.** The .env export commands write to the clipboard only; the with-values variant sits behind an explicit confirm.
-- **Read-only mode.** `caland --read-only` disables every mutation — create, edit, delete, and ACL changes — for safely browsing production.
-- **Saved profiles store no secrets.** A saved profile writes only the `host` and `auth_type = external-browser` to `~/.databrickscfg`. Authentication is delegated to the Databricks SDK's unified auth / OAuth token cache — Caland never handles or stores a token itself.
-- **The SDK boundary is isolated.** Only the `infrastructure/` layer touches the Databricks SDK or the network. The rest of the application — including the entire UI — has no path to the network.
+- **A value is never written.** Not to disk, not to a cache, not to a log. It is read from
+  Databricks when you ask, held in memory, and forgotten when Caland stops — or sooner, with
+  *Forget every value* under ++question++.
+- **A value is read only for something you asked for.** Connecting reads names, dates and
+  grants. A value is read to show it, to copy it, to move or copy its secret, to delete its
+  secret — so that ++u++ can put it back — and for a `.env` export with values. Where your
+  workspace logs reads of secrets, those are the reads it will show.
+- **A shown value hides itself after 30 seconds**, and is in the page only while it is shown.
+- **Nothing is deleted without a ++y++**, and nothing lands on what is there: a new secret
+  does not overwrite one, a move does not land on one, ++u++ does not put one back over one
+  made since.
+- **`--read-only` changes nothing.** The server refuses every change, whatever the page
+  shows.
+- **No credentials of its own.** Caland signs in the way the Databricks CLI does and stores
+  no token. A profile it keeps holds an address and that you sign in through the browser —
+  and it never writes over a profile that is there.
+- **`~/.databrickscfg` is written whole or not at all**, and never left readable by anybody
+  but you.
+- **One door to Databricks.** Only one layer of the code imports the Databricks SDK; the
+  page and the server have no other way out.
 
-The page keeps to all of this, and has rules of its own for the server it runs on your machine: see [how it is kept yours](page.md#how-it-is-kept-yours).
+The page is served from your own machine, to you only:
+[how it is kept yours](page.md#how-it-is-kept-yours) has those rules, and what it cannot
+defend against.
 
 !!! warning "Clipboard"
     Copying a value places it on your system clipboard. If you share your machine, clear the clipboard after you're done. (Caland deliberately does not auto-clear the clipboard: it cannot read the clipboard back, so a timed clear could clobber something else you copied in the meantime.)

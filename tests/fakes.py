@@ -166,9 +166,6 @@ class StubProfiles:
     def discover(self):
         return list(self._workspaces)
 
-    def save(self, name, host, account_id=None) -> None:
-        self.saved.append((name, host, account_id))
-
     def names(self):
         """Every profile there is: those offered, those kept since, and — as the
         real file has — any that are no workspace to offer (`self.others`)."""

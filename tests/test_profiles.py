@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import configparser
-
 import pytest
 
 from caland.infrastructure import DatabricksCfgProfileStore
@@ -55,27 +53,6 @@ def test_discover_env_fallback_when_no_config(tmp_path, monkeypatch):
     profiles = DatabricksCfgProfileStore().discover()
     assert len(profiles) == 1
     assert profiles[0].host == "https://env.databricks.com"
-
-
-def test_save_roundtrip(tmp_path, monkeypatch):
-    store, cfg = _store(tmp_path, monkeypatch)
-    store.save("prod", "prod.cloud.databricks.com")
-    store.save("acct", "https://accounts.azuredatabricks.net", account_id="abc-1")
-
-    parser = configparser.ConfigParser()
-    parser.read(cfg)
-    assert parser["prod"]["host"] == "https://prod.cloud.databricks.com"
-    assert parser["prod"]["auth_type"] == "external-browser"
-    assert parser["acct"]["account_id"] == "abc-1"
-
-
-def test_save_updates_existing(tmp_path, monkeypatch):
-    store, cfg = _store(tmp_path, monkeypatch)
-    store.save("prod", "https://old.databricks.com")
-    store.save("prod", "https://new.databricks.com")
-    parser = configparser.ConfigParser()
-    parser.read(cfg)
-    assert parser["prod"]["host"] == "https://new.databricks.com"
 
 
 # ── the file holds tokens: what a second pair of eyes found ───────────
@@ -193,19 +170,3 @@ def test_a_profile_that_is_there_twice_is_one_profile_not_a_failure(
     )
     monkeypatch.setenv("DATABRICKS_CONFIG_FILE", str(path))
     assert [w.profile for w in DatabricksCfgProfileStore().discover()] == ["dup"]
-
-
-def test_the_terminal_versions_save_is_whole_or_not_at_all_too(cfg, monkeypatch):
-    import os
-
-    DatabricksCfgProfileStore().save("mine", "https://mine.example.com")
-    kept = cfg.read_text()
-    assert "dapi%MADE=UP;TOKEN" in kept and "[mine]" in kept
-
-    def broken(*args, **kwargs):
-        raise OSError("the disk is full")
-
-    monkeypatch.setattr(os, "replace", broken)
-    with pytest.raises(OSError):
-        DatabricksCfgProfileStore().save("other", "https://other.example.com")
-    assert cfg.read_text() == kept

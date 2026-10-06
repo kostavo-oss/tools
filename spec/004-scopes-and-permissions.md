@@ -1,6 +1,8 @@
 # 004 — scopes and permissions
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -34,6 +36,12 @@ time. The questions people have go the other way: what can *I* touch, and what c
 - **R8 — Say what backs a scope.** The detail pane says whether a scope is Databricks-backed
   or Azure Key Vault-backed. Grants on either are edited the same way. *(built)*
 
+## What changed with the page
+
+- R1: deleting a scope has a key of its own, `D`, so that a `d` meant for a secret never
+  reaches one. A scope whose secrets cannot be listed is not called empty.
+- R5, R6: `a` and `P`. Neither follows groups (D1 stands).
+
 ## Not in this spec
 
 - **Creating a Key Vault-backed scope.** It needs Azure's side; caland shows them.
@@ -51,5 +59,5 @@ time. The questions people have go the other way: what can *I* touch, and what c
 
 ## Done when
 
-Built. Held by `tests/test_permissions.py`, `test_ui_permissions.py`, `test_ui_tools.py`
-and the snapshots of the two dialogs.
+Built. Held by `tests/test_permissions.py`, `test_web_changing.py` and the browser tests
+for grants, scopes and the two lists.

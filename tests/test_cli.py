@@ -1,4 +1,4 @@
-"""The command: the page by default, the terminal version when asked for."""
+"""The command: what it is asked, and what it starts."""
 
 from __future__ import annotations
 
@@ -18,15 +18,7 @@ def started(monkeypatch):
         seen.append(("page", profile, sorted(a for a in args if a.startswith("--"))))
         return 0
 
-    class Terminal:
-        def __init__(self, **kwargs):
-            seen.append(("tui", kwargs["profile"], kwargs["read_only"]))
-
-        def run(self):
-            seen.append(("ran",))
-
     monkeypatch.setattr(app, "_page", page)
-    monkeypatch.setattr(app, "CalandApp", Terminal)
 
     def run(*args: str) -> list[tuple]:
         monkeypatch.setattr(sys, "argv", ["caland", *args])
@@ -68,12 +60,35 @@ def test_page_still_says_the_page_from_when_it_was_not_the_default(started):
     assert started("--page", "prod")[0] == ("page", "prod", ["--page"])
 
 
-def test_tui_is_the_terminal_version_and_nothing_else_is(started):
-    assert started("--tui") == [("tui", None, False), ("ran",)]
+def test_the_terminal_version_is_not_in_caland_and_it_says_where_it_is(started, capsys):
+    assert started("--tui") == [("exit", 2)]
+    said = capsys.readouterr().err
+    assert "no terminal version in caland" in said and "uvx isolinear" in said
+    assert started("--tui", "prod", "--read-only")[-1] == ("exit", 2)
 
 
-def test_the_terminal_version_takes_a_workspace_and_read_only(started):
-    assert started("--tui", "prod", "--read-only") == [("tui", "prod", True), ("ran",)]
+def test_caland_installs_one_command_and_none_under_another_name():
+    from importlib.metadata import entry_points
+
+    scripts = {
+        script.name: script.value
+        for script in entry_points(group="console_scripts")
+        if script.value.startswith("caland.")
+    }
+    assert scripts == {"caland": "caland.app:main"}
+
+
+def test_nothing_of_the_terminal_version_is_left_to_import():
+    import importlib.util
+
+    for gone in ("textual", "caland.formerly", "caland.interface.screens"):
+        if gone == "textual":
+            import importlib.metadata as metadata
+
+            needs = " ".join(metadata.requires("caland") or [])
+            assert "textual" not in needs
+        else:
+            assert importlib.util.find_spec(gone) is None
 
 
 def test_a_profile_with_no_name_is_said_and_nothing_starts(started, capsys):
@@ -89,7 +104,7 @@ def test_a_profile_with_no_name_is_said_and_nothing_starts(started, capsys):
         ["--readonly", "prod"],  # meant: change nothing. Must not open prod to change
         ["--read_only"],
         ["-r"],
-        ["--tui", "--readonly"],
+        ["--page", "--readonly"],
         ["--no-browser"],
         ["--profile", "prod", "--bogus"],
     ],
@@ -108,5 +123,5 @@ def test_one_workspace_at_a_time(started, capsys, args):
 def test_help_says_what_caland_is_now(started, capsys):
     assert started("--help") == []
     out = capsys.readouterr().out
-    assert "usage: caland [WORKSPACE]" in out and "--tui" in out and "page" in out
-    assert "TUI" not in out
+    assert "usage: caland [WORKSPACE]" in out and "page" in out
+    assert "TUI" not in out and "--tui" not in out

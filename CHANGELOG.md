@@ -8,14 +8,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`caland` opens a page in your browser.** The page does everything the terminal version
-  does, so it is what Caland is now: served from your own machine, to you only. Nothing
-  changes in a workspace, and your profiles and preferences are used as before.
-- **The terminal version is `caland --tui`.** It is as it was, and gets nothing new.
-  `caland --page` still works and means what `caland` means.
-
+- **Caland is a page in your browser.** `caland` starts a small server on your own machine
+  and opens a tab: served to you only, and stopped with ctrl+c. It does everything the
+  terminal app did, and takes files besides. Nothing changes in a workspace, and your
+  profiles are used as before.
 - **An option caland does not know is refused**, instead of passed over: `--readonly`,
   mistyped, used to open the workspace to change. `--profile=NAME` is understood.
+
+### Removed
+
+- **The terminal app is not in Caland any more.** It lives on as what it was called before:
+  `isolinear`, on PyPI as it was — `uvx isolinear`. The two are separate tools now.
+  `caland --tui` says so. isolinear gets nothing new, and that includes the fixes of 0.5.1
+  and 0.5.2.
+- **Caland no longer installs the `isolinear` and `iso` commands**, and no longer reads
+  isolinear's settings: those are isolinear's. Your two preferences on the page — all
+  scopes or only yours, and the stale report's number of days — are kept in
+  `~/.config/caland/settings.json` as before.
+- The colour themes went with the terminal app. The page follows your system's light or
+  dark.
+- `textual` is no longer a dependency.
 
 ### Fixed
 

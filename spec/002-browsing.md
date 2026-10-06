@@ -1,6 +1,8 @@
 # 002 — browsing
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -35,6 +37,16 @@ the question is finished.
 - **R9 — Four looks.** Graphite by default; violet, amber and phosphor from the palette.
   The choice is kept. *(built)*
 
+## What changed with the page
+
+- R2: `tab` goes from pane to pane and the arrows walk a pane's buttons
+  ([008, R3a](008-the-page.md)). There is no palette: every action has a key of its own,
+  and `?` lists them.
+- R7: there is one filter, `/`, over scopes and secrets together: a scope is shown when its
+  name or one of its secrets matches.
+- R8: a narrow window puts the panes under each other.
+- R9: no themes. The page follows the system's light or dark.
+
 ## Not in this spec
 
 - **A mouse-first screen.** Clicks work where a table has headers; nothing needs one.
@@ -46,6 +58,6 @@ Nothing.
 
 ## Done when
 
-Built. Held by `tests/test_ui_browse.py`, `test_sorting.py`, `test_ui_scope_filter.py`,
-`test_ui_small_terminal.py`, `test_cache.py`, `test_help.py` — which fails when a key on the
-screen is missing from the help — and the screen snapshots.
+Built. Held by `tests/test_web_server.py`, `test_loading.py`, `test_cache.py` and the
+browser tests (`test_page_in_a_browser.py`): the panes, the keys and where the keyboard
+lands, the filter, sorting, and the two numbers of [008, R7](008-the-page.md).

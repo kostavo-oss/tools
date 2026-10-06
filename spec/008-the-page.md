@@ -1,7 +1,7 @@
 # 008 — the page
 
-**Status:** built (see the *As built* sections), and what `caland` opens. The terminal
-version is frozen behind `--tui`; whether and when it goes is open. Its shape is decided ([Decided](#decided)). Written
+**Status:** built (see the *As built* sections). It is what caland is: the terminal version
+was removed on 2026-10-07. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -343,10 +343,10 @@ says the page.
 - **Choosing changes no workspace**, so read-only does not mind it.
 - **A request about a workspace says which one**, and the page asks nothing of one
   workspace that it then does to, or shows under, another (see Reviewed, below).
-- **The terminal version is not removed.** The owner chose "freeze, then drop"; it is
-  frozen. Dropping it deletes the Textual app, its tests, its pictures and their pipeline,
-  and takes from people who work where there is no browser the one way they have — so it
-  is a step of its own, to be taken when the owner says ([To decide](#to-decide)).
+- **The terminal version was left in at first, frozen behind `--tui`**, and removed a day
+  later on the owner's word (see Decided): the Textual app, its tests, its pictures and
+  their pipeline, the themes, the old command names. `caland --tui` now says where the
+  terminal app is: it is `isolinear`.
 
 **Reviewed, by someone who did not build it (2026-10-06).** Choosing, and keeping a
 profile, held against another site and without the token; names that are no names were
@@ -399,6 +399,8 @@ an address — that opens a browser to sign in with, which nothing here can driv
 - **The terminal version is frozen, then dropped.** It stays as it is and gets nothing new;
   `caland` opens the page and `caland --tui` the terminal; it goes in the release where the
   page does everything it does. *(owner, 2026-10-06; was D2)*
+- **caland has no terminal version.** *(owner, 2026-10-07; was D5)* The terminal app is
+  `isolinear`, which is left as it is.
 - **The page first, with what the terminal version does today.** Who reads a secret
   ([009](009-who-reads-a-secret.md)) is not part of it. *(owner, 2026-10-06)*
 - **Only the SDK.** No audit table, no warehouse — caland reaches a workspace the way the
@@ -406,10 +408,6 @@ an address — that opens a browser to sign in with, which nothing here can driv
 
 ## To decide
 
-- **D5 — When does the terminal version go?** It is frozen; `caland --tui` runs it. The
-  owner chose to drop it once the page does everything it does, and it does. *The writer's
-  view:* not in the same release as the switch — let one release go out with both, so that
-  whoever the page does not work for (no browser, a remote shell) can say so first.
 - **D3 — What the server is made of.** *The writer's choice unless the owner minds:* Python's
   own HTTP server — one person, one machine, no new dependency — and a small script of
   caland's own in the page.

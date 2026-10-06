@@ -18,13 +18,10 @@ def test_perm_rank_orders_permissions():
 
 
 @pytest.mark.parametrize(
-    ("backend", "is_kv", "icon"),
-    [("DATABRICKS", False, "🔒"), ("AZURE_KEYVAULT", True, "☁")],
+    ("backend", "is_kv"), [("DATABRICKS", False), ("AZURE_KEYVAULT", True)]
 )
-def test_scope_backend_flags(backend, is_kv, icon):
-    scope = Scope("s", backend)
-    assert scope.is_keyvault is is_kv
-    assert scope.icon == icon
+def test_scope_backend_flags(backend, is_kv):
+    assert Scope("s", backend).is_keyvault is is_kv
 
 
 def test_secret_last_updated_formats_utc():

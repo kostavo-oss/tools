@@ -32,13 +32,31 @@ first under a name nobody has registered yet.
   the version alone releases nothing. *(built)*
 - **R6 — Apache-2.0**, as every Kostavo tool. *(prepared, #15)*
 
+## Changed on 2026-10-07: the old name is isolinear's again
+
+The owner decided to treat caland as the better tool and to leave isolinear as it is. So
+R2, R3 and R4 are undone:
+
+- ~~R2 — the old name still answers.~~ caland installs one command, `caland`. `isolinear`
+  and `iso` are isolinear's; with both tools installed they no longer collide.
+- ~~R3 — the old name is spelled in one place.~~ `formerly.py` is gone; nothing in caland
+  reads isolinear's settings.
+- ~~R4 — isolinear gets one last release.~~ `isolinear-shim/` is removed and was never
+  published: it would have turned isolinear into a pointer at caland, and isolinear is to
+  stay what it is.
+
+What that leaves: **isolinear 0.4.1 has two bugs caland fixed** — a rename that only
+changes the case deletes the secret, and a `.env` value quoted over several lines is
+mis-read. They are fixed in caland only ([To decide](#to-decide)).
+
 ## What only the owner can do
 
 - Merge #15.
 - Register a Trusted Publisher for `caland` on PyPI — a *pending* one, since the project
   does not exist there yet (checked 2026-10-06: the name is free): owner `kostavo-oss`,
   repository `caland`, workflow `release.yml`, environment `pypi`.
-- Publish the shim, with `isolinear`'s own credentials.
+- ~~Publish the shim.~~ Not any more (see above).
+- Whatever is to happen to `isolinear` on PyPI.
 
 ## Not in this spec
 
@@ -84,6 +102,10 @@ its lines that end in `=` became secrets of their own
 behind `--page`.
 
 ## To decide
+
+- **D4 — isolinear's two bugs.** Left as it is, isolinear 0.4.1 goes on deleting a secret
+  renamed to another case of its own name. *The writer's view:* either yank it soon, or
+  say so on its PyPI page; both are the owner's to do, with isolinear's credentials.
 
 - **D1 — Which version is the first caland?** The shim is written for `0.5.0`.
   *Proposal:* 0.5.0 — a new name with nothing lost is a minor release.

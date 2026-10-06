@@ -73,8 +73,3 @@ Caland will not point it at another address.
 
 With no bundle here and no profile, the list is empty and the field for an address is all
 there is. Sign in to one, keep it as a profile, and the next time it is on the list.
-
-## In the terminal version
-
-`caland --tui` has the same three sources in a picker of its own; see
-[the terminal version](terminal.md).

@@ -36,7 +36,6 @@ class ProfileStore(Protocol):
     """Reads and writes saved connection profiles (~/.databrickscfg)."""
 
     def discover(self) -> list[Workspace]: ...
-    def save(self, name: str, host: str, account_id: str | None = None) -> None: ...
 
     # every profile there is, with an address or not — and one added under a
     # name that is none of them (raises `Exists` otherwise)

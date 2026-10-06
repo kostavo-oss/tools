@@ -86,9 +86,6 @@ class OnboardingService:
             )
         raise AuthError(f"Which workspace? {_on_offer(workspaces)}")
 
-    def save_profile(self, name: str, host: str) -> None:
-        self._profiles.save(name, host)
-
     def profile_names(self) -> list[str]:
         """Every profile there is — also those that are no workspace to offer."""
         return self._profiles.names()

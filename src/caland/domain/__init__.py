@@ -1,4 +1,4 @@
-"""Domain layer — the model, the rules, and the ports. Pure: no Textual, no SDK,
+"""Domain layer — the model, the rules, and the ports. Pure: no UI, no SDK,
 no asyncio.
 
 Everything here is exercisable in a plain unit test. Infrastructure implements

@@ -11,15 +11,14 @@ keywords = [
     "databricks",
     "secrets",
     "secret-manager",
-    "tui",
-    "terminal",
-    "textual",
+    "browser",
     "cli",
     "security",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Operating System :: OS Independent",
@@ -29,12 +28,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
-    "Topic :: Terminals",
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
 dependencies = [
-    "textual>=2.0",
     "databricks-sdk>=0.30",
     "pyyaml>=6.0.3",
     "cryptography>=42",
@@ -48,9 +45,6 @@ Changelog = "https://github.com/kostavo-oss/caland/blob/main/CHANGELOG.md"
 
 [project.scripts]
 caland = "caland.app:main"
-# the names this was released under: they say so, and run caland
-isolinear = "caland.formerly:main"
-iso = "caland.formerly:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -59,26 +53,18 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/caland"]
 
-[tool.hatch.build.targets.sdist]
-# the last isolinear release is a package of its own
-exclude = ["isolinear-shim"]
-
 [dependency-groups]
 dev = [
-    "textual-dev>=1.5",
     "pytest>=8.0",
-    "pytest-asyncio>=0.24",
     "ruff>=0.6",
     "ty>=0.0.1a1",
     "types-pyyaml>=6.0.12.20260518",
-    "pytest-textual-snapshot>=1.0.0",
 ]
 docs = [
     "mkdocs-material>=9.7.5",
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-q"
 
