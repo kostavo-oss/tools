@@ -1031,7 +1031,7 @@ def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
         copied[0] == "| Scope | Key | Last changed | Age |"
         and copied[1] == "|---|---|---|---|"
     )
-    assert copied[2].startswith("| kv | tenant-id | 2024-05-29 |")
+    assert copied[2].startswith("| `kv` | `tenant-id` | 2024-05-29 |")
 
 
 def test_enter_in_a_list_goes_to_what_is_picked(prod):
@@ -1167,3 +1167,148 @@ def test_every_value_can_be_forgotten_from_the_keys(prod):
     prod.wait(f"{TOAST}.startsWith('Forgot every value')")
     assert prod.server.page.loader.service.cache.raw == {}
     assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+# ── what a second pair of eyes found in the tools ────────────────────
+SLOWLY = """(() => { const real = window.fetch;
+  window.fetch = (url, options) => String(url).includes('WHAT')
+    ? new Promise((done) => setTimeout(done, 400)).then(() => real(url, options))
+    : real(url, options); })()"""
+
+
+def test_an_import_answered_late_does_not_take_the_place_of_another_question(
+    prod, tmp_path
+):
+    """Choose a file, then `d` before the server has said what the import would
+    do: the question on the page stays "Delete", and `y` deletes — it must not
+    have become "Import" underneath."""
+    import time
+
+    file = tmp_path / "app.env"
+    file.write_text("NEW_ONE=1\nAPI-KEY=overwritten\n")
+    prod.js(SLOWLY.replace("WHAT", "/api/env/preview"))
+    prod.choose_files("#env-file", str(file))
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    time.sleep(0.8)  # the late answer has come by now
+    assert (
+        prod.js("document.getElementById('confirm-title').textContent") == "Delete secret"
+    )
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    prod.wait(f"{TOAST}.includes('was not imported')")
+    assert wrote(prod.store) == []
+    assert prod.js("document.getElementById('env-file').files.length") == 0
+
+
+def test_a_list_answered_late_does_not_open_over_a_question(prod):
+    """`P` then `d` at once: the list must not open over "Delete?" — typing a name
+    with a y in it into its filter would answer the question underneath."""
+    import time
+
+    prod.js(SLOWLY.replace("WHAT", "/api/grants"))
+    prod.press("P", "d")
+    prod.wait(OPEN.format("confirm"))
+    time.sleep(0.8)
+    assert prod.js(OPEN.format("list")) is False
+    assert prod.js("document.querySelectorAll('dialog[open]').length") == 1
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    assert wrote(prod.store) == []
+
+
+def test_no_dialog_opens_over_another_but_a_question_over_the_grants(prod):
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.js(
+        "for (const id of ['new-open', 'scope-new', 'help-open'])"
+        " document.getElementById(id).click()"
+    )
+    assert prod.js("[...document.querySelectorAll('dialog[open]')].map(d => d.id)") == [
+        "list"
+    ]
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('list')}")
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    prod.js("document.querySelector('#grants-rows tr button.danger').click()")
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js(
+        "[...document.querySelectorAll('dialog[open]')].map(d => d.id).sort()"
+    ) == [
+        "confirm",
+        "grants",
+    ]
+
+
+def test_a_y_typed_into_a_filter_answers_no_question(prod):
+    prod.press("P")
+    prod.wait(OPEN.format("list"))
+    prod.type("yy")
+    prod.press("y")
+    assert prod.js("document.getElementById('list-filter').value").startswith("yy")
+    assert wrote(prod.store) == []
+
+
+def test_a_list_asked_for_while_the_workspace_is_read_says_so_and_fills(browser, serve):
+    import time
+
+    class Slow(FakeSecretStore):
+        def list_secrets(self, scope):
+            time.sleep(0.5)
+            return super().list_secrets(scope)
+
+    made = workspace()
+    store = Slow(scopes=made._scopes, secrets=made._secrets, acls=made._acls)
+    server = serve(store)
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait("document.querySelectorAll('#scopes li').length > 0")
+    assert tab.js("document.body.dataset.phase") != "ready"
+    tab.press("A")
+    tab.wait(OPEN.format("list"))
+    assert "still being read" in tab.js(
+        "document.getElementById('list-note').textContent"
+    )
+    tab.wait(f"{LIST_TITLE} === 'Not changed in 90 days: 6 secrets'", seconds=20)
+    assert "still being read" not in tab.js(
+        "document.getElementById('list-note').textContent"
+    )
+
+
+def test_a_locked_page_keeps_no_list_and_no_file(prod, tmp_path):
+    file = tmp_path / "app.env"
+    file.write_text("NEW_ONE=held-value\n")
+    prod.choose_files("#env-file", str(file))
+    prod.wait(OPEN.format("confirm"))
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.server.page.token = "another-run"
+    prod.press("t")  # asks the server, and finds the key gone
+    prod.wait("!document.getElementById('locked').hidden")
+    whole = prod.js(WHOLE_PAGE)
+    for told in ("tenant-id", "api-key", "Not changed in", "NEW_ONE"):
+        assert told not in whole
+    assert prod.js("document.getElementById('env-file').files.length") == 0
+    assert prod.js("document.querySelector('dialog[open]')") is None
+
+
+def test_a_name_in_a_copied_table_stays_a_name(browser, serve):
+    odd = "a|b __init__ `x`"
+    server = serve(
+        FakeSecretStore(
+            scopes=[Scope("s")],
+            secrets={"s": [Secret("s", odd, 1_600_000_000_000)]},
+            acls={"s": [Acl("me@corp.com", "MANAGE")]},
+        )
+    )
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait("document.body.dataset.phase === 'ready'")
+    tab.press("A")
+    tab.wait(OPEN.format("list"))
+    tab.press("c")
+    tab.wait("document.getElementById('list-note').textContent.startsWith('Copied')")
+    row = tab.clipboard().splitlines()[2]
+    assert row.startswith("| `s` | `a\\|b __init__ 'x'` | 2020-09-13 |")
+    assert row.count(" | ") == 3  # four columns, as the heading has

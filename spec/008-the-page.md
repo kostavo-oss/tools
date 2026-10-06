@@ -1,7 +1,7 @@
 # 008 — the page
 
-**Status:** two of three parts are built — reading, and changing with the file picker (see
-the two *As built* sections); the rest is proposal. Its shape is decided ([Decided](#decided)). Written
+**Status:** built but for choosing a workspace from a list (see the *As built* sections);
+that, and making the page what `caland` opens, is what is left. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -266,6 +266,58 @@ workspace had the scopes afterwards that it had before. That settles what was as
 (it takes base64, and what comes back is the same bytes). Not run for real: a Key
 Vault-backed scope (the workspace has none), and a workspace where the person may not
 write.
+
+## As built — the third part, first half: the tools (2026-10-06)
+
+Built: what was left of R1 but the workspace picker — `.env` in and out
+([005, R1–R3](005-bulk-and-audit.md)), the stale report ([005, R4](005-bulk-and-audit.md)),
+the overview and the lookup by principal ([004, R5–R6](004-scopes-and-permissions.md)),
+sorting ([002, R5](002-browsing.md)), forgetting values ([003, R9](003-secrets.md)), and
+the two preferences that are kept ([006, R6](006-safety.md)). Not yet: choosing a
+workspace from a list, signing in by URL, switching. So the page is still behind `--page`.
+
+Decided while building, the builder's:
+
+- **An import is shown before it is done, by the server**: how many, and which of those
+  that are there are overwritten — asked of the workspace then, and whatever the case of a
+  name. The file is sent twice, once to be shown and once to be done; nothing of it is kept
+  in between, and no value is said back either time.
+- **An import that stops says at which key** ([005, D1](005-bulk-and-audit.md#to-decide)),
+  and that what went in before it stays. A pair with no value is left out and named: an
+  empty value is a slip.
+- **An export with values is the one request that reads every value of a scope.** It is a
+  `POST` with the token like a single value, behind a `y`, and its answer goes to the
+  clipboard without being written into the page. A secret that is no text is left out and
+  named: a line of text cannot carry it.
+- **The reports are made in the page** from names, dates and grants it already has. The
+  server is asked nothing for them but the grants of every scope, once per reading.
+- **A scope has no heading row to click**, so what the scopes are sorted by is said in the
+  pane's heading.
+- **The themes are not on the page.** It follows the system's light or dark, as lely's
+  page does ([R2](#requirements)); `theme` in the settings file is the terminal version's.
+
+**Reviewed, by someone who did not build it (2026-10-06).** The gate held for the five new
+routes, read-only and Key Vault held, an export put its text on the clipboard and nowhere
+else, and of 20,000 values written as `.env` and read back only one kind changed. Found and
+fixed, each with a test:
+
+- **A value quoted over several lines was stored broken**, and the lines of it that end in
+  `=` became secrets of their own, named after pieces of a key. The parser reads such a
+  value whole now, or refuses the file — in the terminal version too, which shares it.
+- A value ending in a newline lost it between export and import.
+- After an import that spelled a key in another case, the page went on showing the old
+  value. Values are kept under the name the workspace has.
+- An import with a value that is no text died halfway. A file is looked at whole before any
+  of it is written: such a value, a quote never closed, two keys that are one secret.
+- **A dialog that opened late took the place of a question, or opened over it**, and `y`
+  answered the wrong one. Now one dialog is open at a time — but a question over the
+  grants — and one that comes back after the person has gone on does not open.
+- The stale report, asked for while the workspace was still being read, said "0 secrets"
+  and stayed that way. It says it is still reading, and fills.
+- An export answered from what was read earlier. A locked page kept the chosen file. A
+  name with `|` in it broke the copied table. A preference asked for badly was half taken.
+
+Not tried: Firefox, Safari, a real workspace for this part.
 
 ## Not in this spec
 

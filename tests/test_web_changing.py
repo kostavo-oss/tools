@@ -10,7 +10,7 @@ import pytest
 
 from caland.application import Loader, WorkspaceService
 from caland.application.files import LIMIT
-from caland.domain import StoreError, Workspace
+from caland.domain import Secret, StoreError, Workspace
 from caland.interface.web import Page, Server
 from fakes import seeded_store
 from test_web_server import Served
@@ -677,3 +677,98 @@ def test_a_preference_is_kept_and_said_back():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+# ── what a second pair of eyes found in the tools ────────────────────
+PEM_ENV = (
+    b'BEFORE=1\nTLS_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq=\n'
+    b'c2VjcmV0IGtleQ==\n-----END PRIVATE KEY-----"\nAFTER=2\n'
+)
+
+
+def test_a_key_quoted_over_several_lines_is_one_secret_and_whole(served):
+    status, told = post(
+        served, "/api/env/preview", {"scope": "prod", "base64": b64(PEM_ENV)}
+    )
+    assert status == 200 and told["keys"] == ["BEFORE", "TLS_KEY", "AFTER"]
+    assert (
+        post(served, "/api/env/import", {"scope": "prod", "base64": b64(PEM_ENV)})[0]
+        == 200
+    )
+    assert served.store._values[("prod", "TLS_KEY")] == (
+        b"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq=\nc2VjcmV0IGtleQ==\n"
+        b"-----END PRIVATE KEY-----"
+    )
+    names = [secret.key for secret in served.store._secrets["prod"]]
+    assert sorted(names) == ["AFTER", "BEFORE", "TLS_KEY", "api-key", "db-password"]
+
+
+@pytest.mark.parametrize(
+    ("env", "why"),
+    [
+        (b'A=1\nTLS_KEY="-----BEGIN\nMIIE=\n', "never closed"),
+        (b"Db_Url=hidden-A\nDB_URL=hidden-B\n", "one secret to Databricks"),
+        (b'A=1\nBAD="\\ud800"\nC=3\n', "no text that can be stored"),
+    ],
+)
+@pytest.mark.parametrize("path", ["/api/env/preview", "/api/env/import"])
+def test_a_file_that_cannot_be_read_without_guessing_is_refused_whole(
+    served, path, env, why
+):
+    status, told = post(served, path, {"scope": "prod", "base64": b64(env)})
+    assert status == 400 and why in told["error"]
+    assert wrote(served) == []
+    for value in ("MIIE", "hidden-A", "hidden-B"):
+        assert value not in told["error"]  # and no value is said back
+
+
+def test_after_an_import_in_another_case_the_new_value_is_the_one_shown(served):
+    post(served, "/api/value", {"scope": "prod", "key": "api-key"})  # shown before
+    post(
+        served, "/api/env/import", {"scope": "prod", "base64": b64(b"API-KEY=rotated\n")}
+    )
+    assert post(served, "/api/value", {"scope": "prod", "key": "api-key"})[1] == {
+        "value": "rotated"
+    }
+    assert (
+        "api-key=rotated" in post(served, "/api/env/export", {"scope": "prod"})[1]["text"]
+    )
+    assert list(served.page.loader.service.cache.raw) == [
+        ("prod", "api-key"),
+        ("prod", "db-password"),
+    ]
+
+
+def test_an_export_reads_what_is_there_now(served):
+    post(served, "/api/value", {"scope": "prod", "key": "api-key"})
+    served.store._values[("prod", "api-key")] = b"rotated elsewhere"
+    served.store._secrets["prod"].append(Secret("prod", "made-elsewhere"))
+    served.store._values[("prod", "made-elsewhere")] = b"theirs"
+    text = post(served, "/api/env/export", {"scope": "prod"})[1]["text"]
+    assert "api-key=rotated elsewhere" not in text  # quoted: it has a space
+    assert 'api-key="rotated elsewhere"' in text and "made-elsewhere=theirs" in text
+
+
+def test_a_value_that_ends_in_a_newline_comes_back_with_it(served):
+    post(
+        served, "/api/secret/put", {"scope": "prod", "key": "token", "text": "ghp_abc\n"}
+    )
+    text = post(served, "/api/env/export", {"scope": "prod"})[1]["text"]
+    post(served, "/api/scope/create", {"name": "copy"})
+    post(served, "/api/env/import", {"scope": "copy", "base64": b64(text.encode())})
+    assert served.store._values[("copy", "token")] == b"ghp_abc\n"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"stale_after": 30.0},
+        {"stale_after": True},
+        {"show_all": True, "stale_after": 45},
+        {"show_all": 1},
+    ],
+)
+def test_a_preference_asked_for_badly_changes_none(served, body):
+    assert post(served, "/api/settings", body)[0] == 400
+    state = served.json("GET", "/api/state")[1]
+    assert (state["show_all"], state["stale_after"]) == (False, 90)

@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The page has the tools.** On `caland --page`: fill a scope from a `.env` file (`i`) and
+  copy one as `.env` (`x`), the report of stale secrets (`A`), what you can reach (`a`) and
+  what somebody else can (`P`), sorting (`s`, `S`), and "forget every value" from the keys.
+  An import says what it will overwrite before it does, and where it stopped if it does.
+  The `f` toggle and the stale report's number of days are kept between runs.
+
+### Fixed
+
+- **A `.env` value quoted over several lines is read whole.** Read line by line, a private
+  key's own lines — some end in `=` — were taken for secrets of their own, and the key was
+  stored as its first line. An import reads such a value as one now, and refuses a file
+  whose quote is never closed. On the page and in the terminal version.
+- A value ending in a newline keeps it when a scope is copied as `.env` and read back.
+- A `#` comment after a value in a `.env` file is no longer part of the value.
+
 ## [0.5.1] - 2026-10-06
 
 ### Added

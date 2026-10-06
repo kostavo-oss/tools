@@ -24,7 +24,14 @@ from importlib import resources
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from ...application import Loader, WorkspaceService, files, format_dotenv, parse_dotenv
+from ...application import (
+    DotenvError,
+    Loader,
+    WorkspaceService,
+    files,
+    format_dotenv,
+    parse_dotenv,
+)
 from ...domain import Exists, Settings, StoreError, Workspace, same_name
 from . import gate, views
 
@@ -312,16 +319,20 @@ class Handler(BaseHTTPRequestHandler):
         return views.grants(service), 200
 
     def _prefer(self, body: _Said) -> dict[str, Any]:
-        """Keep a preference. It changes no workspace: read-only does not mind."""
+        """Keep a preference. It changes no workspace: read-only does not mind.
+        All of what is asked is looked at before any of it is taken."""
+        show_all, stale_after = body.get("show_all"), body.get("stale_after")
+        if "show_all" in body and not isinstance(show_all, bool):
+            raise _Refused(400, "show_all is yes or no")
+        if "stale_after" in body and not (
+            type(stale_after) is int and stale_after in STALE_AFTER
+        ):
+            raise _Refused(400, "stale_after is 30, 90, 180 or 365")
         settings = self.server.page.settings
-        if "show_all" in body:
-            if not isinstance(body["show_all"], bool):
-                raise _Refused(400, "show_all is yes or no")
-            settings.show_all_scopes = body["show_all"]
-        if "stale_after" in body:
-            if body["stale_after"] not in STALE_AFTER:
-                raise _Refused(400, "stale_after is 30, 90, 180 or 365")
-            settings.audit_threshold = body["stale_after"]
+        if isinstance(show_all, bool):
+            settings.show_all_scopes = show_all
+        if isinstance(stale_after, int):
+            settings.audit_threshold = stale_after
         self.server.page.keep(settings)
         return {}
 
@@ -344,8 +355,10 @@ class Handler(BaseHTTPRequestHandler):
         scope = _text(body, "scope")
         self._may_change(service, scope)
         pairs, empty = _pairs(body)
-        done, stopped_at = service.import_secrets(scope, pairs)
-        self._changed()
+        try:
+            done, stopped_at = service.import_secrets(scope, pairs)
+        finally:
+            self._changed()  # whatever went in is there: the page reads again
         return {
             "done": done,
             "total": len(pairs),
@@ -576,15 +589,35 @@ def _bytes(body: dict[str, Any], name: str) -> bytes:
 
 def _pairs(body: dict[str, Any]) -> tuple[dict[str, str], list[str]]:
     """A .env file as the page sends it, as KEY to value — and the keys that had
-    no value, which are left out: an empty value is a slip, not a wish to wipe."""
+    no value, which are left out: an empty value is a slip, not a wish to wipe.
+
+    A file that cannot be read without guessing is refused whole, before any of
+    it is used: a quote that is never closed, a value that is no text, two keys
+    that are one secret to Databricks."""
     data = _bytes(body, "base64")
     try:
-        text = data.decode("utf-8")
+        pairs = parse_dotenv(data.decode("utf-8"))
     except UnicodeDecodeError as exc:
         raise _Refused(400, "that is no text file") from exc
-    pairs = parse_dotenv(text)
+    except DotenvError as exc:
+        raise _Refused(400, f"that file cannot be read: {exc}") from exc
     if len(pairs) > PAIRS_LIMIT:
         raise _Refused(413, f"that is {len(pairs)} entries: a scope holds {PAIRS_LIMIT}")
+    seen: dict[str, str] = {}
+    for key, value in pairs.items():
+        if key.casefold() in seen:
+            raise _Refused(
+                400,
+                f"{seen[key.casefold()]} and {key} are one secret to Databricks: "
+                "the file has both",
+            )
+        seen[key.casefold()] = key
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise _Refused(
+                400, f"the value of {key} is no text that can be stored"
+            ) from exc
     empty = [key for key, value in pairs.items() if not value]
     return {key: value for key, value in pairs.items() if value}, empty
 

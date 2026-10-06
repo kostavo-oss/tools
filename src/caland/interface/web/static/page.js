@@ -32,6 +32,21 @@ let read = null;          // the server's version the names in `keys` are from
 // where the keyboard is: one of the three panes, and which button of the detail
 let pane = "scopes", action = 0;
 
+// ── one thing at a time in front of the person ───────────────────────
+// A key goes to the dialog that is open, and `y` to the question that is asked. So a dialog
+// opens only when none is — but for a question over the grants, which is meant — and one
+// that was asked for a moment ago, and comes back late, does not open over what the person
+// has gone on to do.
+let moment = 0;   // goes up with every key and every dialog: "has anything happened since?"
+const openNow = () => [...document.querySelectorAll("dialog[open]")].map((node) => node.id);
+function open(id) {
+  const now = openNow();
+  if (now.length && !(id === "confirm" && now.length === 1 && now[0] === "grants")) return false;
+  moment += 1;
+  $(id).showModal();
+  return true;
+}
+
 // ── asking the server ────────────────────────────────────────────────
 class Told extends Error {}
 async function ask(path, body) {
@@ -63,7 +78,9 @@ function lock() {
   // and nothing that was typed or chosen to be sent: no value, no file
   picked = null; editing = null; moving = null; confirming = null; granting = null; turn += 1;
   listing = null; everyGrant = new Map(); granted = null;
-  for (const id of ["list-rows", "list-head"]) $(id).replaceChildren();
+  for (const id of ["list-rows", "list-head", "list-title", "list-note", "confirm-note", "confirm-title",
+    "env-scope", "move-from", "grants-scope"]) $(id).replaceChildren();
+  for (const id of ["env-file", "list-filter"]) $(id).value = "";
   for (const id of ["form-value", "form-key", "move-key", "grant-who", "scope-name", "file"]) $(id).value = "";
   for (const id of ["picked", "grants-rows", "confirm-what"]) $(id).replaceChildren();
   $("app").hidden = true; $("locked").hidden = false;
@@ -126,6 +143,10 @@ async function look() {
   if (!names.has(scope)) { scope = (visibleScopes()[0] ?? {}).name ?? null; secret = 0; }
   await fill(scope);
   draw();
+  if ($("list").open && listing) {   // a list that is open shows what there is now
+    if (listing.grants) await allGrants();
+    drawList();
+  }
   document.body.dataset.phase = told.phase;   // said last: everything it stands for is drawn
   if (told.phase === "connecting" || told.phase === "loading") looking = setTimeout(carefully(look), POLL);
 }
@@ -365,7 +386,7 @@ function openCode() {
     node.onclick = carefully(async () => { await put(code); $("code").close(); toast(`Copied: ${code}`); });
     return node;
   }));
-  $("code").showModal();
+  if (!open("code")) return;
 }
 
 // ── changing things ──────────────────────────────────────────────────
@@ -422,7 +443,7 @@ function openForm(edit) {
   $("form-key").value = edit ? editing.key : "";
   $("form-value").value = "";
   clearPicked(); fail("form-error");
-  $("form").showModal();
+  if (!open("form")) return;
   (edit ? $("form-value") : $("form-key")).focus();
 }
 const base64 = (bytes) => {
@@ -494,9 +515,10 @@ function confirmFirst(title, what, note, label, work, danger = true) {
   $("confirm-yes").className = danger ? "danger" : "main";
   $("confirm-note").textContent = note;
   $("confirm-do").textContent = label;
+  if (!open("confirm")) return false;
   confirming = work;
-  $("confirm").showModal();
   $("confirm-no").focus();
+  return true;
 }
 function deleteSecret() {
   const row = chosen();
@@ -544,7 +566,7 @@ function openMove() {
   $("move-key").value = row[0];
   $("move-keep").checked = azure; $("move-keep").disabled = azure;   // out of Azure's: a copy is all there is
   fail("move-error");
-  $("move").showModal();
+  if (!open("move")) return;
   $("move-key").focus(); $("move-key").select();
 }
 async function saveMove() {
@@ -568,7 +590,7 @@ function openGrants() {
   granting = scope;
   $("grant-who").value = ""; fail("grants-error");
   drawGrants();
-  $("grants").showModal();
+  if (!open("grants")) return;
 }
 function drawGrants() {
   const about = detail.get(granting);
@@ -610,7 +632,7 @@ function removeGrant(principal, own) {
 function openScope() {
   if (!canChange()) return;
   $("scope-name").value = ""; fail("scope-error");
-  $("scope-form").showModal();
+  if (!open("scope-form")) return;
   $("scope-name").focus();
 }
 async function saveScope() {
@@ -638,8 +660,14 @@ function importEnv() {
 async function takeEnv(file) {
   if (!file || scope === null) return;
   if (file.size > LIMIT) throw new Error(`${file.name} is ${size(file.size)}: more than can be read here.`);
+  const mine = ++moment;
   const into = scope, sent = base64(new Uint8Array(await file.arrayBuffer()));
   const plan = await ask("/api/env/preview", { scope: into, base64: sent });
+  $("env-file").value = "";   // the file is not kept: what was read of it is all that is used
+  if (mine !== moment || openNow().length) {
+    // the answer came after the person went on: it is not asked over what they are doing
+    return toast(`${file.name} was not imported: something else was done meanwhile. Choose it again.`, true);
+  }
   if (!plan.keys.length) return toast(`${file.name} has no KEY=value lines in it.`, true);
   const many = (n) => `${n} secret${n === 1 ? "" : "s"}`;
   const over = plan.overwrite.length;
@@ -660,7 +688,7 @@ function openEnv() {
   if (scope === null) return;
   if (!(keys.get(scope) ?? []).length) return toast("This scope has no secrets to copy.");
   $("env-scope").textContent = scope;
-  $("env").showModal();
+  if (!open("env")) return;
 }
 async function envKeys() {
   const names = (keys.get(scope) ?? []).map(([key]) => key);
@@ -688,7 +716,7 @@ function openList(make) {
   listing = { make, at: 0, rows: [], keys: {} };
   $("list-filter").value = "";
   drawList();
-  $("list").showModal();
+  if (!open("list")) return;
   (listing.filter ? $("list-filter") : $("list-box")).focus();
 }
 function drawList() {
@@ -737,6 +765,9 @@ async function goTo(toScope, toKey) {
   go(at >= 0 ? "secrets" : "scopes");
 }
 
+// a list asked for while the workspace is still being read says so, and is written again
+// as more of it arrives
+const reading = () => told.phase === "ready" ? "" : "The workspace is still being read: this is what there is so far. ";
 // secrets that nobody has changed for a while, oldest first
 const STALE = [30, 90, 180, 365];
 function openStale() {
@@ -747,9 +778,9 @@ function openStale() {
       .map(([key, ms]) => ({ scope: name, key, ms }))).sort((a, b) => a.ms - b.ms);
     return {
       title: `Not changed in ${days} days: ${old.length} secret${old.length === 1 ? "" : "s"}`,
-      note: "t: another number of days · c: copy as Markdown · enter: go to it. No value is read for this.",
+      note: reading() + "t: another number of days · c: copy as Markdown · enter: go to it. No value is read for this.",
       head: ["Scope", "Key", "Last changed", "Age"],
-      none: `Every secret here was changed in the last ${days} days.`,
+      none: told.phase === "ready" ? `Every secret here was changed in the last ${days} days.` : "Nothing so far.",
       rows: old.map((row) => ({ cells: [mono(row.scope), mono(row.key), day(row.ms), age(row.ms)],
         go: () => goTo(row.scope, row.key) })),
       keys: {
@@ -759,8 +790,9 @@ function openStale() {
           await ask("/api/settings", { stale_after: told.stale_after });
         },
         c: async () => {
+          const name = (text) => "`" + text.replace(/[\r\n]+/g, " ").replace(/\|/g, "\\|").replace(/`/g, "'") + "`";
           const lines = ["| Scope | Key | Last changed | Age |", "|---|---|---|---|",
-            ...old.map((row) => `| ${row.scope} | ${row.key} | ${day(row.ms)} | ${age(row.ms)} |`)];
+            ...old.map((row) => `| ${name(row.scope)} | ${name(row.key)} | ${day(row.ms)} | ${age(row.ms)} |`)];
           await put(lines.join("\n"));
           $("list-note").textContent = `Copied ${old.length} row${old.length === 1 ? "" : "s"} as Markdown.`;
         },
@@ -782,12 +814,16 @@ const RANK = { MANAGE: 3, WRITE: 2, READ: 1 };
 // what you can reach: every scope, your access, and how many have a grant on it
 async function openOverview() {
   if (!told) return;
-  const grants = await allGrants();
+  const mine = ++moment;
+  await allGrants();
+  if (mine !== moment) return;
   openList(() => {
+    const grants = everyGrant;
     const rows = [...told.scopes].sort((a, b) => (RANK[b.access] ?? 0) - (RANK[a.access] ?? 0) || a.name.localeCompare(b.name));
     return {
       title: `What you can reach: ${rows.filter((s) => s.access).length} of ${rows.length} scopes`,
-      note: "enter: go to the scope.",
+      note: reading() + "enter: go to the scope.",
+      grants: true,
       head: ["Scope", "Your access", "With a grant"],
       rows: rows.map((s) => ({ cells: [mono(s.name), pill(s.access), String((grants.get(s.name) ?? []).length)],
         go: () => goTo(s.name) })),
@@ -797,17 +833,20 @@ async function openOverview() {
 // what somebody else can: every grant made to a name, strongest first
 async function openWho() {
   if (!told) return;
-  const grants = await allGrants();
-  const all = [...grants].flatMap(([name, rows]) => rows.map(([who, may]) => ({ who, scope: name, may })))
-    .sort((a, b) => a.who.localeCompare(b.who) || (RANK[b.may] ?? 0) - (RANK[a.may] ?? 0) || a.scope.localeCompare(b.scope));
+  const mine = ++moment;
+  await allGrants();
+  if (mine !== moment) return;
   openList((typed) => {
+    const all = [...everyGrant].flatMap(([name, rows]) => rows.map(([who, may]) => ({ who, scope: name, may })))
+      .sort((a, b) => a.who.localeCompare(b.who) || (RANK[b.may] ?? 0) - (RANK[a.may] ?? 0) || a.scope.localeCompare(b.scope));
     const letters = typed.toLowerCase();
     const fits = (text) => { let at = 0; for (const c of letters) { at = text.toLowerCase().indexOf(c, at) + 1; if (!at) return false; } return true; };
     const rows = all.filter((row) => fits(row.who));
     return {
       title: "Who has access",
       filter: "a user, a group or a service principal",
-      note: "Grants made to the name itself. What somebody reaches through a group is under the group's name.",
+      grants: true,
+      note: reading() + "Grants made to the name itself. What somebody reaches through a group is under the group's name.",
       head: ["Principal", "Scope", "May"],
       none: all.length ? "Nobody of that name has a grant." : "No grants could be listed: that takes MANAGE on a scope.",
       rows: rows.map((row) => ({ cells: [row.who, mono(row.scope), pill(row.may)], go: () => goTo(row.scope) })),
@@ -880,7 +919,7 @@ const back = () => pane === "secrets" ? go("scopes")
   : pane === "detail" ? (action === 0 ? go(visibleSecrets().length ? "secrets" : "scopes") : stepAction(-1)) : null;
 
 const KEYS = {
-  "/": () => { $("filter").focus(); $("filter").select(); }, "?": () => $("help").showModal(),
+  "/": () => { $("filter").focus(); $("filter").select(); }, "?": () => open("help"),
   ArrowDown: () => down(1), j: () => down(1), ArrowUp: () => down(-1), k: () => down(-1),
   ArrowRight: right, l: right, ArrowLeft: back, h: back, g: () => ends(false), G: () => ends(true),
   " ": toggle, Enter: () => pane === "scopes" ? right() : toggle(),
@@ -907,6 +946,7 @@ function filterKey(event) {
 }
 document.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey || event.key === "Tab" || !token) return;
+  moment += 1;
   if ($("confirm").open && event.key === "y") { event.preventDefault(); return $("confirm-yes").click(); }
   if ($("env").open && (event.key === "1" || event.key === "2")) {
     event.preventDefault();
@@ -930,7 +970,7 @@ document.querySelectorAll("dialog").forEach((node) => {
   node.addEventListener("close", () => { if (!document.querySelector("dialog[open]")) go(pane); });
   node.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => node.close()));
 });
-$("help-open").onclick = () => $("help").showModal();
+$("help-open").onclick = () => open("help");
 $("new-open").onclick = () => openForm(false);
 $("env-file").onchange = carefully(() => takeEnv($("env-file").files[0]));
 $("env-keys").onclick = carefully(envKeys);
@@ -963,6 +1003,9 @@ for (const [ids, work] of [[["form-key", "form-value"], saveForm], [["move-key"]
     });
   }
 }
+// a question that is cancelled is forgotten, with whatever it was holding to do
+$("confirm").addEventListener("cancel", () => { confirming = null; });
+$("confirm-no").addEventListener("click", () => { confirming = null; });
 // a form that is closed keeps nothing that was typed into it or chosen for it
 const formGone = () => { turn += 1; $("form-value").value = ""; clearPicked(); };
 // esc says so at once. That a dialog is closed is said a moment after it is — and by then
