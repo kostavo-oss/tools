@@ -203,6 +203,37 @@ What the run found that nobody had assumed:
 Still not tried: V7; resource types other than a job; `bundle.run` (it would have run a job);
 credentials that can only read; a second bundle in one project.
 
+### A second run, later that day
+
+After the page and GitHub were built: the same workspace and CLI, the credentials from a
+`~/.databrickscfg` profile (`--profile`) this time, and a project with more in it — a `command`
+step above the bundle whose plan command gives the bundle a variable, two jobs, and a `command`
+step below that takes one job's id. Nothing was started; everything was destroyed again and
+seen to be gone.
+
+- **A first deploy through a file took two rounds, as designed.** `lely apply plan.json`
+  created the jobs, stopped before the step that waited for a job's id (refused, exit 2), and
+  wrote a record of that. The next plan showed the step ready with the real id; its file ran
+  it.
+- **An update through a plan file** changed one job's description — the value came from the
+  step above — and the job read back from the workspace said so.
+- **V3, a second resource type.** A pipeline, defined and never started, had an `id` and a
+  `url` in the summary as a job has, and was planned, created, listed and destroyed like one.
+- **Planning left the workspace as it was**: the folder that holds the bundles listed the same
+  before and after the first plan.
+- **The page** was made from a real plan, a real record and a real destroy plan (`lely ui`).
+  The bundle's own view came from the real summary, and the links on a run's page led to the
+  jobs.
+- **The run's summary for GitHub** was written from a real plan, in a run that only said it was
+  one (`GITHUB_ACTIONS=true`, a summary file, no token): Markdown as the tests have it. No
+  comment was posted anywhere.
+- **Destroy from a plan file** ran the lower step's destroy command first, then removed both
+  jobs, the pipeline and the bundle's folder. Each was asked for by its id afterwards, and was
+  not there.
+
+Still not tried after both runs: V7 (another identity); `bundle.run`; credentials that can only
+read; a second bundle in one project; a pull request in a real repository.
+
 ## Decided
 
 - **More than one bundle in a project** (was D1): yes, from the start — R3a.

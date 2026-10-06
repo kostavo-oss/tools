@@ -189,10 +189,14 @@ On a pull request, give `lely plan` credentials that can read and nothing more.
 
 ## What has been tried
 
-lely is tested against a fake Databricks CLI, and has been run on a real workspace once
-(2026-10-06, CLI v1.19.0): a bundle with one job, on a development target, was planned,
-applied, listed, applied again, updated from a plan file, and destroyed. That run matched what
-lely assumed about the CLI, with one correction and one surprise:
+lely is tested against a fake Databricks CLI, and has been run on a real workspace twice
+(2026-10-06, CLI v1.19.0). First a bundle with one job, on a development target: planned,
+applied, listed, applied again, updated from a plan file, and destroyed. Then a project with
+a step above the bundle and one below it, two jobs and a pipeline that was never started: a
+first deploy through a plan file in its two rounds, an update, the page made from the real
+plan and the real run, and a destroy from a plan file. Everything was seen to be gone
+afterwards. The runs matched what lely assumed about the CLI, with one correction and one
+surprise:
 
 - **The CLI trusts the bundle with your credentials.** A bundle whose target names another
   host is not refused: with a token from the environment, the CLI goes to that host and
@@ -201,18 +205,22 @@ lely assumed about the CLI, with one correction and one surprise:
 - **`bundle validate` writes.** It creates a folder in the workspace, so lely doesn't use it:
   `lely plan`, `status` and a destroy plan were seen to leave the workspace as it was.
 
-What one run could not show:
+What two runs could not show:
 
 1. That a bundle another identity deployed looks "not deployed" from here.
-2. That every resource type has an id and a link in `bundle summary` — only a job was tried.
+2. That every resource type has an id and a link in `bundle summary` — a job and a pipeline
+   were tried.
 3. `bundle.run`: no job was run.
 4. `lely plan` with credentials that can only read.
 5. That `bundle destroy` never removes more than `bundle summary` lists.
 
 `lely doctor` also can't tell whether credentials are read-only; it says so.
 
-**GitHub** (`--github`) is tested against a fake GitHub only. No pull request in a real
-repository has carried a plan yet, and the workflows in `docs/GITHUB.md` have never run.
+**GitHub** (`--github`) is tested against a fake GitHub, and the workflows in
+`docs/GITHUB.md` have run once on a real repository: a pull request carried a plan comment
+that was kept current, its merge applied the reviewed plan, and a destroy was started by
+hand. Signing in with GitHub's own identity, environments and a pull request from a fork
+were not part of that run.
 
 ## Named after
 

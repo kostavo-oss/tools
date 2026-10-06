@@ -1,7 +1,7 @@
 # 008 — GitHub
 
-**Status:** built, 2026-10-06, against a fake GitHub; not yet run on a real repository
-([Done when](#done-when)). Phase two.
+**Status:** built, and run once on a real repository, 2026-10-06 ([Done when](#done-when)).
+Phase two.
 
 ## Why
 
@@ -134,7 +134,9 @@ can't ask who it is, which decides how lely finds its comment.
 - R1–R7 each have a test; posting and updating a comment is tested against a fake GitHub, the way
   stevin tests its own. **Done** — R7 is a document: its workflows are read, not run.
 - A pull request in a real repository has carried a plan comment that changed in place, and a
-  merge has left a summary of what was created. **Not done.** It needs a repository with a
-  workspace's credentials in its settings, which is the owner's to set up. lely's own requests
-  were checked against GitHub's API for reading only.
+  merge has left a summary of what was created. **Done, 2026-10-06**, in a private repository
+  made for it: the comment was a failed plan, then the plan, then the plan of the next push —
+  one comment, by the run's own token; the merge applied the plan that was reviewed and the
+  job was read back from the workspace; a destroy started by hand removed it. What that run
+  differed in and didn't try is in `docs/GITHUB.md`, "What has been tried".
 - D2 is answered here. **Done.**

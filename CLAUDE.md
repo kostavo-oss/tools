@@ -53,23 +53,23 @@ code of `tail`.
 
 ## Status
 
-**Phase one is built (2026-10-05) and was run on a real workspace once (2026-10-06).** `validate`, `steps`, `schema`, `plan`,
+**Phases one and two are built, and lely was run on a real workspace twice (2026-10-06).** `validate`, `steps`, `schema`, `plan`,
 `show`, `apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run`
 plugins and plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
 
 Not built, or not proven:
 
-- **One run on a real workspace is a first proof, not a track record.** What it settled, what
+- **Two runs on a real workspace are a first proof, not a track record.** What it settled, what
   it corrected (the CLI goes to the bundle's host with the credentials at hand; `bundle
   validate` writes, so the plugin uses `bundle summary`) and what it couldn't show is in
   `spec/004-asset-bundle.md`, "Run on a workspace". What is still assumed is a `TODO(verify)`
   in `src/lely/steps/bundle.py`.
 - **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
   that uses it. The owner takes it up separately — don't extend it.
-- **GitHub is built (2026-10-06) and unproven**: `--github` and `-f md`
-  (`spec/008-github-actions.md`, `docs/GITHUB.md`), tested against `tests/fake_github.py`. No
-  pull request in a real repository has carried a plan yet, and the workflows in the docs
-  have never run.
+- **GitHub is built (2026-10-06) and has run once for real**: `--github` and `-f md`
+  (`spec/008-github-actions.md`, `docs/GITHUB.md`), tested against `tests/fake_github.py`,
+  and run through all three workflows in a private repository (`kostavo-oss/lely-proof`).
+  Not tried there: OIDC sign-in, environments, a fork — see `docs/GITHUB.md`.
 - **The page is built (2026-10-06)**: `lely ui`, `StepPlan.view`, a run's record with
   `apply -o` (`spec/007-ui.md`). Looked at in a browser and reviewed once. Whether a plugin's
   view stays in its frame is asked of a real browser: `uv run pytest tests/browser`. It needs
