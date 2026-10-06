@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import TextIO
 
 from ...application import Loader, OnboardingService
-from ...domain import AuthError, Settings
+from ...domain import AuthError, Settings, SettingsStore
 from .opening import Opener
 from .server import Page, Server
 
@@ -31,7 +31,7 @@ def run(
     name: str | None = None,
     *,
     read_only: bool = False,
-    settings: Settings | None = None,
+    settings_store: SettingsStore | None = None,
     version: str = "",
     open_browser: bool = True,
     browser: Callable[[str], bool] = webbrowser.open,
@@ -53,7 +53,8 @@ def run(
         loader,
         workspace=workspace,
         read_only=read_only,
-        show_all=(settings or Settings()).show_all_scopes,
+        settings=settings_store.load() if settings_store else Settings(),
+        keep=settings_store.save if settings_store else lambda settings: None,
         version=version,
     )
     server = Server(page)

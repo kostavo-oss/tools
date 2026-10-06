@@ -42,6 +42,8 @@ class WorkspaceService:
         # one change at a time. Two at once — a delete and a put-back, two moves —
         # could each leave the other's work undone, and a value with it.
         self._one_at_a_time = threading.RLock()
+        #: Why the last import stopped, when it did.
+        self.import_error = ""
 
     @property
     def label(self) -> str:
@@ -237,6 +239,52 @@ class WorkspaceService:
             if value is not None:
                 self._taken = (scope, key, value)
             return value is not None
+
+    def import_secrets(self, scope: str, pairs: dict[str, str]) -> tuple[list[str], str]:
+        """Put every pair into a scope as a secret, in order, stopping at the
+        first the workspace refuses. Returns the keys that went in and, when it
+        stopped, the key it stopped at ("" otherwise) — raising nothing, so that
+        who asked can say how far it got. An overwritten secret cannot be put
+        back: this is not a delete."""
+        done: list[str] = []
+        with self._one_at_a_time:
+            for key, value in pairs.items():
+                try:
+                    self.put_secret_bytes(scope, key, value.encode("utf-8"))
+                except StoreError as exc:
+                    self.import_error = str(exc)
+                    return done, key
+                done.append(key)
+        self.import_error = ""
+        return done, ""
+
+    def export_secrets(self, scope: str) -> tuple[list[tuple[str, str]], list[str]]:
+        """Every secret of a scope that is text, as (key, value) — and the keys
+        of those that are not, which a line of text cannot carry. Reads every
+        value: asked for, never done unasked."""
+        pairs: list[tuple[str, str]] = []
+        left_out: list[str] = []
+        for secret in self.secrets_for(scope):
+            data = self.reveal_bytes(scope, secret.key)
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError:
+                left_out.append(secret.key)
+                continue
+            if "\x00" in text:
+                left_out.append(secret.key)
+            else:
+                pairs.append((secret.key, text))
+        return pairs, left_out
+
+    def taken_over(self, scope: str, keys: list[str]) -> list[str]:
+        """Which of these keys are in the scope already — as the workspace says
+        now, and whatever their case — under the names they have there."""
+        self.cache.secrets[scope] = self._store.list_secrets(scope)
+        there = {
+            secret.key.casefold(): secret.key for secret in self.cache.secrets[scope]
+        }
+        return [there[key.casefold()] for key in keys if key.casefold() in there]
 
     @property
     def taken(self) -> tuple[str, str] | None:

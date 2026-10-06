@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import base64
+import json
 import threading
 
 import pytest
 
 from caland.application import Loader, WorkspaceService
 from caland.application.files import LIMIT
-from caland.domain import Workspace
+from caland.domain import StoreError, Workspace
 from caland.interface.web import Page, Server
 from fakes import seeded_store
 from test_web_server import Served
@@ -243,8 +244,11 @@ def test_a_value_may_be_as_large_as_a_secret_holds_and_no_larger(served):
     over = {"scope": "prod", "key": "bigger", "base64": b64(b"x" * (LIMIT + 1))}
     status, told = post(served, "/api/secret/put", over)
     assert status == 413 and "128 kB" in told["error"]
+    # sent as it is, not escaped: escaped it would be more than a request may say at
+    # all, and refused before it was read — which a client sees as a broken pipe
     text = {"scope": "prod", "key": "bigger", "text": "é" * (LIMIT // 2 + 1)}
-    assert post(served, "/api/secret/put", text)[0] == 413
+    raw = json.dumps(text, ensure_ascii=False).encode()
+    assert served.ask("POST", "/api/secret/put", raw=raw)[0] == 413
     assert ("prod", "bigger") not in served.store._values
 
 
@@ -534,3 +538,142 @@ def test_describing_any_file_answers(served):
     ):
         status, told = post(served, "/api/describe", {"base64": b64(data)})
         assert status == 200 and told["kind"]
+
+
+# ── .env: a scope's secrets as lines of text ─────────────────────────
+ENV = (
+    b"# a comment\nexport NEW_ONE=first\nAPI-KEY='rotated'\nEMPTY=\n"
+    b'MULTI="line one\\nline two"\n'
+)
+
+
+def test_an_import_is_shown_before_it_is_done_and_says_no_value(served):
+    status, told = post(served, "/api/env/preview", {"scope": "prod", "base64": b64(ENV)})
+    assert status == 200
+    assert told == {
+        "keys": ["NEW_ONE", "API-KEY", "MULTI"],
+        "overwrite": ["api-key"],  # the same secret, whatever its case
+        "empty": ["EMPTY"],
+    }
+    assert wrote(served) == []
+
+
+def test_an_import_puts_every_pair_and_leaves_out_the_empty(served):
+    status, told = post(served, "/api/env/import", {"scope": "prod", "base64": b64(ENV)})
+    assert status == 200 and told["done"] == ["NEW_ONE", "API-KEY", "MULTI"]
+    assert (told["total"], told["stopped_at"], told["empty"]) == (3, "", ["EMPTY"])
+    assert served.store._values[("prod", "NEW_ONE")] == b"first"
+    assert served.store._values[("prod", "api-key")] == b"rotated"
+    assert served.store._values[("prod", "MULTI")] == b"line one\nline two"
+    assert ("prod", "EMPTY") not in served.store._values
+
+
+def test_an_import_that_stops_says_how_far_it_got_and_at_which_key(served):
+    real = served.store.put_secret_bytes
+
+    def refusing(scope, key, value):
+        if key == "API-KEY":
+            raise StoreError("the workspace said no")
+        real(scope, key, value)
+
+    served.store.put_secret_bytes = refusing
+    status, told = post(served, "/api/env/import", {"scope": "prod", "base64": b64(ENV)})
+    assert status == 200
+    assert (told["done"], told["stopped_at"], told["total"]) == (
+        ["NEW_ONE"],
+        "API-KEY",
+        3,
+    )
+    assert told["error"] == "the workspace said no"
+    assert ("prod", "MULTI") not in served.store._values
+
+
+@pytest.mark.parametrize("path", ["/api/env/preview", "/api/env/import"])
+def test_an_import_is_a_change_like_any(read_only, served, path):
+    body = {"scope": "prod", "base64": b64(ENV)}
+    assert post(read_only, path, body)[0] == 403
+    assert post(served, path, {**body, "scope": "kv"})[0] == 409
+    assert post(served, path, {**body, "scope": "nope"})[0] == 404
+    assert post(served, path, {"scope": "prod", "base64": b64(b"\xff\xfe\x00")})[0] == 400
+    assert served.ask("POST", path, body, token="wrong")[0] == 401
+    assert wrote(read_only) == [] and wrote(served) == []
+
+
+def test_an_import_of_more_than_a_scope_holds_is_refused(served):
+    many = "".join(f"K{n}=v\n" for n in range(1001)).encode()
+    status, told = post(served, "/api/env/import", {"scope": "prod", "base64": b64(many)})
+    assert status == 413 and "1001" in told["error"] and wrote(served) == []
+
+
+def test_an_export_is_the_scopes_text_values_and_names_what_it_left_out(served):
+    post(
+        served,
+        "/api/secret/put",
+        {"scope": "prod", "key": "bundle", "base64": b64(BUNDLE)},
+    )
+    post(served, "/api/secret/put", {"scope": "prod", "key": "multi", "text": "a\nb"})
+    status, told = post(served, "/api/env/export", {"scope": "prod"})
+    assert status == 200 and told["left_out"] == ["bundle"]
+    assert told["text"] == (
+        "api-key=value::prod/api-key\n"
+        "db-password=value::prod/db-password\n"
+        'multi="a\\nb"\n'
+    )
+
+
+def test_an_export_reads_values_so_it_is_no_get_and_takes_the_token(served):
+    assert served.ask("GET", "/api/env/export?scope=prod")[0] == 404
+    assert (
+        served.ask("POST", "/api/env/export", {"scope": "prod"}, token="wrong")[0] == 401
+    )
+    assert post(served, "/api/env/export", {"scope": "nope"})[0] == 404
+    assert served.store.reads() == 0
+
+
+def test_an_export_is_reading_and_works_read_only(read_only):
+    assert post(read_only, "/api/env/export", {"scope": "prod"})[0] == 200
+
+
+# ── preferences, and every scope's grants ────────────────────────────
+def test_every_scopes_grants_at_once(served):
+    status, told = served.json("GET", "/api/grants")
+    assert status == 200 and told["scopes"] == {
+        "kv": [["users", "READ"]],
+        "prod": [["me@corp.com", "MANAGE"], ["users", "READ"]],
+    }
+
+
+def test_a_preference_is_kept_and_said_back():
+    kept = []
+    store = seeded_store()
+    loader = Loader(lambda: WorkspaceService(store, "test"))
+    page = Page(
+        loader, workspace=Workspace(profile="test"), read_only=True, keep=kept.append
+    )
+    server = Server(page)
+    loader.start().join(timeout=5)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        served = Served(server, store)
+        served.enter()
+        state = served.json("GET", "/api/state")[1]
+        assert (state["show_all"], state["stale_after"]) == (False, 90)
+        # a preference changes no workspace: read-only does not mind
+        assert (
+            post(served, "/api/settings", {"show_all": True, "stale_after": 365})[0]
+            == 200
+        )
+        state = served.json("GET", "/api/state")[1]
+        assert (state["show_all"], state["stale_after"]) == (True, 365)
+        assert kept[-1].show_all_scopes is True and kept[-1].audit_threshold == 365
+        for body in ({"show_all": "yes"}, {"stale_after": 45}, {"stale_after": "90"}):
+            assert post(served, "/api/settings", body)[0] == 400
+        assert (
+            served.ask("POST", "/api/settings", {"show_all": False}, token="wrong")[0]
+            == 401
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

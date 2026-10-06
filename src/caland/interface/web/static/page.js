@@ -62,6 +62,8 @@ function lock() {
   for (const node of document.querySelectorAll("dialog[open]")) node.close();
   // and nothing that was typed or chosen to be sent: no value, no file
   picked = null; editing = null; moving = null; confirming = null; granting = null; turn += 1;
+  listing = null; everyGrant = new Map(); granted = null;
+  for (const id of ["list-rows", "list-head"]) $(id).replaceChildren();
   for (const id of ["form-value", "form-key", "move-key", "grant-who", "scope-name", "file"]) $(id).value = "";
   for (const id of ["picked", "grants-rows", "confirm-what"]) $(id).replaceChildren();
   $("app").hidden = true; $("locked").hidden = false;
@@ -156,10 +158,22 @@ const matches = (text) => {
   for (const letter of query.toLowerCase()) { at = lower.indexOf(letter, at) + 1; if (!at) return false; }
   return true;
 };
-const visibleScopes = () => (told ? told.scopes : []).filter((s) =>
+// A pane is sorted by one of its columns, up or down: the scopes by name or by how many
+// secrets they hold, the secrets by key or by when they were last changed.
+const sorts = { scopes: { by: 0, down: false }, secrets: { by: 0, down: false } };
+const COLUMNS = {
+  scopes: [["name", (s) => s.name.toLowerCase()], ["how many", (s) => s.count]],
+  secrets: [["key", (row) => row[0].toLowerCase()], ["last changed", (row) => row[1] ?? 0]],
+};
+function sorted(rows, which) {
+  const { by, down } = sorts[which], of = COLUMNS[which][by][1];
+  if (by === 0 && !down) return rows;   // as the workspace gave them
+  return [...rows].sort((a, b) => (of(a) < of(b) ? -1 : of(a) > of(b) ? 1 : 0) * (down ? -1 : 1));
+}
+const visibleScopes = () => sorted((told ? told.scopes : []).filter((s) =>
   (showAll || s.access || !s.loaded)
-  && (!query || matches(s.name) || (keys.get(s.name) ?? []).some(([key]) => matches(key))));
-const visibleSecrets = () => (keys.get(scope) ?? []).filter(([key]) => !query || matches(key) || matches(scope));
+  && (!query || matches(s.name) || (keys.get(s.name) ?? []).some(([key]) => matches(key)))), "scopes");
+const visibleSecrets = () => sorted((keys.get(scope) ?? []).filter(([key]) => !query || matches(key) || matches(scope)), "secrets");
 const chosen = () => visibleSecrets()[secret];
 
 const day = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : "—";
@@ -212,6 +226,12 @@ function draw() {
 
   const rows = visibleSecrets();
   secret = Math.min(secret, Math.max(rows.length - 1, 0));
+  const by = sorts.scopes;
+  $("scopes-title").textContent = by.by || by.down
+    ? `Scopes \u00b7 by ${COLUMNS.scopes[by.by][0]} ${by.down ? "\u2193" : "\u2191"}` : "Scopes";
+  for (const [id, column] of [["by-key", 0], ["by-changed", 1]]) {
+    $(id).className = sorts.secrets.by === column ? `sorted${sorts.secrets.down ? " down" : ""}` : "";
+  }
   $("secrets-title").replaceChildren(...(scope === null ? ["Secrets"]
     : ["Secrets in ", el("span", { className: "mono", textContent: scope })]));
   $("secrets").replaceChildren(...rows.map(([key, changed], index) => {
@@ -247,8 +267,10 @@ function drawDetail(row) {
           el("tr", {}, el("td", { textContent: who === you ? `${who} (you)` : who }), el("td", {}, pill(permission))))))
       : el("p", { className: "none", textContent: "No grants are listed. Listing them takes MANAGE on the scope." }),
     el("div", { className: "acts" }, button(may ? "Change" : "Look closer", "p", openGrants))];
-  const whole = may ? [el("h2", { textContent: "Scope" }),
-    el("div", { className: "acts" }, button("Delete scope", "D", deleteScope, "danger"))] : [];
+  const whole = [el("h2", { textContent: "Scope" }), el("div", { className: "acts" },
+    may && !about.keyvault ? button("Import .env\u2026", "i", importEnv) : null,
+    button("Copy as .env", "x", openEnv),
+    may ? button("Delete scope", "D", deleteScope, "danger") : null)];
   if (!row) {
     return $("detail").replaceChildren(el("h2", { textContent: "Scope" }),
       el("div", { className: "name mono", textContent: scope }),
@@ -465,9 +487,11 @@ async function saveForm() {
 
 // nothing destructive without a deliberate y
 let confirming = null;
-function confirmFirst(title, what, note, label, work) {
+function confirmFirst(title, what, note, label, work, danger = true) {
   $("confirm-title").textContent = title;
   $("confirm-what").replaceChildren(...what);
+  $("confirm-what").className = danger ? "alert" : "quiet";
+  $("confirm-yes").className = danger ? "danger" : "main";
   $("confirm-note").textContent = note;
   $("confirm-do").textContent = label;
   confirming = work;
@@ -603,6 +627,204 @@ async function saveScope() {
   go("scopes");
 }
 
+// ── .env: a scope's secrets as lines of text ─────────────────────────
+function importEnv() {
+  if (!canChange() || scope === null) return;
+  if (detail.get(scope)?.keyvault) return toast(`${scope} is Azure Key Vault's: its secrets are made in Azure.`, true);
+  $("env-file").value = "";
+  $("env-file").click();
+}
+// the file is shown for what it would do before it does it: how many, and over which
+async function takeEnv(file) {
+  if (!file || scope === null) return;
+  if (file.size > LIMIT) throw new Error(`${file.name} is ${size(file.size)}: more than can be read here.`);
+  const into = scope, sent = base64(new Uint8Array(await file.arrayBuffer()));
+  const plan = await ask("/api/env/preview", { scope: into, base64: sent });
+  if (!plan.keys.length) return toast(`${file.name} has no KEY=value lines in it.`, true);
+  const many = (n) => `${n} secret${n === 1 ? "" : "s"}`;
+  const over = plan.overwrite.length;
+  confirmFirst("Import .env", [strong("Put"), ` ${many(plan.keys.length)} into `, mono(into), ".",
+    ...(over ? [el("p", {}, strong(`${many(over)} there will be overwritten: `), mono(plan.overwrite.join(", ")), ".")] : [])],
+    (over ? "What is overwritten cannot be put back. " : "")
+      + (plan.empty.length ? `Left out, having no value: ${plan.empty.join(", ")}.` : ""),
+    "Import", async () => {
+      const done = await ask("/api/env/import", { scope: into, base64: sent });
+      await changed(into, done.done[0] ?? null,
+        done.stopped_at ? null : `Imported ${many(done.done.length)} into ${into}.`);
+      if (done.stopped_at) {
+        toast(`Stopped at ${done.stopped_at}, after ${done.done.length} of ${done.total}: ${done.error} What went in before it stays.`, true);
+      }
+    }, over > 0);
+}
+function openEnv() {
+  if (scope === null) return;
+  if (!(keys.get(scope) ?? []).length) return toast("This scope has no secrets to copy.");
+  $("env-scope").textContent = scope;
+  $("env").showModal();
+}
+async function envKeys() {
+  const names = (keys.get(scope) ?? []).map(([key]) => key);
+  $("env").close();
+  await put(names.map((key) => `${key}=\n`).join(""));
+  toast(`Copied ${names.length} key${names.length === 1 ? "" : "s"} of ${scope} as a .env template.`);
+}
+function envValues() {
+  const from = scope, count = (keys.get(from) ?? []).length;
+  $("env").close();
+  confirmFirst("Copy as .env, with values", [strong("Read"), ` all ${count} values of `, mono(from), " and put them on the clipboard."],
+    "Nothing is written to disk. The clipboard can be read by other programs: clear it when you are done.",
+    "Copy", async () => {
+      let out = [];
+      await put(ask("/api/env/export", { scope: from }).then((got) => { out = got.left_out; return got.text; }));
+      toast(`Copied the values of ${from} as .env.` + (out.length ? ` Left out, not being text: ${out.join(", ")}.` : ""));
+    });
+}
+
+// ── lists to look through and pick from ──────────────────────────────
+// The stale report, the overview and who-has-access are one dialog: a heading, rows, and
+// what a key does. Arrows move, enter goes to what is picked, esc closes.
+let listing = null;   // { rows: [{ cells, go }], at, keys: { letter: work }, again }
+function openList(make) {
+  listing = { make, at: 0, rows: [], keys: {} };
+  $("list-filter").value = "";
+  drawList();
+  $("list").showModal();
+  (listing.filter ? $("list-filter") : $("list-box")).focus();
+}
+function drawList() {
+  const made = listing.make($("list-filter").value.trim());
+  Object.assign(listing, made, { at: Math.min(listing.at, Math.max(made.rows.length - 1, 0)) });
+  $("list-title").textContent = made.title;
+  $("list-note").textContent = made.note ?? "";
+  $("list-filter").hidden = !made.filter;
+  $("list-filter").placeholder = made.filter ?? "";
+  $("list-head").replaceChildren(el("tr", {}, ...made.head.map((text) => el("th", { textContent: text }))));
+  $("list-rows").replaceChildren(...made.rows.map((row, index) => {
+    const node = el("tr", {}, ...row.cells.map((cell) => el("td", {}, cell)));
+    node.setAttribute("aria-selected", String(index === listing.at));
+    node.onclick = () => { listing.at = index; pickList(); };
+    return node;
+  }));
+  $("list-none").hidden = made.rows.length > 0;
+  $("list-none").textContent = made.none ?? "Nothing.";
+  $("list-rows").querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
+}
+function pickList() {
+  const row = listing.rows[listing.at];
+  if (!row) return;
+  $("list").close();
+  return row.go();
+}
+function listKey(event) {
+  const typing = event.target === $("list-filter");
+  const move = { ArrowDown: 1, ArrowUp: -1, ...(typing ? {} : { j: 1, k: -1 }) }[event.key];
+  if (move) {
+    const count = listing.rows.length;
+    if (count) listing.at = (listing.at + move + count) % count;
+    drawList();
+  } else if (event.key === "Enter") carefully(pickList)();
+  else if (!typing && listing.keys[event.key]) carefully(listing.keys[event.key])();
+  else return;
+  event.preventDefault();
+}
+// go to a scope, and to a secret in it when one is named
+async function goTo(toScope, toKey) {
+  if (query) { $("filter").value = ""; query = ""; }
+  if (!visibleScopes().some((s) => s.name === toScope)) showAll = true;
+  await choose(toScope);
+  const at = toKey ? visibleSecrets().findIndex(([key]) => key === toKey) : -1;
+  if (at >= 0) { secret = at; draw(); }
+  go(at >= 0 ? "secrets" : "scopes");
+}
+
+// secrets that nobody has changed for a while, oldest first
+const STALE = [30, 90, 180, 365];
+function openStale() {
+  if (!told) return;
+  openList(() => {
+    const days = told.stale_after, before = Date.now() - days * 864e5;
+    const old = [...keys].flatMap(([name, rows]) => rows.filter(([, ms]) => ms && ms < before)
+      .map(([key, ms]) => ({ scope: name, key, ms }))).sort((a, b) => a.ms - b.ms);
+    return {
+      title: `Not changed in ${days} days: ${old.length} secret${old.length === 1 ? "" : "s"}`,
+      note: "t: another number of days · c: copy as Markdown · enter: go to it. No value is read for this.",
+      head: ["Scope", "Key", "Last changed", "Age"],
+      none: `Every secret here was changed in the last ${days} days.`,
+      rows: old.map((row) => ({ cells: [mono(row.scope), mono(row.key), day(row.ms), age(row.ms)],
+        go: () => goTo(row.scope, row.key) })),
+      keys: {
+        t: async () => {
+          told.stale_after = STALE[(STALE.indexOf(days) + 1) % STALE.length];
+          drawList();
+          await ask("/api/settings", { stale_after: told.stale_after });
+        },
+        c: async () => {
+          const lines = ["| Scope | Key | Last changed | Age |", "|---|---|---|---|",
+            ...old.map((row) => `| ${row.scope} | ${row.key} | ${day(row.ms)} | ${age(row.ms)} |`)];
+          await put(lines.join("\n"));
+          $("list-note").textContent = `Copied ${old.length} row${old.length === 1 ? "" : "s"} as Markdown.`;
+        },
+      },
+    };
+  });
+}
+
+// every scope's grants, asked for once per reading of the workspace
+let everyGrant = new Map(), granted = null;
+async function allGrants() {
+  if (granted !== told.version) {
+    everyGrant = new Map(Object.entries((await ask("/api/grants")).scopes));
+    granted = told.version;
+  }
+  return everyGrant;
+}
+const RANK = { MANAGE: 3, WRITE: 2, READ: 1 };
+// what you can reach: every scope, your access, and how many have a grant on it
+async function openOverview() {
+  if (!told) return;
+  const grants = await allGrants();
+  openList(() => {
+    const rows = [...told.scopes].sort((a, b) => (RANK[b.access] ?? 0) - (RANK[a.access] ?? 0) || a.name.localeCompare(b.name));
+    return {
+      title: `What you can reach: ${rows.filter((s) => s.access).length} of ${rows.length} scopes`,
+      note: "enter: go to the scope.",
+      head: ["Scope", "Your access", "With a grant"],
+      rows: rows.map((s) => ({ cells: [mono(s.name), pill(s.access), String((grants.get(s.name) ?? []).length)],
+        go: () => goTo(s.name) })),
+    };
+  });
+}
+// what somebody else can: every grant made to a name, strongest first
+async function openWho() {
+  if (!told) return;
+  const grants = await allGrants();
+  const all = [...grants].flatMap(([name, rows]) => rows.map(([who, may]) => ({ who, scope: name, may })))
+    .sort((a, b) => a.who.localeCompare(b.who) || (RANK[b.may] ?? 0) - (RANK[a.may] ?? 0) || a.scope.localeCompare(b.scope));
+  openList((typed) => {
+    const letters = typed.toLowerCase();
+    const fits = (text) => { let at = 0; for (const c of letters) { at = text.toLowerCase().indexOf(c, at) + 1; if (!at) return false; } return true; };
+    const rows = all.filter((row) => fits(row.who));
+    return {
+      title: "Who has access",
+      filter: "a user, a group or a service principal",
+      note: "Grants made to the name itself. What somebody reaches through a group is under the group's name.",
+      head: ["Principal", "Scope", "May"],
+      none: all.length ? "Nobody of that name has a grant." : "No grants could be listed: that takes MANAGE on a scope.",
+      rows: rows.map((row) => ({ cells: [row.who, mono(row.scope), pill(row.may)], go: () => goTo(row.scope) })),
+    };
+  });
+}
+
+// sort the pane the keyboard is in by its next column, or the other way round
+function sortBy(which, by, down) {
+  const kept = which === "secrets" ? (chosen() ?? [])[0] : null;
+  Object.assign(sorts[which], { by, down });
+  if (kept !== null) secret = Math.max(0, visibleSecrets().findIndex(([key]) => key === kept));
+  hide(); draw();
+}
+const sortNext = () => { const which = pane === "scopes" ? "scopes" : "secrets"; sortBy(which, (sorts[which].by + 1) % 2, false); };
+const sortOver = () => { const which = pane === "scopes" ? "scopes" : "secrets"; sortBy(which, sorts[which].by, !sorts[which].down); };
+
 // ── where the keyboard is ────────────────────────────────────────────
 // Tab has three stops in the page's body, one a pane. The two lists are each one thing to
 // the browser; of the detail's buttons one at a time can be reached by tab, and the arrows
@@ -665,10 +887,12 @@ const KEYS = {
   c: copy, C: openCode, r: () => refresh(false), R: () => refresh(true),
   n: () => openForm(false), N: openScope, e: () => openForm(true), m: openMove,
   d: deleteSecret, D: deleteScope, u: inTurn(undo),
-  p: openGrants,
-  f: () => {
+  p: openGrants, P: openWho, a: openOverview, A: openStale, i: importEnv, x: openEnv,
+  s: sortNext, S: sortOver,
+  f: async () => {
     showAll = !showAll; draw();
     toast(showAll ? `Showing all ${told.scopes.length} scopes.` : "Showing only the scopes you can reach.");
+    await ask("/api/settings", { show_all: showAll });   // kept for the next time
   },
 };
 // In the filter the arrows pick while you type, enter goes to what is left, esc clears.
@@ -684,6 +908,11 @@ function filterKey(event) {
 document.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey || event.key === "Tab" || !token) return;
   if ($("confirm").open && event.key === "y") { event.preventDefault(); return $("confirm-yes").click(); }
+  if ($("env").open && (event.key === "1" || event.key === "2")) {
+    event.preventDefault();
+    return $(event.key === "1" ? "env-keys" : "env-values").click();
+  }
+  if ($("list").open && !$("confirm").open) return listKey(event);
   if (document.querySelector("dialog[open]")) return;
   const target = event.target;
   if (target === $("filter")) return filterKey(event);
@@ -703,6 +932,17 @@ document.querySelectorAll("dialog").forEach((node) => {
 });
 $("help-open").onclick = () => $("help").showModal();
 $("new-open").onclick = () => openForm(false);
+$("env-file").onchange = carefully(() => takeEnv($("env-file").files[0]));
+$("env-keys").onclick = carefully(envKeys);
+$("env-values").onclick = envValues;
+$("list-filter").oninput = () => { listing.at = 0; drawList(); };
+$("by-key").onclick = () => sortBy("secrets", 0, sorts.secrets.by === 0 && !sorts.secrets.down);
+$("by-changed").onclick = () => sortBy("secrets", 1, sorts.secrets.by === 1 && !sorts.secrets.down);
+$("forget").onclick = carefully(async () => {
+  await ask("/api/forget", {});
+  hide(); $("help").close(); draw();
+  toast("Forgot every value caland held. What could be put back is forgotten with it.");
+});
 $("scope-new").onclick = openScope;
 $("form-save").onclick = carefully(inTurn(saveForm));
 $("move-save").onclick = carefully(inTurn(saveMove));

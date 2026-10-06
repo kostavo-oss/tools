@@ -91,6 +91,11 @@ class Browser:
         self._count = 0
         # a first start can take its time, on a machine that has never run it
         self.call("Browser.getVersion", seconds=120)
+        # the clipboard is the tests' to read: what was copied is looked at
+        self.call(
+            "Browser.grantPermissions",
+            {"permissions": ["clipboardReadWrite", "clipboardSanitizedWrite"]},
+        )
 
     def call(
         self,
@@ -138,6 +143,9 @@ class Browser:
         tab = Tab(self, session["sessionId"])
         tab.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         tab.call("Page.enable")
+        # a click on "choose a file" opens no dialog of the system's here: the tests
+        # hand files to the input themselves (`choose_files`)
+        tab.call("Page.setInterceptFileChooserDialog", {"enabled": True})
         if address != "about:blank":
             tab.go(address)
         return tab
@@ -224,6 +232,10 @@ class Tab:
         self.call(
             "DOM.setFileInputFiles", {"files": list(paths), "nodeId": node["nodeId"]}
         )
+
+    def clipboard(self) -> str:
+        """What is on the clipboard."""
+        return self.js("navigator.clipboard.readText()")
 
     def focus(self) -> str:
         """What has the keyboard: its id, or failing that what it says."""

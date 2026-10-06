@@ -48,7 +48,7 @@
       <h2 id="secrets-title">Secrets</h2>
       <div id="keys" tabindex="0" role="group" aria-labelledby="secrets-title">
         <table class="keys">
-          <thead><tr><th>Key</th><th>Last changed</th><th>Age</th></tr></thead>
+          <thead><tr><th id="by-key">Key</th><th id="by-changed">Last changed</th><th>Age</th></tr></thead>
           <tbody id="secrets"></tbody>
         </table>
       </div>
@@ -147,13 +147,41 @@
 <!-- nothing destructive without a deliberate y (spec/006, R3) -->
 <dialog id="confirm" aria-labelledby="confirm-title">
   <h1 id="confirm-title"></h1>
-  <div class="alert" id="confirm-what"></div>
+  <div id="confirm-what"></div>
   <p class="dim" id="confirm-note"></p>
   <div class="acts">
     <button type="button" data-close id="confirm-no">Cancel <kbd>esc</kbd></button>
     <button type="button" class="danger" id="confirm-yes"><span id="confirm-do"></span> <kbd>y</kbd></button>
   </div>
 </dialog>
+
+<!-- one dialog for every list that is looked through and picked from: the stale report,
+     the overview, who has access -->
+<dialog id="list" aria-labelledby="list-title">
+  <h1 id="list-title"></h1>
+  <input type="text" id="list-filter" autocomplete="off" spellcheck="false" hidden>
+  <p class="meta" id="list-note"></p>
+  <div id="list-box">
+    <table>
+      <thead id="list-head"></thead>
+      <tbody id="list-rows"></tbody>
+    </table>
+  </div>
+  <p class="none" id="list-none" hidden></p>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<dialog id="env" aria-labelledby="env-title">
+  <h1 id="env-title">Copy <span class="mono" id="env-scope"></span> as .env</h1>
+  <div id="env-rows">
+    <button type="button" id="env-keys"><span>Keys only <kbd>1</kbd></span>
+      <span class="meta">a template of KEY= lines, for another scope or a .env.example</span></button>
+    <button type="button" id="env-values"><span>With values <kbd>2</kbd></span>
+      <span class="meta">every value of the scope is read and put on the clipboard</span></button>
+  </div>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+<input type="file" id="env-file" hidden>
 
 <dialog id="help" aria-labelledby="help-title">
   <h1 id="help-title">Keys</h1>
@@ -169,12 +197,16 @@
     <tr><td><kbd>D</kbd></td><td>Delete the scope</td></tr>
     <tr><td><kbd>u</kbd></td><td>Put back the secret last deleted or moved away</td></tr>
     <tr><td><kbd>p</kbd></td><td>Who has access to the scope</td></tr>
+    <tr><td><kbd>i</kbd> &middot; <kbd>x</kbd></td><td>Fill the scope from a .env file &middot; copy the scope as .env</td></tr>
+    <tr><td><kbd>A</kbd> &middot; <kbd>a</kbd> &middot; <kbd>P</kbd></td><td>Secrets gone stale &middot; what you can reach &middot; what somebody else can</td></tr>
+    <tr><td><kbd>s</kbd> &middot; <kbd>S</kbd></td><td>Sort the pane by its next column &middot; the other way round</td></tr>
     <tr><td><kbd>f</kbd></td><td>Only the scopes you can reach, or all of them</td></tr>
     <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
   </tbody></table>
-  <p class="quiet">Not on the page yet: choosing a workspace, .env in and out, the report of
-    stale secrets. Those are in the terminal version, <span class="mono">caland</span>
-    without <span class="mono">--page</span>.</p>
+  <div class="acts"><button type="button" id="forget">Forget every value caland holds</button></div>
+  <p class="quiet">Not on the page yet: choosing a workspace from a list. For that, the
+    terminal version: <span class="mono">caland</span> without
+    <span class="mono">--page</span>.</p>
   <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
 </dialog>
 
