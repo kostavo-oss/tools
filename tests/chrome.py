@@ -160,6 +160,11 @@ class Tab:
         self.call("Page.navigate", {"url": address})
         self.wait("document.readyState === 'complete'")
 
+    def reload(self) -> None:
+        """What the reload button does."""
+        self.call("Page.reload")
+        self.wait("document.readyState === 'complete'")
+
     def js(self, expression: str) -> Any:
         """What an expression is worth in the page. A promise is waited for."""
         answer = self.call(

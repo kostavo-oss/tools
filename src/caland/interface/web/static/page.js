@@ -16,9 +16,11 @@ const el = (tag, props = {}, ...kids) => {
 
 // ── what the page knows ──────────────────────────────────────────────
 let token = null;
+let looking = null;       // the next look at the server, while a workspace is loading
 let told = null;          // the server's state: phase, who, the scopes
-let keys = {};            // scope -> [[key, changed in ms], ...]
-let detail = {};          // scope -> { access, keyvault, grants }
+// Maps, not objects: a scope may be called `constructor` or `__proto__`
+let keys = new Map();     // scope -> [[key, changed in ms], ...]
+let detail = new Map();   // scope -> { access, keyvault, grants }
 let scope = null;         // the selected scope's name
 let secret = 0;           // the selected secret's place among those shown
 let shown = null;         // { scope, key, value } while a value is on the page
@@ -52,7 +54,11 @@ async function ask(path, body) {
 function lock() {
   token = null;
   sessionStorage.removeItem(STORE);
-  hide();
+  // nothing it was told stays on a page that is locked: no value, no name
+  hide(); clearTimeout(looking);
+  told = null; keys = new Map(); detail = new Map(); scope = null;
+  for (const id of ["scopes", "secrets", "detail", "code-rows", "host", "who"]) $(id).replaceChildren();
+  for (const node of document.querySelectorAll("dialog[open]")) node.close();
   $("app").hidden = true; $("locked").hidden = false;
 }
 function trouble(text) {
@@ -76,7 +82,11 @@ async function enter() {
       return trouble("caland is not running any more. Start it again from the terminal.");
     }
   }
-  token = token ?? sessionStorage.getItem(STORE);
+  // The token this tab kept is for a reload of this page and nothing else. A site the
+  // tab went on to can send it back here, or open a window that is handed a copy of what
+  // the tab kept: neither is a reload, and both find the page locked.
+  const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
+  token = token ?? (reloaded ? sessionStorage.getItem(STORE) : null);
   if (!token) return lock();
   $("app").hidden = false;
   await look();
@@ -84,7 +94,6 @@ async function enter() {
 }
 
 // ── keeping up with the workspace ────────────────────────────────────
-let looking = null;
 async function look() {
   clearTimeout(looking);
   const first = told === null;
@@ -99,11 +108,11 @@ async function look() {
   trouble(told.phase === "failed" ? told.error || "The workspace could not be read." : "");
 
   const names = new Set(told.scopes.map((s) => s.name));
-  for (const name of Object.keys(keys)) if (!names.has(name)) { delete keys[name]; delete detail[name]; }
+  for (const name of [...keys.keys()]) if (!names.has(name)) { keys.delete(name); detail.delete(name); }
   if (told.phase === "ready" && read !== told.version) {
     // everything has been read: take every name at once, so that filtering never asks
-    keys = (await ask("/api/keys")).scopes;
-    detail = {};
+    keys = new Map(Object.entries((await ask("/api/keys")).scopes));
+    detail = new Map();
     read = told.version;
   }
   if (!names.has(scope)) { scope = (visibleScopes()[0] ?? {}).name ?? null; secret = 0; }
@@ -115,10 +124,10 @@ async function look() {
 // one scope's secrets and grants, once it has been read
 async function fill(name) {
   const row = told.scopes.find((s) => s.name === name);
-  if (!row || !row.loaded || detail[name]) return;
+  if (!row || !row.loaded || detail.has(name)) return;
   const said = await ask(`/api/scope?name=${encodeURIComponent(name)}`);
-  keys[name] = said.secrets;
-  detail[name] = { access: said.access, keyvault: said.keyvault, grants: said.grants };
+  keys.set(name, said.secrets);
+  detail.set(name, { access: said.access, keyvault: said.keyvault, grants: said.grants });
 }
 async function refresh(all) {
   if (!told || (!all && !scope)) return;
@@ -143,8 +152,8 @@ const matches = (text) => {
 };
 const visibleScopes = () => (told ? told.scopes : []).filter((s) =>
   (showAll || s.access || !s.loaded)
-  && (!query || matches(s.name) || (keys[s.name] ?? []).some(([key]) => matches(key))));
-const visibleSecrets = () => (keys[scope] ?? []).filter(([key]) => !query || matches(key) || matches(scope));
+  && (!query || matches(s.name) || (keys.get(s.name) ?? []).some(([key]) => matches(key))));
+const visibleSecrets = () => (keys.get(scope) ?? []).filter(([key]) => !query || matches(key) || matches(scope));
 const chosen = () => visibleSecrets()[secret];
 
 const day = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : "—";
@@ -205,7 +214,7 @@ function draw() {
   const row = told ? told.scopes.find((s) => s.name === scope) : null;
   $("secrets-none").hidden = rows.length > 0 || scope === null;
   $("secrets-none").textContent = row && !row.loaded ? "Reading…"
-    : (keys[scope] ?? []).length ? "Nothing here matches the filter."
+    : (keys.get(scope) ?? []).length ? "Nothing here matches the filter."
     : row && !row.access ? "You have no access to this scope." : "No secrets in this scope.";
   for (const list of [$("scopes"), $("secrets")]) {
     list.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
@@ -215,7 +224,7 @@ function draw() {
 }
 
 function drawDetail(row) {
-  const about = detail[scope];
+  const about = detail.get(scope);
   if (scope === null || !about) return $("detail").replaceChildren();
   const you = told.identity ? told.identity.user : "";
   const backed = about.keyvault ? "Azure Key Vault" : "Databricks";
@@ -301,9 +310,11 @@ function toast(text, bad = false) {
 function openCode() {
   const row = chosen();
   if (!row) return;
-  const forms = [["Python (dbutils)", `dbutils.secrets.get(scope="${scope}", key="${row[0]}")`],
+  // a name is written as a name, whatever is in it: a string in Python, one word in a shell
+  const word = (name) => /^[\w.@-]+$/.test(name) ? name : `'${name.replaceAll("'", "'\\''")}'`;
+  const forms = [["Python (dbutils)", `dbutils.secrets.get(scope=${JSON.stringify(scope)}, key=${JSON.stringify(row[0])})`],
     ["Spark conf or a job", `{{secrets/${scope}/${row[0]}}}`],
-    ["Databricks CLI", `databricks secrets get-secret ${scope} ${row[0]}`]];
+    ["Databricks CLI", `databricks secrets get-secret ${word(scope)} ${word(row[0])}`]];
   $("code-rows").replaceChildren(...forms.map(([label, code]) => {
     const node = el("button", {}, el("span", { textContent: label }), el("span", { className: "mono", textContent: code }));
     node.onclick = carefully(async () => { await put(code); $("code").close(); toast(`Copied: ${code}`); });

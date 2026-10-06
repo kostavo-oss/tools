@@ -7,6 +7,7 @@ spec/008-the-page.md says why.
 
 from __future__ import annotations
 
+import signal
 import sys
 import threading
 import time
@@ -75,11 +76,13 @@ def run(
     why = _watch(server, page, idle)
     if stdin.isatty():
         _again(stdin, show)
+    told_to_stop = _on_terminate()
     try:
         server.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         pass
     finally:
+        told_to_stop()
         server.server_close()
         opener.clean()
         if loader.service is not None:
@@ -102,6 +105,23 @@ def _watch(server: Server, page: Page, idle: float) -> list[str]:
 
     threading.Thread(target=watch, name="caland-idle", daemon=True).start()
     return why
+
+
+def _on_terminate() -> Callable[[], None]:
+    """Being told to stop (SIGTERM) is ctrl+c: the same tidying, the same goodbye.
+    Returns what puts things back as they were. Only the main thread may listen."""
+    if threading.current_thread() is not threading.main_thread():
+        return lambda: None
+
+    def stop(signum: int, frame: object) -> None:
+        raise KeyboardInterrupt
+
+    before = signal.signal(signal.SIGTERM, stop)
+
+    def as_it_was() -> None:
+        signal.signal(signal.SIGTERM, before)
+
+    return as_it_was
 
 
 def _again(stdin: TextIO, show: Callable[[], None]) -> None:

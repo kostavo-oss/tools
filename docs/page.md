@@ -18,7 +18,11 @@ enter: a new link · ctrl+c: stop
 ```
 
 ++ctrl+c++ stops it and forgets every value it held. So does leaving it alone for 30 minutes.
-If you close the tab, press ++enter++ in the terminal for a new one.
+If you close the tab, press ++enter++ in the terminal for a new one. Reloading the tab is
+fine; coming back to it from another site is not — the page asks for a new link then.
+
+If no tab opens, or the link opens in something that is not your browser, start it with
+`--no-open` and open the link it prints. The link works once.
 
 ## What it does
 
@@ -58,7 +62,7 @@ asking.
 - **Its own page only.** A request that did not come from Caland's own page, at Caland's own
   address, is refused — another site in your browser cannot reach it.
 - **Nothing without the session's key.** The page is let in once, with a one-time key, and
-  holds a token for as long as the tab is open. The token is sent in a header, never as a
+  holds a token for that tab, good until Caland stops. The token is sent in a header, never as a
   cookie, so no other program serving pages on your machine is ever sent it. The one-time key
   reaches your browser in a file only you can read, not on a command line.
 - **A value is in the page only while it is shown.** It is asked for when you press

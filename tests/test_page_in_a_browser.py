@@ -171,11 +171,39 @@ def test_a_wrong_key_is_no_key(browser, serve):
     assert tab.js("sessionStorage.length") == 0
 
 
-def test_a_reload_stays_in_and_another_tab_does_not(browser, page):
-    page.go(page.server.address)
+def test_a_reload_stays_in(page):
+    page.reload()
     page.wait(SHOWN)
+
+
+def test_another_tab_is_not_in(browser, page):
     other = browser.tab(page.server.address)
     other.wait("!document.getElementById('locked').hidden")
+
+
+def test_coming_back_to_the_page_is_not_a_reload(page):
+    """A site the tab went on to can send it back here, and a window it opens is
+    handed a copy of what the tab kept. Neither finds the page open."""
+    assert page.js("sessionStorage.getItem('caland')") == page.server.page.token
+    page.go("about:blank")
+    page.go(page.server.address)
+    page.wait("!document.getElementById('locked').hidden")
+    assert page.js("document.getElementById('app').hidden") is True
+    assert page.js("sessionStorage.length") == 0
+    assert "kv" not in page.js(WHOLE_PAGE.replace("outerHTML", "innerText"))
+
+
+def test_a_page_that_loses_its_key_shows_nothing_it_was_told(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    page.server.page.token = "another-run"  # as when caland was started again
+    page.press("r")
+    page.wait("!document.getElementById('locked').hidden")
+    whole = page.js(WHOLE_PAGE)
+    assert VALUE not in whole and "api-key" not in whole and "me@corp.com" not in whole
+    assert page.js("sessionStorage.length") == 0
 
 
 def test_nothing_is_kept_by_the_browser_but_the_token_for_this_tab(page):
@@ -313,6 +341,48 @@ def test_a_name_is_text_and_never_markup(page):
         "[...document.querySelectorAll('#secrets td')].map(n => n.textContent)"
     )
     assert MARKUP in page.js("document.getElementById('detail').innerText")
+
+
+def test_a_name_goes_into_code_as_a_name_whatever_is_in_it(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", "G", "C")
+    page.wait("document.getElementById('code').open")
+    forms = page.js(
+        "[...document.querySelectorAll('#code-rows .mono')].map(n => n.textContent)"
+    )
+    assert forms[0] == f'dbutils.secrets.get(scope="prod", key="{MARKUP}")'
+    quoted = MARKUP.replace("'", "'\\''")
+    assert forms[2] == f"databricks secrets get-secret prod '{quoted}'"
+
+
+def test_a_scope_may_be_called_what_every_object_has(browser, serve):
+    names = ["__proto__", "constructor", "toString", "hasOwnProperty"]
+    server = serve(
+        FakeSecretStore(
+            scopes=[Scope(name) for name in names],
+            secrets={
+                name: [Secret(name, f"key-of-{name}", 1_750_000_000_000)]
+                for name in names
+            },
+            acls={name: [Acl("me@corp.com", "MANAGE")] for name in names},
+        )
+    )
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait("document.body.dataset.phase === 'ready'")
+    listed = (
+        "[...document.querySelectorAll('#scopes li span.mono')].map(n => n.textContent)"
+    )
+    assert sorted(tab.js(listed)) == sorted(names)
+    assert tab.js("document.getElementById('toast').hidden") is True
+    assert tab.focus() == "scopes"
+    for _ in names:
+        name = tab.js(SELECTED_SCOPE)
+        tab.wait(f"{SELECTED_KEY} === 'key-of-' + {SELECTED_SCOPE}")
+        tab.wait("document.querySelector('#detail table')")
+        assert f"key-of-{name}" in tab.js("document.getElementById('detail').innerText")
+        tab.press("j")
+    assert tab.js("document.getElementById('toast').hidden") is True
 
 
 # ── fast, and held to it (spec/008, R7) ──────────────────────────────

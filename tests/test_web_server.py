@@ -445,6 +445,85 @@ def test_what_came_with_a_refused_request_is_not_taken_for_the_next(served):
     assert b"api-key" not in answer
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "status"),
+    [("TRACE", "/api/value", 405), ("BREW", "/", 501), ("GET", "/" + "a" * 70_000, 414)],
+)
+def test_what_the_server_refuses_by_itself_is_refused_like_everything_else(
+    served, method, path, status
+):
+    """`http.server` answers some requests before the gate is asked — with a page
+    of its own, and none of the headers. Not here."""
+    answered, headers, text = served.ask(method, path, headers={"Host": "evil.example"})
+    assert answered in (status, 403)
+    for name, value in HEADERS.items():
+        assert headers[name] == value
+    assert headers["Content-Type"] == "application/json" and json.loads(text)["error"]
+    assert b"<" not in text and method.encode() not in text
+
+
+def test_a_request_that_cannot_be_read_is_refused_the_same_way(served):
+    with socket.create_connection(("127.0.0.1", served.server.port), timeout=5) as raw:
+        raw.sendall(b"NOT A REQUEST AT ALL\r\n\r\n")
+        answer = b""
+        while chunk := raw.recv(65536):
+            answer += chunk
+    assert answer.startswith(b"HTTP/1.1 400") or answer.startswith(b"HTTP/1.0 400")
+    assert b"Content-Security-Policy" in answer and b"<html" not in answer.lower()
+    assert b"NOT A REQUEST" not in answer
+
+
+def test_a_connection_that_breaks_prints_nothing(served, capfd):
+    import struct
+
+    for _ in range(5):
+        raw = socket.create_connection(("127.0.0.1", served.server.port), timeout=5)
+        raw.sendall(b"POST /api/value HTTP/1.1\r\nHost: x\r\nContent-Length: 50\r\n\r\n{")
+        # closed the hard way: the server finds the connection reset under it
+        raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        raw.close()
+    served.enter()
+    assert served.json("GET", "/api/state")[0] == 200
+    printed = capfd.readouterr()
+    assert printed.out == "" and printed.err == ""
+
+
+def test_connections_left_hanging_do_not_use_the_server_up(served):
+    from caland.interface.web.server import CONNECTIONS
+
+    hanging = [
+        socket.create_connection(("127.0.0.1", served.server.port), timeout=5)
+        for _ in range(CONNECTIONS + 20)
+    ]
+    try:
+        for _ in range(100):  # until the server has taken all it has room for
+            if not served.server._open.acquire(blocking=False):
+                break
+            served.server._open.release()
+            threading.Event().wait(0.01)
+        else:
+            pytest.fail("the server never filled up")
+        # one more than there is room for is closed at once, not kept
+        extra = socket.create_connection(("127.0.0.1", served.server.port), timeout=5)
+        extra.settimeout(2)
+        try:
+            assert extra.recv(1) == b""
+        except ConnectionError:
+            pass
+        finally:
+            extra.close()
+    finally:
+        for raw in hanging:
+            raw.close()
+    for _ in range(200):  # and when they let go, it answers again
+        try:
+            served.enter()
+            break
+        except (OSError, AssertionError, http.client.HTTPException):
+            threading.Event().wait(0.02)
+    assert served.json("GET", "/api/state")[0] == 200
+
+
 def test_a_failure_inside_says_nothing_of_what_failed(served):
     served.enter()
 

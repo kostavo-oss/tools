@@ -138,8 +138,12 @@ Decided while building, the builder's unless marked:
 - **No cookie.** A cookie for `127.0.0.1` is sent to every port of the machine — so to any
   other program serving pages there. The page holds a token in memory and sends it in a
   header of its own; another site cannot send that header without asking, and nothing here
-  says yes. For a reload to work the token is also in the tab's `sessionStorage`: gone with
-  the tab, never a value, and the one thing the browser keeps (R9 said nothing would be).
+  says yes. For a reload to work the token is also in the tab's `sessionStorage` — never a
+  value, and the one thing the browser keeps (R9 said nothing would be). It is taken from
+  there on a reload and on nothing else: a site the tab went on to can send the tab back, or
+  open a window that is handed a copy, and both find the page locked. A browser may write
+  what a tab keeps into its own profile on disk, the owner's alone; the token is worth
+  nothing once caland has stopped.
 - **A one-time key, in a file.** The browser is started with a file only its owner can read
   (0600, in a 0700 folder), which sends it on to the page with a key in the address's
   fragment. A link on a command line can be read by every user of the machine. The key is
@@ -161,6 +165,18 @@ Held by: `tests/test_web_gate.py` (the rules of R9, as a pure function),
 `test_web_run.py`, `test_loading.py`, and `test_page_in_a_browser.py` — the real page in
 Chrome: real keys, where the keyboard lands, that a value leaves the page when hidden, that
 a name with markup in it is text, and R7's two numbers.
+
+**Reviewed once, by someone who did not build it (2026-10-06).** Nothing was found by which
+a name, a value or the token reached another site or a client without the token. Found and
+fixed, each with a test: another site could put the person back inside the page with the
+kept token (now: only a reload); a scope named `constructor` or `__proto__` broke the page;
+a page that lost its key kept what it showed; the answers `http.server` gives by itself
+carried none of the headers; a broken connection printed a traceback; connections left
+hanging could use the process up (now 64 at most, 10 seconds of silence each); a name with
+a quote in it went into the copied code as it was. Still so: who holds all 64 connections —
+a program on the machine — keeps the page from loading; that is a nuisance, not a leak.
+Not tried: Firefox, Safari, a real DNS name pointed at the machine, and a Mac whose `.html`
+files open in something other than the browser — there `--no-open` gives the link.
 
 **Run on a real workspace once (2026-10-06):** it connected with a profile, signed in and
 was ready in 2.3 s, first paint at 60 ms. That workspace has no secret scopes, so what was

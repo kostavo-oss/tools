@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import io
 import re
+from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from caland.application import OnboardingService
 from caland.domain import Workspace
@@ -61,13 +63,28 @@ def test_when_no_browser_starts_the_link_is_said_instead():
     assert code == 0 and re.search(r"http://127\.0\.0\.1:\d+/#[\w-]{40,}", said)
 
 
-def test_the_file_with_the_key_is_gone_when_it_stops(tmp_path):
-    from pathlib import Path
-    from urllib.parse import unquote, urlsplit
-
+def test_the_file_with_the_key_is_gone_when_it_stops():
     opened: list[str] = []
     run(open_browser=True, browser=lambda address: bool(opened.append(address)) or True)
     assert not Path(unquote(urlsplit(opened[0]).path)).exists()
+
+
+def test_being_told_to_stop_is_tidied_like_ctrl_c():
+    import os
+    import signal
+    import threading
+
+    opened: list[str] = []
+    threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGTERM)).start()
+    before = signal.getsignal(signal.SIGTERM)
+    code, said = run(
+        idle=30,
+        open_browser=True,
+        browser=lambda address: bool(opened.append(address)) or True,
+    )
+    assert code == 0 and "caland stopped. Every value it held is forgotten." in said
+    assert not Path(unquote(urlsplit(opened[0]).path)).exists()
+    assert signal.getsignal(signal.SIGTERM) is before
 
 
 def test_a_workspace_that_is_not_there_ends_it_before_it_starts():

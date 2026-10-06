@@ -29,6 +29,14 @@ from . import gate, views
 #: The most a request may say. Nothing the page sends comes near it.
 BODY_LIMIT = 64 * 1024
 
+#: How many connections are kept at once. A browser opens six; this is room for
+#: that many times over, and far below what a process may hold open — so that
+#: connections left hanging cannot use those up.
+CONNECTIONS = 64
+
+#: Seconds a connection may say nothing before it is closed.
+QUIET = 10
+
 #: The page: where each file is asked for, what it is called, and what it is.
 _FILES = {
     "/": ("page.html", "text/html; charset=utf-8"),
@@ -111,8 +119,26 @@ class Server(ThreadingHTTPServer):
 
     def __init__(self, page: Page, port: int = 0) -> None:
         self.page = page
+        self._open = threading.BoundedSemaphore(CONNECTIONS)
         # this machine only. There is no way to ask for anything wider.
         super().__init__(("127.0.0.1", port), Handler)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        # one connection more than there is room for is closed, not queued
+        if not self._open.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._open.release()
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """A connection that broke is nobody's news: nothing is printed. Not a
+        traceback either — anyone who can reach the port could fill a terminal."""
 
     def server_bind(self) -> None:
         # not HTTPServer's: it looks the machine's name up, which can take seconds
@@ -133,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "caland"
     sys_version = ""
-    timeout = 30
+    timeout = QUIET
     server: Server
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
@@ -149,6 +175,19 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self.command)
 
     do_HEAD = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _other  # noqa: N815
+    do_TRACE = do_CONNECT = _other  # noqa: N815
+
+    def send_error(
+        self, code: int, message: str | None = None, explain: str | None = None
+    ) -> None:
+        """What `http.server` refuses by itself — a request it cannot read, a
+        method it has never heard of — is refused as everything else is: shortly,
+        with the same headers, and with nothing of the request said back."""
+        if self.request_version == "HTTP/0.9":
+            # what could not be read at all is taken for the oldest HTTP, which
+            # has no headers: answer it as the oldest that has
+            self.request_version = "HTTP/1.0"
+        self._refuse(int(code), "not something caland can read")
 
     # -- one request ----------------------------------------------------
     def _answer(self, method: str) -> None:
