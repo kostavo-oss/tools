@@ -317,8 +317,14 @@ def status_to_json(status: Status) -> dict[str, Any]:
 def overview_to_json(
     overview: Overview | None, happened: Mapping[str, str] | None = None
 ) -> dict[str, Any] | None:
+    """An overview as JSON — and, right after a run (`happened` is not `None`),
+    what the run did to each thing. What the run removed is no longer in the
+    overview: it is listed after what is left, by its key, as the terminal
+    lists it."""
     if overview is None:
         return None
+    did = happened or {}
+    listed = {item.key for item in overview.items}
     return {
         "items": [
             {
@@ -331,10 +337,23 @@ def overview_to_json(
                 **(
                     {}
                     if happened is None
-                    else {"happened": happened.get(item.key, "unchanged")}
+                    else {"happened": did.get(item.key, "unchanged")}
                 ),
             }
             for item in overview.items
+        ]
+        + [
+            {
+                "kind": "",
+                "key": key,
+                "name": "",
+                "deployed": False,
+                "id": None,
+                "url": None,
+                "happened": word,
+            }
+            for key, word in did.items()
+            if key not in listed
         ],
         "notes": list(overview.notes),
     }

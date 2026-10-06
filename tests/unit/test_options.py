@@ -333,3 +333,48 @@ def test_a_default_that_cant_be_made_is_said_and_what_it_prints_is_not_lelys(
     assert "the default of its option `names` can't be made: RuntimeError" in str(
         caught.value
     )
+
+
+def test_a_list_or_a_mapping_can_be_given_whole_by_reference() -> None:
+    """`tags: ${steps.model.tags}` was "`tags` must be a list" before the
+    reference was looked at — so one that named no step was never reported,
+    and a null by reference was no null for an option that may be left out."""
+
+    @dataclass(frozen=True)
+    class Options:
+        tags: tuple[str, ...] = ()
+        env: Mapping[str, str] = field(default_factory=dict)
+        to: tuple[str, ...] | None = None
+        rows: tuple[object, ...] = ()
+
+    answers: dict[str, Any] = {
+        "${tags}": ["a", "b"],
+        "${env}": {"A": "1"},
+        "${nothing}": None,
+        "${numbers}": [1, 2],
+        "${later}": Unknown("model.tags"),
+    }
+
+    def resolve(scalar: Scalar) -> Any:
+        return answers[str(scalar.value)]
+
+    def built(yaml: str) -> Any:
+        return build(Options, block(yaml), resolve, "step `x`")
+
+    assert built("      tags: ${tags}\n      env: ${env}\n      to: ${nothing}\n") == (
+        Options(tags=("a", "b"), env={"A": "1"}, to=None)
+    )
+    assert built("      rows: ${numbers}\n").rows == (1, 2)
+    assert built("      tags: ${later}\n") == Unresolved(("model.tags",))
+    for yaml, message in (
+        (
+            "      tags: ${numbers}\n",
+            r"`tags` must be a list of text; \$\{numbers\} gives",
+        ),
+        ("      tags: ${env}\n", "`tags` must be a list of text"),
+        ("      env: ${tags}\n", "`env` must be a mapping of text"),
+        ("      tags: ${nothing}\n", "`tags` must be a list of text"),
+        ("      tags: plain\n", "`tags` must be a list"),
+    ):
+        with pytest.raises(OptionsError, match=message):
+            built(yaml)

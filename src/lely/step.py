@@ -45,7 +45,7 @@ import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TextIO, TypeVar
 
 from lely.errors import LelyError
 from lely.model import Json, Output, Outputs, StepPlan
@@ -79,6 +79,10 @@ class Cli(Protocol):
         ...
 
 
+#: What a step is being planned for.
+Purpose = Literal["apply", "destroy", "status"]
+
+
 @dataclass(frozen=True, slots=True)
 class Context(Generic[OptionsT]):
     """Everything a step is given, and nothing else.
@@ -91,6 +95,11 @@ class Context(Generic[OptionsT]):
     workspace this run talks to. `env` is the environment for a program the step
     runs: lely's own, plus `DATABRICKS_CONFIG_PROFILE` when a profile was chosen.
     `databricks` runs the Databricks CLI with the same credentials.
+
+    `purpose` is what the step is planned for. For a destroy and a status,
+    `plan` is asked only for what the step gives the ones below it — and there
+    what exists now is what counts, not what a deploy would make of it: the id
+    of a pipeline the next deploy would replace is the id to give.
     """
 
     target: str
@@ -102,6 +111,7 @@ class Context(Generic[OptionsT]):
     databricks: Cli
     log: Log
     connect: Callable[[], WorkspaceClient]
+    purpose: Purpose = "apply"
 
     @property
     def workspace(self) -> WorkspaceClient:

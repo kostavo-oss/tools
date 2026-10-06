@@ -193,7 +193,9 @@ def destroy(
     # From the top down: what each step gives the ones below. Nothing is removed
     # until every step's options are resolved — and found to be what the plan
     # showed: a destroy command acts on the values it is handed.
-    session = Session(config, target, workspace, env, databricks, log, connect)
+    session = Session(
+        config, target, workspace, env, databricks, log, connect, purpose="destroy"
+    )
     resolved: dict[str, Prepared] = {}
     for step in config.steps:
         if not step.runs_for(target):
@@ -270,7 +272,9 @@ def status(
     plan does.
     """
     planning.runs_for(config, target)
-    session = Session(config, target, workspace, env, databricks, log, connect)
+    session = Session(
+        config, target, workspace, env, databricks, log, connect, purpose="status"
+    )
     steps: list[StepStatus] = []
     for step in config.steps:
         if not step.runs_for(target):

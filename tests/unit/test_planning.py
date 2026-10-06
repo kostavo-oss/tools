@@ -11,7 +11,7 @@ import pytest
 
 import project
 from fakes import FakeDatabricks, deploy, write_bundle
-from lely import planfile, planning
+from lely import planfile, planning, running
 from lely.config import ConfigError, load
 from lely.errors import LelyError
 from lely.model import Change, Input, Plan, PlanKind
@@ -791,3 +791,52 @@ def test_a_plan_has_one_shape_whoever_made_it() -> None:
     for reason in (None, 5, "", "  "):
         with pytest.raises(LelyError, match="A `Skip` says why, in text"):
             Skip(cast(Any, reason))
+
+
+def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
+    tmp_path: Path,
+) -> None:
+    """A pipeline the next deploy would replace: to a deploy its id is still to
+    come. To a destroy it is the id of what is there — the step below was
+    skipped for "an id that isn't there", three lines above the pipeline, and
+    its destroy command never run."""
+    text = (
+        "steps:\n"
+        "  - name: app\n    uses: bundle\n    with: {vars: {model_version: '14'}}\n"
+        "  - name: tables\n    uses: command\n    with:\n"
+        '      apply: [echo, made, "${steps.app.resources.pipelines.foo.id}"]\n'
+        '      destroy: [echo, drop, "${steps.app.resources.pipelines.foo.id}"]\n'
+    )
+    project.write(tmp_path, text)
+    fake = FakeDatabricks(project.world(tmp_path, deployed=False))
+    deploy(
+        fake.world,
+        {
+            "pipelines.foo": {
+                "id": "900",
+                "config": {"name": "pipeline foo", "storage": "dbfs:/old"},
+            }
+        },
+    )
+    deploying = plan(tmp_path, fake)
+    assert [c.action for c in deploying.steps[0].plan.changes][:3] == [
+        "create",
+        "create",
+        "replace",
+    ]
+    assert deploying.steps[1].waiting == "waiting for app.resources.pipelines.foo.id"
+    tables = plan(tmp_path, fake, kind="destroy").steps[1]
+    assert tables.skipped is None
+    assert tables.plan.changes == (
+        Change("tables", "run", "runs echo drop 900", destructive=True),
+    )
+    status = running.status(
+        load(tmp_path / "lely.yml"),
+        target="dev",
+        workspace=project.WORKSPACE,
+        env={},
+        databricks=fake,
+        log=NullLog(),
+        connect=no_workspace,
+    )
+    assert status.steps[1].note == "runs a command; nothing to list"

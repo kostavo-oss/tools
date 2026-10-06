@@ -148,7 +148,11 @@ class Bundle:
         ctx.log.info(f"{ctx.name}: planning the bundle")
         document = bundle.answer("plan")
         found = changes(document)
-        outputs, later = gives(summary, _moving(found))
+        # For a destroy or a status the id a resource has now is the one that
+        # counts, whatever the next deploy would do to it: a step below takes
+        # down what it made for the pipeline that is there.
+        moving = _moving(found) if ctx.purpose == "apply" else frozenset()
+        outputs, later = gives(summary, moving)
         return StepPlan(
             changes=(*found, UPLOAD), outputs=outputs, later=later, payload=document
         )

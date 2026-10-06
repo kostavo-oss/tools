@@ -137,6 +137,10 @@ def build(
         ) from error
 
 
+def _by_reference(item: Scalar) -> bool:
+    return isinstance(item.value, str) and "${" in item.value
+
+
 class _Pending:
     """Stands in for a value that isn't known yet, so conversion can go on."""
 
@@ -182,16 +186,20 @@ class _Reader:
         if tp is Linked:
             return self.linked(item, name)
         if origin in (tuple, list):
+            element = args[0] if args else object
+            if isinstance(item, Scalar) and _by_reference(item):
+                return self.whole(item, name, "list", element, optional)
             if not isinstance(item, Seq):
                 self.problem(item.loc, f"`{name}` must be a list")
                 return None
-            element = args[0] if args else object
             return tuple(self.convert(element, child, name) for child in item.items)
         if origin in (dict, Mapping) or tp in (dict, Mapping):
+            element = args[1] if len(args) == 2 else object
+            if isinstance(item, Scalar) and _by_reference(item):
+                return self.whole(item, name, "mapping", element, optional)
             if not isinstance(item, Map):
                 self.problem(item.loc, f"`{name}` must be a mapping")
                 return None
-            element = args[1] if len(args) == 2 else object
             return {e.key: self.convert(element, e.value, name) for e in item.entries}
         if not isinstance(item, Scalar):
             self.problem(
@@ -204,6 +212,33 @@ class _Reader:
         if value is None and optional:
             return None  # a null that came by reference is a null all the same
         return self.scalar(tp, origin, args, value, item, name)
+
+    def whole(
+        self, item: Scalar, name: str, kind: str, element: Any, optional: bool
+    ) -> Any:
+        """A list or a mapping given whole, by reference: `tags: ${steps.x.tags}`.
+        The reference is looked at like any other — so one that names no step
+        is said — and what it answers has to be what the option takes."""
+        value = self.value(item)
+        if value is _PENDING or value is _PENDING_SECRET:
+            return _PENDING
+        if value is None and optional:
+            return None
+        items: Any = None
+        if kind == "list" and isinstance(value, list | tuple):
+            items = tuple(value)
+        elif kind == "mapping" and isinstance(value, Mapping):
+            items = dict(value)
+        held = items.values() if isinstance(items, dict) else items
+        if items is None or (
+            element is str and not all(isinstance(one, str) for one in held)
+        ):
+            of = " of text" if element is str else ""
+            self.problem(
+                item.loc, f"`{name}` must be a {kind}{of}; {item.value} gives {value!r}"
+            )
+            return None
+        return items
 
     def scalar(
         self,

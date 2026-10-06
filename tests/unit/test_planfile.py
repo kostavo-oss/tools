@@ -518,3 +518,27 @@ def test_a_kind_of_text_or_number_is_the_text_or_number_it_is() -> None:
         json.loads(json.dumps(planfile.step_plan_to_json(plain)))
     )
     assert back == plain
+
+
+def test_what_a_run_removed_is_listed_in_the_result_as_the_terminal_lists_it() -> None:
+    """It is no longer in the overview — nothing is deployed to list — and the
+    JSON left it out where the terminal showed it."""
+    overview = Overview((Item("job", "jobs.bar", "job bar", True, "1001"),))
+    happened = {"jobs.bar": "changed", "jobs.gone": "deleted"}
+    document = planfile.overview_to_json(overview, happened)
+    assert document is not None
+    assert [(item["key"], item["happened"]) for item in document["items"]] == [
+        ("jobs.bar", "changed"),
+        ("jobs.gone", "deleted"),
+    ]
+    assert document["items"][1] == {
+        "kind": "",
+        "key": "jobs.gone",
+        "name": "",
+        "deployed": False,
+        "id": None,
+        "url": None,
+        "happened": "deleted",
+    }
+    listed = planfile.overview_to_json(overview)
+    assert listed is not None and len(listed["items"]) == 1  # a status: no run to tell

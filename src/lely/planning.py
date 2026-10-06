@@ -68,7 +68,7 @@ from lely.refs import (
 )
 from lely.refs import check as check_ref
 from lely.registry import Found
-from lely.step import Cli, Context, Log
+from lely.step import Cli, Context, Log, Purpose
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -272,6 +272,8 @@ class Session:
     resolved: dict[str, Prepared] = field(default_factory=dict)
     #: Outputs another step takes, by step: these are shown in the plan.
     taken: dict[str, set[str]] = field(default_factory=dict)
+    #: What the steps are planned for: each is told (`Context.purpose`).
+    purpose: Purpose = "apply"
 
     def prepare(self, step: StepConfig) -> Prepared:
         """Resolve a step's options from what the steps above it give."""
@@ -472,6 +474,7 @@ class Session:
             databricks=self.databricks,
             log=self.log,
             connect=self.connect,
+            purpose=self.purpose,
         )
 
     def _call(
@@ -563,7 +566,9 @@ def plan(
     """
     check(config)
     runs_for(config, target)
-    session = Session(config, target, workspace, env, databricks, log, connect)
+    session = Session(
+        config, target, workspace, env, databricks, log, connect, purpose=kind
+    )
     steps: list[PlannedStep] = []
     for step in config.steps:
         if not step.runs_for(target):
