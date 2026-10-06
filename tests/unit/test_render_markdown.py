@@ -38,6 +38,7 @@ from lely.render.markdown import (
     result_markdown,
     skipped_markdown,
     status_markdown,
+    stopped_markdown,
 )
 from lely.step import NullLog
 
@@ -478,11 +479,23 @@ def test_a_fork_is_told_why_there_is_no_plan() -> None:
     assert not shown.startswith("<!--")  # it is no plan, and takes no plan's place
 
 
+def test_a_run_that_never_started_says_so() -> None:
+    shown = stopped_markdown("apply", "dev", True, f"Plan again.\n```\n{EVIL}")
+    assert shown.startswith(
+        "### lely apply · target `dev` · refused\n\n**Nothing was run.**"
+    )
+    assert "@" not in outside(shown)
+    assert "### lely destroy · target `?` · failed" in stopped_markdown(
+        "destroy", None, False, "no config"
+    )
+
+
 def test_under_a_plan_what_made_it_and_from_what() -> None:
     link = "https://github.com/acme/shop/actions/runs/7"
     sha = "0123456789abcdef0123456789abcdef01234567"
-    assert footer(version="0.1.0", commit=sha, link=link) == (
-        f"<sub>lely `0.1.0` · planned on `0123456789ab` · [the run](<{link}>)</sub>\n"
+    assert footer(version="0.1.0", commit=sha, tree="4b825dc642cb6eb9", link=link) == (
+        "<sub>lely `0.1.0` · commit `0123456789ab` · tree `4b825dc642cb` · "
+        f"[the run](<{link}>)</sub>\n"
     )
     assert footer(version="0.1.0") == "<sub>lely `0.1.0`</sub>\n"
     assert "the run" not in footer(version="0.1.0", link="http://plain.example/x")

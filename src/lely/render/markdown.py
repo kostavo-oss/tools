@@ -423,12 +423,35 @@ def skipped_markdown(kind: PlanKind, target: str, fork: str) -> str:
     )
 
 
-def footer(*, version: str, commit: str | None = None, link: str | None = None) -> str:
-    """Under a plan on a pull request: what made it, from which commit, and
-    where the run is."""
+def stopped_markdown(kind: str, target: str | None, refused: bool, message: str) -> str:
+    """A run that ended before its first step: nothing ran, and why."""
+    title = "lely apply" if kind == "apply" else "lely destroy"
+    ended = "refused" if refused else "failed"
+    parts = [
+        _heading(title, target or "?", None, ended),
+        "",
+        "**Nothing was run.**",
+        "",
+        _block([_Line(message)], "text", margin=False),
+    ]
+    return "\n".join(parts) + "\n"
+
+
+def footer(
+    *,
+    version: str,
+    commit: str | None = None,
+    tree: str | None = None,
+    link: str | None = None,
+) -> str:
+    """Under a plan on a pull request: what made it, for which commit, on
+    which tree — the one `lely apply` holds the plan to — and where the run
+    is."""
     parts = [f"lely {_code(version)}"]
     if commit:
-        parts.append(f"planned on {_code(commit[:12])}")
+        parts.append(f"commit {_code(commit[:12])}")
+    if tree:
+        parts.append(f"tree {_code(tree[:12])}")
     run = _followed(link or "", "the run")
     if run:
         parts.append(run)

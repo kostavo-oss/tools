@@ -1060,3 +1060,41 @@ def test_what_a_program_prints_is_logged_without_its_control_characters(
     assert result.exit_code == 0, result.output
     assert "\x1b" not in result.output
     assert "notify: done �[2J�[1;1H and more" in result.output
+
+
+# -- Markdown (008/R1) ----------------------------------------------------------------
+
+
+def test_a_plan_as_markdown_is_the_plan_the_file_holds(ready: Lely) -> None:
+    """`plan -f md`, `plan --destroy -f md` and `show -f md`: stdout holds the
+    Markdown and nothing else."""
+    planned = ready("plan", "-t", "dev", "-f", "md", "-o", "plan.json")
+    assert planned.exit_code == 0
+    assert planned.stdout.startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev`"
+    )
+    assert "\n+     create   jobs.bar\n" in planned.stdout
+    assert "Wrote" not in planned.stdout and "Wrote plan.json" in planned.stderr
+    shown = ready("show", "plan.json", "-f", "md")
+    assert shown.stdout == planned.stdout
+    destroy = ready("plan", "-t", "dev", "--destroy", "-f", "md")
+    assert destroy.stdout.startswith(
+        "<!-- lely:destroy:dev -->\n### lely destroy plan · "
+    )
+    assert "\n-     delete   jobs.backfill  destructive\n" in destroy.stdout
+
+
+def test_a_run_and_what_exists_as_markdown(ready: Lely) -> None:
+    refused = ready("apply", "-t", "dev", "-f", "md")  # no terminal, no --yes
+    assert refused.exit_code == 2
+    assert refused.stdout.startswith(
+        "### lely apply · target `dev` · refused\n\n**Nothing was run.**\n\n```text\n"
+    )
+    applied = ready("apply", "-t", "dev", "--yes", "-f", "md")
+    assert applied.exit_code == 0
+    assert applied.stdout.startswith("### lely apply · target `dev`\n")
+    assert "#### What exists now" in applied.stdout
+    assert "| `created` | [open](<" in applied.stdout
+    status = ready("status", "-t", "dev", "-f", "md")
+    assert status.stdout.startswith("### lely status · target `dev`\n")
+    assert "| `app` | `job` | `jobs.bar` | `job bar` | `1001` | [open](<" in status.stdout

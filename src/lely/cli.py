@@ -3,11 +3,11 @@
     lely validate                 config, options, references: offline; the wiring
     lely steps                    plugins: options, outputs, what each can do
     lely schema [-o file]         a JSON Schema of the config, for editors
-    lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
-    lely show plan.json [-f rich|json]
+    lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json|md]
+    lely show plan.json [-f rich|json|md]
     lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
     lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
-    lely status -t <target> [-f rich|json]
+    lely status -t <target> [-f rich|json|md]
     lely doctor
 
 `-t` is always given to a command that touches a workspace: there is no default
@@ -54,6 +54,7 @@ from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
 from lely.model import KNOWN, Plan, PlannedStep, Result, Source, Workspace
+from lely.render import markdown
 from lely.render.rich import (
     clean,
     render_plan,
@@ -81,6 +82,7 @@ DATABRICKS: tuple[str, ...] = ("databricks",)
 class Format(StrEnum):
     rich = "rich"
     json = "json"
+    md = "md"
 
 
 ConfigOption = Annotated[
@@ -523,6 +525,8 @@ def status(
         raise _fail(error, refusals=False) from None
     if output_format is Format.json:
         _echo_json(planfile.status_to_json(found))
+    elif output_format is Format.md:
+        typer.echo(markdown.status_markdown(found), nl=False)
     else:
         out.print(status_view(found))
 
@@ -790,12 +794,19 @@ def _stopped(known: _Known, error: LelyError, output_format: Format) -> typer.Ex
                 "steps": [],
             }
         )
+    elif output_format is Format.md:
+        typer.echo(
+            markdown.stopped_markdown(known.kind, known.target, refused, str(error)),
+            nl=False,
+        )
     return _fail(error)
 
 
 def _finish(result: Result, output_format: Format) -> None:
     if output_format is Format.json:
         _echo_json(planfile.result_to_json(result))
+    elif output_format is Format.md:
+        typer.echo(markdown.result_markdown(result), nl=False)
     else:
         out.print(result_view(result))
     if result.outcome != "done":
@@ -834,11 +845,13 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
         if output is None:
             typer.echo(planfile.dumps(built), nl=False)
             return
+    elif output_format is Format.md:
+        typer.echo(markdown.plan_markdown(built), nl=False)
     else:
         render_plan(built, out)
     if output is not None:
-        # with `-f json`, stdout is for JSON and nothing else
-        said = err if output_format is Format.json else out
+        # with `-f json` or `-f md`, stdout is for that and nothing else
+        said = out if output_format is Format.rich else err
         said.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 
