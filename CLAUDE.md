@@ -13,9 +13,9 @@ docs and the code disagree, say so instead of silently picking one. Don't build 
 
 ## The page
 
-Caland is moving from the terminal to a page in the browser (`spec/008-the-page.md`). Until
-the page does everything the terminal version does, it is behind `caland --page`; the
-terminal version is **frozen** — fix what is broken in it, add nothing.
+Caland is a page in the browser (`spec/008-the-page.md`): that is what `caland` opens. The
+terminal version is `caland --tui` and is **frozen** — fix what is broken in it, add
+nothing. Whether and when it is removed is the owner's (`spec/008`, D5): don't.
 
 - The page is `src/caland/interface/web/`: `gate.py` (which requests are answered — pure),
   `server.py`, `views.py` (what the page is told — pure), `opening.py`, and `static/`.
@@ -30,6 +30,12 @@ terminal version is **frozen** — fix what is broken in it, add nothing.
 - A change goes through `WorkspaceService`, which takes one at a time and asks the
   workspace what is there *now* before it writes, moves or puts back. Two names that differ
   only in case are one name (`domain.same_name`): Databricks says so.
+- A request about a workspace says which one it means (`gate.WORKSPACE_HEADER`, the `turn`
+  the state gave) and the server takes `Page.current()` once per request: nothing asked of
+  one workspace is done to, or shown under, another. On the page `ask()` drops an answer
+  that comes after the page has moved on, and `inTurn` a change that was queued before.
+- `~/.databrickscfg` holds tokens: it is written through `profiles._replace` only, and the
+  page keeps a profile with `add`, which never writes over one that is there.
 - One dialog is open at a time (`open()` in `page.js`) — but a question over the grants —
   and a dialog asked for before an `await` checks `moment` after it: what comes back late
   does not open over what the person has gone on to do. `y` must only ever reach the

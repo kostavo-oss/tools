@@ -1,8 +1,8 @@
 # Caland ▦
 
-**A keyboard-driven terminal UI for managing Databricks secrets.**
-Browse scopes, secrets and ACLs; create / edit / delete; reveal & copy
-values — all from a fast, calm three-pane TUI.
+**Databricks secrets, by hand: a keyboard-driven page in your browser, served
+from your own machine.** Browse scopes, secrets and grants; create, edit, move
+and delete; show and copy values; put a certificate in from a file.
 
 [![ci](https://github.com/kostavo-oss/caland/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/caland/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/caland.svg)](https://pypi.org/project/caland/)
@@ -11,7 +11,7 @@ values — all from a fast, calm three-pane TUI.
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-![Caland browsing secrets](docs/img/browse.svg)
+![Caland with a secret's value shown](docs/img/page-browse.png)
 
 **[Read the docs →](https://kostavo-oss.github.io/caland/)** — installation,
 connecting, the full keyboard reference, themes, and the security model.
@@ -38,8 +38,9 @@ uv tool install caland  # install the `caland` command on PATH
 
 Or with pipx: `pipx run caland` / `pipx install caland`.
 
-> Requires Python ≥ 3.11. Built with [Textual](https://textual.textualize.io)
-> and the [Databricks SDK](https://github.com/databricks/databricks-sdk-py).
+> Requires Python ≥ 3.11 and a browser. Built on the
+> [Databricks SDK](https://github.com/databricks/databricks-sdk-py); the terminal
+> version on [Textual](https://textual.textualize.io).
 
 ## Quickstart
 
@@ -47,99 +48,76 @@ Or with pipx: `pipx run caland` / `pipx install caland`.
 caland
 ```
 
-You **don't** need to pre-configure anything. Caland opens a **workspace
-picker** that gathers connection targets from three places — each row labelled
-with its **Source**, so you always know where it came from:
+It starts a small server on your machine and opens a tab. You **don't** need to set
+anything up: Caland finds the workspaces it can reach, and when there is no doubt which
+one you mean — the workspace of a bundle in the current folder, or your only profile — it
+goes straight there. Otherwise the page asks:
 
-1. **Asset bundle** — if a `databricks.yml` (Databricks Asset Bundle) sits in the
-   current directory, its target workspace is offered as the **default**,
-   pre-selected so you connect with a single keystroke.
-2. **`~/.databrickscfg`** — every saved profile is listed automatically.
-3. **Workspace URL** — *Add by URL* and sign in through your browser (OAuth U2M /
-   SSO). No token required; tick *save as profile* to keep it.
-
-Pick a row and press <kbd>Enter</kbd>. Saved profiles connect instantly; a bundle
-target or a URL opens the browser to sign in — exactly like `databricks auth
-login` (host + `auth_type = external-browser`, **no secret ever stored**).
-
-<table>
-  <tr>
-    <td><img src="docs/img/login.svg" alt="Workspace picker"></td>
-    <td><img src="docs/img/auth.svg" alt="Authorization overview"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Workspace picker — bundle + profiles + URL</sub></td>
-    <td align="center"><sub>Authorization overview</sub></td>
-  </tr>
-</table>
-
-## The page (preview)
-
-Caland is becoming a page in your browser, served from your own machine:
+1. **A bundle** — the workspace of a `databricks.yml` in the current folder, picked for you.
+2. **`~/.databrickscfg`** — every profile.
+3. **An address** — sign in through the browser, as `databricks auth login` does. No
+   token; keep it as a profile if you want to come back by name.
 
 ```sh
-caland --page prod
+caland prod               # straight to a workspace by name
+caland prod --read-only   # and change nothing there
+caland --no-open          # print the link instead of opening a browser
 ```
 
-It does what the terminal version does, and takes a certificate from a file picker — see
-[the page](https://kostavo-oss.github.io/caland/page/). Choosing a workspace from a list is
-the one thing not on it yet; everything below is the terminal version.
+<kbd>Ctrl</kbd>+<kbd>C</kbd> stops it and forgets every value it held.
 
-## Features
+## What it does
 
-- **Workspace picker** — connect from a Databricks Asset Bundle (`databricks.yml`,
-  offered as the default), your `~/.databrickscfg` profiles, or a workspace URL —
-  each row labelled with its source.
-- **Three-pane browser** — scopes (with secret counts + your access), secrets
-  (with relative age), and a detail pane.
-- **Reveal & copy** secret values; values are fetched lazily on reveal and never
-  bulk-pulled into memory.
-- **Full CRUD** — create / edit / delete secrets, create / delete scopes,
-  manage scope **permissions (ACLs)**.
-- **Authorization overview** — your effective permission on every scope.
-- **Fuzzy filter** (`/`), **command palette** (`ctrl+p`), vim + arrow navigation.
-- **Pre-loads & caches** everything on startup for an instant experience.
-- A calm **Graphite** default theme, plus optional violet / amber / phosphor skins.
+- **Three panes** — scopes, the secrets of one with when each was last changed, and the
+  detail: your access, who else has a grant, and the value once you ask for it.
+- **Secrets, with a way back** — new, edit, move, copy, rename, delete. Nothing is deleted
+  without a `y`, and `u` puts the last one back.
+- **Files as they are** — choose a certificate with your system's file dialog. Caland says
+  who it is for and when it expires before it is saved, and stores it byte for byte.
+- **Grants** — who has access to a scope; what you can reach; what somebody else can.
+- **`.env` in and out**, and a report of the secrets nobody has changed in a while.
+- **A value is shown when asked, and hides itself after 30 seconds.**
+
+![The form for a new secret, with a certificate picked](docs/img/page-form.png)
 
 ## Keys
 
-Everything is keyboard driven. Press `?` for the in-app cheat-sheet or `ctrl+p`
-for the fuzzy command palette.
+Everything has a key, and everything can be clicked. `?` on the page lists them all.
 
-| Key | Action |
-|-----|--------|
-| `↑↓` / `j` `k` | Move within a pane |
-| `←→` / `h` `l` · `tab` | Move between panes |
-| `g` / `G` | Jump to top / bottom |
-| `/` | Filter the focused pane (`↑↓` move while typing, `esc` clears) |
-| `ctrl+f` / `F` | Search every scope |
-| `s` / `S` | Sort: next column / reverse |
-| `n` / `N` | New secret / new scope |
-| `e` · `d` | Edit secret · delete (with confirm) |
-| `m` | Move / copy / rename secret |
-| `u` | Undo the last secret delete or move |
-| `p` | Manage scope permissions (ACLs) |
-| `space` / `enter` | Reveal / hide value (auto-hides in 30s) |
-| `c` / `C` | Copy value / copy a code reference (dbutils, Spark conf, CLI) |
-| `r` / `R` | Refresh scope / workspace |
-| `a` / `A` | Authorization overview / stale-secret audit |
-| `w` · `ctrl+p` / `P` | Switch workspace · command palette |
-| `?` · `q` | Help · quit |
+| Keys | |
+|------|--|
+| <kbd>Tab</kbd> · <kbd>←</kbd> <kbd>→</kbd> | From pane to pane |
+| <kbd>↑</kbd> <kbd>↓</kbd> · <kbd>j</kbd> <kbd>k</kbd> | Inside a pane |
+| <kbd>/</kbd> | Filter scopes and secrets |
+| <kbd>Space</kbd> · <kbd>c</kbd> · <kbd>C</kbd> | Show the value · copy it · copy how to reach it from code |
+| <kbd>n</kbd> · <kbd>e</kbd> · <kbd>m</kbd> · <kbd>d</kbd> · <kbd>u</kbd> | New · edit · move or copy · delete · put back |
+| <kbd>N</kbd> · <kbd>D</kbd> | New scope · delete scope |
+| <kbd>p</kbd> · <kbd>a</kbd> · <kbd>P</kbd> | Grants of the scope · what you can reach · what somebody else can |
+| <kbd>i</kbd> · <kbd>x</kbd> · <kbd>A</kbd> | `.env` in · `.env` out · secrets gone stale |
+| <kbd>s</kbd> · <kbd>S</kbd> · <kbd>f</kbd> | Sort · the other way round · all scopes or only yours |
+| <kbd>w</kbd> | Another workspace |
 
-The command palette (`ctrl+p`) holds the rest: bulk **.env import/export**, a
-**who-has-access** principal lookup, and **forget revealed values**.
+## The terminal version
 
-Run `caland prod` (or `--profile prod`) to connect straight to a discovered
-workspace, and add `--read-only` to browse and reveal with every mutation
-disabled — handy when you're just poking around production. Preferences (theme,
-scope toggle, audit threshold) persist in `~/.config/caland/settings.json`.
+Until 0.6 Caland was a terminal app, and `caland --tui` still is one. It does what it did
+and gets nothing new — see
+[the terminal version](https://kostavo-oss.github.io/caland/terminal/).
+
+![The terminal version](docs/img/browse.svg)
 
 ## Security
 
-Caland talks to Databricks through the official SDK's unified auth. It does
-**not** store secret *values* — they're read on demand and kept only in memory.
-Saved profiles contain a host + `auth_type`, never a token. See
-[SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
+- **A value is read when you ask for it, and written nowhere**: not to disk, not to a cache,
+  not to a log. Shown, it hides itself after 30 seconds.
+- **The page is yours only.** It is served from `127.0.0.1`, answers only to its own page
+  at its own address, and to nothing without the session's key — which is never a cookie
+  and never on a command line.
+- **Nothing is deleted without a `y`**, and `--read-only` changes nothing at all.
+- **No credentials of its own.** It signs in the way the Databricks CLI does. A profile it
+  saves holds an address and how to sign in, never a token.
+
+More, and what it cannot defend against, in
+[the docs](https://kostavo-oss.github.io/caland/page/#how-it-is-kept-yours).
 
 ## How it's built
 

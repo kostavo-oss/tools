@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`caland` opens a page in your browser.** The page does everything the terminal version
+  does, so it is what Caland is now: served from your own machine, to you only. Nothing
+  changes in a workspace, and your profiles and preferences are used as before.
+- **The terminal version is `caland --tui`.** It is as it was, and gets nothing new.
+  `caland --page` still works and means what `caland` means.
+
+- **An option caland does not know is refused**, instead of passed over: `--readonly`,
+  mistyped, used to open the workspace to change. `--profile=NAME` is understood.
+
+### Fixed
+
+- `~/.databrickscfg` is written whole or not at all, one writer at a time, and a new one
+  is readable by its owner only. A file with a profile in it twice no longer stops Caland.
+
+### Added
+
+- **Choosing a workspace, on the page.** With more than one workspace and none named, the
+  page asks which: what a bundle here and `~/.databrickscfg` offer, and a field to sign in
+  to an address through the browser — kept as a profile if you want. `w` goes to another
+  workspace, and leaves nothing of the one you were in.
+
 ## [0.5.2] - 2026-10-06
 
 ### Added

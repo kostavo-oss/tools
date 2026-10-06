@@ -1,5 +1,9 @@
 # Themes
 
+!!! note "This is about the terminal version"
+    `caland --tui` — Caland as it was. It gets nothing new; what `caland` opens now is
+    [the page](page.md), and [its keys](page.md#keys) differ in places.
+
 Caland ships with a calm, near-neutral default and a few optional skins.
 
 | Theme | Look |

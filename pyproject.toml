@@ -1,7 +1,7 @@
 [project]
 name = "caland"
 version = "0.5.2"
-description = "A keyboard-driven terminal UI for managing Databricks secrets"
+description = "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

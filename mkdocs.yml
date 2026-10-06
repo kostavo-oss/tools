@@ -89,9 +89,11 @@ nav:
   - Installation: installation.md
   - Guide:
       - Connecting: connecting.md
+      - Using the page: page.md
+  - The terminal version:
+      - What it is: terminal.md
       - Browsing & managing: browsing.md
       - Keyboard: keyboard.md
-      - The page (preview): page.md
       - Themes: themes.md
   - Security: security.md
   - Develop:
