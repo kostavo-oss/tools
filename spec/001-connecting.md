@@ -1,0 +1,47 @@
+# 001 — connecting
+
+**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+
+## Why
+
+A person has several workspaces and several ways of reaching each. Before anything can be
+shown, caland has to know which one, and the person has to trust that it is the one they
+meant.
+
+## Requirements
+
+- **R1 — One picker for every way in.** On launch, caland lists the workspaces it can reach
+  from three places, and every row says where it came from: an Asset Bundle in the current
+  directory, the profiles in `~/.databrickscfg`, and a URL typed in. *(built, 0.1.0)*
+- **R2 — A bundle's workspace is the default.** With a `databricks.yml` in the current
+  directory, its workspace is listed first and selected: the target marked `default: true`,
+  or the only target, or the top-level `workspace.host`. A host that still holds a `${…}`
+  variable is not a host, and is passed over. *(built, 0.2.0)*
+- **R3 — Sign in with a URL, in the browser.** *Add by URL* signs in through the browser
+  (OAuth, as `databricks auth login` does). No token is asked for. *(built, 0.2.0)*
+- **R4 — Keep a sign-in as a profile.** Ticking *save as profile* writes the host and
+  `auth_type = external-browser` to `~/.databrickscfg`, and nothing else. *(built, 0.2.0)*
+- **R5 — The picker opens with nothing to show.** With no bundle and no profiles it is empty
+  and offers the URL. *(built)*
+- **R6 — Say who is connected.** Once connected, the header shows the identity and the
+  workspace. *(built, 0.1.0)*
+- **R7 — Switch without restarting.** `w` reopens the picker; the new workspace's data
+  replaces the old. *(built)*
+- **R8 — Straight to a workspace by name.** `caland prod`, or `--profile prod`, skips the
+  picker and connects to a workspace the picker would have listed. *(built, 0.4.0)*
+
+## Not in this spec
+
+- **Finding workspaces through an account** — a cloud and an account id. It was built and
+  removed: a round-trip of its own for little gain.
+- **Tokens.** caland never asks for one and never stores one; a profile that holds one is
+  the Databricks SDK's to read.
+
+## To decide
+
+Nothing.
+
+## Done when
+
+Built. Held by `tests/test_bundle.py`, `test_profiles.py`, `test_session.py`,
+`test_ui_login.py` and the picker's snapshot.

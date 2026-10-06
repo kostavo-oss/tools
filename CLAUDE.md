@@ -3,6 +3,14 @@
 Guidance for Claude / agents working in this repo. **Caland** is a
 keyboard-driven Textual TUI for managing Databricks secrets.
 
+## The spec
+
+`spec/` says *what* each part of the tool must do; `docs/` tells a user how to use it, and
+`docs/architecture.md` how it is built. Read the spec of a part before changing it, and
+change the spec in the same pull request when the behaviour changes. Where the spec, the
+docs and the code disagree, say so instead of silently picking one. Don't build past a
+"To decide" that is still open — those are the owner's to answer.
+
 ## Toolchain — use these, nothing else
 
 This project is **all-[Astral](https://astral.sh)**, version-managed by
