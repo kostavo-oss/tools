@@ -32,6 +32,8 @@
              spellcheck="false" aria-label="Filter scopes and secrets">
       <kbd>/</kbd>
     </div>
+    <button type="button" class="main" id="new-open" data-changes>New secret <kbd>n</kbd></button>
+    <button type="button" id="scope-new" data-changes>New scope <kbd>N</kbd></button>
     <span class="meta" id="progress" role="status"></span>
   </div>
 
@@ -70,6 +72,89 @@
   <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
 </dialog>
 
+<!-- a secret, new or edited: a value typed, or a file chosen (spec/008, R4–R6) -->
+<dialog id="form" aria-labelledby="form-title">
+  <h1 id="form-title">New secret</h1>
+  <label for="form-scope">Scope</label>
+  <select id="form-scope"></select>
+  <label for="form-key">Key</label>
+  <input type="text" id="form-key" class="mono" autocomplete="off" spellcheck="false">
+  <label for="form-value">Value</label>
+  <input type="password" id="form-value" class="mono" autocomplete="off" data-1p-ignore
+         data-lpignore="true" data-bwignore>
+  <div class="or">or a file &mdash; a certificate, a key, anything of more than one line</div>
+  <div class="drop" id="drop">
+    <button type="button" id="choose">Choose a file&hellip;</button>
+    <span class="dim">or drop one here</span>
+    <input type="file" id="file" hidden>
+  </div>
+  <div class="picked" id="picked" hidden></div>
+  <p class="quiet" id="picked-note" hidden></p>
+  <p class="bad" id="form-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="form-save">Save <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="move" aria-labelledby="move-title">
+  <h1 id="move-title">Move or copy</h1>
+  <p class="meta mono" id="move-from"></p>
+  <label for="move-scope">To scope</label>
+  <select id="move-scope"></select>
+  <label for="move-key">Key</label>
+  <input type="text" id="move-key" class="mono" autocomplete="off" spellcheck="false">
+  <label class="check"><input type="checkbox" id="move-keep"> Keep the original: copy, not move</label>
+  <p class="bad" id="move-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="move-save">Save <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="grants" aria-labelledby="grants-title">
+  <h1 id="grants-title">Who has access to <span class="mono" id="grants-scope"></span></h1>
+  <table>
+    <thead><tr><th>Principal</th><th>May</th><th></th></tr></thead>
+    <tbody id="grants-rows"></tbody>
+  </table>
+  <p class="none" id="grants-none" hidden>No grants are listed. Listing them takes MANAGE on the
+    scope.</p>
+  <p class="quiet">Grants are for a whole scope: whoever may read one secret in it may read
+    them all.</p>
+  <div class="grant" data-changes>
+    <input type="text" id="grant-who" placeholder="a user, a group or a service principal"
+           autocomplete="off" spellcheck="false" aria-label="Principal">
+    <select id="grant-may" aria-label="Permission"><option>READ</option><option>WRITE</option>
+      <option>MANAGE</option></select>
+    <button type="button" class="main" id="grant-give">Grant</button>
+  </div>
+  <p class="bad" id="grants-error" role="alert" hidden></p>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<dialog id="scope-form" aria-labelledby="scope-title">
+  <h1 id="scope-title">New scope</h1>
+  <label for="scope-name">Name</label>
+  <input type="text" id="scope-name" class="mono" autocomplete="off" spellcheck="false">
+  <p class="bad" id="scope-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="scope-save">Make it <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<!-- nothing destructive without a deliberate y (spec/006, R3) -->
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <h1 id="confirm-title"></h1>
+  <div class="alert" id="confirm-what"></div>
+  <p class="dim" id="confirm-note"></p>
+  <div class="acts">
+    <button type="button" data-close id="confirm-no">Cancel <kbd>esc</kbd></button>
+    <button type="button" class="danger" id="confirm-yes"><span id="confirm-do"></span> <kbd>y</kbd></button>
+  </div>
+</dialog>
+
 <dialog id="help" aria-labelledby="help-title">
   <h1 id="help-title">Keys</h1>
   <table><tbody>
@@ -79,12 +164,16 @@
     <tr><td><kbd>/</kbd></td><td>Filter; <kbd>&darr;</kbd> picks while you type, <kbd>enter</kbd> goes to what is left, <kbd>esc</kbd> clears</td></tr>
     <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
     <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
+    <tr><td><kbd>n</kbd> &middot; <kbd>N</kbd></td><td>New secret &middot; new scope</td></tr>
+    <tr><td><kbd>e</kbd> &middot; <kbd>m</kbd> &middot; <kbd>d</kbd></td><td>Edit &middot; move, copy or rename &middot; delete (a scope, with the keyboard in the scopes)</td></tr>
+    <tr><td><kbd>u</kbd></td><td>Put back the secret last deleted or moved away</td></tr>
+    <tr><td><kbd>p</kbd></td><td>Who has access to the scope</td></tr>
     <tr><td><kbd>f</kbd></td><td>Only the scopes you can reach, or all of them</td></tr>
     <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
   </tbody></table>
-  <p class="quiet">This is a preview: it reads, and changes nothing yet. Everything else is
-    in the terminal version, <span class="mono">caland</span> without
-    <span class="mono">--page</span>.</p>
+  <p class="quiet">Not on the page yet: choosing a workspace, .env in and out, the report of
+    stale secrets. Those are in the terminal version, <span class="mono">caland</span>
+    without <span class="mono">--page</span>.</p>
   <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
 </dialog>
 

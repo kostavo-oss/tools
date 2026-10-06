@@ -34,9 +34,16 @@ button, input { font: inherit; color: inherit; }
 button { background: none; border: 1px solid var(--edge); border-radius: .4rem;
   padding: .22rem .7rem; cursor: pointer; }
 button:hover { background: var(--sunk); }
+button.main { font-weight: 600; border-color: currentColor; }
+button.danger { color: var(--red); border-color: var(--red); }
 button kbd { margin-left: .35rem; }
-input[type=text] { background: none; border: 1px solid var(--edge); border-radius: .4rem;
-  padding: .32rem .6rem; width: 100%; }
+input[type=text], input[type=password], select { background: none;
+  border: 1px solid var(--edge); border-radius: .4rem; padding: .32rem .6rem; width: 100%; }
+button, input, select { font: inherit; color: inherit; }
+.bad { color: var(--red); margin: .6rem 0 0; }
+/* started read-only: what changes a workspace is not on the page. The server refuses it
+   whatever the page shows. */
+[data-read-only=true] [data-changes] { display: none !important; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 dialog:focus-visible { outline: none; }
 /* a pane is one stop for tab; inside it the row shows where the keyboard is, not a ring.
@@ -94,6 +101,19 @@ dialog::backdrop { background: #0007; }
 dialog h1 { font-size: 1.1rem; margin-bottom: .8rem; }
 dialog td:first-child { white-space: nowrap; }
 dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
+dialog label { display: block; margin: .7rem 0 .2rem; color: var(--dim); font-size: .85rem; }
+dialog label.check { color: inherit; font-size: inherit; margin-top: .9rem; }
+dialog td.end { text-align: right; white-space: nowrap; }
+.or { display: flex; gap: .7rem; align-items: center; color: var(--dim);
+  font-size: .8rem; margin: .7rem 0 .5rem; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--edge); }
+.drop { border: 1px dashed var(--edge); border-radius: .4rem; padding: .8rem .9rem;
+  display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
+.drop.over { border-color: var(--blue); background: var(--sunk); }
+.picked { border: 1px solid var(--edge); border-left: .25rem solid var(--green);
+  border-radius: .4rem; padding: .5rem .9rem; margin-top: .6rem; }
+.picked dl.facts { margin: .3rem 0 0; }
+.grant { display: grid; grid-template-columns: 1fr 8rem auto; gap: .5rem; margin-top: .9rem; }
 #code-rows button { display: block; width: 100%; text-align: left; margin: .4rem 0;
   padding: .45rem .8rem; }
 #code-rows .mono { display: block; overflow-wrap: anywhere; }

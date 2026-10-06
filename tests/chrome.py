@@ -216,6 +216,15 @@ class Tab:
     def type(self, text: str) -> None:
         self.call("Input.insertText", {"text": text})
 
+    def choose_files(self, selector: str, *paths: str) -> None:
+        """What the system's file dialog does once a file is picked in it: hand
+        the file to the page's input. The dialog itself is the browser's."""
+        root = self.call("DOM.getDocument")["root"]["nodeId"]
+        node = self.call("DOM.querySelector", {"nodeId": root, "selector": selector})
+        self.call(
+            "DOM.setFileInputFiles", {"files": list(paths), "nodeId": node["nodeId"]}
+        )
+
     def focus(self) -> str:
         """What has the keyboard: its id, or failing that what it says."""
         return self.js(
