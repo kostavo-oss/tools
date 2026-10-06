@@ -75,6 +75,14 @@ released in 0.4.1 and 0.5.0 ([003, D4](003-secrets.md#to-decide)). It also carri
 second part of the page — changing things, and the file picker — still behind `--page`, and
 with it one new dependency, `cryptography`.
 
+## 0.5.2 (2026-10-06)
+
+Released on the owner's word for a second fix in what was already out: a `.env` value quoted
+over several lines — a private key pasted into the file — was stored as its first line, and
+its lines that end in `=` became secrets of their own
+([008](008-the-page.md), "the tools", Reviewed). It also carries the page's tools, still
+behind `--page`.
+
 ## To decide
 
 - **D1 — Which version is the first caland?** The shim is written for `0.5.0`.
