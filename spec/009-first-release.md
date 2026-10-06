@@ -64,7 +64,10 @@ say: the release is one pull request that bumps the version, and merging it publ
   `pypi`).
 - **R4** — lely's CI runs `ty` in a job of its own, beside the shared workflow.
 - **R5** — waits for the release: until then the README's "isn't on PyPI yet" is true.
-- **R6** — the docs site, in a pull request of its own.
+- **R6** — the docs site: MkDocs Material, as stevin's, built in strict mode on every pull
+  request that touches it and deployed to Pages from `main`
+  (<https://kostavo-oss.github.io/lely/>). The contributing guide and the changelog are
+  quoted from the top of the repository, where GitHub looks for them.
 
 The release itself will be one pull request: `version = "0.1.0"`, the classifier *Alpha*,
 the name alone under `authors`, the changelog's notes moved under `## [0.1.0]`, and the

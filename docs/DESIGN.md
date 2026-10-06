@@ -346,7 +346,7 @@ Whatever a team writes, through the contract above.
 
 ### `stevin`
 
-Parked: the owner takes it up separately ([spec 006](../spec/006-stevin.md)). Its plan half exists
+Parked: the owner takes it up separately ([spec 006](https://github.com/kostavo-oss/lely/blob/main/spec/006-stevin.md)). Its plan half exists
 — `stevin plan --target <t> --config <c> --output <tmp> --format json`, the plan file as payload —
 and is left as it is. A project that uses it can plan; `apply` refuses before anything runs.
 
@@ -492,7 +492,7 @@ Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8
 
 **Run on a real workspace once**, on 2026-10-06, with CLI v1.19.0 and one small bundle. Before
 that, apply and destroy were built against the fake only, on eight assumptions; the table says
-what became of each. [Spec 004](../spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
+what became of each. [Spec 004](https://github.com/kostavo-oss/lely/blob/main/spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
 the detail.
 
 | | Assumed | Found |
@@ -518,8 +518,8 @@ What is still assumed is marked `TODO(verify)` where the code depends on it.
    the `bundle` plugin, `command` and `bundle.run`, and `apply`, `status`, `destroy`, `doctor`.
    Called usable only when all of it is there.
 2. **Around it**: GitHub — the plan as one comment on the pull request, the result on the run's
-   page ([spec 008](../spec/008-github-actions.md)), built on 2026-10-06 and described in
-   [GITHUB.md](GITHUB.md) — and a page to look at a plan in ([spec 007](../spec/007-ui.md)),
+   page ([spec 008](https://github.com/kostavo-oss/lely/blob/main/spec/008-github-actions.md)), built on 2026-10-06 and described in
+   [GITHUB.md](GITHUB.md) — and a page to look at a plan in ([spec 007](https://github.com/kostavo-oss/lely/blob/main/spec/007-ui.md)),
    built the same day.
 
 ## Later
@@ -657,7 +657,7 @@ step's changes is always shown; the view stands under it.
 A run's record is what `apply -o` and `destroy -o` write: the result as JSON. It is read back
 only to be shown.
 
-What it decided where [spec 007](../spec/007-ui.md) left room is in that spec's "As built".
+What it decided where [spec 007](https://github.com/kostavo-oss/lely/blob/main/spec/007-ui.md) left room is in that spec's "As built".
 
 ## GitHub, as built 2026-10-06
 
@@ -668,7 +668,7 @@ environment and its event, writes the summary file, and talks to GitHub's API th
 function that tests replace. The command line asks for it with `--github` and prints what it
 did or couldn't do; nothing in it decides how a command ends.
 
-What it decided where [spec 008](../spec/008-github-actions.md) left room is in that spec's
+What it decided where [spec 008](https://github.com/kostavo-oss/lely/blob/main/spec/008-github-actions.md) left room is in that spec's
 "As built".
 
 ## Stack

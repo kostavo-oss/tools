@@ -9,10 +9,13 @@ lely replaces the script around `databricks bundle deploy`.
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model —
 > and lely to deploy them as one.**
 
-> **Status: pre-alpha.** `plan`, `apply`, `destroy` and `status` are built, tested against a
-> fake Databricks CLI, and have been run on a real workspace once, with one small bundle — see
-> [what has been tried](#what-has-been-tried). That is a first proof, not a track record. [spec/](spec/README.md) says what each
-> piece must do; [docs/DESIGN.md](docs/DESIGN.md) says how it is built.
+> **Status: pre-alpha.** Everything below is built, tested against a fake Databricks CLI and a
+> fake GitHub, and has run for real a few times, with small bundles — see
+> [what has been tried](#what-has-been-tried). That is a first proof, not a track record.
+
+**Docs: [kostavo-oss.github.io/lely](https://kostavo-oss.github.io/lely/)** ·
+[spec/](spec/README.md) says what each piece must do · [docs/DESIGN.md](docs/DESIGN.md) says
+how it is built.
 
 ## Why
 

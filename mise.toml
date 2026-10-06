@@ -4,6 +4,9 @@ uv = "latest"
 
 [env]
 UV_PROJECT_ENVIRONMENT = ".venv"
+# mkdocs-material's "MkDocs 2.0" advisory: we pin mkdocs < 2 through
+# mkdocs-material, so what it warns about can't reach us.
+NO_MKDOCS_2_WARNING = "1"
 
 # ── tasks ──────────────────────────────────────────────────────────────────
 # Run with `mise run <name>`; list them with `mise tasks`.
@@ -31,6 +34,14 @@ run = "uv run ruff format ."
 description = "Type-check with ty"
 alias = "types"
 run = "uv run ty check"
+
+[tasks.docs]
+description = "Preview the docs site at localhost:8000"
+run = "uv run --group docs mkdocs serve"
+
+[tasks."docs:build"]
+description = "Build the docs site (strict)"
+run = "uv run --group docs mkdocs build --strict"
 
 [tasks.check]
 description = "Full pre-commit gate: lint + format check + types + unit tests"

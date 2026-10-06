@@ -41,6 +41,7 @@ uv run pytest tests/unit       # the unit tests: no workspace, no network
 uv run pytest tests/browser    # a plugin's view, as Chrome reads it (needs Chrome)
 uv run ruff check . && uv run ruff format .
 uv run ty check
+mise run docs                  # the docs site, at localhost:8000
 ```
 
 `ruff format` also formats the Python in Markdown code blocks, so the gate covers `docs/` and

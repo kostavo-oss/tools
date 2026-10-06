@@ -1,0 +1,64 @@
+/* lely docs — the plan's own palette: a sea blue base, and the green, amber
+   and red a plan marks its changes with. */
+
+:root {
+  --ly-sea: #2a6f97;
+  --ly-add: #2e8b57;
+  --ly-change: #b8860b;
+  --ly-destroy: #c0392b;
+}
+
+/* brand primary (header) + accent (hover) for both light and dark palettes */
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: var(--ly-sea);
+  --md-primary-fg-color--light: #468faf;
+  --md-primary-fg-color--dark: #1f5373;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+}
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: var(--ly-change);
+}
+
+/* dark scheme → graphite, like a terminal showing a plan */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0e1116;
+  --md-code-bg-color: #161b22;
+  --md-typeset-a-color: #7fb8d8;
+}
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #161b22;
+  color: rgba(236, 240, 243, 0.92);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+[data-md-color-scheme="slate"] .md-header__title {
+  color: #7fb8d8;
+  font-weight: 700;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 8px;
+}
+
+/* a tri-colour rule that nods to create / change / destroy */
+.ly-rule {
+  height: 3px;
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--ly-add) 0 33%,
+    var(--ly-change) 33% 66%,
+    var(--ly-destroy) 66% 100%
+  );
+  margin: 1.2rem 0 1.6rem;
+}
+
+/* a picture of the page, framed like a window */
+.md-typeset img.ly-shot {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
