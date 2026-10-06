@@ -1,0 +1,42 @@
+# The last release of `isolinear` on PyPI. It has no code of its own: it
+# installs caland, which is what isolinear is called now, and forwards to it.
+#
+# Nothing publishes this — no workflow builds it, and caland's own sdist
+# leaves the directory out. It goes out once, by hand, right after the first
+# caland release is on PyPI:
+#
+#   1. set `version` here, and the `caland>=` beside it, to that caland version
+#   2. uv build isolinear-shim --out-dir isolinear-shim/dist
+#   3. uv publish isolinear-shim/dist/*   (the `isolinear` project's own token
+#      or Trusted Publisher — not caland's)
+[project]
+name = "isolinear"
+version = "0.5.0"
+description = "isolinear is now caland — this release installs it"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "Misja Pronk" }]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = ["caland>=0.5.0"]
+
+[project.urls]
+Homepage = "https://github.com/kostavo-oss/caland"
+Documentation = "https://kostavo-oss.github.io/caland/installation/#coming-from-isolinear"
+
+[project.scripts]
+# `uv tool install isolinear` only links commands this package declares itself,
+# so the old commands are declared here as well as in caland
+isolinear = "caland.formerly:main"
+iso = "caland.formerly:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/isolinear"]

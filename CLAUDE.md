@@ -1,7 +1,32 @@
 # CLAUDE.md
 
-Guidance for Claude / agents working in this repo. **Isolinear** is a
+Guidance for Claude / agents working in this repo. **Caland** is a
 keyboard-driven Textual TUI for managing Databricks secrets.
+
+## The spec
+
+`spec/` says *what* each part of the tool must do; `docs/` tells a user how to use it, and
+`docs/architecture.md` how it is built. Read the spec of a part before changing it, and
+change the spec in the same pull request when the behaviour changes. Where the spec, the
+docs and the code disagree, say so instead of silently picking one. Don't build past a
+"To decide" that is still open — those are the owner's to answer.
+
+## The page
+
+Caland is moving from the terminal to a page in the browser (`spec/008-the-page.md`). Until
+the page does everything the terminal version does, it is behind `caland --page`; the
+terminal version is **frozen** — fix what is broken in it, add nothing.
+
+- The page is `src/caland/interface/web/`: `gate.py` (which requests are answered — pure),
+  `server.py`, `views.py` (what the page is told — pure), `opening.py`, and `static/`.
+- The gate is the security of it. A change there, or a new thing the server answers, gets
+  a test in `tests/test_web_gate.py` or `test_web_server.py`, and a second pair of eyes.
+- No cookie, no script or style written into the page, nothing from another origin, no
+  `innerHTML`: what a workspace says is text. Tests hold each of these.
+- `tests/test_page_in_a_browser.py` drives the real page in Chrome (`tests/chrome.py`, over
+  Chrome's debugging pipe — no package). It skips without Chrome; CI has one. Run it after
+  any change to `static/`.
+- Only the SDK: no query, no warehouse, no system table (`spec/000`).
 
 ## Toolchain — use these, nothing else
 
@@ -38,7 +63,7 @@ This project is **all-[Astral](https://astral.sh)**, version-managed by
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock (incl. dev group)
 
-uv run isolinear        # run the app (alias: uv run iso)
+uv run caland        # run the app
 uv run pytest           # tests (core units + UI via Textual Pilot)
 uv run ruff check .     # lint
 uv run ruff format .    # format
@@ -53,7 +78,7 @@ Hexagonal / DDD — dependencies point **inward**, all I/O sits behind domain
 ports, so the domain is unit-testable with no network. Respect the layering:
 
 ```
-src/isolinear/
+src/caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the ONLY place the Databricks SDK is imported
@@ -73,3 +98,18 @@ src/isolinear/
 - ty must report no errors.
 - Keep blocking I/O off the UI thread — services run in worker threads via
   `asyncio.to_thread` (see `interface/screens/main.py`).
+
+## The rename
+
+Caland was `isolinear` up to 0.4.1 — renamed on its way into the Kostavo tools
+(`kostavo-oss`: stevin, lely, caland). `src/caland/formerly.py` is the one module
+that spells the old name, and `tests/test_formerly.py` keeps it that way. It holds what
+still answers to it: the old settings directory (read until a file exists under the new
+name, never written), the old theme names (a saved `isolinear-violet` is
+`caland-violet`), and the `isolinear` and `iso` commands (still installed; they say the
+new name on stderr and run caland). `isolinear-shim/` is the last `isolinear` release
+for PyPI — it installs caland — and no workflow publishes it.
+
+The TUI snapshots and `docs/img/*.svg` cannot be search-and-replaced: their element ids
+are hashed from the window title. Regenerate them (`--snapshot-update`, and
+`docs/redesign/capture.py` with its `cp` lines).

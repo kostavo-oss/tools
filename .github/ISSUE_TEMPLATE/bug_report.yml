@@ -14,13 +14,13 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Run `isolinear`
+        1. Run `caland`
         2. ...
   - type: input
     id: version
     attributes:
-      label: Isolinear version
-      placeholder: "0.1.0  (uvx isolinear --version, or `uv tool list`)"
+      label: Caland version
+      placeholder: "0.1.0  (uvx caland --version, or `uv tool list`)"
   - type: input
     id: python
     attributes:
@@ -37,5 +37,5 @@ body:
       label: Error output
       description: >
         The TUI takes over the screen, so capture stderr with
-        `isolinear 2>err.log` and paste `err.log` here.
+        `caland 2>err.log` and paste `err.log` here.
       render: text

@@ -1,6 +1,6 @@
 # Themes
 
-Isolinear ships with a calm, near-neutral default and a few optional skins.
+Caland ships with a calm, near-neutral default and a few optional skins.
 
 | Theme | Look |
 |-------|------|
@@ -21,4 +21,4 @@ This keeps the three panes visually distinct at a glance.
 
 ## Switching themes
 
-Open the command palette with ++ctrl+p++ and choose **Change theme**, then pick a skin from the list. Your choice is remembered across sessions (in `~/.config/isolinear/settings.json`).
+Open the command palette with ++ctrl+p++ and choose **Change theme**, then pick a skin from the list. Your choice is remembered across sessions (in `~/.config/caland/settings.json`).

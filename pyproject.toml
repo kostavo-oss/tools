@@ -1,10 +1,10 @@
 [project]
-name = "isolinear"
+name = "caland"
 version = "0.4.1"
 description = "A keyboard-driven terminal UI for managing Databricks secrets"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Misja Pronk", email = "misja@prorexconsultancy.nl" }]
 keywords = [
@@ -40,21 +40,27 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/misja-pronk/isolinear"
-Repository = "https://github.com/misja-pronk/isolinear"
-Issues = "https://github.com/misja-pronk/isolinear/issues"
-Changelog = "https://github.com/misja-pronk/isolinear/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/caland"
+Repository = "https://github.com/kostavo-oss/caland"
+Issues = "https://github.com/kostavo-oss/caland/issues"
+Changelog = "https://github.com/kostavo-oss/caland/blob/main/CHANGELOG.md"
 
 [project.scripts]
-isolinear = "isolinear.app:main"
-iso = "isolinear.app:main"
+caland = "caland.app:main"
+# the names this was released under: they say so, and run caland
+isolinear = "caland.formerly:main"
+iso = "caland.formerly:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/isolinear"]
+packages = ["src/caland"]
+
+[tool.hatch.build.targets.sdist]
+# the last isolinear release is a package of its own
+exclude = ["isolinear-shim"]
 
 [dependency-groups]
 dev = [

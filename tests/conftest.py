@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from caland.application import WorkspaceService
 from fakes import FakeSecretStore, seeded_store
-from isolinear.application import WorkspaceService
 
 
 @pytest.fixture

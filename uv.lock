@@ -187,6 +187,49 @@ wheels = [
 ]
 
 [[package]]
+name = "caland"
+version = "0.4.1"
+source = { editable = "." }
+dependencies = [
+    { name = "databricks-sdk" },
+    { name = "pyyaml" },
+    { name = "textual" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-textual-snapshot" },
+    { name = "ruff" },
+    { name = "textual-dev" },
+    { name = "ty" },
+    { name = "types-pyyaml" },
+]
+docs = [
+    { name = "mkdocs-material" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "databricks-sdk", specifier = ">=0.30" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "textual", specifier = ">=2.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "pytest-textual-snapshot", specifier = ">=1.0.0" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "textual-dev", specifier = ">=1.5" },
+    { name = "ty", specifier = ">=0.0.1a1" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
+]
+docs = [{ name = "mkdocs-material", specifier = ">=9.7.5" }]
+
+[[package]]
 name = "certifi"
 version = "2026.6.17"
 source = { registry = "https://pypi.org/simple" }
@@ -593,49 +636,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
 ]
-
-[[package]]
-name = "isolinear"
-version = "0.4.1"
-source = { editable = "." }
-dependencies = [
-    { name = "databricks-sdk" },
-    { name = "pyyaml" },
-    { name = "textual" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-textual-snapshot" },
-    { name = "ruff" },
-    { name = "textual-dev" },
-    { name = "ty" },
-    { name = "types-pyyaml" },
-]
-docs = [
-    { name = "mkdocs-material" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "databricks-sdk", specifier = ">=0.30" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "textual", specifier = ">=2.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "pytest-textual-snapshot", specifier = ">=1.0.0" },
-    { name = "ruff", specifier = ">=0.6" },
-    { name = "textual-dev", specifier = ">=1.5" },
-    { name = "ty", specifier = ">=0.0.1a1" },
-    { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
-]
-docs = [{ name = "mkdocs-material", specifier = ">=9.7.5" }]
 
 [[package]]
 name = "jinja2"

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import textwrap
 
-from isolinear.domain import SOURCE_BUNDLE
-from isolinear.infrastructure.bundle import DatabricksBundleStore
+from caland.domain import SOURCE_BUNDLE
+from caland.infrastructure.bundle import DatabricksBundleStore
 
 
 def _write(tmp_path, body: str) -> DatabricksBundleStore:

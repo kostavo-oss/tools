@@ -1,13 +1,13 @@
-site_name: Isolinear
+site_name: Caland
 site_description: A keyboard-driven terminal UI for managing Databricks secrets.
 site_author: Misja Pronk
-site_url: https://misja-pronk.github.io/isolinear/
+site_url: https://kostavo-oss.github.io/caland/
 
-repo_name: misja-pronk/isolinear
-repo_url: https://github.com/misja-pronk/isolinear
+repo_name: kostavo-oss/caland
+repo_url: https://github.com/kostavo-oss/caland
 edit_uri: edit/main/docs/
 
-copyright: MIT © Misja Pronk
+copyright: Apache-2.0 © Misja Pronk
 
 theme:
   name: material
@@ -73,9 +73,9 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/misja-pronk/isolinear
+      link: https://github.com/kostavo-oss/caland
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/isolinear/
+      link: https://pypi.org/project/caland/
 
 # docs/ also holds repo-only files and screenshot tooling — keep them out of the
 # site (the redesign/ folder holds capture.py + its scratch SVGs; the published
@@ -91,6 +91,7 @@ nav:
       - Connecting: connecting.md
       - Browsing & managing: browsing.md
       - Keyboard: keyboard.md
+      - The page (preview): page.md
       - Themes: themes.md
   - Security: security.md
   - Develop:

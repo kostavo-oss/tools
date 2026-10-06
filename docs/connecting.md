@@ -1,13 +1,13 @@
 # Connecting
 
-On launch, Isolinear opens a **workspace picker**. It gathers connection targets from three sources and labels every row with its **Source**, so you always know where a target came from.
+On launch, Caland opens a **workspace picker**. It gathers connection targets from three sources and labels every row with its **Source**, so you always know where a target came from.
 
 ![Workspace picker with a bundle default and two profiles](img/login.svg)
 
 Pick a row and press ++enter++. Saved profiles connect instantly; a bundle target or a URL opens your browser to authenticate.
 
 !!! tip "Skip the picker entirely"
-    `isolinear prod` (or `isolinear --profile prod`) connects straight to a discovered workspace — a `~/.databrickscfg` profile or bundle target — by name. Pairs well with `--read-only` for a quick, safe look at production.
+    `caland prod` (or `caland --profile prod`) connects straight to a discovered workspace — a `~/.databrickscfg` profile or bundle target — by name. Pairs well with `--read-only` for a quick, safe look at production.
 
 !!! note "Account-level discovery was removed"
     There is no cloud + Account ID step. You connect by **profile**, **bundle**, or **URL** — nothing else.
@@ -18,7 +18,7 @@ Pick a row and press ++enter++. Saved profiles connect instantly; a bundle targe
 
 If a `databricks.yml` (a [Databricks Asset Bundle](https://docs.databricks.com/dev-tools/bundles/index.html)) is present in the current directory, its target workspace is offered as the **pre-selected default**.
 
-Isolinear resolves the host as follows:
+Caland resolves the host as follows:
 
 - It picks the target flagged `default: true` (or the only target, if there is just one).
 - It falls back to the top-level `workspace.host`.
@@ -42,7 +42,7 @@ targets:
 ```
 
 !!! tip "Running inside a bundle project just works"
-    Launch `isolinear` from a directory that contains a `databricks.yml` and the right workspace is already selected — just press ++enter++.
+    Launch `caland` from a directory that contains a `databricks.yml` and the right workspace is already selected — just press ++enter++.
 
 ### 2. `~/.databrickscfg` profiles
 

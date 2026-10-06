@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from isolinear.domain import (
+from caland.domain import (
     SOURCE_BUNDLE,
     SOURCE_PROFILE,
     Scope,

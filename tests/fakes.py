@@ -6,9 +6,9 @@ without a network.
 
 from __future__ import annotations
 
-from isolinear.application import OnboardingService
-from isolinear.domain import Acl, Identity, Scope, Secret
-from isolinear.domain.errors import StoreError
+from caland.application import OnboardingService
+from caland.domain import Acl, Identity, Scope, Secret
+from caland.domain.errors import StoreError
 
 
 class FakeSecretStore:
@@ -154,12 +154,12 @@ class ConnectingStubConnector:
         self.store = store or seeded_store()
 
     def connect_profile(self, profile):
-        from isolinear.domain import Connected
+        from caland.domain import Connected
 
         return Connected(store=self.store, label=profile)
 
     def connect_url(self, host):
-        from isolinear.domain import Connected
+        from caland.domain import Connected
 
         return Connected(store=self.store, label=host, host=host)
 

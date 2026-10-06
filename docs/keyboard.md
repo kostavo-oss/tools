@@ -1,6 +1,6 @@
 # Keyboard
 
-Everything in Isolinear is keyboard-driven. Press ++question++ at any time for the in-app cheat-sheet, or ++ctrl+p++ to open the command palette.
+Everything in Caland is keyboard-driven. Press ++question++ at any time for the in-app cheat-sheet, or ++ctrl+p++ to open the command palette.
 
 | Keys | Action |
 |------|--------|
@@ -34,7 +34,7 @@ Every table sorts the same way: ++s++ advances to the next column (ascending), +
 
 ## VS Code's integrated terminal
 
-VS Code keeps some chords for itself before they reach the terminal — ++ctrl+p++ opens Quick Open and ++ctrl+f++ the terminal find. Isolinear therefore doubles both on plain letters: ++shift+f++ for search and ++shift+p++ for the palette. If you'd rather hand the chords back to the terminal, remove the corresponding commands from `terminal.integrated.commandsToSkipShell` in your VS Code settings.
+VS Code keeps some chords for itself before they reach the terminal — ++ctrl+p++ opens Quick Open and ++ctrl+f++ the terminal find. Caland therefore doubles both on plain letters: ++shift+f++ for search and ++shift+p++ for the palette. If you'd rather hand the chords back to the terminal, remove the corresponding commands from `terminal.integrated.commandsToSkipShell` in your VS Code settings.
 
 ## Palette-only commands
 
@@ -42,4 +42,4 @@ Some less-frequent operations live only in the command palette (++ctrl+p++): **I
 
 ## Read-only mode
 
-Start with `isolinear --read-only` to browse, reveal, search, and copy with every mutation disabled — the mutating keys disappear from the footer and the permissions editor becomes view-only. The header shows a `read-only` marker.
+Start with `caland --read-only` to browse, reveal, search, and copy with every mutation disabled — the mutating keys disappear from the footer and the permissions editor becomes view-only. The header shows a `read-only` marker.

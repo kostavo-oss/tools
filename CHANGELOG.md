@@ -6,6 +6,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`caland --page` — a preview of Caland as a page in your browser.** It is served
+  from your own machine and nowhere else, and looks like the rest of the family. This
+  first part reads: browse scopes, secrets and grants, filter, show and copy a value,
+  copy how to reach a secret from code. It changes nothing yet — for everything else,
+  `caland` without `--page` is the terminal version, as before.
+
+  `tab` goes from pane to pane, arrows move inside one, and every action has a key.
+  The server answers only to its own page at its own address, and to nothing without
+  the session's key; a value is in the page only while it is shown.
+  [The page](https://kostavo-oss.github.io/caland/page/) has the whole of it.
+
+### Changed
+
+- **Isolinear is now Caland.** The command is `caland`, the package on PyPI is
+  `caland`, and the repository and the docs are at `kostavo-oss/caland`. It is
+  named after Pieter Caland — the engineer of Rotterdam's waterway to the sea —
+  and it is one of a family of tools now (stevin, lely, caland), each with an
+  engineer's name.
+
+  Nothing you had is lost, and nothing changes in a workspace:
+
+  - `isolinear` and `iso` are still installed. They say the new name on stderr
+    and then open the app, so a habit or a script keeps working.
+  - Settings in `~/.config/isolinear/settings.json` are read until you change a
+    preference; that saves `~/.config/caland/settings.json`, and the old file
+    is left where it is.
+  - The four built-in themes are `caland`, `caland-violet`, `caland-amber`
+    and `caland-phosphor`. A theme saved under its old name is still the theme
+    you get.
+  - A profile saved without a name is now written as `[caland]` in
+    `~/.databrickscfg`; an existing `[isolinear]` section is found as before.
+
+- **The license is Apache-2.0**, the same as every other Kostavo tool. Releases
+  up to 0.4.1, as `isolinear`, were and remain MIT.
+
 ## [0.4.1] - 2026-07-03
 
 ### Fixed

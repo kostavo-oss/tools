@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from isolinear.interface.modals import HelpScreen
-from isolinear.interface.screens.main import MainScreen
+from caland.interface.modals import HelpScreen
+from caland.interface.screens.main import MainScreen
 
 # how a Textual key name reads in the hand-written help table
 DISPLAY = {
