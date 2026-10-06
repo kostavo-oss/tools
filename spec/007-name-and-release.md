@@ -101,6 +101,14 @@ its lines that end in `=` became secrets of their own
 ([008](008-the-page.md), "the tools", Reviewed). It also carries the page's tools, still
 behind `--page`.
 
+## 0.6.0 (2026-10-07)
+
+Released on the owner's word ("minor bump"). It is the release in which caland becomes the
+page: `caland` opens it, a workspace is chosen on it, and the terminal app, the old command
+names and `textual` are gone ([008](008-the-page.md)). A minor version, because it takes
+things away: whoever typed `caland` for a terminal app gets a browser tab, and
+`caland --tui` says where the terminal app is.
+
 ## To decide
 
 - **D4 — isolinear's two bugs.** Left as it is, isolinear 0.4.1 goes on deleting a secret
