@@ -249,7 +249,7 @@ def test_a_plan_file_this_lely_doesnt_read_is_refused(lely: Lely) -> None:
     (lely.root / "old.json").write_text(json.dumps({"format_version": 1}))
     result = lely("show", "old.json")
     assert result.exit_code == 1
-    assert "format 1; this lely reads format 3. Run `lely plan` again." in said(result)
+    assert "format 1; this lely reads format 4. Run `lely plan` again." in said(result)
     assert lely("show", "nope.json").exit_code == 1
 
 

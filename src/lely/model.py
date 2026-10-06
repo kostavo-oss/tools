@@ -146,6 +146,12 @@ class StepPlan:
     id of a job this deploy creates. `waiting` says why part of the plan can't
     be made yet. `notes` are lines shown with the plan that are not changes.
     `payload` is the plugin's own data, carried through the plan file.
+
+    `view` is the plugin's own picture of its plan for the page (`lely ui`), as
+    HTML: the bundle's resources by type, say. It is shown beside the changes,
+    never in place of them — what `apply` runs is the changes — inside a frame
+    lely owns: its structure is kept and nothing in it is obeyed. Like the rest
+    of a plan it holds no secret.
     """
 
     changes: tuple[Change, ...] = ()
@@ -154,6 +160,7 @@ class StepPlan:
     waiting: str | None = None
     notes: tuple[str, ...] = ()
     payload: Json = None
+    view: str | None = None
 
     def __post_init__(self) -> None:
         # One shape, whoever made it: a list is a tuple, one line is one line
@@ -179,6 +186,8 @@ class StepPlan:
             raise LelyError("A plan's `outputs` are values by name: a mapping.")
         if self.waiting is not None and not isinstance(self.waiting, str):
             raise LelyError("A plan's `waiting` says why, in text.")
+        if self.view is not None and not isinstance(self.view, str):
+            raise LelyError("A plan's `view` is HTML, as text.")
 
     @property
     def empty(self) -> bool:

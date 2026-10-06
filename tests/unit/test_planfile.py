@@ -65,7 +65,7 @@ def test_the_file_says_what_it_is_and_holds_what_was_shown(tmp_path: Path) -> No
     """005/R2."""
     document = planfile.plan_to_json(planned(tmp_path))
     assert {k: v for k, v in document.items() if k != "steps"} == {
-        "format_version": 3,
+        "format_version": 4,
         "tool_version": document["tool_version"],
         "kind": "apply",
         "target": "dev",
@@ -131,7 +131,7 @@ def test_another_format_is_refused_and_says_to_plan_again() -> None:
     with pytest.raises(PlanFileError) as caught:
         planfile.loads(json.dumps({"format_version": 1}))
     assert str(caught.value) == (
-        "This plan file is format 1; this lely reads format 3. Run `lely plan` again."
+        "This plan file is format 1; this lely reads format 4. Run `lely plan` again."
     )
     with pytest.raises(PlanFileError, match="Not a plan file"):
         planfile.loads("not json")
@@ -542,3 +542,23 @@ def test_what_a_run_removed_is_listed_in_the_result_as_the_terminal_lists_it() -
     }
     listed = planfile.overview_to_json(overview)
     assert listed is not None and len(listed["items"]) == 1  # a status: no run to tell
+
+
+# -- a plugin's own view (007/R2, 002/R8) -----------------------------------------------
+
+
+def test_a_steps_view_is_kept_with_its_plan() -> None:
+    """Made when the step is planned, so the page for a plan file needs no
+    plugin, no project and no workspace — and is the same on any machine."""
+    plan = StepPlan(
+        changes=(Change("jobs.bar", "create", "jobs.bar"),),
+        view="<table><tr><td>jobs.bar</td></tr></table>",
+    )
+    document = json.loads(json.dumps(planfile.step_plan_to_json(plan)))
+    assert document["view"] == "<table><tr><td>jobs.bar</td></tr></table>"
+    assert planfile.step_plan_from_json(document) == plan
+    assert planfile.step_plan_from_json({"changes": []}).view is None
+    with pytest.raises(PlanFileError, match="`view` must be a string"):
+        planfile.step_plan_from_json({"view": ["<p>"]})
+    with pytest.raises(Exception, match="A plan's `view` is HTML, as text"):
+        StepPlan(view=cast(Any, 5))

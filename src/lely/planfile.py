@@ -47,10 +47,10 @@ from lely.model import (
 #: Bumped when the shape changes in a way a reader has to know about.
 #: 2: one list of steps, the bundle among them; the workspace; the git tree.
 #: 3: which project of the repository; read strictly.
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 
 _SECRET = "$secret"
-_STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload"}
+_STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload", "view"}
 _PLAN_KEYS = frozenset(
     {"format_version", "tool_version", "kind", "target", "workspace", "source", "steps"}
 )
@@ -163,6 +163,7 @@ def step_plan_to_json(plan: StepPlan, where: str = "a step's plan") -> dict[str,
         "waiting": plan.waiting,
         "notes": list(plan.notes),
         "payload": plain(plan.payload, f"{where}: its payload"),
+        "view": plan.view,
     }
 
 
@@ -265,6 +266,7 @@ def step_plan_from_json(document: Json, where: str = "a step's plan") -> StepPla
         waiting=_optional_str(doc, "waiting", where),
         notes=_strings(doc.get("notes", []), f"{where}: `notes`"),
         payload=doc.get("payload"),
+        view=_optional_str(doc, "view", where),
     )
 
 
