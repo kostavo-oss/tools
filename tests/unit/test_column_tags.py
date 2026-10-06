@@ -9,14 +9,14 @@ https://docs.databricks.com/aws/en/database-objects/tags
 
 from pathlib import Path
 
-from deltaplan.differ import diff, is_applied, unmanaged
-from deltaplan.introspect import Introspector
-from deltaplan.loader import load_table, validate_table
-from deltaplan.model.table import MANAGED_PROPERTY
-from deltaplan.model.types import Field, Primitive
-from deltaplan.render.json import dumps, loads
 from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff, is_applied, unmanaged
+from stevin.introspect import Introspector
+from stevin.loader import load_table, validate_table
+from stevin.model.table import MANAGED_PROPERTY
+from stevin.model.types import Field, Primitive
+from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -109,7 +109,7 @@ def test_a_new_table_gets_its_column_tags() -> None:
 
 def test_a_rewrite_puts_back_tags_the_spec_doesnt_manage() -> None:
     # `legacy` was set by someone else. The rewrite rebuilds the column; the tag
-    # must survive it, because deltaplan never claimed it.
+    # must survive it, because stevin never claimed it.
     live = table(
         tagged("email", "string", legacy="x"),
         col("amount", "decimal(10,2)"),

@@ -2,7 +2,7 @@
 
 The offline suite already asserts that a plan converges (`test_convergence.py`)
 and that the executor skips, resumes and refuses (`test_executor.py`), against a
-fake that implements deltaplan's own reading of the manual. What only a real
+fake that implements stevin's own reading of the manual. What only a real
 warehouse can tell us is whether the statements are accepted at all — including
 the history and lock SQL, which the fake never sees.
 """
@@ -13,15 +13,15 @@ from dataclasses import replace as with_fields
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.executor import ExecutionError, Executor
-from deltaplan.history import DeltaHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.model.plan import Plan, TableDiff, TableFacts, fingerprint
-from deltaplan.model.table import Table
-from deltaplan.planner import build_plan, create_table_sql
-from deltaplan.sql import quote_literal, quote_qualified
 from helpers import col, table
+from stevin.differ import diff
+from stevin.executor import ExecutionError, Executor
+from stevin.history import DeltaHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.model.plan import Plan, TableDiff, TableFacts, fingerprint
+from stevin.model.table import Table
+from stevin.planner import build_plan, create_table_sql
+from stevin.sql import quote_literal, quote_qualified
 
 pytestmark = pytest.mark.integration
 
@@ -173,7 +173,7 @@ def test_a_rewrite_converts_the_data_it_moves(
         "array(named_struct('sku', 'A', 'qty', 2)))"
     )
 
-    from deltaplan.model.types import Field, Primitive, Struct
+    from stevin.model.types import Field, Primitive, Struct
 
     desired = table(
         col("order_id", "bigint", nullable=False),
@@ -272,7 +272,7 @@ def test_a_table_is_renamed_with_its_data(
     """
     from dataclasses import replace
 
-    from deltaplan.planning import plan_tables
+    from stevin.planning import plan_tables
 
     old = table(col("id", "bigint"), name=f"{schema}.order_facts")
     runner.query(create_table_sql(old))
@@ -304,13 +304,13 @@ def test_a_rewrite_keeps_what_a_replace_keeps(
     import os
     from dataclasses import replace as replace_fields
 
-    from deltaplan.executor import Executor
-    from deltaplan.history import MemoryHistory
-    from deltaplan.model.table import Grant
-    from deltaplan.model.types import Field, Primitive
-    from deltaplan.planning import plan_tables
+    from stevin.executor import Executor
+    from stevin.history import MemoryHistory
+    from stevin.model.table import Grant
+    from stevin.model.types import Field, Primitive
+    from stevin.planning import plan_tables
 
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     name = f"{schema}.orders"
     quoted = quote_qualified(name)
     original = replace_fields(
@@ -381,13 +381,13 @@ def test_a_project_that_hands_grants_over_can_still_apply(
     """
     import os
 
-    from deltaplan import api
-    from deltaplan.connect import Connection
-    from deltaplan.history import MemoryHistory
-    from deltaplan.manage import Manage
-    from deltaplan.planning import plan_tables
+    from stevin import api
+    from stevin.connect import Connection
+    from stevin.history import MemoryHistory
+    from stevin.manage import Manage
+    from stevin.planning import plan_tables
 
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     manage = Manage(("grants",))
     name = f"{schema}.orders"
     runner.query(create_table_sql(table(col("id", "bigint"), name=name)))
@@ -420,11 +420,11 @@ def test_apply_without_a_history_schema_writes_nothing_beside_the_table(
     The lock, the resume and the record are what a history schema buys; a host
     deploying into many catalogs may not want three Delta tables of bookkeeping
     in each of them. This checks the catalog afterwards, which is the only way
-    to know deltaplan kept that promise.
+    to know stevin kept that promise.
     """
-    from deltaplan import api
-    from deltaplan.connect import Connection
-    from deltaplan.history import NoHistory
+    from stevin import api
+    from stevin.connect import Connection
+    from stevin.history import NoHistory
 
     name = f"{schema}.orders"
     desired = table(col("id", "bigint", nullable=False), col("amount", "int"), name=name)
@@ -438,7 +438,7 @@ def test_apply_without_a_history_schema_writes_nothing_beside_the_table(
     catalog = schema.split(".")[0]
     left = runner.query(
         f"SELECT schema_name FROM {quote_qualified(f'{catalog}.information_schema')}"
-        ".schemata WHERE lower(schema_name) LIKE 'deltaplan%'"
+        ".schemata WHERE lower(schema_name) LIKE 'stevin%'"
     )
     assert left == (), "no history schema was created anywhere"
     tables = runner.query(
@@ -458,15 +458,15 @@ def test_a_function_that_reads_a_table_is_created_after_it(
     A row filter that consults a lookup table is the ordinary way to write
     row-level security, and Databricks resolves a function's body when the
     function is created — so the table has to exist first. Nothing but a real
-    workspace proves the order deltaplan chose is the order that works.
+    workspace proves the order stevin chose is the order that works.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-sql-function
     """
-    from deltaplan import api
-    from deltaplan.connect import Connection
-    from deltaplan.history import NoHistory
-    from deltaplan.model.function import Function, Parameter
-    from deltaplan.model.types import Primitive
-    from deltaplan.planning import plan_tables
+    from stevin import api
+    from stevin.connect import Connection
+    from stevin.history import NoHistory
+    from stevin.model.function import Function, Parameter
+    from stevin.model.types import Primitive
+    from stevin.planning import plan_tables
 
     lookup = table(col("mailbox", "string"), name=f"{schema}.mailbox_access")
     reads_it = Function(

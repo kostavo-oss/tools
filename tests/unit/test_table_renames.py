@@ -13,19 +13,19 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import is_applied
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.loader import load_table, validate_spec
-from deltaplan.model.change import Change
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Hooks, Table
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.differ import is_applied
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.loader import load_table, validate_spec
+from stevin.model.change import Change
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Hooks, Table
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 OLD = table(

@@ -14,21 +14,21 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_spec, load_table, validate_spec
-from deltaplan.model.plan import Plan
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, Table
-from deltaplan.model.view import Relation
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin import cli
+from stevin.connect import Connection
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_spec, load_table, validate_spec
+from stevin.model.plan import Plan
+from stevin.model.schema import Schema
+from stevin.model.table import MANAGED_PROPERTY, Grant, Table
+from stevin.model.view import Relation
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 SALES = Schema(
     "main.sales",
@@ -198,7 +198,7 @@ def test_import_writes_the_schema_spec(
 
 
 def test_a_schema_without_tags_imports_as_sql(tmp_path: Path) -> None:
-    from deltaplan.sqlspec import dump_sql_spec
+    from stevin.sqlspec import dump_sql_spec
 
     plain = Schema("main.sales", comment="It's sales", grants=SALES.grants)
     path = tmp_path / "_schema.sql"
@@ -210,7 +210,7 @@ def test_a_schema_without_tags_imports_as_sql(tmp_path: Path) -> None:
 def test_a_schema_spec_validates_against_the_editor_schema() -> None:
     from jsonschema import Draft7Validator
 
-    from deltaplan.spec_schema import spec_schema
+    from stevin.spec_schema import spec_schema
 
     document = yaml.safe_load(dump_spec(SALES))
     assert list(Draft7Validator(spec_schema()).iter_errors(document)) == []

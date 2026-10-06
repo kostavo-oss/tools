@@ -11,13 +11,13 @@
 
 import pytest
 
-from deltaplan.executor import DestructiveRefused, ExecutionResult, Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan, fingerprint
-from deltaplan.model.table import MANAGED_PROPERTY
 from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, table
+from stevin.executor import DestructiveRefused, ExecutionResult, Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan, fingerprint
+from stevin.model.table import MANAGED_PROPERTY
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -107,7 +107,7 @@ def test_staging_is_checked_for_lost_rows_and_values() -> None:
 
 
 def test_a_renamed_conversion_compares_against_the_old_name() -> None:
-    from deltaplan.model.types import Field, Primitive
+    from stevin.model.types import Field, Primitive
 
     desired = table(
         col("id", "bigint"),
@@ -150,7 +150,7 @@ def test_lost_values_stop_the_run_before_the_table_is_touched() -> None:
 # ---------------------------------------------------------------------------
 #
 # The replacement table is built from a query, so it has only the properties and
-# constraints deltaplan gives it. Anything the spec doesn't declare has to be
+# constraints stevin gives it. Anything the spec doesn't declare has to be
 # handed across explicitly, or replacing the table diffs it away.
 
 
@@ -180,8 +180,8 @@ def test_properties_nobody_declared_survive_a_rewrite() -> None:
 
 
 def test_constraints_nobody_declared_survive_a_rewrite() -> None:
-    from deltaplan.model.table import Check, PrimaryKey
     from helpers import run
+    from stevin.model.table import Check, PrimaryKey
 
     live = table(
         col("id", "bigint", nullable=False),
@@ -205,9 +205,9 @@ def test_tags_grants_and_an_owner_survive_a_rewrite_without_a_step() -> None:
     them back — but they have to still be there afterwards."""
     from dataclasses import replace as replace_fields
 
-    from deltaplan.model.table import Grant
-    from deltaplan.model.types import Field, Primitive
     from helpers import run
+    from stevin.model.table import Grant
+    from stevin.model.types import Field, Primitive
 
     live = replace_fields(
         table(
@@ -244,8 +244,8 @@ def test_tags_grants_and_an_owner_survive_a_rewrite_without_a_step() -> None:
 
 def test_a_renamed_column_gets_its_tags_back() -> None:
     """They stay behind on the old name, so these the plan does put back."""
-    from deltaplan.model.types import Field, Primitive
     from helpers import run
+    from stevin.model.types import Field, Primitive
 
     live = table(
         col("id", "bigint"),

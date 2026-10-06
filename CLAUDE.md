@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-`deltaplan`: declarative plan/apply for Databricks SQL tables. Read `docs/DESIGN.md` first; it is the source of truth. If code and design disagree, flag it instead of silently picking one.
+`stevin`: declarative plan/apply for Databricks SQL tables. Read `docs/DESIGN.md` first; it is the source of truth. If code and design disagree, flag it instead of silently picking one.
 
 ## Rules
 
@@ -17,7 +17,7 @@
 `main` is protected: every change is a pull request, and the nine `ci` checks must
 pass (they enforce for admins too). `integration` — the live suite against the
 workspace, ~40 minutes — runs on every pull request that touches code, and nightly;
-it isn't required, so read it before merging anything that changes the SQL deltaplan
+it isn't required, so read it before merging anything that changes the SQL stevin
 sends. Its credentials are GitHub environment secrets in `databricks-test`.
 
 A release is a version: bump `version` in `pyproject.toml` and move the CHANGELOG's
@@ -28,7 +28,7 @@ merging a bump PR; it ships. CONTRIBUTING.md has the details.
 ## Layout
 
 ```
-src/deltaplan/
+src/stevin/
   model/        types.py, table.py, change.py, plan.py
   typeparser.py
   loader.py
@@ -70,7 +70,7 @@ All eight items are built, lint/type/test clean, with golden plans in
 `tests/snapshots/` and a live suite in `tests/integration/`. Deliberate
 departures from this document, each explained in the commit that made it:
 `ty` instead of pyright; a hand-written validator in the loader rather than
-Pydantic/msgspec, so errors carry file:line:column; `deltaplan.yml` invented for
+Pydantic/msgspec, so errors carry file:line:column; `stevin.yml` invented for
 the project/target config; nested YAML types extended from struct to array and
 map; `sql.py` added for `quote_ident()`; rewrites classified but not generated (milestone 3); the Markdown
 renderer deferred to milestone 4.
@@ -85,7 +85,7 @@ verify (`precheck` survives as a precondition guard, e.g. SET NOT NULL); and
 history tables inside `executor.py` would have made one file do two jobs.
 
 Testing without a workspace: `tests/fake_warehouse.py` is an in-memory catalog
-that interprets deltaplan's own SQL, so plan → apply → re-plan can be asserted
+that interprets stevin's own SQL, so plan → apply → re-plan can be asserted
 offline for every change kind. It proves our SQL matches our intent; only
 `tests/integration/` proves Databricks agrees. Read `docs/testing.md` before
 adding a test, and keep the fake's `FakeSqlError` loud — a statement shape it
@@ -98,7 +98,7 @@ what a query result can't carry with ordinary ALTERs, drop the staging table.
 Two departures worth knowing: the design's single `CREATE OR REPLACE TABLE …
 AS SELECT` is staged in two statements, because staging makes the expensive
 step repeatable and checkable before the table is touched (a self-referencing
-RTAS does work — `test_live_assumptions.py` runs one); and `using:` is a new spec hint for conversions deltaplan won't
+RTAS does work — `test_live_assumptions.py` runs one); and `using:` is a new spec hint for conversions stevin won't
 invent. A nested field's NOT NULL is an ordinary ALTER (verified live, against
 the design's guess), so a rewrite puts it back like everything else.
 
@@ -108,7 +108,7 @@ tables whose spec is gone become `drop_table`, destructive), and
 `plan --clone` for a SHALLOW CLONE before risky steps. The specs-to-plan
 pipeline lives in `planning.py` (a module the layout above doesn't list),
 because `plan`, `drift` and the Action all need it. One departure: the design
-says the mode is per schema; `deltaplan.yml` has a per-schema `schemas:` map
+says the mode is per schema; `stevin.yml` has a per-schema `schemas:` map
 *and* keeps the target's `mode` as the default for unlisted schemas.
 
 **Milestone 4 (CI) is done**: `render/markdown.py`, `show`, `drift` (exit 0/2/1),
@@ -142,7 +142,7 @@ add a feature to SQL; add it to YAML and mark it `—` for SQL in `FEATURES`.
 Every row of `FEATURES` is a test, and `docs/formats.md` is generated from it.
 
 **Also since:** schemas and managed volumes as specs (`model/schema.py`,
-`model/volume.py` — never dropped: nothing marks them as deltaplan's, and a
+`model/volume.py` — never dropped: nothing marks them as stevin's, and a
 dropped volume loses its files); `spec_schema.py`, the editors' JSON Schema,
 built from the loader's key sets (every accepted key set is a named constant
 in `loader.py` — add keys there, never inline); `ddl.py`, which reads column
@@ -158,25 +158,25 @@ Anything a user sees gets a scene; a new feature gets a section in
 pictures, not just the diff.
 
 **Since 0.1.0a6** (the feature set the owner settled on after a competitor survey):
-`deltaplan apply` without a plan file — plan, show, ask, run — and `--select`; a first
-`import` writes `deltaplan.yml`; owners; partitioning, including the move to liquid
+`stevin apply` without a plan file — plan, show, ask, run — and `--select`; a first
+`import` writes `stevin.yml`; owners; partitioning, including the move to liquid
 clustering; removing a tag or property with `null`; `command: apply` in the Action.
-**The scope is closed**: deltaplan is for engineers who need tables in Databricks,
+**The scope is closed**: stevin is for engineers who need tables in Databricks,
 not a governance suite. Deliberately skipped, with reasons in the memory
 `product-focus`: policy rules in `validate`, a `protect:` flag, a breaking-change
 flag, a `restore` command, ABAC, catalogs, external tables.
 
-**The Databricks assumptions are `probes.py`**, not a test file: `deltaplan verify`
+**The Databricks assumptions are `probes.py`**, not a test file: `stevin verify`
 runs them in a user's own scratch schema, and
 `tests/integration/test_live_assumptions.py` is a thin parametrised caller of the
 same list. A new assumption about Databricks goes in `PROBES`; a new assumption
-about *deltaplan* is still a test. **`adopt.py` + `yamledit.py`** are the way back:
-`deltaplan adopt` writes live state into the spec file that already describes an
+about *stevin* is still a test. **`adopt.py` + `yamledit.py`** are the way back:
+`stevin adopt` writes live state into the spec file that already describes an
 object by editing the YAML text through its node tree, so comments, `${var}` and
 spec-only hints survive. Neither module is in the layout above.
 
 **Transcripts** are the third level between the fake and the live suite:
-`DELTAPLAN_RECORD=tests/transcripts` on a live run writes what the workspace
+`STEVIN_RECORD=tests/transcripts` on a live run writes what the workspace
 answered per probe (`tests/transcript.py`), and `tests/unit/test_transcripts.py`
 replays each one offline. A statement a recording doesn't cover fails loudly, like
 `FakeSqlError`. Only a probe that held is written.
@@ -185,13 +185,25 @@ replays each one offline. A statement a recording doesn't cover fails loudly, li
 hand with `uv run pytest -m integration` and the workspace env (see memory). By hand,
 run it from a separate `git worktree` of the commit under test — editing files mid-run
 mixes old and new modules. Before building on a Databricks behaviour, probe it on the
-workspace in a throwaway `deltaplan_probe_*` schema and drop the schema after.
+workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 (`tests/integration/test_live_assumptions.py`). Two remain, which that
 workspace couldn't settle: host-only auth in `cli.py`, and `CLUSTER BY AUTO`
 without predictive optimization. A new Databricks assumption still gets a
 `TODO(verify)` until a live test settles it.
+
+**stevin was deltaplan** up to 0.2.0a4 — renamed on its way into the Kostavo tools
+(`kostavo-oss`: stevin, lely, caland). The rename changed what people type and read,
+never what is sent to Databricks: `formerly.py` is the one module that spells the old
+name, and `test_formerly.py` keeps it that way. It holds the four names written onto
+tables in a workspace (`deltaplan.managed`, `deltaplan.seed`, the `__deltaplan_rewrite`
+and `__deltaplan_backup` suffixes — **do not rename them**: that orphans every table that
+carries one, and is a migration the owner hasn't decided on), the project file's former
+names (still found), and the `deltaplan` command (still installed; it says its new name
+on stderr and runs stevin). The GitHub secret `DELTAPLAN_TEST_CATALOG` kept its name too.
+`deltaplan-shim/` is the last `deltaplan` release for PyPI — it installs stevin — and is
+not published by any workflow.
 
 1. ~~Scaffold: `pyproject.toml` (uv, src layout, Apache-2.0), ruff, ty, pytest, GitHub Actions for lint + unit tests, README stub, move `DESIGN.md` to `docs/`.~~ **Done.**
 2. `model/types.py` + `typeparser.py`: type tree and parser for Databricks type strings incl. nested struct/array/map, decimal, backticked field names, `NOT NULL` and comments inside structs. Round-trip tests.

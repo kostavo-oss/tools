@@ -1,9 +1,9 @@
 """A schema the way a real team ends up with one — built with plain SQL and
-years of ALTERs, not by deltaplan.
+years of ALTERs, not by stevin.
 
-It is the dogfooding fixture: `deltaplan import` it, and `deltaplan plan` must
-come back empty. Every change a plan shows here is a bug in how deltaplan reads
-real-world tables. It deliberately includes what deltaplan doesn't manage
+It is the dogfooding fixture: `stevin import` it, and `stevin plan` must
+come back empty. Every change a plan shows here is a bug in how stevin reads
+real-world tables. It deliberately includes what stevin doesn't manage
 (partitioning, a Python UDF, a non-default collation) — those must be reported,
 never diffed.
 

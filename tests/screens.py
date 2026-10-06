@@ -1,6 +1,6 @@
 """The terminal screenshots in the docs, made by running the real CLI.
 
-Every picture on the docs site is deltaplan's own output. A scene writes a small
+Every picture on the docs site is stevin's own output. A scene writes a small
 project, applies its "before" specs through the CLI into an in-memory warehouse
 (`fake_warehouse.py`), then runs the command it shows and records what the CLI
 printed as an SVG terminal window. The spec files a page quotes are written next
@@ -33,12 +33,12 @@ from rich.console import Console
 from rich.text import Text
 from typer.testing import CliRunner
 
-from deltaplan import api, cli
-from deltaplan.connect import Connection
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
 from fake_warehouse import FakeWarehouse
 from helpers import path_without
+from stevin import api, cli
+from stevin.connect import Connection
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
 
 #: Columns in every picture: a docs page scales a wider terminal down until its
 #: text is too small to read, so this is a standard terminal's width.
@@ -53,7 +53,7 @@ GB = 1024**3
 PROJECT = """\
 version: 1
 specs: [tables]
-history_schema: ${catalog}.deltaplan
+history_schema: ${catalog}.stevin
 
 targets:
   dev:
@@ -93,9 +93,9 @@ class Studio:
 
     def apply(self) -> None:
         """Bring the warehouse in line with the specs, off camera."""
-        self.run("deltaplan plan -o plan.json")
-        self.run("deltaplan apply plan.json --allow-destructive")
-        assert self.exit_code == 0, self.run("deltaplan plan")
+        self.run("stevin plan -o plan.json")
+        self.run("stevin apply plan.json --allow-destructive")
+        assert self.exit_code == 0, self.run("stevin plan")
         # Real tables have data; the fake's are empty, and "(0 B)" reads oddly.
         for name in self.fake.tables:
             self.fake.sizes.setdefault(name, 24 * GB)
@@ -109,7 +109,7 @@ class Studio:
         )
         self._invoke(command, console, answer=answer)
         text = console.export_text(clear=False)
-        svg = console.export_svg(title="deltaplan", unique_id=f"dp-{name}")
+        svg = console.export_svg(title="stevin", unique_id=f"dp-{name}")
         (self.out / f"{name}.svg").write_text(svg, encoding="utf-8")
         return text
 
@@ -117,7 +117,7 @@ class Studio:
         self, command: str, console: Console, *, answer: str | None = None
     ) -> None:
         words = shlex.split(command)
-        assert words[0] == "deltaplan", command
+        assert words[0] == "stevin", command
 
         def typed(*_args: object) -> str:
             # Rich reads a prompt's answer with input(), which a recording never
@@ -154,7 +154,7 @@ def _console() -> Console:
 def _patched(studio: Studio, console: Console) -> Iterator[None]:
     """Point the CLI at the scene's warehouse and console.
 
-    And take the Databricks CLI off `PATH`: a picture must show what deltaplan
+    And take the Databricks CLI off `PATH`: a picture must show what stevin
     does, not what happens to be installed on the machine that took it.
     """
     replacements: dict[str, object] = {
@@ -204,7 +204,7 @@ def make(out: Path) -> list[Path]:
     for play in SCENES:
         with tempfile.TemporaryDirectory() as root:
             studio = Studio(Path(root), out)
-            studio.write("deltaplan.yml", PROJECT)
+            studio.write("stevin.yml", PROJECT)
             play(studio)
     return sorted(out.iterdir())
 
@@ -307,14 +307,14 @@ def _tour_project(studio: Studio) -> None:
 @scene
 def tour_first_plan(studio: Studio) -> None:
     _tour_project(studio)
-    studio.quote("deltaplan.yml", "tour-project.yml")
+    studio.quote("stevin.yml", "tour-project.yml")
     studio.quote("tables/orders.yml", "tour-orders.yml")
     studio.quote("tables/customers.sql", "tour-customers.sql")
-    studio.shoot("tour-version", "deltaplan --version")
-    studio.shoot("tour-validate", "deltaplan validate")
-    studio.shoot("tour-plan-create", "deltaplan plan -o plan.json")
-    studio.shoot("tour-apply-create", "deltaplan apply plan.json")
-    studio.shoot("tour-plan-clean", "deltaplan plan")
+    studio.shoot("tour-version", "stevin --version")
+    studio.shoot("tour-validate", "stevin validate")
+    studio.shoot("tour-plan-create", "stevin plan -o plan.json")
+    studio.shoot("tour-apply-create", "stevin apply plan.json")
+    studio.shoot("tour-plan-clean", "stevin plan")
 
 
 @scene
@@ -328,7 +328,7 @@ def tour_apply_now(studio: Studio) -> None:
             "      - name: channel\n        type: string\n      - name: amount\n",
         ),
     )
-    studio.shoot("tour-apply-now", "deltaplan apply", answer="y")
+    studio.shoot("tour-apply-now", "stevin apply", answer="y")
 
 
 @scene
@@ -357,19 +357,19 @@ def tour_validate_errors(studio: Studio) -> None:
           - primary_key: [customer_id]
         """,
     )
-    studio.shoot("tour-validate-errors", "deltaplan validate")
+    studio.shoot("tour-validate-errors", "stevin validate")
 
 
 @scene
 def tour_change(studio: Studio) -> None:
     _tour_project(studio)
-    studio.run("deltaplan plan -o plan.json")
-    studio.run("deltaplan apply plan.json")
+    studio.run("stevin plan -o plan.json")
+    studio.run("stevin apply plan.json")
     studio.fake.sizes["dev.sales.orders"] = 412 * GB
     studio.write("tables/orders.yml", ORDERS_CHANGED)
     studio.quote("tables/orders.yml", "tour-orders-changed.yml")
-    studio.shoot("tour-plan-change", "deltaplan plan -o plan.json")
-    studio.shoot("tour-apply-change", "deltaplan apply plan.json")
+    studio.shoot("tour-plan-change", "stevin plan -o plan.json")
+    studio.shoot("tour-apply-change", "stevin apply plan.json")
 
 
 def _tour_changed(studio: Studio) -> None:
@@ -390,7 +390,7 @@ def tour_rewrite(studio: Studio) -> None:
             "      - name: customer_ref\n        type: bigint\n",
         ),
     )
-    studio.shoot("tour-plan-rewrite", "deltaplan plan --clone -o plan.json")
+    studio.shoot("tour-plan-rewrite", "stevin plan --clone -o plan.json")
 
 
 @scene
@@ -409,8 +409,8 @@ def tour_destroy(studio: Studio) -> None:
             "",
         ),
     )
-    studio.shoot("tour-plan-destroy", "deltaplan plan -o plan.json")
-    studio.shoot("tour-apply-refused", "deltaplan apply plan.json")
+    studio.shoot("tour-plan-destroy", "stevin plan -o plan.json")
+    studio.shoot("tour-apply-refused", "stevin apply plan.json")
 
 
 @scene
@@ -424,7 +424,7 @@ def tour_drift(studio: Studio) -> None:
     studio.fake.query(
         "ALTER TABLE `dev`.`sales`.`orders` DROP CONSTRAINT `positive_amount`"
     )
-    studio.shoot("tour-drift", "deltaplan drift")
+    studio.shoot("tour-drift", "stevin drift")
 
 
 @scene
@@ -433,7 +433,7 @@ def tour_pull_request(studio: Studio) -> None:
     studio.apply()
     studio.fake.sizes["dev.sales.orders"] = 412 * GB
     studio.write("tables/orders.yml", ORDERS_CHANGED)
-    studio.run("deltaplan plan -f md -o comment.md")
+    studio.run("stevin plan -f md -o comment.md")
     comment = (studio.root / "comment.md").read_text(encoding="utf-8")
     (studio.out / "tour-comment.txt").write_text(for_the_site(comment), encoding="utf-8")
 
@@ -487,7 +487,7 @@ def _feature(
     after: dict[str, str],
     *,
     show: str = "tables/orders.yml",
-    command: str = "deltaplan plan",
+    command: str = "stevin plan",
 ) -> None:
     """Apply `before`, write `after` over it, quote `show`, and shoot `command`."""
     for path, text in before.items():
@@ -914,7 +914,7 @@ def feature_hooks(studio: Studio) -> None:
 def feature_ownership(studio: Studio) -> None:
     from dataclasses import replace
 
-    from deltaplan.model.table import MANAGED_PROPERTY
+    from stevin.model.table import MANAGED_PROPERTY
 
     spec = """\
         table: ${catalog}.sales.orders
@@ -924,7 +924,7 @@ def feature_ownership(studio: Studio) -> None:
     """
     studio.write("tables/orders.yml", spec)
     studio.apply()
-    # Made by hand before deltaplan arrived: the same shape, but not ours.
+    # Made by hand before stevin arrived: the same shape, but not ours.
     orders = studio.fake.tables["dev.sales.orders"]
     studio.fake.tables["dev.sales.orders"] = replace(
         orders,
@@ -947,7 +947,7 @@ def feature_adopt(studio: Studio) -> None:
           - {name: order_id, type: bigint}
           - {name: amount, type: "decimal(18,2)"}
     """
-    studio.write("deltaplan.yml", PROJECT)
+    studio.write("stevin.yml", PROJECT)
     studio.write("tables/orders.yml", orders)
     studio.apply()
     # Someone added a column by hand at 2am to unblock a load.
@@ -955,14 +955,14 @@ def feature_adopt(studio: Studio) -> None:
         "ALTER TABLE `dev`.`sales`.`orders` "
         "ADD COLUMNS (region STRING COMMENT 'ISO 3166 code')"
     )
-    studio.shoot("feature-adopt", "deltaplan adopt")
+    studio.shoot("feature-adopt", "stevin adopt")
     # The file as adopt left it: the comment and the variable are still there.
     studio.quote("tables/orders.yml", "feature-adopt.yml")
 
 
 @scene
 def feature_strict(studio: Studio) -> None:
-    studio.write("deltaplan.yml", PROJECT + "\nschemas:\n  ${catalog}.sales: strict\n")
+    studio.write("stevin.yml", PROJECT + "\nschemas:\n  ${catalog}.sales: strict\n")
     orders = """\
         table: ${catalog}.sales.orders
         columns:
@@ -979,14 +979,14 @@ def feature_strict(studio: Studio) -> None:
         "strict",
         {"tables/orders.yml": orders, "tables/orders_v1.yml": legacy},
         {"tables/orders_v1.yml": ""},
-        show="deltaplan.yml",
+        show="stevin.yml",
     )
 
 
 @scene
 def feature_manage(studio: Studio) -> None:
     """Handing grants and tags to the tool that already owns them."""
-    studio.write("deltaplan.yml", PROJECT + "\nmanage:\n  grants: false\n  tags: false\n")
+    studio.write("stevin.yml", PROJECT + "\nmanage:\n  grants: false\n  tags: false\n")
     spec = (
         "table: ${catalog}.sales.orders\n"
         "columns:\n"
@@ -1000,20 +1000,20 @@ def feature_manage(studio: Studio) -> None:
         "tables/orders.yml",
         spec + "grants:\n  - {principal: analysts, privileges: [SELECT]}\n",
     )
-    studio.quote("deltaplan.yml", "feature-manage.yml")
-    studio.shoot("feature-manage", "deltaplan validate")
+    studio.quote("stevin.yml", "feature-manage.yml")
+    studio.shoot("feature-manage", "stevin validate")
     # And a plan says what it could not have touched.
     studio.write("tables/orders.yml", spec + "comment: Order facts\n")
-    studio.shoot("feature-manage-plan", "deltaplan plan")
+    studio.shoot("feature-manage-plan", "stevin plan")
 
 
 @scene
 def start(studio: Studio) -> None:
     """The getting-started page: an empty directory, a schema made by hand."""
-    from deltaplan.model.table import Grant
     from helpers import col, table
+    from stevin.model.table import Grant
 
-    studio.remove("deltaplan.yml")
+    studio.remove("stevin.yml")
     studio.fake = FakeWarehouse.of(
         table(
             col("customer_id", "bigint", nullable=False),
@@ -1031,11 +1031,11 @@ def start(studio: Studio) -> None:
         ),
         sizes={"main.crm.customers": 3 * GB, "main.crm.events": 870 * GB},
     )
-    studio.shoot("start-import", "deltaplan import main.crm")
-    studio.quote("deltaplan.yml", "start-project.yml")
+    studio.shoot("start-import", "stevin import main.crm")
+    studio.quote("stevin.yml", "start-project.yml")
     studio.quote("tables/customers.yml", "start-customers.yml")
-    studio.shoot("start-plan", "deltaplan plan")
-    studio.shoot("start-apply", "deltaplan apply", answer="y")
+    studio.shoot("start-plan", "stevin plan")
+    studio.shoot("start-apply", "stevin apply", answer="y")
     studio.write(
         "tables/customers.yml",
         (studio.root / "tables" / "customers.yml")
@@ -1046,7 +1046,7 @@ def start(studio: Studio) -> None:
             "  comment: B2B or B2C\n",
         ),
     )
-    studio.shoot("start-change", "deltaplan apply", answer="y")
+    studio.shoot("start-change", "stevin apply", answer="y")
 
 
 #: Named the way the bundle names it, so it is written in one place only.
@@ -1088,28 +1088,28 @@ def bundle(studio: Studio) -> None:
     """,
     )
     studio.write(
-        "deltaplan.yml",
+        "stevin.yml",
         """\
         version: 1
         specs: [tables]
         bundle: databricks.yml
-        history_schema: ${catalog}.deltaplan
+        history_schema: ${catalog}.stevin
     """,
     )
     studio.write("tables/orders.yml", BUNDLE_ORDERS)
     studio.quote("databricks.yml", "bundle-databricks.yml")
-    studio.quote("deltaplan.yml", "bundle-project.yml")
+    studio.quote("stevin.yml", "bundle-project.yml")
     studio.quote("tables/orders.yml", "bundle-orders.yml")
     # Before the bundle has deployed its schema, and after.
-    studio.shoot("bundle-undeployed", "deltaplan plan")
+    studio.shoot("bundle-undeployed", "stevin plan")
     studio.fake.schemas.add("dev.sales")
-    studio.shoot("bundle-plan", "deltaplan plan")
+    studio.shoot("bundle-plan", "stevin plan")
 
 
 @scene
 def feature_import(studio: Studio) -> None:
-    from deltaplan.model.table import Grant
     from helpers import col, table
+    from stevin.model.table import Grant
 
     # A schema built by hand, the way most start.
     studio.fake = FakeWarehouse.of(
@@ -1125,9 +1125,9 @@ def feature_import(studio: Studio) -> None:
         table(col("event_id", "bigint"), col("payload", "string"), name="dev.crm.events"),
         sizes={"dev.crm.customers": 3 * GB, "dev.crm.events": 870 * GB},
     )
-    studio.shoot("feature-import", "deltaplan import dev.crm -o tables")
+    studio.shoot("feature-import", "stevin import dev.crm -o tables")
     studio.quote("tables/customers.yml", "feature-import.yml")
-    studio.shoot("feature-import-plan", "deltaplan plan")
+    studio.shoot("feature-import-plan", "stevin plan")
 
 
 @scene
@@ -1142,7 +1142,7 @@ def feature_sql_limits(studio: Studio) -> None:
         """,
     )
     studio.quote("tables/customers.sql", "feature-sql-limits.sql")
-    studio.shoot("feature-sql-limits", "deltaplan validate")
+    studio.shoot("feature-sql-limits", "stevin validate")
 
 
 def main() -> None:

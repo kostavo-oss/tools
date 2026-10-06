@@ -5,17 +5,19 @@ loader, differ, planner and renderers — only the network is replaced.
 """
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.cli import app, package_version
-from deltaplan.connect import Connection
-from deltaplan.loader import load_table
-from deltaplan.model.table import Table
 from helpers import FakeRunner, Row, col, fake_runner, table
+from stevin import cli
+from stevin.cli import app, package_version
+from stevin.connect import Connection
+from stevin.loader import load_table
+from stevin.model.table import Table
 
 runner = CliRunner()
 
@@ -84,7 +86,7 @@ LIVE_DETAIL: tuple[Row, ...] = (
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    (tmp_path / "deltaplan.yml").write_text(CONFIG)
+    (tmp_path / "stevin.yml").write_text(CONFIG)
     (tmp_path / "tables").mkdir()
     (tmp_path / "tables" / "orders.yml").write_text(SPEC)
     return tmp_path
@@ -110,11 +112,18 @@ def live(monkeypatch: pytest.MonkeyPatch) -> FakeRunner:
 # ---------------------------------------------------------------------------
 
 
+def test_python_dash_m_is_the_command() -> None:
+    done = subprocess.run(
+        [sys.executable, "-m", "stevin", "--version"], capture_output=True, text=True
+    )
+    assert (done.returncode, done.stdout) == (0, f"stevin {package_version()}\n")
+
+
 @pytest.mark.parametrize("args", [["version"], ["--version"]])
 def test_version_prints_the_package_version(args: list[str]) -> None:
     result = runner.invoke(app, args)
     assert result.exit_code == 0
-    assert result.stdout == f"deltaplan {package_version()}\n"
+    assert result.stdout == f"stevin {package_version()}\n"
 
 
 def test_bare_invocation_shows_help() -> None:
@@ -128,7 +137,7 @@ def test_bare_invocation_shows_help() -> None:
 
 
 def test_validate_accepts_a_good_spec(project: Path) -> None:
-    result = runner.invoke(app, ["validate", "--config", str(project / "deltaplan.yml")])
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 0, result.output
     assert "1 spec OK" in result.output
 
@@ -136,7 +145,7 @@ def test_validate_accepts_a_good_spec(project: Path) -> None:
 def test_validate_reports_the_file_and_line(project: Path) -> None:
     spec = project / "tables" / "orders.yml"
     spec.write_text("table: main.sales.orders\ncolumns:\n  - name: a\n    typo: int\n")
-    result = runner.invoke(app, ["validate", "--config", str(project / "deltaplan.yml")])
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 1
     assert "orders.yml:4:5" in result.output
     assert "unknown key 'typo'" in result.output
@@ -162,7 +171,7 @@ def test_validate_fails_on_a_lint_error(project: Path) -> None:
         "constraints:\n"
         "  - primary_key: [id]\n"
     )
-    result = runner.invoke(app, ["validate", "--config", str(project / "deltaplan.yml")])
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 1
     assert "must be declared nullable: false" in result.output
 
@@ -183,7 +192,7 @@ def test_validate_takes_explicit_paths(project: Path) -> None:
 @pytest.mark.usefixtures("live")
 def test_plan_renders_the_diff(project: Path) -> None:
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "sales.orders   ~ update  (412 GB)" in result.output
@@ -202,7 +211,7 @@ def test_plan_writes_json(project: Path, tmp_path: Path) -> None:
             "-t",
             "dev",
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
             "--format",
             "json",
             "-o",
@@ -239,7 +248,7 @@ def test_plan_with_no_changes(project: Path, monkeypatch: pytest.MonkeyPatch) ->
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "No changes. Live tables match your specs." in result.output
@@ -278,7 +287,7 @@ def test_plan_reports_live_tables_no_spec_describes(
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "1 unmanaged table in these schemas, left untouched" in result.output
@@ -291,13 +300,13 @@ def test_an_orphaned_table_stays_in_an_additive_schema(
 ) -> None:
     from fake_warehouse import FakeWarehouse
 
-    # deltaplan created it, but its spec is gone.
+    # stevin created it, but its spec is gone.
     fake = FakeWarehouse.of(_live_orders(managed=True), _stranger(managed=True))
     monkeypatch.setattr(
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "1 managed table has no spec; the schema is additive, so they stay" in (
@@ -311,9 +320,7 @@ def test_an_orphaned_table_is_dropped_in_a_strict_schema(
 ) -> None:
     from fake_warehouse import FakeWarehouse
 
-    (project / "deltaplan.yml").write_text(
-        CONFIG + "schemas:\n  ${catalog}.sales: strict\n"
-    )
+    (project / "stevin.yml").write_text(CONFIG + "schemas:\n  ${catalog}.sales: strict\n")
     fake = FakeWarehouse.of(
         _live_orders(managed=True), _stranger(managed=True), _stranger_unmanaged()
     )
@@ -321,13 +328,13 @@ def test_an_orphaned_table_is_dropped_in_a_strict_schema(
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "sales.someone_elses   - destroy" in result.output
     assert "DROP TABLE" in result.output
     assert "1 destroy" in result.output
-    # Strict never reaches a table deltaplan didn't create.
+    # Strict never reaches a table stevin didn't create.
     assert "main.sales.not_ours" in result.output
     assert "sales.not_ours   - destroy" not in result.output
 
@@ -339,10 +346,8 @@ def _stranger_unmanaged() -> Table:
 
 
 def test_plan_needs_a_target_when_there_are_several(project: Path) -> None:
-    (project / "deltaplan.yml").write_text(
-        CONFIG + "  prod:\n    vars: {catalog: prod}\n"
-    )
-    result = runner.invoke(app, ["plan", "--config", str(project / "deltaplan.yml")])
+    (project / "stevin.yml").write_text(CONFIG + "  prod:\n    vars: {catalog: prod}\n")
+    result = runner.invoke(app, ["plan", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 1
     assert "Pick a target with -t" in result.output
 
@@ -354,7 +359,7 @@ def test_plan_refuses_to_run_with_spec_errors(project: Path) -> None:
         "columns: [{name: id, type: bigint}]\n"
     )
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 1
     assert "Refusing to plan" in result.output
@@ -364,10 +369,10 @@ def test_plan_refuses_to_run_with_spec_errors(project: Path) -> None:
 def test_plan_as_markdown(project: Path) -> None:
     result = runner.invoke(
         app,
-        ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml"), "-f", "md"],
+        ["plan", "-t", "dev", "--config", str(project / "stevin.yml"), "-f", "md"],
     )
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("<!-- deltaplan:plan:dev -->")
+    assert result.output.startswith("<!-- stevin:plan:dev -->")
     assert "| | what | now | after | change |" in result.output
 
 
@@ -383,7 +388,7 @@ def test_show_renders_a_saved_plan_without_a_warehouse(
             "-t",
             "dev",
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
             "-f",
             "json",
             "-o",
@@ -403,7 +408,7 @@ def test_show_renders_a_saved_plan_without_a_warehouse(
 
     as_markdown = runner.invoke(app, ["show", str(plan_file), "-f", "md"])
     assert as_markdown.exit_code == 0
-    assert "### 🟡 deltaplan plan · `dev`" in as_markdown.output
+    assert "### 🟡 stevin plan · `dev`" in as_markdown.output
 
 
 @pytest.mark.usefixtures("live")
@@ -413,7 +418,7 @@ def test_the_plan_file_is_the_plan_whatever_the_screen_shows(
     """`plan -o plan.json` then `apply plan.json`, as the docs have it: the
     terminal gets the readable plan, the file gets what `apply` reads."""
     plan_file = tmp_path / "plan.json"
-    config = str(project / "deltaplan.yml")
+    config = str(project / "stevin.yml")
     result = runner.invoke(app, ["plan", "-t", "dev", "-c", config, "-o", str(plan_file)])
     assert result.exit_code == 0, result.output
     assert "sales.orders   ~ update" in result.output
@@ -423,7 +428,7 @@ def test_the_plan_file_is_the_plan_whatever_the_screen_shows(
 @pytest.mark.usefixtures("live")
 def test_drift_exits_2_when_live_tables_have_moved(project: Path) -> None:
     result = runner.invoke(
-        app, ["drift", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["drift", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 2, result.output
     assert "Drift: 1 table differs from its spec." in result.output
@@ -447,13 +452,13 @@ def test_drift_exits_0_when_in_sync(
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["drift", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["drift", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "No changes" in result.output
 
 
-def test_drift_ignores_what_deltaplan_never_claimed(
+def test_drift_ignores_what_stevin_never_claimed(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from fake_warehouse import FakeWarehouse
@@ -466,13 +471,13 @@ def test_drift_ignores_what_deltaplan_never_claimed(
         "  - {name: amount, type: 'decimal(10,2)'}\n"
         "  - {name: cust_id, type: string}\n"
     )
-    # An unmanaged table beside it is not drift: nobody asked deltaplan to keep it.
+    # An unmanaged table beside it is not drift: nobody asked stevin to keep it.
     fake = FakeWarehouse.of(_live_orders(managed=True), _stranger(managed=False))
     monkeypatch.setattr(
         cli, "_connect", lambda *_args, **_kwargs: Connection(runner=fake)
     )
     result = runner.invoke(
-        app, ["drift", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["drift", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
 
@@ -481,10 +486,10 @@ def test_drift_ignores_what_deltaplan_never_claimed(
 def test_drift_as_markdown_has_its_own_marker(project: Path) -> None:
     result = runner.invoke(
         app,
-        ["drift", "-t", "dev", "--config", str(project / "deltaplan.yml"), "-f", "md"],
+        ["drift", "-t", "dev", "--config", str(project / "stevin.yml"), "-f", "md"],
     )
     assert result.exit_code == 2
-    assert result.output.startswith("<!-- deltaplan:drift:dev -->")
+    assert result.output.startswith("<!-- stevin:drift:dev -->")
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +510,7 @@ def test_import_writes_specs_that_load_back(project: Path, tmp_path: Path) -> No
             "-t",
             "dev",
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -518,7 +523,7 @@ def test_import_writes_specs_that_load_back(project: Path, tmp_path: Path) -> No
     first, rest = text.split("\n", 1)
     assert first.startswith("# yaml-language-server: $schema=")
     assert rest.startswith("table: ${catalog}.sales.orders")
-    # deltaplan's own marker is not something you should have to write.
+    # stevin's own marker is not something you should have to write.
     assert "deltaplan.managed" not in text
 
     table = load_table(written, {"catalog": "main"})
@@ -580,9 +585,9 @@ def test_import_as_sql_falls_back_to_yaml_for_what_sql_cannot_say(
 ) -> None:
     from dataclasses import replace
 
-    from deltaplan.loader import load_spec
-    from deltaplan.model.types import Field, Mask, Primitive
     from fake_warehouse import FakeWarehouse
+    from stevin.loader import load_spec
+    from stevin.model.types import Field, Mask, Primitive
 
     plain = table(col("id", "bigint"), name="main.sales.orders", comment="It's plain")
     masked = replace(
@@ -606,7 +611,7 @@ def test_import_as_sql_falls_back_to_yaml_for_what_sql_cannot_say(
             "-t",
             "dev",
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -622,7 +627,7 @@ def test_import_as_sql_falls_back_to_yaml_for_what_sql_cannot_say(
 def test_schema_prints_the_json_schema(kind: str) -> None:
     import json
 
-    from deltaplan import spec_schema
+    from stevin import spec_schema
 
     result = runner.invoke(app, ["schema", kind])
     assert result.exit_code == 0, result.output
@@ -641,14 +646,14 @@ def test_apply_shows_each_steps_risk(
     project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`[meta]` is also Rich markup: printed as is, it vanished."""
-    from deltaplan.history import MemoryHistory
     from fake_warehouse import FakeWarehouse
+    from stevin.history import MemoryHistory
 
     monkeypatch.setattr(
         cli, "_connect", lambda *_a, **_k: Connection(runner=FakeWarehouse())
     )
     monkeypatch.setattr(cli, "_history", lambda *_a, **_k: MemoryHistory())
-    config, plan_file = str(project / "deltaplan.yml"), str(tmp_path / "plan.json")
+    config, plan_file = str(project / "stevin.yml"), str(tmp_path / "plan.json")
     assert runner.invoke(app, ["plan", "-t", "dev", "-c", config, "-o", plan_file])
     result = runner.invoke(app, ["apply", plan_file, "-c", config])
     assert result.exit_code == 0, result.output
@@ -662,6 +667,6 @@ def test_an_error_quotes_the_spec_as_written(project: Path) -> None:
     (project / "tables" / "orders.yml").write_text(
         "table: main.sales.orders\ncolumns:\n  - name: tags\n    type: array[int]\n"
     )
-    result = runner.invoke(app, ["validate", "--config", str(project / "deltaplan.yml")])
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 1
     assert "  array[int]\n       ^" in result.output

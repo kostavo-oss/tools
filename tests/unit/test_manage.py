@@ -1,11 +1,11 @@
-"""`manage:` — what deltaplan looks after here, and what belongs elsewhere.
+"""`manage:` — what stevin looks after here, and what belongs elsewhere.
 
 A team whose policy framework owns grants, and whose catalogue writes the tags
 its ABAC rules read, doesn't want a second tool writing them. Handing one over
 means the key is refused in a spec, left out of the editors' schema, never
 written by `import`, never asked of the workspace, and so never in a plan.
 
-What it does *not* mean is that deltaplan forgets they exist: it still has to
+What it does *not* mean is that stevin forgets they exist: it still has to
 know, or a rewrite would destroy someone else's work. That is the last test
 here.
 """
@@ -15,18 +15,18 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_project, load_spec, load_specs
-from deltaplan.manage import MANAGEABLE, Manage, strip
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, Table
-from deltaplan.model.types import Mask
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.markdown import render_markdown
-from deltaplan.render.rich import plan_text
-from deltaplan.spec_schema import spec_schema
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_project, load_spec, load_specs
+from stevin.manage import MANAGEABLE, Manage, strip
+from stevin.model.table import MANAGED_PROPERTY, Grant, Table
+from stevin.model.types import Mask
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.markdown import render_markdown
+from stevin.render.rich import plan_text
+from stevin.spec_schema import spec_schema
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -34,7 +34,7 @@ MANAGED = ((MANAGED_PROPERTY, "true"),)
 
 def project(tmp_path: Path, manage: str = "") -> Path:
     (tmp_path / "tables").mkdir(exist_ok=True)
-    path = tmp_path / "deltaplan.yml"
+    path = tmp_path / "stevin.yml"
     path.write_text(
         "specs: [tables]\ntargets:\n  dev:\n"
         "    default: true\n    vars: {catalog: main}\n" + manage
@@ -68,7 +68,7 @@ def test_a_handed_over_key_is_refused_in_a_spec(tmp_path: Path) -> None:
     with pytest.raises(SpecError) as raised:
         load_specs(loaded, loaded.target("dev"))
     message = str(raised.value)
-    assert "isn't deltaplan's in this project" in message
+    assert "isn't stevin's in this project" in message
     assert "manage.grants: false" in message
     assert str(path.name) in message, "the error says which file"
 
@@ -165,14 +165,14 @@ def load_spec_text(text: str, tmp: Path | None = None) -> object:
     return load_spec(path)
 
 
-def test_handing_something_over_does_not_make_deltaplan_blind() -> None:
+def test_handing_something_over_does_not_make_stevin_blind() -> None:
     """The rewrite refusal rests on knowing a table is masked. Still true."""
     masked = replace(
         table(col("id", "bigint"), name=NAME, properties=MANAGED),
         columns=(replace(col("id", "bigint"), mask=Mask("main.sales.hide")),),
     )
     assert masked.protected, "a masked table protects itself"
-    # Handing masks over only stops deltaplan declaring them in a spec…
+    # Handing masks over only stops stevin declaring them in a spec…
     written = strip(masked, Manage(("masks",)))
     assert isinstance(written, Table)
     assert written.protected is False
@@ -183,10 +183,10 @@ def test_handing_something_over_does_not_make_deltaplan_blind() -> None:
 
 
 def test_handing_properties_over_keeps_the_ownership_marker() -> None:
-    """The marker that says a table is deltaplan's is a property itself.
+    """The marker that says a table is stevin's is a property itself.
 
     Handing `properties` to another tool must not hand that over too, or
-    deltaplan would lose track of which tables are its to manage.
+    stevin would lose track of which tables are its to manage.
     """
     manage = Manage(("properties",))
     fake = FakeWarehouse()
@@ -222,7 +222,7 @@ def test_a_comment_another_tool_owns_is_not_diffed_away(tmp_path: Path) -> None:
     """The one aspect where silence used to mean removal.
 
     A spec without a comment on a table that has one means "clear it" — unless
-    comments aren't deltaplan's, in which case it means nothing at all.
+    comments aren't stevin's, in which case it means nothing at all.
     """
     live = replace(
         table(col("id", "bigint", comment="the key"), name=NAME, properties=MANAGED),
@@ -252,5 +252,5 @@ def test_a_comment_in_a_spec_is_refused_when_comments_are_elsewhere(
 ) -> None:
     spec(tmp_path, f"table: main.sales.orders\ncomment: Order facts\n{COLUMNS}")
     loaded = load_project(project(tmp_path, "manage:\n  comments: false\n"))
-    with pytest.raises(SpecError, match="isn't deltaplan's in this project"):
+    with pytest.raises(SpecError, match="isn't stevin's in this project"):
         load_specs(loaded, loaded.target("dev"))

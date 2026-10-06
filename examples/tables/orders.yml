@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://misja-pronk.github.io/deltaplan/schema/spec.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/spec.json
 # A worked example of the spec format. Every key here is optional except
-# `table` and `columns`; see https://misja-pronk.github.io/deltaplan/spec/
+# `table` and `columns`; see https://kostavo-oss.github.io/stevin/spec/
 table: ${catalog}.sales.orders
 comment: Order facts, one row per order line
 
@@ -33,7 +33,7 @@ columns:
   - name: amount
     type: decimal(18, 2)
     # If a change to this column ever needs the table rewritten, `using:` says how
-    # to fill it from the old one. deltaplan writes the obvious cast itself, so
+    # to fill it from the old one. stevin writes the obvious cast itself, so
     # this is only for conversions it shouldn't guess at:
     #   using: "format_number(amount, 2)"
 

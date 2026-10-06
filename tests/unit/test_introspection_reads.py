@@ -3,7 +3,7 @@
 Each table costs a DESCRIBE DETAIL and a SHOW CREATE TABLE, at about a second
 apiece on a warehouse — a 300-table schema took minutes, one query after
 another. So only tables a spec describes are read in full; the rest get a light
-read (enough to list them and see whether they are deltaplan's); and the
+read (enough to list them and see whether they are stevin's); and the
 per-table queries run several at a time.
 """
 
@@ -11,15 +11,15 @@ import threading
 import time
 from dataclasses import dataclass, field, replace
 
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, Row
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.model.types import Field, Identity, Primitive
-from deltaplan.planning import plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, Row
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.model.types import Field, Identity, Primitive
+from stevin.planning import plan_tables
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 ORDERS = table(col("id", "bigint"), name="main.sales.orders", properties=MANAGED)

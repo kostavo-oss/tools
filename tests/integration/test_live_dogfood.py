@@ -1,4 +1,4 @@
-"""Dogfooding: a schema deltaplan didn't make, imported, planned, adopted, changed.
+"""Dogfooding: a schema stevin didn't make, imported, planned, adopted, changed.
 
 `messy_schema` builds what a real team ends up with — years of ALTERs, renamed
 and dropped columns, masks, a Python UDF, legacy partitioning. The invariant:
@@ -6,7 +6,7 @@ importing it and planning finds nothing but ownership claims; once those are
 applied, nothing at all; and an ordinary change to the imported specs applies
 and converges. The first run of this (2026-09-19) found a reserved word
 Databricks leaves unquoted in SHOW CREATE TABLE, and three changes Delta
-refuses that deltaplan planned anyway.
+refuses that stevin planned anyway.
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.loader import dump_spec, load_spec, validate_spec
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import Table
-from deltaplan.model.types import Field, Primitive
-from deltaplan.model.view import Relation
-from deltaplan.planning import plan_tables
-from deltaplan.typeparser import parse_type
 from messy_schema import statements
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.loader import dump_spec, load_spec, validate_spec
+from stevin.model.plan import Plan
+from stevin.model.table import Table
+from stevin.model.types import Field, Primitive
+from stevin.model.view import Relation
+from stevin.planning import plan_tables
+from stevin.typeparser import parse_type
 
 pytestmark = pytest.mark.integration
 
@@ -48,7 +48,7 @@ def test_a_messy_schema_imports_adopts_and_changes(
         except Exception as error:  # noqa: BLE001 - say which part of the fixture broke
             pytest.fail(f"building the messy schema failed at {label!r}: {error}")
 
-    # Import: every object deltaplan manages, written as a spec and read back.
+    # Import: every object stevin manages, written as a spec and read back.
     catalog, name = schema.split(".")
     live = introspector.schema(catalog, name)
     assert live.definition is not None

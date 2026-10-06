@@ -18,7 +18,7 @@ import yaml
 import upsert_comment
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAN_MARKER = "<!-- deltaplan:plan:prod -->"
+PLAN_MARKER = "<!-- stevin:plan:prod -->"
 
 
 class FakeGitHub:
@@ -51,7 +51,7 @@ class FakeGitHub:
 
 
 def body(marker: str = PLAN_MARKER, text: str = "the plan") -> str:
-    return f"{marker}\n### deltaplan plan\n{text}\n"
+    return f"{marker}\n### stevin plan\n{text}\n"
 
 
 def test_the_first_run_creates_a_comment() -> None:
@@ -70,7 +70,7 @@ def test_a_later_run_updates_it_in_place() -> None:
 
 
 def test_a_quoted_comment_is_not_mistaken_for_ours() -> None:
-    # A reply that quotes deltaplan carries the marker, but not at the start.
+    # A reply that quotes stevin carries the marker, but not at the start.
     quoted = "> " + body().replace("\n", "\n> ") + "\nlooks risky?"
     github = FakeGitHub([quoted])
     assert upsert_comment.upsert(github, "o/r", "7", body()) == "created"
@@ -78,8 +78,8 @@ def test_a_quoted_comment_is_not_mistaken_for_ours() -> None:
 
 
 def test_targets_and_commands_keep_their_own_comments() -> None:
-    drift = "<!-- deltaplan:drift:prod -->"
-    dev = "<!-- deltaplan:plan:dev -->"
+    drift = "<!-- stevin:drift:prod -->"
+    dev = "<!-- stevin:plan:dev -->"
     github = FakeGitHub([body(drift, "drift"), body(dev, "dev plan")])
     assert upsert_comment.upsert(github, "o/r", "7", body()) == "created"
     assert github.comments[0]["body"] == body(drift, "drift")
@@ -95,13 +95,13 @@ def test_it_looks_past_the_first_page() -> None:
 
 
 def test_a_body_without_a_marker_is_refused() -> None:
-    with pytest.raises(ValueError, match="must start with a deltaplan marker"):
+    with pytest.raises(ValueError, match="must start with a stevin marker"):
         upsert_comment.upsert(FakeGitHub(), "o/r", "7", "### a plan\n")
 
 
 def test_the_markdown_renderer_writes_the_marker_the_script_reads() -> None:
     # The two halves agree on the marker, or the comment would never be found.
-    from deltaplan.render.markdown import marker
+    from stevin.render.markdown import marker
 
     assert marker("plan", "prod") == PLAN_MARKER
     assert upsert_comment.marker_of(body(marker("plan", "prod"))) == PLAN_MARKER
@@ -170,7 +170,7 @@ def test_the_comment_script_is_where_the_action_looks_for_it() -> None:
 
 
 # ---------------------------------------------------------------------------
-# the script itself, with deltaplan stubbed out
+# the script itself, with stevin stubbed out
 # ---------------------------------------------------------------------------
 
 
@@ -178,7 +178,7 @@ def run_script(
     action: dict[str, Any], tmp_path: Path, command: str, *, steps: int, **env: str
 ) -> list[str]:
     """Run the action's main script with `uvx` recording what it was asked to do,
-    and `deltaplan plan` answering with a plan of `steps` steps."""
+    and `stevin plan` answering with a plan of `steps` steps."""
     import os
     import subprocess
 
@@ -194,7 +194,7 @@ def run_script(
     planned.write_text(json.dumps({"steps": [{}] * steps}))
     (bin_dir / "uvx").write_text(
         "#!/usr/bin/env bash\n"
-        f'shift 3; echo "$*" >> {calls}\n'  # drop `--from <path> deltaplan`
+        f'shift 3; echo "$*" >> {calls}\n'  # drop `--from <path> stevin`
         'args=("$@")\n'
         'for i in "${!args[@]}"; do\n'
         '  if [ "${args[$i]}" = -o ]; then out="${args[$((i+1))]}"; fi\n'
@@ -215,7 +215,7 @@ def run_script(
         "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
         "COMMAND": command,
         "TARGET": "prod",
-        "CONFIG": "deltaplan.yml",
+        "CONFIG": "stevin.yml",
         "CLONE": "false",
         "ALLOW_DESTRUCTIVE": "false",
         "ACTION_PATH": "/action",
@@ -227,9 +227,33 @@ def run_script(
 
 def test_apply_plans_then_runs_that_plan(action: dict[str, Any], tmp_path: Path) -> None:
     calls = run_script(action, tmp_path, "apply", steps=2)
-    plan_file = tmp_path / "deltaplan" / "plan.json"
-    assert calls[0].startswith("plan -t prod --config deltaplan.yml -f json -o")
-    assert calls[-1] == f"apply {plan_file} --config deltaplan.yml"
+    plan_file = tmp_path / "stevin" / "plan.json"
+    assert calls[0].startswith("plan -t prod --config stevin.yml -f json -o")
+    assert calls[-1] == f"apply {plan_file} --config stevin.yml"
+
+
+def test_without_a_config_the_project_file_is_left_to_be_found(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    """The default. A project still on the file name it had before the rename
+    is found by `stevin` itself; naming a file for it would miss it."""
+    calls = run_script(action, tmp_path, "apply", steps=1, CONFIG="")
+    plan_file = tmp_path / "stevin" / "plan.json"
+    assert calls[0].startswith("plan -t prod -f json -o")
+    assert calls[-1] == f"apply {plan_file}"
+    assert not any("--config" in call for call in calls)
+
+
+def test_drift_names_a_config_only_when_given_one(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    [named] = run_script(action, tmp_path, "drift", steps=0)
+    assert named.startswith("drift -t prod --config stevin.yml -f md -o")
+
+    (tmp_path / "bin").rename(tmp_path / "bin-before")
+    (tmp_path / "calls").unlink()
+    [found] = run_script(action, tmp_path, "drift", steps=0, CONFIG="")
+    assert found.startswith("drift -t prod -f md -o")
 
 
 def test_apply_with_nothing_to_do_runs_nothing(

@@ -6,7 +6,7 @@ laptop and CI all stay green.
 
 Credentials come from the Databricks SDK's unified auth — DATABRICKS_HOST and a
 token, a `~/.databrickscfg` profile named by DATABRICKS_CONFIG_PROFILE, OAuth.
-Also set DATABRICKS_WAREHOUSE_ID, and optionally DELTAPLAN_TEST_CATALOG (default
+Also set DATABRICKS_WAREHOUSE_ID, and optionally STEVIN_TEST_CATALOG (default
 `main`): every test creates and drops its own schema there.
 """
 
@@ -19,8 +19,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.sql import quote_ident, quote_qualified
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.sql import quote_ident, quote_qualified
 
 
 @pytest.fixture(scope="session")
@@ -33,7 +33,7 @@ def warehouse_id() -> str:
 
 @pytest.fixture(scope="session")
 def catalog() -> str:
-    return os.environ.get("DELTAPLAN_TEST_CATALOG", "main")
+    return os.environ.get("STEVIN_TEST_CATALOG", "main")
 
 
 @pytest.fixture(scope="session")
@@ -68,7 +68,7 @@ def sweep(runner: WarehouseRunner, catalog: str) -> None:
     try:
         stale = runner.query(
             f"SELECT schema_name FROM {quote_ident(catalog)}."
-            "information_schema.schemata WHERE schema_name LIKE 'deltaplan_it_%' "
+            "information_schema.schemata WHERE schema_name LIKE 'stevin_it_%' "
             f"AND created < current_timestamp() - INTERVAL {STALE_AFTER}"
         )
     except Exception as error:  # noqa: BLE001 - a sweep must never fail the suite
@@ -148,7 +148,7 @@ def schema(runner: WarehouseRunner, catalog: str) -> Iterator[str]:
     so this schema keeps none of them.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-undrop-table
     """
-    name = f"deltaplan_it_{uuid.uuid4().hex[:8]}"
+    name = f"stevin_it_{uuid.uuid4().hex[:8]}"
     full = f"{catalog}.{name}"
     runner.query(f"CREATE SCHEMA {quote_qualified(full)}")
     try:
@@ -172,7 +172,7 @@ def recoverable_schema(runner: WarehouseRunner, catalog: str) -> Iterator[str]:
     `UNDROP` is the one thing that needs that period, so this schema keeps the
     default seven days: it makes one table, once a night.
     """
-    name = f"deltaplan_it_{uuid.uuid4().hex[:8]}"
+    name = f"stevin_it_{uuid.uuid4().hex[:8]}"
     full = f"{catalog}.{name}"
     runner.query(f"CREATE SCHEMA {quote_qualified(full)}")
     try:

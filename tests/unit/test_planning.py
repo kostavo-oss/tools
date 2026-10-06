@@ -6,13 +6,13 @@ from a plan to the tables it describes — is exercised offline.
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.planning import PlanningError, plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.planning import PlanningError, plan_tables
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 
@@ -57,7 +57,7 @@ def test_a_spec_for_someone_elses_table_claims_it() -> None:
     assert planned([table(col("id", "bigint"), name="main.sales.orders")], fake).empty
 
 
-def test_a_table_deltaplan_created_is_not_claimed_again() -> None:
+def test_a_table_stevin_created_is_not_claimed_again() -> None:
     fake = FakeWarehouse.of(ORDERS)
     assert planned([table(col("id", "bigint"), name="main.sales.orders")], fake).empty
 
@@ -90,7 +90,7 @@ def test_strict_drops_orphans_and_only_orphans() -> None:
     assert [(s.title, s.risk) for s in plan.steps] == [("DROP TABLE", "destructive")]
     assert plan.steps[0].undo_hint == "UNDROP TABLE `main`.`sales`.`retired`"
     assert plan.summary.destroy == 1
-    # A table deltaplan didn't create is never a drop candidate, strict or not.
+    # A table stevin didn't create is never a drop candidate, strict or not.
     assert plan.unmanaged_tables == ("main.sales.theirs",)
 
     run(plan, fake)

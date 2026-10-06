@@ -47,7 +47,7 @@
             </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="96.8" rx="8"/><text class="dp-tour-validate-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">deltaplan</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="96.8" rx="8"/><text class="dp-tour-validate-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">stevin</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
@@ -57,7 +57,7 @@
     <g transform="translate(9, 41)" clip-path="url(#dp-tour-validate-clip-terminal)">
     
     <g class="dp-tour-validate-matrix">
-    <text class="dp-tour-validate-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-tour-validate-line-0)">$&#160;</text><text class="dp-tour-validate-r2" x="24.4" y="20" textLength="219.6" clip-path="url(#dp-tour-validate-line-0)">deltaplan&#160;validate</text><text class="dp-tour-validate-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-tour-validate-line-0)">
+    <text class="dp-tour-validate-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-tour-validate-line-0)">$&#160;</text><text class="dp-tour-validate-r2" x="24.4" y="20" textLength="183" clip-path="url(#dp-tour-validate-line-0)">stevin&#160;validate</text><text class="dp-tour-validate-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-tour-validate-line-0)">
 </text><text class="dp-tour-validate-r1" x="0" y="44.4" textLength="12.2" clip-path="url(#dp-tour-validate-line-1)">3</text><text class="dp-tour-validate-r4" x="12.2" y="44.4" textLength="122" clip-path="url(#dp-tour-validate-line-1)">&#160;specs&#160;OK.</text><text class="dp-tour-validate-r3" x="976" y="44.4" textLength="12.2" clip-path="url(#dp-tour-validate-line-1)">
 </text>
     </g>

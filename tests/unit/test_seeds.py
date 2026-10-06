@@ -1,7 +1,7 @@
 """Seeds: the reference data a table is loaded with, kept in the repo.
 
-The rest of deltaplan is about a table's shape. A seed is about its content,
-and it only fits because the content is small, declared, and wholly deltaplan's:
+The rest of stevin is about a table's shape. A seed is about its content,
+and it only fits because the content is small, declared, and wholly stevin's:
 the file is the truth, applying one replaces what is there, and what the plan
 compares is a digest the loaded table carries — never the rows themselves.
 https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-dml-insert-into
@@ -12,14 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, load_spec
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, SEED_PROPERTY, Table
-from deltaplan.planning import plan_tables
-from deltaplan.render.labels import describe
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, load_spec
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, SEED_PROPERTY, Table
+from stevin.planning import plan_tables
+from stevin.render.labels import describe
 
 NAME = "main.reference.countries"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

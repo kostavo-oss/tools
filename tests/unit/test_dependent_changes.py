@@ -18,13 +18,13 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.loader import validate_spec
-from deltaplan.model.table import MANAGED_PROPERTY, Check, Table
-from deltaplan.model.types import Field, Primitive
 from fake_warehouse import FakeSqlError, FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.loader import validate_spec
+from stevin.model.table import MANAGED_PROPERTY, Check, Table
+from stevin.model.types import Field, Primitive
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

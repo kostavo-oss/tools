@@ -3,7 +3,7 @@
 This is the same assertion `tests/integration/` makes against a real workspace,
 run here against `tests/fake_warehouse.py` — an in-memory catalog that
 interprets the statements the planner generates. It cannot tell us what
-Databricks accepts, but it does tell us that every statement deltaplan emits
+Databricks accepts, but it does tell us that every statement stevin emits
 says what the change it came from meant, that the plan closes the diff, and that
 re-running a plan is a no-op.
 
@@ -13,11 +13,11 @@ past untested.
 
 import pytest
 
-from deltaplan.differ import diff, is_applied
-from deltaplan.introspect import Introspector
-from deltaplan.model.table import Check, PrimaryKey, Table
 from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff, is_applied
+from stevin.introspect import Introspector
+from stevin.model.table import Check, PrimaryKey, Table
 
 NAME = "main.sales.orders"
 
@@ -76,7 +76,7 @@ def test_create_table() -> None:
     )
     fake = converge(desired)
     created = fake.tables[NAME]
-    assert created.managed, "a table deltaplan creates must carry its marker"
+    assert created.managed, "a table stevin creates must carry its marker"
 
 
 def test_add_column() -> None:
@@ -141,7 +141,7 @@ def test_rename_column() -> None:
 
 
 def test_rename_nested_field() -> None:
-    from deltaplan.model.types import Field, Primitive, Struct
+    from stevin.model.types import Field, Primitive, Struct
 
     desired = table(
         *[c for c in LIVE.columns if c.name != "address"],
@@ -318,7 +318,7 @@ def test_rewrite_of_a_scalar_type() -> None:
 
 
 def test_rewrite_restructures_a_struct() -> None:
-    from deltaplan.model.types import Field, Primitive, Struct
+    from stevin.model.types import Field, Primitive, Struct
 
     desired = table(
         *[c for c in LIVE.columns if c.name not in {"address", "amount"}],
@@ -373,11 +373,11 @@ def test_rewrite_carries_renames_adds_and_drops_at_once() -> None:
 
 
 def test_a_using_expression_is_taken_as_written() -> None:
-    from deltaplan.model.types import Field, Primitive
+    from stevin.model.types import Field, Primitive
 
     desired = table(
         *[c for c in LIVE.columns if c.name != "address"],
-        # A struct becoming a string: deltaplan has no conversion for that, so the
+        # A struct becoming a string: stevin has no conversion for that, so the
         # spec supplies one.
         Field("address", Primitive("string"), using="CAST(address.street AS STRING)"),
         name=NAME,
@@ -395,13 +395,11 @@ def test_a_using_expression_is_taken_as_written() -> None:
         # A struct becoming an array: no conversion to guess at.
         ("address", "array<string>", "address"),
         # A map's value type moving: transform_values would do it, but not
-        # without a decision deltaplan can't make for you.
+        # without a decision stevin can't make for you.
         ("by_code", "map<string,struct<n:string>>", "by_code"),
     ],
 )
-def test_what_deltaplan_refuses_to_invent(
-    column: str, type_text: str, reason: str
-) -> None:
+def test_what_stevin_refuses_to_invent(column: str, type_text: str, reason: str) -> None:
     desired = table(
         *[c for c in LIVE.columns if c.name != column],
         col(column, type_text),

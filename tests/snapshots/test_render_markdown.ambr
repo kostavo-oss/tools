@@ -1,8 +1,8 @@
 # serializer version: 1
 # name: test_the_design_documents_plan_as_a_comment
   '''
-  <!-- deltaplan:plan:test -->
-  ### 🔴 deltaplan plan · `test`
+  <!-- stevin:plan:test -->
+  ### 🔴 stevin plan · `test`
   
   **Plan: 0 add, 1 change, 0 destroy · 6 steps · 0 rewrites · 1 warning**
   
@@ -61,7 +61,7 @@
   
   </details>
   
-  <sub>deltaplan 0.1.0 · specs `spec` · live state `live`</sub>
+  <sub>stevin 0.1.0 · specs `spec` · live state `live`</sub>
   
   '''
 # ---

@@ -1,6 +1,16 @@
 # Installation
 
-deltaplan is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/deltaplan/).
+stevin is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/stevin/).
+
+!!! warning "Not on PyPI under this name yet"
+    The first release as `stevin` is being prepared. Until this notice is gone, do not
+    install a `stevin` from PyPI — it is not ours. Install it from GitHub, or under the
+    name its releases have so far, `deltaplan`:
+
+    ```sh
+    uv tool install git+https://github.com/kostavo-oss/stevin   # stevin, as it is on main
+    uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
+    ```
 
 !!! warning "Alpha"
     Every release so far is a pre-release (`0.1.0a1`, …), which installers skip unless
@@ -9,41 +19,41 @@ deltaplan is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/de
 === "uv tool"
 
     ```sh
-    uv tool install --prerelease allow deltaplan
-    deltaplan --version
+    uv tool install --prerelease allow stevin
+    stevin --version
     ```
 
 === "uvx"
 
     ```sh
-    uvx --prerelease allow deltaplan plan -t dev
+    uvx --prerelease allow stevin plan -t dev
     ```
 
 === "pipx"
 
     ```sh
-    pipx install --pip-args=--pre deltaplan
-    deltaplan --version
+    pipx install --pip-args=--pre stevin
+    stevin --version
     ```
 
 === "pip"
 
     ```sh
-    pip install --pre deltaplan
+    pip install --pre stevin
     ```
 
 ## From source
 
 ```sh
-git clone https://github.com/misja-pronk/deltaplan
-cd deltaplan
+git clone https://github.com/kostavo-oss/stevin
+cd stevin
 uv sync
-uv run deltaplan --version
+uv run stevin --version
 ```
 
 ## Connecting to a workspace
 
-deltaplan delegates authentication to the Databricks SDK's unified auth, so anything
+stevin delegates authentication to the Databricks SDK's unified auth, so anything
 that works for the Databricks CLI works here.
 
 **Per target, with profiles** — the usual setup, since dev and prod tend to be
@@ -83,5 +93,25 @@ from the target, `--warehouse-id`, or `DATABRICKS_WAREHOUSE_ID` — is required 
 everything except `validate` and `show`.
 
 !!! tip "`validate` needs nothing"
-    `deltaplan validate` is a pure spec lint — no credentials, no network. It is the
+    `stevin validate` is a pure spec lint — no credentials, no network. It is the
     right thing to run in a pre-commit hook.
+
+## Coming from deltaplan
+
+Up to 0.2.0a4 stevin was released as `deltaplan`. The rename changed what you type; it
+did not change anything in a workspace.
+
+| Before | Now | If you do nothing |
+|---|---|---|
+| `uv tool install deltaplan` | `uv tool install --prerelease allow stevin` | — |
+| `deltaplan plan` | `stevin plan` | `deltaplan` still runs: it says its new name on stderr, then does what `stevin` does |
+| `deltaplan.yml` | `stevin.yml` | The old file is still found, and the command line says it can be renamed |
+| `uses: misja-pronk/deltaplan@v0` | `uses: kostavo-oss/stevin@v0` | — |
+| `import deltaplan`, `DeltaplanError` | `import stevin`, `StevinError` | — |
+
+**What is on your tables stays.** A table deltaplan made carries the property
+`deltaplan.managed`, a seeded one `deltaplan.seed`, and a rewrite stages its data in
+`<table>__deltaplan_rewrite`. stevin reads and writes those same names, so a table
+deltaplan managed is a table stevin manages — nothing is claimed again, and the first plan
+after the upgrade is the plan you would have had before it. The same goes for the
+`history_schema` your project names: it is yours, whatever it is called.

@@ -12,23 +12,23 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.connect import Connection
-from deltaplan.differ import diff, is_applied
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_spec
-from deltaplan.model.change import Change
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.plan import Plan
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import MANAGED_PROPERTY, Grant
-from deltaplan.model.types import Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.model.volume import Volume
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import RUNNER, FakeWarehouse
 from helpers import col, run, table
+from stevin.connect import Connection
+from stevin.differ import diff, is_applied
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_spec
+from stevin.model.change import Change
+from stevin.model.function import Function, Parameter
+from stevin.model.plan import Plan
+from stevin.model.schema import Schema
+from stevin.model.table import MANAGED_PROPERTY, Grant
+from stevin.model.types import Primitive
+from stevin.model.view import Relation, View
+from stevin.model.volume import Volume
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -200,7 +200,7 @@ def test_import_leaves_owners_out(
     """Often a person's email, and not the same in every workspace."""
     from typer.testing import CliRunner
 
-    from deltaplan import cli
+    from stevin import cli
 
     fake = FakeWarehouse.of(LIVE)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))

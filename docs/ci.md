@@ -1,11 +1,11 @@
 # In CI
 
-deltaplan ships as a GitHub Action. It runs `plan`, `apply` or `drift`, puts the result in
+stevin ships as a GitHub Action. It runs `plan`, `apply` or `drift`, puts the result in
 the job summary, and — on a pull request — posts it as a comment, updating its own
 comment on every push instead of adding another.
 
-`uses: misja-pronk/deltaplan@v0` follows the newest 0.x release; pin a release tag
-(`@v0.1.0a6`) to hold one still. The action runs the deltaplan of its own version, so the
+`uses: kostavo-oss/stevin@v0` follows the newest 0.x release; pin a release tag
+(`@v0.1.0a6`) to hold one still. The action runs the stevin of its own version, so the
 two never disagree.
 
 ## Credentials
@@ -27,10 +27,10 @@ works the same way, and is the better choice for anything that applies.
 ## Plan on every pull request
 
 ```yaml
-name: deltaplan
+name: stevin
 on:
   pull_request:
-    paths: ["tables/**", "deltaplan.yml"]
+    paths: ["tables/**", "stevin.yml"]
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: plan
-        uses: misja-pronk/deltaplan@v0
+        uses: kostavo-oss/stevin@v0
         with:
           target: prod
       - uses: actions/upload-artifact@v4
@@ -58,7 +58,7 @@ jobs:
 The comment shows the summary, an alert for anything destructive, expensive or
 impossible, then each object as a comparison — what it is now, what it becomes, and the
 sentence about the difference — with the numbered steps and the SQL folded away
-underneath. It is the same comparison [`deltaplan ui`](cli.md#ui) shows, so the review on
+underneath. It is the same comparison [`stevin ui`](cli.md#ui) shows, so the review on
 the pull request and the one on a laptop can't describe the same plan differently. Only
 the rows that moved are in the table; the rest are counted under it.
 
@@ -73,11 +73,11 @@ Review the plan on the pull request; apply it when it merges. A protected
 adds a human approval in between.
 
 ```yaml
-name: deltaplan apply
+name: stevin apply
 on:
   push:
     branches: [main]
-    paths: ["tables/**", "deltaplan.yml"]
+    paths: ["tables/**", "stevin.yml"]
 
 jobs:
   apply:
@@ -90,7 +90,7 @@ jobs:
       DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: misja-pronk/deltaplan@v0
+      - uses: kostavo-oss/stevin@v0
         with:
           command: apply
           target: prod
@@ -106,11 +106,11 @@ principal needs to be allowed to write there.
 ## Catch drift nightly
 
 `drift` asks whether `apply` would do anything. A hand edit in the catalog, a table
-dropped outside deltaplan, a spec merged but never applied — all show up. Unmanaged
-objects don't: deltaplan never claimed them.
+dropped outside stevin, a spec merged but never applied — all show up. Unmanaged
+objects don't: stevin never claimed them.
 
 ```yaml
-name: deltaplan drift
+name: stevin drift
 on:
   schedule:
     - cron: "0 6 * * 1-5"
@@ -125,7 +125,7 @@ jobs:
       DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: misja-pronk/deltaplan@v0
+      - uses: kostavo-oss/stevin@v0
         with:
           command: drift
           target: prod
@@ -135,7 +135,7 @@ The job fails when there is drift, with the details in the job summary. Set
 `fail-on-drift: false` to report without failing, and branch on the `has-changes`
 output instead.
 
-On the command line, `deltaplan drift` exits `0` when live tables match their specs,
+On the command line, `stevin drift` exits `0` when live tables match their specs,
 `2` when they have drifted, and `1` when something went wrong — the convention
 `terraform plan -detailed-exitcode` uses.
 
@@ -143,9 +143,9 @@ On the command line, `deltaplan drift` exits `0` when live tables match their sp
 
 | Input | Default | |
 |---|---|---|
-| `target` | *(required)* | The target in `deltaplan.yml`. |
+| `target` | *(required)* | The target in `stevin.yml`. |
 | `command` | `plan` | `plan`, `apply` or `drift`. |
-| `config` | `deltaplan.yml` | Relative to `working-directory`. |
+| `config` | *(found)* | The project file, relative to `working-directory`. Left out, it is looked for there and above. |
 | `working-directory` | `.` | Where the project lives. |
 | `clone` | `false` | `SHALLOW CLONE` before risky steps. |
 | `allow-destructive` | `false` | `apply` only: let the plan drop something. |
@@ -156,5 +156,5 @@ On the command line, `deltaplan drift` exits `0` when live tables match their sp
 | Output | |
 |---|---|
 | `has-changes` | `true` if `apply` would do something (or, for `drift`, if there is drift). |
-| `plan-file` | The plan as JSON, for `deltaplan apply`. Empty for `drift`. |
+| `plan-file` | The plan as JSON, for `stevin apply`. Empty for `drift`. |
 | `markdown-file` | The rendered comment. |

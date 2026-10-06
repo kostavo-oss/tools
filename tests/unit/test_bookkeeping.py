@@ -8,10 +8,10 @@ mapping rather than managing it. The same goes for the protocol versions, and
 
 from pathlib import Path
 
-from deltaplan.differ import diff, unmanaged
-from deltaplan.loader import dump_spec, load_table, validate_table
-from deltaplan.model.table import MANAGED_PROPERTY, is_bookkeeping
 from helpers import col, table
+from stevin.differ import diff, unmanaged
+from stevin.loader import dump_spec, load_table, validate_table
+from stevin.model.table import MANAGED_PROPERTY, is_bookkeeping
 
 LIVE = table(
     col("id", "bigint"),

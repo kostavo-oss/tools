@@ -1,6 +1,6 @@
-# deltaplan — design
+# stevin — design
 
-Working name: `deltaplan`. Declarative, Terraform-style `plan` / `apply` for Databricks SQL (Unity Catalog, Delta) tables.
+`stevin` (designed under the working name `deltaplan`). Declarative, Terraform-style `plan` / `apply` for Databricks SQL (Unity Catalog, Delta) tables.
 
 ## Goals
 
@@ -17,7 +17,7 @@ Working name: `deltaplan`. Declarative, Terraform-style `plan` / `apply` for Dat
 - ~~Parsing SQL DDL as the source of truth.~~ **Changed 2026-09-18, by the owner:**
   a spec may be a `.sql` `CREATE` statement, parsed with sqlglot into the same model
   as YAML. SQL specs support exactly what sqlglot parses into structure; YAML stays
-  the complete format. See `docs/formats.md` and `deltaplan.features`.
+  the complete format. See `docs/formats.md` and `stevin.features`.
 - Non-Delta formats.
 
 ## Pipeline
@@ -135,12 +135,12 @@ Delta tables in a dedicated schema (configurable).
 ## CLI
 
 ```
-deltaplan validate            # spec lint, no connection needed
-deltaplan import <schema>     # live tables -> YAML specs
-deltaplan plan -t <target> [-o plan.json] [--format rich|md|json]
-deltaplan apply plan.json [--allow-destructive]
-deltaplan drift -t <target>   # exit code != 0 on drift, for CI
-deltaplan force-unlock
+stevin validate            # spec lint, no connection needed
+stevin import <schema>     # live tables -> YAML specs
+stevin plan -t <target> [-o plan.json] [--format rich|md|json]
+stevin apply plan.json [--allow-destructive]
+stevin drift -t <target>   # exit code != 0 on drift, for CI
+stevin force-unlock
 ```
 
 ## Plan output (target look)

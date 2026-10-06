@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
+from stevin import cli
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
 
@@ -15,10 +15,10 @@ runner = CliRunner()
 @pytest.mark.parametrize(
     ("config", "target"),
     [
-        (EXAMPLES / "deltaplan.yml", "dev"),
-        (EXAMPLES / "deltaplan.yml", "prod"),
-        (EXAMPLES / "bundle" / "deltaplan.yml", None),
-        (EXAMPLES / "bundle" / "deltaplan.yml", "prod"),
+        (EXAMPLES / "stevin.yml", "dev"),
+        (EXAMPLES / "stevin.yml", "prod"),
+        (EXAMPLES / "bundle" / "stevin.yml", None),
+        (EXAMPLES / "bundle" / "stevin.yml", "prod"),
     ],
 )
 def test_the_examples_validate(config: Path, target: str | None) -> None:

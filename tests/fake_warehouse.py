@@ -1,4 +1,4 @@
-"""An in-memory Unity Catalog that speaks deltaplan's own SQL.
+"""An in-memory Unity Catalog that speaks stevin's own SQL.
 
 This is how `apply` is tested without a workspace. The fake holds `Table` models,
 answers the introspector's `information_schema` and `DESCRIBE` queries by
@@ -24,9 +24,9 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from typing import TypeVar
 
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import (
+from stevin.model.function import Function, Parameter
+from stevin.model.schema import Schema
+from stevin.model.table import (
     FEATURE_FLAG_PREFIX,
     Check,
     Constraint,
@@ -37,7 +37,7 @@ from deltaplan.model.table import (
     Table,
     default_foreign_key_name,
 )
-from deltaplan.model.types import (
+from stevin.model.types import (
     Array,
     DataType,
     Field,
@@ -48,10 +48,10 @@ from deltaplan.model.types import (
     contains_timestamp_ntz,
     walk,
 )
-from deltaplan.model.view import View
-from deltaplan.model.volume import Volume
-from deltaplan.sql import needs_name_mapping, referenced_columns
-from deltaplan.typeparser import parse_type
+from stevin.model.view import View
+from stevin.model.volume import Volume
+from stevin.sql import needs_name_mapping, referenced_columns
+from stevin.typeparser import parse_type
 
 Row = dict[str, str | None]
 Fields = tuple[Field, ...]
@@ -59,7 +59,7 @@ Fields = tuple[Field, ...]
 NTZ_FEATURE = "delta.feature.timestampNtz"
 
 
-#: The columns of each information_schema view deltaplan reads, as a live
+#: The columns of each information_schema view stevin reads, as a live
 #: workspace lists them (read 2026-09-18 from `information_schema.columns`).
 #: The fake refuses a query naming anything else — an invented column is how
 #: the first live run failed, and the fake had happily answered it.
@@ -158,7 +158,7 @@ class FakeWarehouse:
     sizes: dict[str, int] = field(default_factory=dict)
     versions: dict[str, int] = field(default_factory=dict)
     #: (table, column) -> extra information_schema.columns values, for the column
-    #: features deltaplan doesn't model (identity, generated, default).
+    #: features stevin doesn't model (identity, generated, default).
     column_features: dict[tuple[str, str], Row] = field(default_factory=dict)
     #: Substring -> error message, so a test can make any statement fail.
     failures: dict[str, str] = field(default_factory=dict)
@@ -1457,7 +1457,7 @@ def _ddl_column(column: Field) -> str:
 
 
 def _ddl_type(data_type: DataType) -> str:
-    from deltaplan.model.types import render_type
+    from stevin.model.types import render_type
 
     match data_type:
         case Struct(fields=fields):
@@ -1489,7 +1489,7 @@ def _same(a: str, b: str) -> bool:
 
 
 def _render(data_type: DataType) -> str:
-    from deltaplan.model.types import render_type
+    from stevin.model.types import render_type
 
     return render_type(data_type)
 
@@ -1514,7 +1514,7 @@ def _unliteral(text: str) -> str:
     if not (stripped.startswith("'") and stripped.endswith("'")):
         raise FakeSqlError(f"not a string literal: {text}")
     # As Databricks reads it: backslash escapes. (A doubled quote is two
-    # literals to Databricks; deltaplan no longer writes one.)
+    # literals to Databricks; stevin no longer writes one.)
     return re.sub(r"\\(.)", r"\1", stripped[1:-1])
 
 

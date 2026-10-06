@@ -1,4 +1,4 @@
 version: 1
 specs: [tables]
 bundle: databricks.yml
-history_schema: ${catalog}.deltaplan
+history_schema: ${catalog}.stevin

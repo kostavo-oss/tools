@@ -6,17 +6,17 @@ here is the mapping, which is where the bugs live.
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import (
+from helpers import col, fake_runner, table
+from stevin.differ import diff
+from stevin.introspect import (
     IntrospectionError,
     Introspector,
     LiveSchema,
     Row,
 )
-from deltaplan.model.table import Check, PrimaryKey
-from deltaplan.model.types import Field, Primitive, render_type
-from deltaplan.sql import normalise_expression
-from helpers import col, fake_runner, table
+from stevin.model.table import Check, PrimaryKey
+from stevin.model.types import Field, Primitive, render_type
+from stevin.sql import normalise_expression
 
 CATALOG = "main"
 SCHEMA = "sales"
@@ -143,7 +143,7 @@ def test_tags_and_constraints() -> None:
 
 
 def test_views_are_read_and_other_kinds_are_skipped() -> None:
-    from deltaplan.model.view import View
+    from stevin.model.view import View
 
     runner = fake_runner(
         tables=(
@@ -155,7 +155,7 @@ def test_views_are_read_and_other_kinds_are_skipped() -> None:
                 "comment": None,
             },
             {
-                # Stored as Delta, but not a table deltaplan can alter.
+                # Stored as Delta, but not a table stevin can alter.
                 "table_name": "daily_totals",
                 "table_type": "MATERIALIZED_VIEW",
                 "data_source_format": "DELTA",
@@ -288,8 +288,8 @@ def test_a_second_read_sees_what_changed_in_between() -> None:
     must see it. It once cached DESCRIBE DETAIL and key usage for its whole
     life, so the second read returned the first — and apply's staleness check,
     reading through the same object as plan, could never see a change."""
-    from deltaplan.model.table import PrimaryKey
     from fake_warehouse import FakeWarehouse
+    from stevin.model.table import PrimaryKey
 
     fake = FakeWarehouse.of(
         table(col("id", "bigint", nullable=False), name="main.sales.t")
@@ -312,7 +312,7 @@ def test_column_details_come_from_show_create_table() -> None:
     """On a live workspace information_schema.columns says NO to identity and
     generation and has no default — and drops NOT NULL inside structs. SHOW
     CREATE TABLE has them (verified 2026-09-18); introspection reads it."""
-    from deltaplan.model.types import Identity
+    from stevin.model.types import Identity
 
     columns = (
         {
@@ -374,7 +374,7 @@ def test_column_details_come_from_show_create_table() -> None:
     ("answer", "note"),
     [
         ((), "a definition SHOW CREATE TABLE didn't return"),
-        (({"createtab_stmt": "CREATE TABLE ("},), "a definition deltaplan couldn't read"),
+        (({"createtab_stmt": "CREATE TABLE ("},), "a definition stevin couldn't read"),
         (
             (
                 {
@@ -389,7 +389,7 @@ def test_column_details_come_from_show_create_table() -> None:
 def test_what_show_create_table_cannot_tell_is_reported(
     answer: tuple[Row, ...], note: str
 ) -> None:
-    """Without the definition deltaplan can't see identity columns, so a table
+    """Without the definition stevin can't see identity columns, so a table
     whose definition it couldn't read is marked unmodelled — which also keeps
     it from ever being rewritten."""
     schema = live_schema(

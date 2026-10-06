@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.introspect import IntrospectionError, Introspector
-from deltaplan.probes import PROBES, Bench, run
 from fake_warehouse import FakeWarehouse
+from stevin.introspect import IntrospectionError, Introspector
+from stevin.probes import PROBES, Bench, run
 from transcript import (
     BARE,
     CATALOG,
@@ -69,15 +69,15 @@ class Answering:
 def test_a_recording_keeps_the_answers_and_masks_the_scratch_schema() -> None:
     live = Answering(
         {
-            "CREATE TABLE `main`.`deltaplan_it_abc123`.`r` (id INT)": [],
-            "SELECT tag_name FROM main.deltaplan_it_abc123.r": [{"tag_name": "domain"}],
+            "CREATE TABLE `main`.`stevin_it_abc123`.`r` (id INT)": [],
+            "SELECT tag_name FROM main.stevin_it_abc123.r": [{"tag_name": "domain"}],
         }
     )
     recorder = Recorder(
-        live, "a replace keeps tags", mask=masking("main.deltaplan_it_abc123")
+        live, "a replace keeps tags", mask=masking("main.stevin_it_abc123")
     )
-    recorder.query("CREATE TABLE `main`.`deltaplan_it_abc123`.`r` (id INT)")
-    recorder.query("SELECT tag_name FROM main.deltaplan_it_abc123.r")
+    recorder.query("CREATE TABLE `main`.`stevin_it_abc123`.`r` (id INT)")
+    recorder.query("SELECT tag_name FROM main.stevin_it_abc123.r")
 
     written = recorder.transcript(runtime="2026.20")
     assert written.runtime == "2026.20"
@@ -133,7 +133,7 @@ def test_a_replay_gives_back_what_was_recorded() -> None:
 
 def test_a_statement_the_transcript_hasnt_got_fails_loudly() -> None:
     """The same discipline as `FakeSqlError`: a recording that no longer covers
-    what deltaplan sends has stopped being evidence about it."""
+    what stevin sends has stopped being evidence about it."""
     replay = Replay(Transcript(about="empty", recorded="2026-09-27"))
     with pytest.raises(TranscriptMiss, match="SELECT 1 AS whatever"):
         replay.query("SELECT 1 AS whatever")
@@ -161,14 +161,14 @@ def test_a_statement_asked_twice_gets_both_answers_in_order() -> None:
 def test_masking_covers_every_way_a_name_is_written() -> None:
     """Whole and in parts, quoted and bare — and nothing that merely contains
     one of them."""
-    mask = masking("main.deltaplan_it_abc123", principal="them")
-    assert normalise("SELECT * FROM `main`.`deltaplan_it_abc123`.`t`", mask) == (
+    mask = masking("main.stevin_it_abc123", principal="them")
+    assert normalise("SELECT * FROM `main`.`stevin_it_abc123`.`t`", mask) == (
         f"SELECT * FROM `{CATALOG}`.`{BARE}`.`t`"
     )
-    assert normalise("SELECT * FROM main.deltaplan_it_abc123.t", mask) == (
+    assert normalise("SELECT * FROM main.stevin_it_abc123.t", mask) == (
         f"SELECT * FROM {SCHEMA}.t"
     )
-    assert normalise("WHERE schema_name = 'deltaplan_it_abc123'", mask) == (
+    assert normalise("WHERE schema_name = 'stevin_it_abc123'", mask) == (
         f"WHERE schema_name = '{BARE}'"
     )
     assert normalise("GRANT SELECT ON t TO `them`", mask) == (
@@ -211,7 +211,7 @@ def test_a_probe_can_be_recorded_and_replayed_whole() -> None:
     It proves the plumbing — that what a probe sends is what a recording keeps,
     and that a replay can answer it in a schema of another name — not the
     assumption: a transcript recorded from the fake says only what the fake
-    says. Recording against Databricks is `DELTAPLAN_RECORD` on a live run.
+    says. Recording against Databricks is `STEVIN_RECORD` on a live run.
     """
     [probe] = [one for one in PROBES if one.name.startswith("CLUSTER BY AUTO")]
     fake = FakeWarehouse()
@@ -262,7 +262,7 @@ def test_the_probe_still_holds_against_what_the_workspace_answered(path: Path) -
 
     The probe runs exactly as the live suite ran it — one probe, so its objects
     are named the same — against the answers Databricks gave. A probe that no
-    longer holds here means deltaplan's expectation changed; a `TranscriptMiss`
+    longer holds here means stevin's expectation changed; a `TranscriptMiss`
     means it now sends something the recording doesn't cover. Either way the
     transcript needs recording again, and until then the test says so.
     """

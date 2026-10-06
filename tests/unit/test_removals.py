@@ -1,6 +1,6 @@
 """Removing a tag or a property: `tags: {pii: null}`.
 
-Leaving a key out of a spec only stops managing it — deltaplan can't tell that
+Leaving a key out of a spec only stops managing it — stevin can't tell that
 from someone else's tag — so `null` is the one way a spec says "this must not be
 there". Verified live (2026-09-19): UNSET TAGS on tables, columns, views, schemas
 and volumes, and UNSET TBLPROPERTIES on tables and views; removing a key that
@@ -13,21 +13,21 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff, is_applied, unmanaged
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, load_spec
-from deltaplan.model.change import Change
-from deltaplan.model.plan import Plan
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.model.types import Field, Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.model.volume import Volume
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.differ import diff, is_applied, unmanaged
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, load_spec
+from stevin.model.change import Change
+from stevin.model.plan import Plan
+from stevin.model.schema import Schema
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.model.types import Field, Primitive
+from stevin.model.view import Relation, View
+from stevin.model.volume import Volume
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -74,7 +74,7 @@ def test_null_removes_and_a_value_sets(tmp_path: Path) -> None:
 
 
 def test_a_removal_is_written_back_as_null(tmp_path: Path) -> None:
-    from deltaplan.loader import dump_spec
+    from stevin.loader import dump_spec
 
     loaded = spec(
         tmp_path,

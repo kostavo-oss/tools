@@ -16,18 +16,18 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan import api
-from deltaplan.connect import Connection
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.manage import MANAGEABLE, Manage
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, RowFilter, Table
-from deltaplan.model.types import Mask
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import api
+from stevin.connect import Connection
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.manage import MANAGEABLE, Manage
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Grant, RowFilter, Table
+from stevin.model.types import Mask
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -118,7 +118,7 @@ def test_a_plan_from_a_version_that_had_no_handoff_manages_everything() -> None:
 
 def test_a_table_that_really_moved_is_still_refused() -> None:
     """The check still does its job: this is not a way to make it quiet."""
-    from deltaplan.executor import StalePlan
+    from stevin.executor import StalePlan
 
     fake = FakeWarehouse.of(live_table())
     manage = Manage(("grants",))

@@ -1,11 +1,11 @@
 name: Databricks behaviour report
-description: A Delta / Unity Catalog behaviour deltaplan classifies wrongly
+description: A Delta / Unity Catalog behaviour stevin classifies wrongly
 labels: [databricks-behaviour]
 body:
   - type: markdown
     attributes:
       value: >
-        Use this when deltaplan's idea of a change — metadata-only, needs a table
+        Use this when stevin's idea of a change — metadata-only, needs a table
         feature, needs a rewrite, destructive — doesn't match what Databricks
         actually does. Every confirmed report becomes a test.
   - type: input
@@ -18,7 +18,7 @@ body:
   - type: input
     id: expected
     attributes:
-      label: What deltaplan planned
+      label: What stevin planned
       placeholder: "meta — a single ALTER TABLE ... ALTER COLUMN ... SET NOT NULL"
   - type: input
     id: actual

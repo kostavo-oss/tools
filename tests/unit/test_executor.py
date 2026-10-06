@@ -8,13 +8,13 @@ suite is for.
 
 import pytest
 
-from deltaplan.executor import DestructiveRefused, ExecutionError, Executor, plan_identity
-from deltaplan.history import MemoryHistory, StepOutcome
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan, Step, TableDiff, TableFacts
-from deltaplan.model.table import Table
 from fake_warehouse import FakeSqlError, FakeWarehouse
 from helpers import col, plan_against, table
+from stevin.executor import DestructiveRefused, ExecutionError, Executor, plan_identity
+from stevin.history import MemoryHistory, StepOutcome
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan, Step, TableDiff, TableFacts
+from stevin.model.table import Table
 
 NAME = "main.sales.orders"
 
@@ -57,7 +57,7 @@ def planned(
 def _with_real_fingerprint(fake: FakeWarehouse, plan: Plan) -> Plan:
     from dataclasses import replace
 
-    from deltaplan.model.plan import fingerprint
+    from stevin.model.plan import fingerprint
 
     live = Introspector(fake).tables([diff.table for diff in plan.diffs])
     return replace(plan, state_fingerprint=fingerprint(live.values()))
@@ -81,7 +81,7 @@ def test_a_plan_runs_and_is_recorded() -> None:
     assert history.runs["run1"]["plan_hash"] == plan_identity(plan)
     assert [outcome.status for outcome in history.steps["run1"]] == ["succeeded"] * 4
     # And the world actually changed.
-    from deltaplan.differ import diff
+    from stevin.differ import diff
 
     live = Introspector(fake).table(NAME)
     assert live is not None and diff(DESIRED, live.table) == ()
@@ -147,7 +147,7 @@ def test_a_rewrite_runs_and_converges() -> None:
     result = executor(fake).apply(plan)
     assert result.ok, result.error
 
-    from deltaplan.differ import diff
+    from stevin.differ import diff
 
     live = Introspector(fake).table(NAME)
     assert live is not None and diff(desired, live.table) == ()
@@ -172,7 +172,7 @@ def test_a_rewrite_records_a_restore_point() -> None:
     assert replace.delta_version_before is not None
 
 
-def test_a_step_deltaplan_cannot_generate_is_refused() -> None:
+def test_a_step_stevin_cannot_generate_is_refused() -> None:
     # A struct becoming an array: there is no conversion to guess at, so the plan
     # says what it needs instead of emitting something that would fail.
     desired = table(
@@ -236,7 +236,7 @@ def test_steps_already_applied_are_skipped() -> None:
     # Running the same plan again, with a fresh history: every change is already
     # true of the live table, so nothing runs a second time. (The fingerprint is
     # recomputed against the new state, so this plan has to be re-fingerprinted
-    # the way a fresh `deltaplan plan` would.)
+    # the way a fresh `stevin plan` would.)
     ddl_before = len(fake.ddl)
     again = executor(fake).apply(_with_real_fingerprint(fake, plan))
     assert again.ok

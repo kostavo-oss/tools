@@ -1,6 +1,6 @@
 # Testing without a workspace
 
-deltaplan generates SQL for a system most contributors can't run on a laptop, and
+stevin generates SQL for a system most contributors can't run on a laptop, and
 that CI shouldn't need credentials to check. The suite is built in four layers, and
 each one is honest about what it can and cannot prove.
 
@@ -12,7 +12,7 @@ uv run pytest -m integration    # layer 4 — real workspace, nightly
 | Layer | Proves |
 |---|---|
 | Unit tests | the pure middle of the pipeline does what it says |
-| The fake warehouse | deltaplan's SQL matches **deltaplan's reading** of the manual |
+| The fake warehouse | stevin's SQL matches **stevin's reading** of the manual |
 | Transcripts | what **Databricks answered**, on the day they were recorded |
 | The live suite | that it still does |
 
@@ -47,13 +47,13 @@ creates, nested adds, renames, widenings, drops, constraints, reordering — and
 `tests/unit/test_executor.py` uses the same fake to test skip, resume, failure,
 locking and the destructive gate.
 
-**What this proves.** That every statement deltaplan emits says what the change it came
+**What this proves.** That every statement stevin emits says what the change it came
 from meant; that a plan closes the diff it was built from; that `is_applied` — the
 executor's idempotency check — agrees with the differ; and that the executor's own
 machinery behaves. In milliseconds, with no credentials.
 
 !!! warning "What it does not prove"
-    The fake implements *deltaplan's* reading of the Databricks manual. If we have
+    The fake implements *stevin's* reading of the Databricks manual. If we have
     misread it, the fake misreads it the same way and the tests still pass. It cannot
     tell you that Databricks accepts a statement, that a widening is permitted, or that
     a nested rename works.
@@ -64,7 +64,7 @@ machinery behaves. In milliseconds, with no credentials.
 
 ## 3. Transcripts: what the workspace actually answered
 
-The layer above proves that deltaplan's SQL matches deltaplan's reading of the manual.
+The layer above proves that stevin's SQL matches stevin's reading of the manual.
 Where that reading is wrong, the fake is wrong in the same direction and the offline
 suite agrees with the mistake. A transcript is the answer to that.
 
@@ -74,7 +74,7 @@ through the probe it was recorded for — offline, with no credentials — so an
 keeps being checked against **answers Databricks really gave**, between live runs.
 
 ```sh
-DELTAPLAN_RECORD=tests/transcripts \
+STEVIN_RECORD=tests/transcripts \
   uv run pytest -m integration tests/integration/test_live_assumptions.py
 ```
 
@@ -84,7 +84,7 @@ run — the schemas the run makes, and the principal a grant names — and nothi
 touched, so the diff of a transcript is the diff of what Databricks answers. Read it.
 
 A statement the transcript hasn't got **fails**, with the statement in the message: a
-recording that no longer covers what deltaplan sends has stopped being evidence about
+recording that no longer covers what stevin sends has stopped being evidence about
 it, and needs recording again. See `tests/transcripts/README.md`.
 
 A transcript says what was true when it was recorded. That is one thing more than the
@@ -107,40 +107,40 @@ They assert the things nothing else can:
 - **dogfooding**: `tests/messy_schema.py` builds a schema the way a real team ends up
   with one — years of `ALTER`s, masks, a Python UDF, legacy partitioning, awkward names —
   and `test_live_dogfood.py` imports it, requires a plan of nothing but ownership
-  claims, adopts it, and changes it. When you meet a real-world table deltaplan
+  claims, adopts it, and changes it. When you meet a real-world table stevin
   misreads, add its shape to the messy schema.
 
-Every Databricks behaviour deltaplan relies on should have a test here and a link to the
+Every Databricks behaviour stevin relies on should have a test here and a link to the
 documentation in its docstring. Where a behaviour is assumed but unverified, the code
 says `TODO(verify)` rather than pretending.
 
 ### The assumptions live in `src/`, not here
 
-The behaviour assumptions themselves are `deltaplan.probes.PROBES`: a list of named
-probes, each with its docs link, what deltaplan does because of it, and a check that
+The behaviour assumptions themselves are `stevin.probes.PROBES`: a list of named
+probes, each with its docs link, what stevin does because of it, and a check that
 makes its own objects in a scratch schema. `test_live_assumptions.py` is a thin
-parametrised caller of that list, and `deltaplan verify` runs the same list in a user's
+parametrised caller of that list, and `stevin verify` runs the same list in a user's
 workspace. So an assumption is written down **once**, and a user can settle it on the
 runtime they actually have.
 
 A new Databricks assumption therefore goes in `probes.py`, not in a test of its own —
-unless what you are testing is deltaplan's own logic, which belongs in a test. The rule
+unless what you are testing is stevin's own logic, which belongs in a test. The rule
 of thumb: if the sentence is about what *Databricks* does, it is a probe; if it is about
-what *deltaplan* plans, it is a test.
+what *stevin* plans, it is a test.
 
 Offline, `tests/unit/test_probes.py` runs the probe machinery against the fake
 warehouse. It deliberately asserts nothing about whether a probe *holds*: the fake
-interprets deltaplan's own SQL, so a ✓ from it would be deltaplan agreeing with itself.
+interprets stevin's own SQL, so a ✓ from it would be stevin agreeing with itself.
 
 ### Running the live suite
 
-Nothing in deltaplan has been verified against a real workspace until this has run. Every
+Nothing in stevin has been verified against a real workspace until this has run. Every
 `TODO(verify)` in the source names an assumption one of these tests settles.
 
 You need:
 
 - a **catalog you can write to** — every test creates a schema called
-  `deltaplan_it_<random>` in it and drops it, with everything inside, when it finishes;
+  `stevin_it_<random>` in it and drops it, with everything inside, when it finishes;
 - a **SQL warehouse** — the tests run a few dozen small statements; a 2X-Small
   serverless warehouse is plenty;
 - a principal allowed to `CREATE SCHEMA` in that catalog and `CREATE FUNCTION` in its
@@ -148,12 +148,12 @@ You need:
 - optionally a principal to grant to — `account users` by default.
 
 ```sh
-databricks auth login --host https://<workspace> --profile deltaplan-test
+databricks auth login --host https://<workspace> --profile stevin-test
 
-DATABRICKS_CONFIG_PROFILE=deltaplan-test \
+DATABRICKS_CONFIG_PROFILE=stevin-test \
 DATABRICKS_WAREHOUSE_ID=<warehouse id> \
-DELTAPLAN_TEST_CATALOG=<scratch catalog> \
-DELTAPLAN_TEST_PRINCIPAL="account users" \
+STEVIN_TEST_CATALOG=<scratch catalog> \
+STEVIN_TEST_PRINCIPAL="account users" \
   uv run pytest -m integration -v
 ```
 
@@ -191,7 +191,7 @@ Two things keep it from happening, and one says so when it does:
   bring it back. Without this, a suite that makes a hundred tables a run fills a
   500-table metastore in a couple of days while holding almost nothing.
 - **Schemas a cancelled run left behind are swept.** A new push cancels a running suite
-  mid-test, and its `deltaplan_it_*` schema is never dropped; anything older than half an
+  mid-test, and its `stevin_it_*` schema is never dropped; anything older than half an
   hour goes.
 - **Then the quota is read**, which is what asks Unity Catalog to recount it. If it is
   still at the limit the suite skips rather than failing every test in it — with one
@@ -204,7 +204,7 @@ table quota on.
 
 ## The docs' pictures
 
-Every terminal on the docs site is deltaplan's own output. `tests/screens.py` writes a
+Every terminal on the docs site is stevin's own output. `tests/screens.py` writes a
 small project for each scene, applies its "before" specs through the CLI into the fake
 warehouse, runs the command the page shows, and records what the CLI printed as an SVG.
 The spec files a page quotes are written alongside, so the YAML next to a plan is the
@@ -227,5 +227,5 @@ A new feature earns a scene in the [feature gallery](features.md): add it to
 | The type parser, loader, differ, planner | `tests/unit/`, with a snapshot if it shapes a plan |
 | The SQL a step generates | `tests/unit/test_convergence.py` — teach the fake the statement |
 | The executor, history, locking | `tests/unit/test_executor.py` with `MemoryHistory` |
-| An assumption about what Databricks does | a probe in `src/deltaplan/probes.py`, with the docs link — then record it |
+| An assumption about what Databricks does | a probe in `src/stevin/probes.py`, with the docs link — then record it |
 | Anything a user sees in the terminal | a scene in `tests/screens.py`, then `mise run screens` |

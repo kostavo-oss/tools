@@ -5,7 +5,7 @@ Databricks treats them differently, and so does the plan:
 * a default can be set, changed and dropped at any time, once the table has the
   allowColumnDefaults feature — which is a prerequisite step, like column mapping;
 * identity and generated columns exist only from table creation, so CREATE TABLE
-  has them and anything else is a step deltaplan won't run, with the reason;
+  has them and anything else is a step stevin won't run, with the reason;
 * a rewrite carries defaults across, but a table with identity or generated
   columns is never rewritten — they would come back as plain columns.
 
@@ -17,13 +17,13 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_table, validate_table
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.model.types import Field, Identity, Primitive
-from deltaplan.render.json import dumps, loads
 from helpers import fake_runner, plan_against, run
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_table, validate_table
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.model.types import Field, Identity, Primitive
+from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

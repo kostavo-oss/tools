@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from deltaplan.history import DeltaHistory, MemoryHistory, StepOutcome
+from stevin.history import DeltaHistory, MemoryHistory, StepOutcome
 
 Row = dict[str, str | None]
 
@@ -28,17 +28,17 @@ class ScriptRunner:
 
 def history(*answers: tuple[Row, ...]) -> tuple[DeltaHistory, ScriptRunner]:
     runner = ScriptRunner(list(answers))
-    return DeltaHistory(runner, "main.deltaplan"), runner
+    return DeltaHistory(runner, "main.stevin"), runner
 
 
 def test_ensure_creates_the_schema_and_three_tables(snapshot: SnapshotAssertion) -> None:
     store, runner = history()
     store.ensure()
     assert [s.split("(")[0].strip() for s in runner.statements] == [
-        "CREATE SCHEMA IF NOT EXISTS `main`.`deltaplan`",
-        "CREATE TABLE IF NOT EXISTS `main`.`deltaplan`.`runs`",
-        "CREATE TABLE IF NOT EXISTS `main`.`deltaplan`.`steps`",
-        "CREATE TABLE IF NOT EXISTS `main`.`deltaplan`.`lock`",
+        "CREATE SCHEMA IF NOT EXISTS `main`.`stevin`",
+        "CREATE TABLE IF NOT EXISTS `main`.`stevin`.`runs`",
+        "CREATE TABLE IF NOT EXISTS `main`.`stevin`.`steps`",
+        "CREATE TABLE IF NOT EXISTS `main`.`stevin`.`lock`",
     ]
     assert "\n\n".join(runner.statements) == snapshot
 

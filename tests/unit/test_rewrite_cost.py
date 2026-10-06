@@ -12,14 +12,14 @@ https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create
 
 from dataclasses import replace
 
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan, Step
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.planner import STAGING_SUFFIX
-from deltaplan.planning import plan_tables
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan, Step
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.planner import STAGING_SUFFIX
+from stevin.planning import plan_tables
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

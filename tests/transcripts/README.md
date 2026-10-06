@@ -1,23 +1,23 @@
 # Transcripts
 
 What the workspace actually answered, kept — one file per assumption
-(`deltaplan.probes.PROBES`), each carrying the date it was recorded and the
+(`stevin.probes.PROBES`), each carrying the date it was recorded and the
 runtime that answered.
 
 `tests/unit/test_transcripts.py` replays every file here through the probe it was
 recorded for, offline and with no credentials. So an assumption keeps being
 checked between live runs, against answers Databricks really gave rather than
-against deltaplan's reading of the manual.
+against stevin's reading of the manual.
 
 ## Recording them
 
-One live run, with `DELTAPLAN_RECORD` pointing here:
+One live run, with `STEVIN_RECORD` pointing here:
 
 ```sh
-DATABRICKS_CONFIG_PROFILE=deltaplan-test \
+DATABRICKS_CONFIG_PROFILE=stevin-test \
 DATABRICKS_WAREHOUSE_ID=<warehouse id> \
-DELTAPLAN_TEST_CATALOG=<scratch catalog> \
-DELTAPLAN_RECORD=tests/transcripts \
+STEVIN_TEST_CATALOG=<scratch catalog> \
+STEVIN_RECORD=tests/transcripts \
   uv run pytest -m integration tests/integration/test_live_assumptions.py
 ```
 
@@ -29,7 +29,7 @@ of a transcript is the diff of what Databricks answers — worth reading.
 
 ## What is in them
 
-The statements deltaplan sent, in order, and the rows or the error that came
+The statements stevin sent, in order, and the rows or the error that came
 back. What is masked is only what is new on every run: the scratch schema
 (`<schema>`, and its parts `<catalog>` and `<bare>`, because statements name them
 separately), the second schema the `UNDROP` probe asks for (`<other>`), and the

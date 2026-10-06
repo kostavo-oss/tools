@@ -1,18 +1,18 @@
 """A table or view in a schema that isn't there yet: the schema comes first.
 
 The case this is for is a fresh target — a new dev catalog with nothing in it.
-deltaplan creates the schemas its specs need, once each, just before the first
+stevin creates the schemas its specs need, once each, just before the first
 table or view that needs them. It never creates a catalog (that comes with
 storage and ownership decisions) and never drops a schema.
 """
 
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, fake_runner, run, table
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY
+from stevin.model.view import Relation, View
+from stevin.planning import plan_tables
 
 ORDERS = table(col("id", "bigint"), name="dev.sales.orders")
 CUSTOMERS = table(col("id", "bigint"), name="dev.sales.customers")
@@ -65,7 +65,7 @@ def test_views_need_their_schema_too() -> None:
 
 
 def test_strict_never_drops_a_schema() -> None:
-    # Everything deltaplan created in `sales` has lost its spec. The tables go —
+    # Everything stevin created in `sales` has lost its spec. The tables go —
     # that is what strict means — but the schema stays.
     managed = ((MANAGED_PROPERTY, "true"),)
     fake = FakeWarehouse.of(

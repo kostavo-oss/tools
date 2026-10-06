@@ -8,12 +8,12 @@ https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-c
 
 import pytest
 
-from deltaplan.ddl import DdlError, read_columns
-from deltaplan.model.types import Identity, Primitive
-from deltaplan.typeparser import parse_type
+from stevin.ddl import DdlError, read_columns
+from stevin.model.types import Identity, Primitive
+from stevin.typeparser import parse_type
 
 LIVE = """\
-CREATE TABLE workspace.deltaplan_probe_gen2.t (
+CREATE TABLE workspace.stevin_probe_gen2.t (
   id BIGINT NOT NULL COMMENT 'key',
   placed_at TIMESTAMP,
   placed_on DATE GENERATED ALWAYS AS ( CAST(placed_at AS DATE) ),
@@ -77,16 +77,16 @@ def test_something_sqlglot_cannot_read_is_an_error() -> None:
 
 
 PROTECTED = """\
-CREATE TABLE workspace.deltaplan_probe_mask2.t (
+CREATE TABLE workspace.stevin_probe_mask2.t (
   id BIGINT GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1),
-  email STRING COLLATE UTF8_BINARY MASK `workspace`.`deltaplan_probe_mask2`.`m` USING COLUMNS(region),
+  email STRING COLLATE UTF8_BINARY MASK `workspace`.`stevin_probe_mask2`.`m` USING COLUMNS(region),
   region STRING COLLATE UTF8_BINARY,
   ts TIMESTAMP_NTZ,
   v VARCHAR(10) COLLATE UTF8_BINARY,
   arr ARRAY<STRING COLLATE UTF8_BINARY>,
   m MAP<STRING COLLATE UTF8_BINARY, INT>)
 USING delta
-WITH ROW FILTER `workspace`.`deltaplan_probe_mask2`.`f` ON (region)
+WITH ROW FILTER `workspace`.`stevin_probe_mask2`.`f` ON (region)
 TBLPROPERTIES (
   'delta.feature.timestampNtz' = 'supported',
   'delta.parquet.format.version.afe.internal' = '2.12.0')"""  # noqa: E501 - verbatim
@@ -105,7 +105,7 @@ def test_a_masked_and_filtered_table_still_reads() -> None:
 
 
 RESERVED = """\
-CREATE TABLE workspace.deltaplan_dogfood.orders (
+CREATE TABLE workspace.stevin_dogfood.orders (
   order_id BIGINT NOT NULL,
   placed_on DATE GENERATED ALWAYS AS ( CAST(placed_at AS DATE) ),
   order_status STRING COLLATE UTF8_BINARY DEFAULT 'new',

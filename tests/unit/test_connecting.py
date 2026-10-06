@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from deltaplan.connect import Connection, NotConnected
-from deltaplan.loader import Target, load_project
+from stevin.connect import Connection, NotConnected
+from stevin.loader import Target, load_project
 
 
 class RecordingClient:
@@ -33,10 +33,10 @@ def client(monkeypatch: pytest.MonkeyPatch) -> type[RecordingClient]:
 
 
 def test_a_target_can_name_its_profile(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         "targets:\n  dev: {profile: dev-workspace, warehouse_id: abc}\n  prod: {}\n"
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     assert project.target("dev").profile == "dev-workspace"
     assert project.target("prod").profile is None
 

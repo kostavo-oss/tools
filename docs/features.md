@@ -1,6 +1,6 @@
 # Feature gallery
 
-One change at a time: the spec as you'd write it, and the plan deltaplan makes from it
+One change at a time: the spec as you'd write it, and the plan stevin makes from it
 against a table that already exists. As in the [tour](tour.md), every terminal is real
 output. For the full rules, follow the link at the end of each section to
 [Writing a spec](spec.md).
@@ -52,7 +52,7 @@ Which widenings Delta allows was checked against a live workspace.
 
 ## Rewrites
 
-A type change that isn't a widening means the data has to move. deltaplan stages the
+A type change that isn't a widening means the data has to move. stevin stages the
 converted rows, checks them against the original, replaces the table from them (keeping
 its identity and history), puts back what a query result can't carry, and drops the
 staging copy. `using:` says how to convert where a plain cast isn't right.
@@ -77,7 +77,7 @@ A new column arrives empty in every existing row, so `using:` fills them before
 
 ![Adding NOT NULL](assets/screens/feature-not-null.svg)
 
-Before each `SET NOT NULL`, deltaplan checks for NULLs, so a column that isn't ready is
+Before each `SET NOT NULL`, stevin checks for NULLs, so a column that isn't ready is
 refused with a clear reason, not a half-applied plan.
 [NOT NULL columns →](spec.md#adding-a-not-null-column-to-a-table-with-data)
 
@@ -146,7 +146,7 @@ Liquid clustering keys, or `auto` to let Databricks choose them.
 Table tags, column tags, grants per principal, and the owner. A principal the spec names gets
 exactly those privileges. One it doesn't name is someone else's business: it's
 reported, never touched. The same goes for a tag the spec doesn't mention, so removing
-one takes a `null`. A new owner is always the last step: after it, deltaplan may not be
+one takes a `null`. A new owner is always the last step: after it, stevin may not be
 allowed to change the table.
 
 ```yaml title="tables/customers.yml"
@@ -160,10 +160,10 @@ allowed to change the table.
 
 ## Reading a big plan
 
-Thirty tables is where a terminal stops helping. `deltaplan ui` serves the plan as one
+Thirty tables is where a terminal stops helping. `stevin ui` serves the plan as one
 page on localhost: every object as a comparison — what it is now, what it becomes — with
 the statements underneath, and two readings of the same rows. *Changes only* for whoever
-approves it, *full object* for whoever wrote the spec. `deltaplan plan -f html -o
+approves it, *full object* for whoever wrote the spec. `stevin plan -f html -o
 plan.html` writes that page as a single file you can attach to a pull request.
 
 It is the same plan object the terminal and the pull-request comment render, so the
@@ -176,13 +176,13 @@ Plenty of teams already have something that owns part of a table: a policy frame
 that sets grants, a catalogue that writes the tags an ABAC rule reads, a data contract
 that owns every description. Two tools writing
 the same thing is how a Monday starts with a table nobody recognises — so `manage:` draws
-the line, and deltaplan stays on its side of it.
+the line, and stevin stays on its side of it.
 
-```yaml title="deltaplan.yml"
+```yaml title="stevin.yml"
 --8<-- "assets/screens/feature-manage.yml"
 ```
 
-A key that isn't deltaplan's is refused where you write it, not ignored later:
+A key that isn't stevin's is refused where you write it, not ignored later:
 
 ![A spec using a key another tool owns](assets/screens/feature-manage.svg)
 
@@ -190,12 +190,12 @@ And the plan says what it could not have touched, so a reviewer doesn't have to 
 
 ![A plan that leaves grants and tags alone](assets/screens/feature-manage-plan.svg)
 
-[What can be handed over →](spec.md#what-deltaplan-manages)
+[What can be handed over →](spec.md#what-stevin-manages)
 
 ## Masks and row filters
 
 A column mask or row filter points at a SQL function, which can be a
-[function spec](#functions) in the same project. deltaplan treats them as security
+[function spec](#functions) in the same project. stevin treats them as security
 controls. It adds and replaces them and never removes one. A new table is created with
 them, so it never exists unprotected, even for a moment.
 
@@ -284,7 +284,7 @@ only when the table changes.
 
 ## Ownership
 
-deltaplan only ever drops what it manages. A table it created carries a marker. A table
+stevin only ever drops what it manages. A table it created carries a marker. A table
 someone else made is *claimed* the first time a spec describes it, as a visible step of
 its own. Anything no spec describes is listed as unmanaged and left alone.
 
@@ -298,8 +298,8 @@ its own. Anything no spec describes is listed as unmanaged and left alone.
 
 ## Adopting drift
 
-Someone added a column by hand at 2am to unblock a load. `deltaplan drift` says so —
-and `deltaplan adopt` writes it into the spec that already describes the table, so the
+Someone added a column by hand at 2am to unblock a load. `stevin drift` says so —
+and `stevin adopt` writes it into the spec that already describes the table, so the
 change becomes a reviewable git diff instead of something to retype or to undo.
 
 ![Adopting a column somebody added by hand](assets/screens/feature-adopt.svg)
@@ -310,7 +310,7 @@ change becomes a reviewable git diff instead of something to retype or to undo.
 
 The file is *edited*, not rewritten: the comment at the top, the `${catalog}`, the
 blank line and the flow style are all still there. What comes from the workspace is
-what deltaplan would otherwise have planned; a tag or grant the spec never mentioned
+what stevin would otherwise have planned; a tag or grant the spec never mentioned
 stays unmanaged, and a seed's rows stay the file's own.
 
 [`adopt` →](cli.md#adopt)
@@ -321,7 +321,7 @@ In an additive schema (the default) a managed table whose spec is deleted stays.
 strict schema it's dropped, as a `destructive` step `apply` won't run without
 `--allow-destructive`.
 
-```yaml title="deltaplan.yml" hl_lines="10-11"
+```yaml title="stevin.yml" hl_lines="10-11"
 --8<-- "assets/screens/feature-strict.yml"
 ```
 
@@ -331,11 +331,11 @@ strict schema it's dropped, as a `destructive` step `apply` won't run without
 
 ## Import
 
-Most schemas exist before deltaplan does. `import` writes a spec for everything in one,
+Most schemas exist before stevin does. `import` writes a spec for everything in one,
 tables, views, functions and volumes, so the first plan has nothing to do but claim
 them.
 
-![deltaplan import](assets/screens/feature-import.svg)
+![stevin import](assets/screens/feature-import.svg)
 
 ```yaml title="tables/customers.yml"
 --8<-- "assets/screens/feature-import.yml"

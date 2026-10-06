@@ -10,11 +10,12 @@ Databricks references behind the behaviour asserted here:
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from deltaplan.differ import diff
-from deltaplan.model.plan import Plan, Step, TableDiff, TableFacts
-from deltaplan.model.table import Check, PrimaryKey, Table
-from deltaplan.model.types import Field, Primitive, Struct
-from deltaplan.planner import (
+from helpers import col, table
+from stevin.differ import diff
+from stevin.model.plan import Plan, Step, TableDiff, TableFacts
+from stevin.model.table import Check, PrimaryKey, Table
+from stevin.model.types import Field, Primitive, Struct
+from stevin.planner import (
     build_plan,
     build_projection,
     needs_rewrite,
@@ -22,8 +23,7 @@ from deltaplan.planner import (
     staging_name,
     widens,
 )
-from deltaplan.typeparser import parse_type
-from helpers import col, table
+from stevin.typeparser import parse_type
 
 TABLE = "main.sales.orders"
 
@@ -473,7 +473,7 @@ def test_a_renamed_nested_field_is_read_from_its_old_name() -> None:
     )
 
 
-def test_using_wins_over_anything_deltaplan_would_have_written() -> None:
+def test_using_wins_over_anything_stevin_would_have_written() -> None:
     live = table(col("amount", "decimal(10,2)"))
     desired = table(
         Field("amount", Primitive("string"), using="format_number(amount, 2)")
@@ -519,8 +519,8 @@ def test_replace_result_says_what_a_replace_keeps() -> None:
     Nullability and constraints are gone whatever happens."""
     from dataclasses import replace as replace_fields
 
-    from deltaplan.model.table import Grant
-    from deltaplan.planner import replace_result
+    from stevin.model.table import Grant
+    from stevin.planner import replace_result
 
     live = replace_fields(
         table(

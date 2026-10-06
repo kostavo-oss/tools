@@ -17,17 +17,17 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import ForeignKey, Grant, PrimaryKey, RowFilter, Table
-from deltaplan.model.types import Field, Mask, Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import plan_tables
-from deltaplan.sql import quote_qualified
 from helpers import col, table
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.model.function import Function, Parameter
+from stevin.model.plan import Plan
+from stevin.model.table import ForeignKey, Grant, PrimaryKey, RowFilter, Table
+from stevin.model.types import Field, Mask, Primitive
+from stevin.model.view import Relation, View
+from stevin.planning import plan_tables
+from stevin.sql import quote_qualified
 
 pytestmark = pytest.mark.integration
 
@@ -58,7 +58,7 @@ def test_column_tags_and_table_tags_read_back(
 def test_grants_read_back(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     spec = table(
         col("id", "bigint"),
         name=f"{schema}.granted",
@@ -161,7 +161,7 @@ def test_a_function_reads_back_as_its_spec(
     """routines.routine_definition is the body as written, parameters come back
     in order with their types, and an EXECUTE grant reads back as direct —
     otherwise every plan would replace a function that hasn't changed."""
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     function = Function(
         f"{schema}.price",
         (
@@ -180,7 +180,7 @@ def test_a_function_reads_back_as_its_spec(
 def test_a_replaced_function_keeps_its_grants(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     first = Function(
         f"{schema}.label",
         (Parameter("value", Primitive("string")),),
@@ -219,11 +219,11 @@ def test_quotes_in_strings_survive(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
     """Databricks reads `'It''s'` as two literals joined — `Its` — so doubling
-    quotes silently dropped every apostrophe deltaplan wrote. Literals are
-    backslash-escaped now; here is every place deltaplan writes one.
+    quotes silently dropped every apostrophe stevin wrote. Literals are
+    backslash-escaped now; here is every place stevin writes one.
     https://docs.databricks.com/aws/en/sql/language-manual/data-types/string-type
     """
-    from deltaplan.model.types import Struct
+    from stevin.model.types import Struct
 
     spec = Table(
         name=f"{schema}.quoted",
@@ -252,9 +252,9 @@ def test_a_schema_spec_reads_back(
     information_schema.schemata / schema_tags / schema_privileges.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-comment
     """
-    from deltaplan.model.schema import Schema
+    from stevin.model.schema import Schema
 
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     spec = Schema(
         schema,
         comment="It's the test schema",
@@ -275,9 +275,9 @@ def test_a_volume_spec_reads_back(
     information_schema.volumes / volume_tags / volume_privileges.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-volume
     """
-    from deltaplan.model.volume import Volume
+    from stevin.model.volume import Volume
 
-    principal = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     spec = Volume(
         f"{schema}.landing",
         comment="It's where files land",
@@ -343,10 +343,10 @@ def test_owners_are_set_and_survive_a_replace(
     the right to clean up.
     https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/ownership
     """
-    from deltaplan.model.schema import Schema
-    from deltaplan.model.volume import Volume
+    from stevin.model.schema import Schema
+    from stevin.model.volume import Volume
 
-    owner = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+    owner = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
     base = replace(table(col("id", "bigint"), name=f"{schema}.orders"), owner=owner)
     view = View(
         f"{schema}.recent",

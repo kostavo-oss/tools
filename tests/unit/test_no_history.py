@@ -2,8 +2,8 @@
 
 The history tables give three things: a lock, a resume, and a record of who ran
 what. A host deploying many products into many catalogs may not want three Delta
-tables of deltaplan's bookkeeping in each of them — and doesn't have to. What
-deltaplan needs to work is on the tables themselves, as properties.
+tables of stevin's bookkeeping in each of them — and doesn't have to. What
+stevin needs to work is on the tables themselves, as properties.
 
 These say what is given up, and prove what isn't: it still applies, still
 converges, still refuses what it should, and still takes a restore point before
@@ -16,16 +16,16 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan import api
-from deltaplan.connect import Connection
-from deltaplan.executor import ExecutionError, StalePlan
-from deltaplan.history import MemoryHistory, NoHistory
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan, Step
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.planning import plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import api
+from stevin.connect import Connection
+from stevin.executor import ExecutionError, StalePlan
+from stevin.history import MemoryHistory, NoHistory
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan, Step
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.planning import plan_tables
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -45,7 +45,7 @@ def test_nothing_is_created_and_the_change_is_made() -> None:
     )
     assert result.ok
     assert NAME in fake.tables
-    assert [name for name in fake.schemas if "deltaplan" in name] == []
+    assert [name for name in fake.schemas if "stevin" in name] == []
 
 
 def test_a_second_apply_of_the_same_plan_changes_nothing() -> None:
@@ -53,7 +53,7 @@ def test_a_second_apply_of_the_same_plan_changes_nothing() -> None:
 
     The first apply moved the world the plan was made against, so the plan no
     longer describes it. Without a record of the run there is nothing else to
-    tell deltaplan that — and nothing else is needed: the live tables say it.
+    tell stevin that — and nothing else is needed: the live tables say it.
     """
     fake = FakeWarehouse.of(LIVE)
     desired = replace(LIVE, comment="Order facts")
@@ -126,12 +126,12 @@ def test_a_project_without_a_history_schema_gets_one_that_keeps_nothing() -> Non
     from pathlib import Path
     from tempfile import mkdtemp
 
-    from deltaplan.loader import Project
+    from stevin.loader import Project
 
     directory = Path(mkdtemp())
     (directory / "tables").mkdir()
-    (directory / "deltaplan.yml").write_text("specs: [tables]\ntargets:\n  dev: {}\n")
-    project = Project.load(directory / "deltaplan.yml")
+    (directory / "stevin.yml").write_text("specs: [tables]\ntargets:\n  dev: {}\n")
+    project = Project.load(directory / "stevin.yml")
     store = api.history_for(project, project.default, Connection(runner=FakeWarehouse()))
     assert isinstance(store, NoHistory)
     assert store.resumable_run("plan", "dev") is None

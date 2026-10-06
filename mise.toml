@@ -15,9 +15,9 @@ NO_MKDOCS_2_WARNING = "1"
 # Everything goes through uv, so the project .venv stays the source of truth.
 
 [tasks.dev]
-description = "Run the deltaplan CLI"
+description = "Run the stevin CLI"
 alias = "run"
-run = "uv run deltaplan"
+run = "uv run stevin"
 
 [tasks.test]
 description = "Run the unit tests (no workspace needed)"

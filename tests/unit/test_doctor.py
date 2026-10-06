@@ -17,18 +17,18 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection, NotConnected
-from deltaplan.doctor import Finding, look, worst
-from deltaplan.loader import Project
 from fake_warehouse import FakeWarehouse
+from stevin import cli
+from stevin.connect import Connection, NotConnected
+from stevin.doctor import Finding, look, worst
+from stevin.loader import Project
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
 
 PROJECT = """\
 specs: [tables]
-history_schema: ${catalog}.deltaplan
+history_schema: ${catalog}.stevin
 targets:
   dev:
     default: true
@@ -102,10 +102,10 @@ class FakeClient:
 
 def project_at(tmp_path: Path, config: str = PROJECT, spec: str | None = SPEC) -> Project:
     (tmp_path / "tables").mkdir(exist_ok=True)
-    (tmp_path / "deltaplan.yml").write_text(config)
+    (tmp_path / "stevin.yml").write_text(config)
     if spec is not None:
         (tmp_path / "tables" / "orders.yml").write_text(spec)
-    return Project.load(tmp_path / "deltaplan.yml")
+    return Project.load(tmp_path / "stevin.yml")
 
 
 def findings(
@@ -132,7 +132,7 @@ def findings(
 
 def test_a_healthy_setup_is_all_ticks(tmp_path: Path) -> None:
     fake = FakeWarehouse()
-    fake.schemas.add("main.deltaplan")
+    fake.schemas.add("main.stevin")
     found = findings(project_at(tmp_path), FakeClient(), fake)
     assert [f.verdict for f in found.values()] == ["ok"] * len(found), found
     assert worst(list(found.values())) == "ok"
@@ -142,7 +142,7 @@ def test_a_healthy_setup_is_all_ticks(tmp_path: Path) -> None:
 def test_no_project_says_how_to_start_one() -> None:
     [finding] = look(None, None, None)
     assert finding.verdict == "problem"
-    assert finding.remedy and "deltaplan import" in finding.remedy
+    assert finding.remedy and "stevin import" in finding.remedy
 
 
 def test_a_specs_entry_that_isnt_there_is_a_problem(tmp_path: Path) -> None:
@@ -195,7 +195,7 @@ def test_a_history_schema_that_isnt_there_yet_says_what_it_needs(tmp_path: Path)
 
 def test_no_history_schema_is_fine_and_says_what_that_costs(tmp_path: Path) -> None:
     project = project_at(
-        tmp_path, PROJECT.replace("history_schema: ${catalog}.deltaplan\n", "")
+        tmp_path, PROJECT.replace("history_schema: ${catalog}.stevin\n", "")
     )
     found = findings(project, FakeClient())
     assert found["history"].verdict == "ok"
@@ -232,9 +232,7 @@ def test_the_command_exits_one_on_a_problem_and_prints_the_remedy(
         "_connect",
         lambda *_a, **_k: Connection(runner=FakeWarehouse(), warehouse_id="w1"),
     )
-    result = CliRunner().invoke(
-        cli.app, ["doctor", "-c", str(tmp_path / "deltaplan.yml")]
-    )
+    result = CliRunner().invoke(cli.app, ["doctor", "-c", str(tmp_path / "stevin.yml")])
     # No credentials in a test run, so the workspace check is the problem.
     assert result.exit_code == 1
     assert "✓ project" in result.output
@@ -244,7 +242,7 @@ def test_the_command_exits_one_on_a_problem_and_prints_the_remedy(
 def test_json_is_the_same_findings(tmp_path: Path) -> None:
     project_at(tmp_path)
     result = CliRunner().invoke(
-        cli.app, ["doctor", "-c", str(tmp_path / "deltaplan.yml"), "--json"]
+        cli.app, ["doctor", "-c", str(tmp_path / "stevin.yml"), "--json"]
     )
     reported = json.loads(result.output)
     assert {entry["about"] for entry in reported} >= {"project", "target"}
@@ -256,6 +254,6 @@ def test_json_is_the_same_findings(tmp_path: Path) -> None:
 def test_looking_changes_nothing(tmp_path: Path) -> None:
     """It reads. No schema made, no warehouse started, no statement but a read."""
     fake = FakeWarehouse()
-    fake.schemas.add("main.deltaplan")
+    fake.schemas.add("main.stevin")
     findings(project_at(tmp_path), FakeClient(), fake)
     assert fake.ddl == [], "doctor ran a DDL statement"

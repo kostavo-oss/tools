@@ -1,15 +1,16 @@
 name: integration
 
-# The live suite: every assumption deltaplan makes about Databricks, checked
+# The live suite: every assumption stevin makes about Databricks, checked
 # against a real workspace. Each test creates a throwaway schema and drops it.
 # It runs on every pull request, nightly (Databricks changes too), and on demand.
 # It takes about 40 minutes and isn't a required check — read it before merging
-# anything that changes what deltaplan sends to Databricks.
+# anything that changes what stevin sends to Databricks.
 #
 # Credentials live in the `databricks-test` environment (Settings → Environments):
 # the secrets DATABRICKS_HOST, DATABRICKS_TOKEN, DATABRICKS_WAREHOUSE_ID and
-# DELTAPLAN_TEST_CATALOG. A pull request from a fork gets none of them, so there
-# the suite skips rather than fails.
+# DELTAPLAN_TEST_CATALOG — a secret keeps the name it was made with, from when
+# this was deltaplan; the suite reads it as STEVIN_TEST_CATALOG. A pull request
+# from a fork gets none of them, so there the suite skips rather than fails.
 
 on:
   pull_request:
@@ -41,7 +42,7 @@ jobs:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
-      DELTAPLAN_TEST_CATALOG: ${{ secrets.DELTAPLAN_TEST_CATALOG }}
+      STEVIN_TEST_CATALOG: ${{ secrets.DELTAPLAN_TEST_CATALOG }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7

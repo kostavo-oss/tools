@@ -1,4 +1,4 @@
-"""`deltaplan verify`, without a workspace.
+"""`stevin verify`, without a workspace.
 
 What can be held to offline is the machinery: that every probe produces exactly
 one result whatever the warehouse does, that a probe which says the workspace
@@ -7,7 +7,7 @@ made and dropped, and that the command's exit code and JSON say what a host
 reads.
 
 What can *not* be held to offline is whether an assumption holds. The fake
-warehouse interprets deltaplan's own SQL, so a ✓ from it would be deltaplan
+warehouse interprets stevin's own SQL, so a ✓ from it would be stevin
 repeating its own assumptions back — which is the whole reason the probes exist.
 Only `tests/integration/test_live_assumptions.py`, which runs this same list
 against a real workspace, answers that.
@@ -21,11 +21,11 @@ from dataclasses import replace
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import api, cli, probes
-from deltaplan.connect import Connection
-from deltaplan.introspect import Introspector, Row
-from deltaplan.probes import Bench, Disagrees, Probe, Result, run, scratch
 from fake_warehouse import FakeWarehouse
+from stevin import api, cli, probes
+from stevin.connect import Connection
+from stevin.introspect import Introspector, Row
+from stevin.probes import Bench, Disagrees, Probe, Result, run, scratch
 
 runner = CliRunner()
 
@@ -73,7 +73,7 @@ BROKE = probe("this one couldn't be tried", breaks)
 
 def test_every_probe_says_what_it_is_and_what_rests_on_it() -> None:
     """A probe nobody can act on is worse than none: each names the Databricks
-    page it rests on, and what deltaplan does because of it."""
+    page it rests on, and what stevin does because of it."""
     names = [one.name for one in probes.PROBES]
     assert len(names) == len(set(names)), "two probes share a name"
     for one in probes.PROBES:
@@ -140,7 +140,7 @@ def test_a_workspace_that_differs_is_reported_in_its_own_words() -> None:
 
 def test_a_probe_that_could_not_be_tried_carries_the_advice() -> None:
     """A stopped warehouse is not an answer about behaviour — and its message is
-    one deltaplan already knows how to explain."""
+    one stevin already knows how to explain."""
     [result] = list(run(bench_on(FakeWarehouse()), [BROKE]))
     assert (result.outcome, result.mark) == ("unknown", "!")
     assert result.detail is not None
@@ -192,10 +192,10 @@ def test_the_scratch_schema_is_made_and_dropped() -> None:
     assert "DROP SCHEMA `main`.`temporary` CASCADE" in fake.statements
 
 
-def test_a_catalog_on_its_own_gets_a_name_of_deltaplans() -> None:
+def test_a_catalog_on_its_own_gets_a_name_of_stevins() -> None:
     fake = FakeWarehouse()
     with scratch(fake, "main") as schema:
-        assert schema.startswith("main.deltaplan_verify_")
+        assert schema.startswith("main.stevin_verify_")
     assert [s for s in fake.statements if s.startswith("DROP SCHEMA")]
 
 
@@ -258,7 +258,7 @@ def test_the_undrop_probe_gets_a_schema_that_keeps_what_it_drops(monkeypatch) ->
 
     def asks(bench: Bench) -> None:
         assert bench.recoverable is not None
-        assert bench.recoverable().startswith("main.deltaplan_verify_")
+        assert bench.recoverable().startswith("main.stevin_verify_")
 
     monkeypatch.setattr(probes, "PROBES", (HELD, probe("asks", asks, keeps_dropped=True)))
     fake = FakeWarehouse()

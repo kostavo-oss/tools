@@ -1,6 +1,6 @@
 """What Databricks actually does — the only place that can settle it.
 
-Each test states an assumption deltaplan makes, so a runtime change shows up as
+Each test states an assumption stevin makes, so a runtime change shows up as
 a failing test rather than a failing `apply`.
 
   column mapping  https://docs.databricks.com/aws/en/delta/column-mapping
@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.model.plan import Plan, TableDiff, TableFacts
-from deltaplan.model.table import Check, PrimaryKey, Table
-from deltaplan.planner import build_plan, create_table_sql
-from deltaplan.sql import quote_qualified
 from helpers import col, table
+from stevin.differ import diff
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.model.plan import Plan, TableDiff, TableFacts
+from stevin.model.table import Check, PrimaryKey, Table
+from stevin.planner import build_plan, create_table_sql
+from stevin.sql import quote_qualified
 
 pytestmark = pytest.mark.integration
 
@@ -70,7 +70,7 @@ def test_a_created_table_reads_back_as_the_spec_that_made_it(
     runner.query(create_table_sql(desired))
 
     live, _ = live_table(introspector, desired.name)
-    assert live.managed, "CREATE TABLE must mark the table as deltaplan-managed"
+    assert live.managed, "CREATE TABLE must mark the table as stevin-managed"
     assert diff(desired, live) == (), "a fresh table should need no changes"
 
 
@@ -204,11 +204,11 @@ def test_the_widenings_we_refuse_are_refused(
     runner: WarehouseRunner, schema: str, before: str, after: str
 ) -> None:
     """The edges of `widens()`: Databricks refuses these as metadata changes,
-    so deltaplan plans them as rewrites.
+    so stevin plans them as rewrites.
     https://docs.databricks.com/aws/en/delta/type-widening
     """
-    from deltaplan.planner import widens
-    from deltaplan.typeparser import parse_type
+    from stevin.planner import widens
+    from stevin.typeparser import parse_type
 
     assert not widens(parse_type(before), parse_type(after))
     name = quote_qualified(f"{schema}.orders")
@@ -229,9 +229,9 @@ def test_automatic_clustering_round_trips(
     """
     from dataclasses import replace
 
-    from deltaplan.executor import Executor
-    from deltaplan.history import MemoryHistory
-    from deltaplan.planning import plan_tables
+    from stevin.executor import Executor
+    from stevin.history import MemoryHistory
+    from stevin.planning import plan_tables
 
     def apply(spec: Table) -> None:
         plan = plan_tables([spec], introspector, target="it", tool_version="0")
@@ -258,9 +258,9 @@ def test_partitioning_round_trips_and_moves_to_clustering(
     """
     from dataclasses import replace
 
-    from deltaplan.executor import Executor
-    from deltaplan.history import MemoryHistory
-    from deltaplan.planning import plan_tables
+    from stevin.executor import Executor
+    from stevin.history import MemoryHistory
+    from stevin.planning import plan_tables
 
     def apply(spec: Table) -> list[str]:
         plan = plan_tables([spec], introspector, target="it", tool_version="0")

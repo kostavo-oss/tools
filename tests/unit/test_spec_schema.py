@@ -14,9 +14,9 @@ import pytest
 import yaml
 from jsonschema import Draft7Validator
 
-from deltaplan import spec_schema
-from deltaplan.loader import dump_spec, load_spec
-from deltaplan.model.table import Table
+from stevin import spec_schema
+from stevin.loader import dump_spec, load_spec
+from stevin.model.table import Table
 
 ROOT = Path(__file__).parents[2]
 ID = [{"name": "id", "type": "int"}]
@@ -38,17 +38,17 @@ def test_the_schemas_are_valid_json_schema() -> None:
 )
 def test_every_example_validates(path: Path) -> None:
     document = yaml.safe_load(path.read_text())
-    validator = PROJECT if path.name == "deltaplan.yml" else SPEC
+    validator = PROJECT if path.name == "stevin.yml" else SPEC
     if path.name == "databricks.yml":
-        pytest.skip("a bundle, not deltaplan's")
+        pytest.skip("a bundle, not stevin's")
     assert errors(validator, document) == []
 
 
 def test_everything_import_writes_validates() -> None:
     from dataclasses import replace
 
-    from deltaplan.model.table import RowFilter
-    from deltaplan.model.types import Field, Identity, Mask, Primitive
+    from stevin.model.table import RowFilter
+    from stevin.model.types import Field, Identity, Mask, Primitive
 
     table = load_spec(ROOT / "tests" / "fixtures" / "everything.sql")
     assert isinstance(table, Table)
@@ -127,7 +127,7 @@ def test_everything_import_writes_validates() -> None:
 def test_what_the_loader_refuses_the_schema_refuses(
     tmp_path: Path, spec: dict[str, Any], problem: str
 ) -> None:
-    from deltaplan.loader import SpecError
+    from stevin.loader import SpecError
 
     assert errors(SPEC, spec), f"the schema accepted {spec}, despite its {problem}"
     path = tmp_path / "s.yml"
@@ -201,5 +201,5 @@ def test_the_published_schemas_are_current() -> None:
         published = json.loads((ROOT / "docs" / "schema" / name).read_text())
         assert published == schema, (
             f"docs/schema/{name} is out of date: run "
-            "`uv run python -m deltaplan.spec_schema docs/schema`"
+            "`uv run python -m stevin.spec_schema docs/schema`"
         )

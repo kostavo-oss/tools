@@ -1,6 +1,6 @@
-"""Seeds, against a real workspace: does the statement deltaplan writes work?
+"""Seeds, against a real workspace: does the statement stevin writes work?
 
-The offline suite proves a seed converges against deltaplan's own reading of
+The offline suite proves a seed converges against stevin's own reading of
 Databricks. Only this proves the `INSERT OVERWRITE … (columns) VALUES …` it
 builds is accepted, that the rows arrive as their declared types, and that
 loading again replaces rather than appends.
@@ -13,15 +13,15 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan.connect import Connection
-from deltaplan.differ import diff
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.model.plan import Plan, TableDiff, TableFacts, fingerprint
-from deltaplan.model.table import SEED_PROPERTY, Seed, Table
-from deltaplan.planner import build_plan
-from deltaplan.sql import quote_qualified
 from helpers import col, table
+from stevin.connect import Connection
+from stevin.differ import diff
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.model.plan import Plan, TableDiff, TableFacts, fingerprint
+from stevin.model.table import SEED_PROPERTY, Seed, Table
+from stevin.planner import build_plan
+from stevin.sql import quote_qualified
 
 pytestmark = pytest.mark.integration
 
@@ -75,7 +75,7 @@ def plan_for(desired: Table, introspector: Introspector) -> Plan:
 def test_a_seed_is_loaded_typed_and_replaced(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
-    from deltaplan import api
+    from stevin import api
 
     name = f"{schema}.countries"
     connection = Connection(runner=runner)
@@ -105,7 +105,7 @@ def test_a_seed_is_loaded_typed_and_replaced(
 def test_loading_again_replaces_rather_than_appends(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
-    from deltaplan import api
+    from stevin import api
 
     name = f"{schema}.countries"
     connection = Connection(runner=runner)

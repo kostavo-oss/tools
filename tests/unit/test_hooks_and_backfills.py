@@ -11,13 +11,13 @@ what a spec can't say. They run only when the table has changes in the plan.
 
 from pathlib import Path
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.loader import load_table
-from deltaplan.model.table import MANAGED_PROPERTY, Hooks, Table
-from deltaplan.model.types import Field, Primitive
-from deltaplan.render.rich import plan_text
 from helpers import col, plan_against, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.loader import load_table
+from stevin.model.table import MANAGED_PROPERTY, Hooks, Table
+from stevin.model.types import Field, Primitive
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -85,7 +85,7 @@ def test_hooks_run_around_a_tables_changes() -> None:
         "AFTER hook",
     ]
     assert plan.steps[0].warnings == (
-        "runs your SQL as written — deltaplan can't tell what it does",
+        "runs your SQL as written — stevin can't tell what it does",
     )
     assert (
         plan.steps[2].sql == "UPDATE main.sales.orders SET notes = '' WHERE notes IS NULL"
@@ -121,7 +121,7 @@ def test_hooks_in_a_spec(tmp_path: Path) -> None:
 
 def test_hooks_survive_the_plan_file() -> None:
     """Checked by hand: hooks take no part in equality, so `==` can't see them."""
-    from deltaplan.render.json import dumps, loads
+    from stevin.render.json import dumps, loads
 
     hooks = Hooks(before="DELETE FROM x WHERE id IS NULL", after="OPTIMIZE x")
     desired = Table(

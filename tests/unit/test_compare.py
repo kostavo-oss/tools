@@ -3,7 +3,7 @@
 `compare()` is what makes the page readable for two kinds of reader without
 building two pages: one set of rows, aligned by meaning — the `amount` column on
 the left is the `amount` column on the right, however far its type moved — with
-both a short value per side and the sentence the rest of deltaplan uses.
+both a short value per side and the sentence the rest of stevin uses.
 
 It is pure, so this is where the behaviour is pinned; the HTML only draws it.
 """
@@ -12,16 +12,16 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from deltaplan.introspect import Introspector
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, RowFilter
-from deltaplan.model.types import Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import plan_tables
-from deltaplan.render.compare import Comparison, compare
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin.introspect import Introspector
+from stevin.model.function import Function, Parameter
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Grant, RowFilter
+from stevin.model.types import Primitive
+from stevin.model.view import Relation, View
+from stevin.planning import plan_tables
+from stevin.render.compare import Comparison, compare
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -215,7 +215,7 @@ def test_every_change_the_differ_made_is_accounted_for() -> None:
     comparison = compare(plan.diffs[0])
     said = " ".join(row.said for row in comparison.rows)
     for change in plan.diffs[0].changes:
-        from deltaplan.render.labels import describe
+        from stevin.render.labels import describe
 
         assert describe(change)[1] in said, (
             f"{change.kind} at {change.path!r} went missing"

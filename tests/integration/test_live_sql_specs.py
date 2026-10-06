@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.loader import load_spec
-from deltaplan.planning import plan_tables
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.loader import load_spec
+from stevin.planning import plan_tables
 
 pytestmark = pytest.mark.integration
 

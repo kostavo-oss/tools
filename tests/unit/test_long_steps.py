@@ -1,7 +1,7 @@
-"""A step takes as long as it takes — and deltaplan never lies about one.
+"""A step takes as long as it takes — and stevin never lies about one.
 
 The bug these hold shut: every statement had a five-minute budget, including the
-REPLACE of a table with four hundred gigabytes in it. At the deadline deltaplan
+REPLACE of a table with four hundred gigabytes in it. At the deadline stevin
 said the step had failed and moved on, while the statement kept running on the
 warehouse — so the table was rewritten behind a run that reported a failure, the
 lock stayed held until its TTL, and nothing was ever cancelled.
@@ -21,22 +21,22 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection
-from deltaplan.executor import Executor, Heartbeating
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import (
+from fake_warehouse import FakeWarehouse
+from helpers import col, table
+from stevin import cli
+from stevin.connect import Connection
+from stevin.executor import Executor, Heartbeating
+from stevin.history import MemoryHistory
+from stevin.introspect import (
     IntrospectionError,
     Introspector,
     Progress,
     WarehouseRunner,
     duration,
 )
-from deltaplan.model.plan import Step
-from deltaplan.model.table import MANAGED_PROPERTY
-from deltaplan.planning import plan_tables
-from fake_warehouse import FakeWarehouse
-from helpers import col, table
+from stevin.model.plan import Step
+from stevin.model.table import MANAGED_PROPERTY
+from stevin.planning import plan_tables
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -336,7 +336,7 @@ def test_ctrl_c_during_apply_says_what_state_things_are_in(
 ) -> None:
     from pathlib import Path
 
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         "version: 1\nspecs: [tables]\ntargets:\n  dev:\n    default: true\n"
         "    vars: {catalog: main}\n    warehouse_id: w1\n"
     )

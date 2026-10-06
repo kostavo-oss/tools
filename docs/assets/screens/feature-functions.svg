@@ -80,7 +80,7 @@
             </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="340.8" rx="8"/><text class="dp-feature-functions-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">deltaplan</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="340.8" rx="8"/><text class="dp-feature-functions-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">stevin</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
@@ -90,7 +90,7 @@
     <g transform="translate(9, 41)" clip-path="url(#dp-feature-functions-clip-terminal)">
     
     <g class="dp-feature-functions-matrix">
-    <text class="dp-feature-functions-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-feature-functions-line-0)">$&#160;</text><text class="dp-feature-functions-r2" x="24.4" y="20" textLength="170.8" clip-path="url(#dp-feature-functions-line-0)">deltaplan&#160;plan</text><text class="dp-feature-functions-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-feature-functions-line-0)">
+    <text class="dp-feature-functions-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-feature-functions-line-0)">$&#160;</text><text class="dp-feature-functions-r2" x="24.4" y="20" textLength="134.2" clip-path="url(#dp-feature-functions-line-0)">stevin&#160;plan</text><text class="dp-feature-functions-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-feature-functions-line-0)">
 </text><text class="dp-feature-functions-r2" x="0" y="44.4" textLength="231.8" clip-path="url(#dp-feature-functions-line-1)">sales.order_band&#160;&#160;&#160;</text><text class="dp-feature-functions-r4" x="231.8" y="44.4" textLength="97.6" clip-path="url(#dp-feature-functions-line-1)">~&#160;update</text><text class="dp-feature-functions-r3" x="976" y="44.4" textLength="12.2" clip-path="url(#dp-feature-functions-line-1)">
 </text><text class="dp-feature-functions-r5" x="24.4" y="68.8" textLength="24.4" clip-path="url(#dp-feature-functions-line-2)">~&#160;</text><text class="dp-feature-functions-r3" x="48.8" y="68.8" textLength="122" clip-path="url(#dp-feature-functions-line-2)">definition</text><text class="dp-feature-functions-r3" x="976" y="68.8" textLength="12.2" clip-path="url(#dp-feature-functions-line-2)">
 </text><text class="dp-feature-functions-r6" x="48.8" y="93.2" textLength="36.6" clip-path="url(#dp-feature-functions-line-3)">1.&#160;</text><text class="dp-feature-functions-r3" x="85.4" y="93.2" textLength="353.8" clip-path="url(#dp-feature-functions-line-3)">REPLACE&#160;FUNCTION&#160;order_band&#160;&#160;</text><text class="dp-feature-functions-r6" x="439.2" y="93.2" textLength="73.2" clip-path="url(#dp-feature-functions-line-3)">[meta]</text><text class="dp-feature-functions-r3" x="976" y="93.2" textLength="12.2" clip-path="url(#dp-feature-functions-line-3)">

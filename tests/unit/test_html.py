@@ -1,4 +1,4 @@
-"""A plan as a page, and the one-page server `deltaplan ui` runs.
+"""A plan as a page, and the one-page server `stevin ui` runs.
 
 The page is a third rendering of the same object — after the terminal and the
 pull-request comment — and it must say the same things with the same words. What
@@ -17,16 +17,16 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.planning import plan_tables
-from deltaplan.render.html import render_html
-from deltaplan.serve import page_server
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import cli
+from stevin.connect import Connection
+from stevin.introspect import Introspector
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.planning import plan_tables
+from stevin.render.html import render_html
+from stevin.serve import page_server
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -150,7 +150,7 @@ def test_the_server_hands_over_that_page_and_nothing_else(plan: Plan) -> None:
 
 
 def test_the_cli_writes_a_page_with_o(tmp_path: Path, monkeypatch) -> None:
-    project = tmp_path / "deltaplan.yml"
+    project = tmp_path / "stevin.yml"
     project.write_text(
         "specs: [tables]\ntargets:\n  dev:\n    default: true\n"
         "    vars: {catalog: main}\n"

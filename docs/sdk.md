@@ -1,19 +1,19 @@
 # As a library
 
-deltaplan is a command you run, and a library you call. The command is the
-library's first customer: every `deltaplan` subcommand is argument parsing and
+stevin is a command you run, and a library you call. The command is the
+library's first customer: every `stevin` subcommand is argument parsing and
 rendering around the functions on this page, which is how they stay honest.
 
-Reach for this when deltaplan is a step inside something larger — a deployment
+Reach for this when stevin is a step inside something larger — a deployment
 task that plans, shows the plan its own way, asks its own question and applies
 it; a notebook; a policy check that refuses a plan with a `destructive` step in
 it.
 
 ```sh
-pip install deltaplan            # no extras: the library is the package
+pip install stevin            # no extras: the library is the package
 ```
 
-Everything below is exported from `deltaplan` itself. Names reached through a
+Everything below is exported from `stevin` itself. Names reached through a
 submodule are the implementation, and move without notice.
 
 <hr class="dp-rule">
@@ -23,10 +23,10 @@ submodule are the implementation, and move without notice.
 Every host does these, in this order.
 
 ```python
-import deltaplan
+import stevin
 
 # 1. the project
-project = deltaplan.Project.find()  # or .load("deltaplan.yml")
+project = stevin.Project.find()  # or .load("stevin.yml")
 
 # 2. a target, resolved
 target = project.resolve(project.default)  # asks the Databricks CLI
@@ -40,19 +40,19 @@ if specs.errors:
     raise SystemExit(1)
 
 # 4. a connection
-conn = deltaplan.Connection.from_target(target)
+conn = stevin.Connection.from_target(target)
 
 # 5. a plan
-plan = deltaplan.plan(project, target, conn, specs=specs)
+plan = stevin.plan(project, target, conn, specs=specs)
 print(plan.summary)  # Plan: 1 add, 2 change, …
 
 # 6. apply it
 if not plan.empty:
-    run = deltaplan.apply(plan, conn, project=project, target=target)
+    run = stevin.apply(plan, conn, project=project, target=target)
     print(run.ok, run.ran, run.failed_step)
 
 # 7. or just ask whether anything moved
-if not deltaplan.drift(project, target, conn).empty:
+if not stevin.drift(project, target, conn).empty:
     print("the workspace no longer matches the specs")
 ```
 
@@ -66,8 +66,8 @@ A host that just deployed a Databricks Asset Bundle holds what
 target = project.resolve(project.target("prod"), bundle_config=config)
 ```
 
-Without it, deltaplan asks the CLI itself — `DATABRICKS_CLI_PATH` first, then
-`PATH` (`deltaplan.find_cli()`). If the CLI is there and fails, that is a
+Without it, stevin asks the CLI itself — `DATABRICKS_CLI_PATH` first, then
+`PATH` (`stevin.find_cli()`). If the CLI is there and fails, that is a
 `BundleError` carrying **its** words: a bundle that doesn't resolve has no names
 to plan against. On a machine with no CLI at all, the bundle file stands in and
 what only the CLI could have settled stays unknown, with the reason.
@@ -75,19 +75,19 @@ what only the CLI could have settled stays unknown, with the reason.
 !!! tip "`databricks` is a shim?"
     On a machine that manages tools with shims, the `databricks` on `PATH` can
     be `mise`, which the Databricks SDK's own `databricks-cli` authentication
-    then can't use. Point `DATABRICKS_CLI_PATH` at the real binary; deltaplan
+    then can't use. Point `DATABRICKS_CLI_PATH` at the real binary; stevin
     and the SDK both follow it.
 
 ## Connecting
 
 ```python
-conn = deltaplan.Connection.from_target(target)  # the usual way
-conn = deltaplan.Connection(client=my_client, warehouse_id="abc123")
-conn = deltaplan.Connection(profile="dev", warehouse_id="abc123")
-conn = deltaplan.Connection(runner=my_runner)  # already runs SQL
+conn = stevin.Connection.from_target(target)  # the usual way
+conn = stevin.Connection(client=my_client, warehouse_id="abc123")
+conn = stevin.Connection(profile="dev", warehouse_id="abc123")
+conn = stevin.Connection(runner=my_runner)  # already runs SQL
 ```
 
-A client you pass is the client deltaplan uses; it never makes a second one.
+A client you pass is the client stevin uses; it never makes a second one.
 The warehouse is settled in one order, documented once: what you passed, then
 the target's `warehouse_id`, then `DATABRICKS_WAREHOUSE_ID`, then the warehouse
 a bundle's `lookup:` names. A failure here is `NotConnected`.
@@ -100,7 +100,7 @@ A `Plan` is a frozen object, not a string to parse:
 plan.empty, plan.is_destructive, plan.highest_risk
 plan.summary.add, plan.summary.change, plan.summary.destroy, plan.summary.steps
 plan.unmanaged  # live objects no spec describes
-plan.orphaned  # deltaplan's own, whose spec is gone
+plan.orphaned  # stevin's own, whose spec is gone
 plan.not_managed  # what `manage:` hands to another tool
 
 for diff in plan.diffs:
@@ -117,7 +117,7 @@ a plan made here can be applied somewhere else.
 ## Applying
 
 ```python
-run = deltaplan.apply(
+run = stevin.apply(
     plan,
     conn,
     project=project,
@@ -128,29 +128,29 @@ run = deltaplan.apply(
 ```
 
 `apply` records every run in the project's `history_schema`; pass
-`history=deltaplan.MemoryHistory()` in a test, or a store of your own. It takes
+`history=stevin.MemoryHistory()` in a test, or a store of your own. It takes
 a lock per target, skips steps already true of the live table, and resumes a run
 that stopped.
 
-A project with no `history_schema` gets `deltaplan.NoHistory()`, which keeps
+A project with no `history_schema` gets `stevin.NoHistory()`, which keeps
 nothing and locks nothing — nothing is written outside the tables your specs
 describe. What that costs is in the
 [safety model](safety.md#without-a-history-schema); the restore point a risky
 step takes is then on the result:
 
 ```python
-run = deltaplan.apply(plan, conn, project=project, target=target)
+run = stevin.apply(plan, conn, project=project, target=target)
 for table, version in run.restore_points:
     print(f"RESTORE TABLE {table} TO VERSION AS OF {version}")
 ```
 
-Before you ask a person to confirm, `deltaplan.is_stale(plan, conn)` says
+Before you ask a person to confirm, `stevin.is_stale(plan, conn)` says
 whether the world has moved under the plan.
 
 ## Importing what already exists
 
 ```python
-found = deltaplan.import_schema(conn, "main.sales", manage=project.manage)
+found = stevin.import_schema(conn, "main.sales", manage=project.manage)
 for spec in found:
     print(spec.filename, spec.relation.name)
     write_somewhere(spec.text)
@@ -164,7 +164,7 @@ anything `manage:` hands to another tool.
 ## Adopting drift
 
 ```python
-for adoption in deltaplan.adopt(project, target, conn):
+for adoption in stevin.adopt(project, target, conn):
     print(adoption.path, *adoption.notes, sep="\n  ")
     adoption.write()  # nothing is written until you say so
 ```
@@ -177,14 +177,14 @@ narrows it the way it does for `plan`.
 ## Verifying a workspace
 
 ```python
-for result in deltaplan.verify(conn, "main"):
+for result in stevin.verify(conn, "main"):
     print(result.mark, result.probe.name)
     if not result.held:
         print("   ", result.detail)
         print("   ", result.probe.matters, result.probe.docs)
 ```
 
-The assumptions every plan rests on, run against this workspace: `deltaplan.PROBES`
+The assumptions every plan rests on, run against this workspace: `stevin.PROBES`
 is the list, and each `Result` is `held`, `differed` or `unknown`. This one
 **writes** — it makes a scratch schema, uses it and drops it — so a host that
 runs it should say so first. Pass `observer=` to report each probe as it
@@ -192,7 +192,7 @@ finishes rather than waiting for the run.
 
 ## Errors
 
-Every error deltaplan raises on purpose descends from `DeltaplanError`, so one
+Every error stevin raises on purpose descends from `StevinError`, so one
 `except` reports and a subclass reacts:
 
 | | when | what a host does |

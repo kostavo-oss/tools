@@ -5,10 +5,10 @@ name: release
 # request is the release.
 #
 # This workflow notices a version on main that isn't out yet, runs the gate on
-# it, publishes to PyPI with Trusted Publishing (repository misja-pronk/deltaplan,
+# it, publishes to PyPI with Trusted Publishing (repository kostavo-oss/stevin,
 # workflow release.yml, environment pypi — no token), and creates the GitHub
 # release, which is what makes the `vX.Y.Z` tag. The Action's `v0` tag then moves
-# to it, so `uses: misja-pronk/deltaplan@v0` follows the newest 0.x release.
+# to it, so `uses: kostavo-oss/stevin@v0` follows the newest 0.x release.
 #
 # A version that is already tagged, or already on PyPI, is not a release: the
 # run says so and stops. So a pyproject.toml change that isn't a bump is free.
@@ -44,8 +44,8 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if curl -fsS -o /dev/null "https://pypi.org/pypi/deltaplan/$version/json"; then
-            echo "deltaplan $version is already on PyPI — nothing to release."
+          if curl -fsS -o /dev/null "https://pypi.org/pypi/stevin/$version/json"; then
+            echo "stevin $version is already on PyPI — nothing to release."
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -108,7 +108,7 @@ jobs:
           if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then args+=(--prerelease); fi
           gh release create "v$VERSION" dist/* "${args[@]}"
       - name: Move the major-version tag the GitHub Action is used by
-        # `uses: misja-pronk/deltaplan@v0` follows the newest 0.x release. While
+        # `uses: kostavo-oss/stevin@v0` follows the newest 0.x release. While
         # every release is an alpha, that is the newest alpha.
         env:
           VERSION: ${{ needs.check.outputs.version }}

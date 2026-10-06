@@ -5,24 +5,36 @@ You need a Databricks workspace with Unity Catalog, a SQL warehouse, and a schem
 change: a dev catalog is the place to start.
 
 !!! tip "Already have an Asset Bundle?"
-    Start at [With an Asset Bundle](bundles.md) instead: deltaplan reads your
+    Start at [With an Asset Bundle](bundles.md) instead: stevin reads your
     `databricks.yml` — its targets, workspaces, variables and the schemas it declares —
     so you write none of it twice.
 
 ## 1. Install
 
+!!! warning "Not on PyPI under this name yet"
+    The first release as `stevin` is being prepared. Until this notice is gone, do not
+    install a `stevin` from PyPI — it is not ours. Install it from GitHub, or under the
+    name its releases have so far, `deltaplan`:
+
+    ```sh
+    uv tool install git+https://github.com/kostavo-oss/stevin   # stevin, as it is on main
+    uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
+    ```
+
+Once it is released:
+
 ```sh
-uv tool install --prerelease allow deltaplan
-deltaplan --version
+uv tool install --prerelease allow stevin
+stevin --version
 ```
 
-No uv? `pipx install --pip-args=--pre deltaplan` works too; [Installation](installation.md)
+No uv? `pipx install --pip-args=--pre stevin` works too; [Installation](installation.md)
 has every option. The `--prerelease` flag is there because every release so far is an
 alpha.
 
 ## 2. Connect
 
-deltaplan uses the Databricks SDK's authentication, so whatever works for the Databricks
+stevin uses the Databricks SDK's authentication, so whatever works for the Databricks
 CLI works here. The quickest way is three environment variables:
 
 ```sh
@@ -41,11 +53,11 @@ A 2X-Small serverless warehouse is plenty.
     you never type it again.
 
 !!! tip "Something not working?"
-    `deltaplan doctor` checks the connection, the warehouse, the metastore's quota and
+    `stevin doctor` checks the connection, the warehouse, the metastore's quota and
     the rest, and says what to do about whatever isn't right. It changes nothing.
 
 !!! tip "New workspace, or a fresh runtime?"
-    `deltaplan verify --schema main.scratch` runs the Databricks behaviour every plan
+    `stevin verify --schema main.scratch` runs the Databricks behaviour every plan
     rests on against your workspace, in a schema it makes and drops, and says which
     holds. See [`verify`](cli.md#verify).
 
@@ -56,15 +68,15 @@ hand — here `main.crm`:
 
 ```sh
 mkdir crm-tables && cd crm-tables
-deltaplan import main.crm
+stevin import main.crm
 ```
 
-![deltaplan import](assets/screens/start-import.svg)
+![stevin import](assets/screens/start-import.svg)
 
-That wrote one spec per table, view and function, and a `deltaplan.yml` with one target,
+That wrote one spec per table, view and function, and a `stevin.yml` with one target,
 `dev`, whose catalog is the one you imported from:
 
-=== "deltaplan.yml"
+=== "stevin.yml"
 
     ```yaml
     --8<-- "assets/screens/start-project.yml"
@@ -82,17 +94,17 @@ add a target with its own `catalog`, and pick it with `-t`.
 ## 4. Plan, then apply
 
 `plan` compares the specs with what's live. Straight after an import they match, so the
-only thing to do is **claim** the tables — mark them as deltaplan's, which is what lets it
+only thing to do is **claim** the tables — mark them as stevin's, which is what lets it
 manage them from now on:
 
-![deltaplan plan](assets/screens/start-plan.svg)
+![stevin plan](assets/screens/start-plan.svg)
 
 `apply` plans the same thing, shows it, and asks before it changes anything:
 
-![deltaplan apply](assets/screens/start-apply.svg)
+![stevin apply](assets/screens/start-apply.svg)
 
-`apply` keeps a record of every run in `main.deltaplan` — the `history_schema` in
-`deltaplan.yml` — and creates that schema the first time, so you need permission to create a
+`apply` keeps a record of every run in `main.stevin` — the `history_schema` in
+`stevin.yml` — and creates that schema the first time, so you need permission to create a
 schema in the catalog.
 
 ## 5. Change a table by editing its spec
@@ -107,7 +119,7 @@ Here's the point of it. Add a column to `tables/customers.yml`:
 
 and apply again:
 
-![deltaplan apply, adding a column](assets/screens/start-change.svg)
+![stevin apply, adding a column](assets/screens/start-change.svg)
 
 No notebook, no `ALTER TABLE` to write, and the next person reads the table's shape from
 one file. A new table is a new spec file; a rename is `renamed_from`; a type that can't
@@ -120,4 +132,4 @@ before anything runs.
 - **[Feature gallery](features.md)** — each kind of change, with its spec and its plan.
 - **[In CI](ci.md)** — plan every pull request, apply on merge.
 - **[Writing a spec](spec.md)** — the full reference.
-- **[Safety model](safety.md)** — what deltaplan will and won't do to your tables.
+- **[Safety model](safety.md)** — what stevin will and won't do to your tables.

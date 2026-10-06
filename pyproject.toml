@@ -1,7 +1,7 @@
 [project]
-name = "deltaplan"
+name = "stevin"
 version = "0.2.0a4"
-description = "Declarative plan/apply for Databricks SQL tables — Terraform-style diffs for Unity Catalog"
+description = "Safe plan/apply migrations for Unity Catalog tables and schemas"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -40,25 +40,28 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/misja-pronk/deltaplan"
-Documentation = "https://misja-pronk.github.io/deltaplan/"
-Repository = "https://github.com/misja-pronk/deltaplan"
-Issues = "https://github.com/misja-pronk/deltaplan/issues"
-Changelog = "https://github.com/misja-pronk/deltaplan/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/stevin"
+Documentation = "https://kostavo-oss.github.io/stevin/"
+Repository = "https://github.com/kostavo-oss/stevin"
+Issues = "https://github.com/kostavo-oss/stevin/issues"
+Changelog = "https://github.com/kostavo-oss/stevin/blob/main/CHANGELOG.md"
 
 [project.scripts]
-deltaplan = "deltaplan.cli:main"
+stevin = "stevin.cli:main"
+# the name this was released under: it says so, and runs stevin
+deltaplan = "stevin.formerly:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/deltaplan"]
+packages = ["src/stevin"]
 
 [tool.hatch.build.targets.sdist]
-# Editor and CI configuration are the repo's, not the package's.
-exclude = [".zed", ".github"]
+# Editor and CI configuration are the repo's, not the package's — and the last
+# deltaplan release is a package of its own.
+exclude = [".zed", ".github", "deltaplan-shim"]
 
 [dependency-groups]
 dev = [

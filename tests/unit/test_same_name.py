@@ -1,8 +1,8 @@
-"""A volume and a table may share a name; deltaplan must not mix them up.
+"""A volume and a table may share a name; stevin must not mix them up.
 
 Tables, views, functions and volumes don't all share a namespace in Unity
 Catalog, so `main.sales.landing` can be a table *and* a volume. Found by a host
-integrating deltaplan: the executor looked a planned table up, was handed the
+integrating stevin: the executor looked a planned table up, was handed the
 volume that shared its name, and refused the plan as stale — nothing had
 changed at all.
 https://docs.databricks.com/aws/en/volumes/
@@ -10,16 +10,16 @@ https://docs.databricks.com/aws/en/volumes/
 
 from __future__ import annotations
 
-from deltaplan import api
-from deltaplan.connect import Connection
-from deltaplan.executor import stale_tables
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.model.volume import Volume
-from deltaplan.planning import plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import api
+from stevin.connect import Connection
+from stevin.executor import stale_tables
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.model.volume import Volume
+from stevin.planning import plan_tables
 
 NAME = "main.sales.landing"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

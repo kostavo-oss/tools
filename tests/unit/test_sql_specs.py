@@ -2,7 +2,7 @@
 model a YAML spec becomes.
 
 The rule: what sqlglot parses into structure, a SQL spec may use; what it can't,
-a SQL spec can't — and the error says to use YAML. `deltaplan.features` is the
+a SQL spec can't — and the error says to use YAML. `stevin.features` is the
 list, `docs/formats.md` shows it, and these tests prove every row of it.
 https://sqlglot.com/sqlglot/dialects/databricks.html
 """
@@ -12,19 +12,19 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan import features
-from deltaplan.features import FEATURES
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, load_project, load_spec, spec_files
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import Check, ForeignKey, Grant, PrimaryKey, Table
-from deltaplan.model.types import Decimal, Field, Identity, Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import plan_tables
-from deltaplan.typeparser import parse_type
 from fake_warehouse import FakeWarehouse
 from helpers import run
+from stevin import features
+from stevin.features import FEATURES
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, load_project, load_spec, spec_files
+from stevin.model.function import Function, Parameter
+from stevin.model.schema import Schema
+from stevin.model.table import Check, ForeignKey, Grant, PrimaryKey, Table
+from stevin.model.types import Decimal, Field, Identity, Primitive
+from stevin.model.view import Relation, View
+from stevin.planning import plan_tables
+from stevin.typeparser import parse_type
 
 DOCS = Path(__file__).parents[2] / "docs" / "formats.md"
 
@@ -161,7 +161,7 @@ def test_the_docs_show_the_current_list() -> None:
     shown = text.split(features.START, 1)[1].split(features.END, 1)[0].strip()
     assert shown == features.markdown(), (
         "docs/formats.md is out of date: run "
-        "`uv run python -m deltaplan.features docs/formats.md`"
+        "`uv run python -m stevin.features docs/formats.md`"
     )
 
 
@@ -355,10 +355,10 @@ def test_a_project_mixes_yaml_and_sql(tmp_path: Path) -> None:
     (tmp_path / "tables" / "customers.yml").write_text(
         "table: ${catalog}.sales.customers\ncolumns: [{name: id, type: bigint}]\n"
     )
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         "specs: [tables]\ntargets:\n  dev: {vars: {catalog: dev}}\n"
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     assert [p.name for p in spec_files(project)] == ["customers.yml", "orders.sql"]
 
 
@@ -388,7 +388,7 @@ EVERYTHING = (Path(__file__).parents[1] / "fixtures" / "everything.sql").read_te
     ids=["table", "view", "function"],
 )
 def test_a_dump_loads_back_as_the_same_model(tmp_path: Path, text: str) -> None:
-    from deltaplan.sqlspec import dump_sql_spec
+    from stevin.sqlspec import dump_sql_spec
 
     original = load(tmp_path, text)
     dumped = dump_sql_spec(original, catalog_variable="catalog")
@@ -397,7 +397,7 @@ def test_a_dump_loads_back_as_the_same_model(tmp_path: Path, text: str) -> None:
 
 
 def test_a_dump_puts_the_catalog_behind_its_variable(tmp_path: Path) -> None:
-    from deltaplan.sqlspec import dump_sql_spec
+    from stevin.sqlspec import dump_sql_spec
 
     dumped = dump_sql_spec(load(tmp_path, EVERYTHING), catalog_variable="catalog")
     assert "CREATE TABLE ${catalog}.sales.`odd orders` (" in dumped
@@ -409,9 +409,9 @@ def test_a_dump_puts_the_catalog_behind_its_variable(tmp_path: Path) -> None:
 def test_what_sql_cannot_say_goes_to_yaml() -> None:
     from dataclasses import replace
 
-    from deltaplan.model.table import RowFilter
-    from deltaplan.model.types import Mask
-    from deltaplan.sqlspec import dump_sql_spec, sql_cannot_say
+    from stevin.model.table import RowFilter
+    from stevin.model.types import Mask
+    from stevin.sqlspec import dump_sql_spec, sql_cannot_say
 
     plain = Table("main.s.t", (Field("email", Primitive("string")),))
     assert sql_cannot_say(plain) is None

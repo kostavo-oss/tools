@@ -1,11 +1,11 @@
-# yaml-language-server: $schema=https://misja-pronk.github.io/deltaplan/schema/project.json
-# Written by `deltaplan import`. Every key is explained at
-# https://misja-pronk.github.io/deltaplan/spec/#the-project-file
+# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# Written by `stevin import`. Every key is explained at
+# https://kostavo-oss.github.io/stevin/spec/#the-project-file
 version: 1
 specs: [tables]
 
 # Where `apply` records its runs and holds its lock; created on first use.
-history_schema: ${catalog}.deltaplan
+history_schema: ${catalog}.stevin
 
 targets:
   dev:

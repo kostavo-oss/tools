@@ -1,12 +1,12 @@
 """What the workspace actually answered, kept.
 
-`fake_warehouse.py` proves that deltaplan's SQL matches deltaplan's *reading* of
+`fake_warehouse.py` proves that stevin's SQL matches stevin's *reading* of
 the manual. Where that reading is wrong the fake is wrong in the same direction,
 and the offline suite agrees with the mistake. The live suite is the only answer
 to that — and it costs a workspace, forty minutes, and some weeks it can't run at
 all.
 
-A transcript is one live run written down: every statement deltaplan sent, and the
+A transcript is one live run written down: every statement stevin sent, and the
 rows or the error that came back. Replayed, the same assertions run offline
 against answers Databricks really gave. That is one thing more than the fake can
 say, and one less than the live suite: a transcript says what was true **when it
@@ -14,7 +14,7 @@ was recorded**, on that runtime, on that day.
 
 Recording one, against a workspace (see `docs/testing.md`):
 
-    DELTAPLAN_RECORD=tests/transcripts \\
+    STEVIN_RECORD=tests/transcripts \\
       uv run pytest -m integration tests/integration/test_live_assumptions.py
 
 Replaying: `tests/unit/test_transcripts.py` runs every transcript in
@@ -25,7 +25,7 @@ Two rules keep a transcript honest:
 
 - **A statement the transcript hasn't got fails**, loudly, with the statement in
   the message — the same discipline as `FakeSqlError`. A recording that no longer
-  covers what deltaplan sends is a failing test, not a silent pass.
+  covers what stevin sends is a failing test, not a silent pass.
 - **Only what is incidental is masked**: the schemas a run makes, whose names are
   new every time, and the principal a grant names (`masking()`). Everything
   else — the rows, the error classes, the types as the catalog spells them — is
@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from deltaplan.introspect import Row, SqlRunner
+    from stevin.introspect import Row, SqlRunner
 
 #: What a recording puts in place of the names that are new on every run: the
 #: scratch schema — whole, and its two parts, because statements name them
@@ -84,7 +84,7 @@ def masking(*schemas: str, principal: str = "") -> dict[str, str]:
 class TranscriptMiss(Exception):
     """The transcript has no answer for this statement.
 
-    Loud on purpose: a recording that doesn't cover what deltaplan now sends has
+    Loud on purpose: a recording that doesn't cover what stevin now sends has
     stopped being evidence about it.
     """
 
@@ -167,7 +167,7 @@ class Transcript:
 def normalise(statement: str, mask: Mapping[str, str] | None = None) -> str:
     """One statement as a transcript keys it.
 
-    Whitespace collapsed — deltaplan writes some statements over several lines,
+    Whitespace collapsed — stevin writes some statements over several lines,
     and a recording shouldn't depend on where they wrap — and every name in
     `mask` (from `masking()`) replaced by what stands in for it.
 
@@ -258,7 +258,7 @@ class Replay:
             self._left.setdefault(exchange.sql, []).append(exchange)
 
     def query(self, statement: str) -> tuple[Row, ...]:
-        from deltaplan.introspect import IntrospectionError
+        from stevin.introspect import IntrospectionError
 
         keyed = normalise(statement, self.mask)
         self.asked.append(keyed)

@@ -13,17 +13,17 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.bundle import BundleError, read_bundle, resolve_target
+from stevin import cli
+from stevin.bundle import BundleError, read_bundle, resolve_target
 
 if TYPE_CHECKING:
-    from deltaplan.bundle import BundleTarget
-    from deltaplan.model.view import Relation
     from fake_warehouse import FakeWarehouse
-from deltaplan.connect import Connection, NotConnected
-from deltaplan.loader import SpecError, as_deployed, load_project, load_specs
-from deltaplan.model.table import Table
+    from stevin.bundle import BundleTarget
+    from stevin.model.view import Relation
 from helpers import fake_databricks
+from stevin.connect import Connection, NotConnected
+from stevin.loader import SpecError, as_deployed, load_project, load_specs
+from stevin.model.table import Table
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -209,13 +209,13 @@ def test_a_single_target_is_the_default(tmp_path: Path) -> None:
         ("include: resources\ntargets: {dev: {}}\n", "include should be a list"),
     ],
 )
-def test_a_bundle_deltaplan_cannot_read(tmp_path: Path, text: str, message: str) -> None:
+def test_a_bundle_stevin_cannot_read(tmp_path: Path, text: str, message: str) -> None:
     with pytest.raises(BundleError, match=message):
         read_bundle(write(tmp_path, "databricks.yml", text))
 
 
 # ---------------------------------------------------------------------------
-# a deltaplan project on top of a bundle
+# a stevin project on top of a bundle
 # ---------------------------------------------------------------------------
 
 SPEC = """\
@@ -228,7 +228,7 @@ columns:
 def bundle_project(tmp_path: Path, config: str = "") -> Path:
     write(tmp_path, "databricks.yml", BUNDLE)
     write(tmp_path, "tables/orders.yml", SPEC)
-    return write(tmp_path, "deltaplan.yml", "bundle: databricks.yml\n" + config)
+    return write(tmp_path, "stevin.yml", "bundle: databricks.yml\n" + config)
 
 
 def test_the_bundle_supplies_the_targets(tmp_path: Path) -> None:
@@ -251,7 +251,7 @@ def test_the_bundle_supplies_the_targets(tmp_path: Path) -> None:
     assert loaded.table.name == "dev.sales_dev.orders", "${var.x} works in a spec too"
 
 
-def test_deltaplan_yml_adds_what_a_bundle_has_no_word_for(tmp_path: Path) -> None:
+def test_stevin_yml_adds_what_a_bundle_has_no_word_for(tmp_path: Path) -> None:
     project = load_project(
         bundle_project(
             tmp_path,
@@ -271,7 +271,7 @@ def test_deltaplan_yml_adds_what_a_bundle_has_no_word_for(tmp_path: Path) -> Non
     assert prod.variables_map()["owner"] == "platform"
     assert "owner" not in prod.unresolved_map(), "set here, so no longer missing"
     assert prod.variables_map()["qualified"] == "main.sales_prod", (
-        "bundle references resolve inside the bundle, before deltaplan's vars"
+        "bundle references resolve inside the bundle, before stevin's vars"
     )
 
 
@@ -284,7 +284,7 @@ def test_a_target_the_bundle_does_not_have_is_an_error(tmp_path: Path) -> None:
 
 def test_a_broken_bundle_points_at_the_bundle_key(tmp_path: Path) -> None:
     write(tmp_path, "databricks.yml", "bundle: {name: x}\n")
-    path = write(tmp_path, "deltaplan.yml", "specs: [tables]\nbundle: databricks.yml\n")
+    path = write(tmp_path, "stevin.yml", "specs: [tables]\nbundle: databricks.yml\n")
     with pytest.raises(SpecError, match="has no targets") as info:
         load_project(path)
     assert info.value.loc.line == 2
@@ -309,13 +309,13 @@ def test_the_environment_reaches_the_project(tmp_path: Path) -> None:
 def test_a_target_of_its_own_can_be_the_default(tmp_path: Path) -> None:
     path = write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "targets:\n  dev: {vars: {catalog: dev}}\n  prod: {default: true}\n",
     )
     assert load_project(path).default_target == "prod"
     write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "targets:\n  dev: {default: true}\n  prod: {default: true}\n",
     )
     with pytest.raises(SpecError, match="only one target can be the default"):
@@ -517,7 +517,7 @@ def test_a_spec_can_name_them_the_way_the_bundle_does(tmp_path: Path) -> None:
     write(tmp_path, "databricks.yml", RESOURCES)
     write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "version: 1\nspecs: [tables]\nbundle: databricks.yml\n",
     )
     write(
@@ -527,19 +527,19 @@ def test_a_spec_can_name_them_the_way_the_bundle_does(tmp_path: Path) -> None:
         "${resources.schemas.sales.name}.orders\n"
         "columns:\n  - {name: id, type: bigint}\n",
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     [spec] = load_specs(project, project.target("dev"))
     assert cast("Table", spec.table).name == "dev.sales.orders"
 
 
 # ---------------------------------------------------------------------------
-# the bundle owns them; deltaplan owns the tables inside them
+# the bundle owns them; stevin owns the tables inside them
 # ---------------------------------------------------------------------------
 
 
 def planned(specs: list[object], fake: object, owned: dict[str, str]) -> object:
-    from deltaplan.introspect import Introspector
-    from deltaplan.planning import plan_tables
+    from stevin.introspect import Introspector
+    from stevin.planning import plan_tables
 
     return plan_tables(
         cast("list[Relation]", specs),
@@ -550,19 +550,19 @@ def planned(specs: list[object], fake: object, owned: dict[str, str]) -> object:
     )
 
 
-def test_deltaplan_will_not_manage_a_schema_the_bundle_declares() -> None:
-    from deltaplan.model.schema import Schema
-    from deltaplan.planning import PlanningError
+def test_stevin_will_not_manage_a_schema_the_bundle_declares() -> None:
     from fake_warehouse import FakeWarehouse
+    from stevin.model.schema import Schema
+    from stevin.planning import PlanningError
 
     with pytest.raises(PlanningError, match="remove the spec, or the bundle's resource"):
         planned([Schema("dev.sales")], FakeWarehouse(), {"dev.sales": "schema 'sales'"})
 
 
 def test_a_table_waits_for_the_bundle_to_deploy_its_schema() -> None:
-    from deltaplan.planning import PlanningError
     from fake_warehouse import FakeWarehouse
     from helpers import col, table
+    from stevin.planning import PlanningError
 
     orders = table(col("id", "bigint"), name="dev.sales.orders")
     with pytest.raises(PlanningError, match="run `databricks bundle deploy` first"):
@@ -570,9 +570,9 @@ def test_a_table_waits_for_the_bundle_to_deploy_its_schema() -> None:
 
 
 def test_a_table_in_a_deployed_schema_is_planned_as_usual() -> None:
-    from deltaplan.model.plan import Plan
     from fake_warehouse import FakeWarehouse
     from helpers import col, table
+    from stevin.model.plan import Plan
 
     fake = FakeWarehouse(schemas={"dev.sales"})
     orders = table(col("id", "bigint"), name="dev.sales.orders")
@@ -607,7 +607,7 @@ targets:
 def test_a_target_that_renames_claims_no_names(tmp_path: Path) -> None:
     """`mode: development` makes `sales` into `dev_jane_sales`, and a
     `name_prefix` of `team_` into `teamsales` — seen from the CLI, and not
-    something deltaplan reimplements."""
+    something stevin reimplements."""
     dev, prefixed, plain = read_bundle(
         write(tmp_path, "databricks.yml", RENAMING)
     ).targets
@@ -624,16 +624,14 @@ def test_a_target_that_renames_claims_no_names(tmp_path: Path) -> None:
 
 def test_a_spec_says_why_a_renamed_name_is_unknown(tmp_path: Path) -> None:
     write(tmp_path, "databricks.yml", RENAMING)
-    write(
-        tmp_path, "deltaplan.yml", "version: 1\nspecs: [tables]\nbundle: databricks.yml\n"
-    )
+    write(tmp_path, "stevin.yml", "version: 1\nspecs: [tables]\nbundle: databricks.yml\n")
     write(
         tmp_path,
         "tables/orders.yml",
         "table: main.${resources.schemas.sales.name}.orders\n"
         "columns:\n  - {name: id, type: bigint}\n",
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     with pytest.raises(SpecError, match="install the Databricks CLI"):
         load_specs(project, project.target("dev"))
 
@@ -659,7 +657,7 @@ def test_the_cli_is_asked_what_the_target_deploys(
     target = resolve_target(path, "dev")
     assert target is not None
     names = {r.key: r.full_name for r in target.resources}
-    # The CLI leaves references between resources to the deploy; deltaplan
+    # The CLI leaves references between resources to the deploy; stevin
     # resolves them from the names the CLI did settle.
     assert names == {
         "sales": "main.dev_jane_sales",
@@ -676,31 +674,31 @@ def test_a_lookup_the_cli_resolved_is_the_warehouse(
     write(tmp_path, "databricks.yml", RENAMING)
     write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "specs: [tables]\nbundle: databricks.yml\n",
     )
     answer = """{"variables": {"warehouse_id": {"lookup": {"warehouse": "Starter"},
       "value": "abc123"}}, "resources": {}}"""
     monkeypatch.setenv("PATH", stub_cli(tmp_path, answer))
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     target = as_deployed(project, project.target("dev"))
     assert target.warehouse_id == "abc123"
     assert target.warehouse_lookup is None, "there is nothing left to look up"
 
 
-def test_deltaplan_yml_still_has_the_last_word(
+def test_stevin_yml_still_has_the_last_word(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     write(tmp_path, "databricks.yml", RENAMING)
     write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "specs: [tables]\nbundle: databricks.yml\n"
         "targets:\n  dev:\n    mode: strict\n    vars: {catalog: mine}\n",
     )
     answer = """{"variables": {"catalog": {"value": "theirs"}}, "resources": {}}"""
     monkeypatch.setenv("PATH", stub_cli(tmp_path, answer))
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     target = as_deployed(project, project.target("dev"))
     assert target.variables_map()["catalog"] == "mine"
     assert target.mode == "strict"
@@ -744,7 +742,7 @@ def test_a_failed_cli_leaves_the_names_unknown(
     write(tmp_path, "databricks.yml", RENAMING)
     write(
         tmp_path,
-        "deltaplan.yml",
+        "stevin.yml",
         "specs: [tables]\nbundle: databricks.yml\n",
     )
     write(
@@ -754,7 +752,7 @@ def test_a_failed_cli_leaves_the_names_unknown(
         "columns:\n  - {name: id, type: bigint}\n",
     )
     monkeypatch.setenv("PATH", stub_cli(tmp_path, "boom", code=1))
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     target = as_deployed(project, project.target("dev"))
     with pytest.raises(SpecError, match="development"):
         load_specs(project, target)

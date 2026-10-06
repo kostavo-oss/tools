@@ -21,15 +21,15 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan.introspect import Introspector
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import RowFilter, Table
-from deltaplan.model.types import Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import PlanningError, plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin.introspect import Introspector
+from stevin.model.function import Function, Parameter
+from stevin.model.plan import Plan
+from stevin.model.table import RowFilter, Table
+from stevin.model.types import Primitive
+from stevin.model.view import Relation, View
+from stevin.planning import PlanningError, plan_tables
 
 SCHEMA = "main.sales"
 LOOKUP = f"{SCHEMA}.mailbox_access"
@@ -111,9 +111,9 @@ def test_a_real_cycle_is_refused_and_named() -> None:
 
 def test_it_applies_in_that_order() -> None:
     """The point of all this: a fresh schema converges in one apply."""
-    from deltaplan import api
-    from deltaplan.connect import Connection
-    from deltaplan.history import NoHistory
+    from stevin import api
+    from stevin.connect import Connection
+    from stevin.history import NoHistory
 
     fake = empty()
     lookup = table(col("mailbox", "string"), name=LOOKUP)

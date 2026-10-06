@@ -13,22 +13,22 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_spec, validate_spec
-from deltaplan.model.plan import Plan
-from deltaplan.model.schema import Schema
-from deltaplan.model.table import MANAGED_PROPERTY, Grant
-from deltaplan.model.view import Relation
-from deltaplan.model.volume import Volume
-from deltaplan.planning import PlanningError, plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeSqlError, FakeWarehouse
 from helpers import col, run, table
+from stevin import cli
+from stevin.connect import Connection
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_spec, validate_spec
+from stevin.model.plan import Plan
+from stevin.model.schema import Schema
+from stevin.model.table import MANAGED_PROPERTY, Grant
+from stevin.model.view import Relation
+from stevin.model.volume import Volume
+from stevin.planning import PlanningError, plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 LANDING = Volume(
     "main.sales.landing",
@@ -174,7 +174,7 @@ def test_import_writes_volumes_as_yaml(
 def test_a_volume_spec_validates_against_the_editor_schema() -> None:
     from jsonschema import Draft7Validator
 
-    from deltaplan.spec_schema import spec_schema
+    from stevin.spec_schema import spec_schema
 
     document = yaml.safe_load(dump_spec(LANDING))
     assert list(Draft7Validator(spec_schema()).iter_errors(document)) == []

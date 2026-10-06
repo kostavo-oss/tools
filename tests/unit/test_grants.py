@@ -10,13 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff, is_applied, unmanaged
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_table
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, Table
-from deltaplan.render.json import dumps, loads
-from deltaplan.sql import privilege_sql
 from helpers import col, plan_against, run, table
+from stevin.differ import diff, is_applied, unmanaged
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_table
+from stevin.model.table import MANAGED_PROPERTY, Grant, Table
+from stevin.render.json import dumps, loads
+from stevin.sql import privilege_sql
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -148,8 +148,8 @@ def test_a_rewrite_keeps_everyone_s_access() -> None:
 
 
 def test_inherited_grants_are_not_the_tables_to_manage() -> None:
-    from deltaplan.introspect import Introspector as RowIntrospector
     from helpers import fake_runner
+    from stevin.introspect import Introspector as RowIntrospector
 
     runner = fake_runner(
         tables=(

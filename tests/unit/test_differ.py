@@ -2,11 +2,11 @@
 
 from syrupy.assertion import SnapshotAssertion
 
-from deltaplan.differ import diff, unmanaged
-from deltaplan.model.change import Change
-from deltaplan.model.table import Check, PrimaryKey
-from deltaplan.model.types import Primitive
 from helpers import col, table
+from stevin.differ import diff, unmanaged
+from stevin.model.change import Change
+from stevin.model.table import Check, PrimaryKey
+from stevin.model.types import Primitive
 
 LIVE = table(
     col("order_id", "bigint", nullable=False),
@@ -148,7 +148,7 @@ def test_nested_struct_paths(snapshot: SnapshotAssertion) -> None:
 
 
 def test_nested_rename_uses_the_nested_path() -> None:
-    from deltaplan.model.types import Field, Struct
+    from stevin.model.types import Field, Struct
 
     live = table(col("address", "struct<old_zip:string>"))
     desired = table(

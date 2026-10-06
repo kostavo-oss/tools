@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://misja-pronk.github.io/deltaplan/schema/project.json",
-  "title": "deltaplan project",
-  "description": "deltaplan.yml. https://misja-pronk.github.io/deltaplan/spec/#the-project-file",
+  "$id": "https://kostavo-oss.github.io/stevin/schema/project.json",
+  "title": "stevin project",
+  "description": "stevin.yml. https://kostavo-oss.github.io/stevin/spec/#the-project-file",
   "type": "object",
   "properties": {
     "bundle": {
@@ -15,7 +15,7 @@
     },
     "manage": {
       "type": "object",
-      "description": "What deltaplan looks after here. Everything is managed unless it says otherwise; false hands it to another tool, and the key is then refused in a spec.",
+      "description": "What stevin looks after here. Everything is managed unless it says otherwise; false hands it to another tool, and the key is then refused in a spec.",
       "properties": {
         "comments": {
           "type": "boolean"

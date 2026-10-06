@@ -5,15 +5,15 @@ spent depends on the live table, which `validate` never sees — so `plan` and
 `drift` say it instead, as a note rather than a change.
 """
 
-from deltaplan.differ import spent_renames
-from deltaplan.introspect import Introspector
-from deltaplan.model.table import MANAGED_PROPERTY
-from deltaplan.model.types import Field, Primitive, Struct
-from deltaplan.planning import plan_tables
-from deltaplan.render.markdown import render_markdown
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin.differ import spent_renames
+from stevin.introspect import Introspector
+from stevin.model.table import MANAGED_PROPERTY
+from stevin.model.types import Field, Primitive, Struct
+from stevin.planning import plan_tables
+from stevin.render.markdown import render_markdown
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

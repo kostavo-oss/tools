@@ -1,5 +1,5 @@
-<!-- deltaplan:plan:dev -->
-<h3>🟠 deltaplan plan · <code>dev</code></h3>
+<!-- stevin:plan:dev -->
+<h3>🟠 stevin plan · <code>dev</code></h3>
 
 **Plan: 0 add, 1 change, 0 destroy · 11 steps · 1 rewrite · 2 warnings**
 
@@ -81,4 +81,4 @@ GRANT SELECT ON TABLE `dev`.`sales`.`orders` TO `analysts`;
 
 </details>
 
-<sub>deltaplan 0.1.0 · specs `4459fb6631ea3805` · live state `3eb999d480608054`</sub>
+<sub>stevin 0.1.0 · specs `4459fb6631ea3805` · live state `3eb999d480608054`</sub>

@@ -1,19 +1,19 @@
-# deltaplan
+# stevin
 
 Declarative, Terraform-style `plan` / `apply` for Databricks SQL tables — Unity Catalog and Delta.
 
 !!! warning "Alpha"
-    Every milestone in the design is built, and the assumptions deltaplan makes about
+    Every milestone in the design is built, and the assumptions stevin makes about
     Databricks are checked by a live test suite against a real workspace — see
     [testing](testing.md). It is still an alpha: try it on dev before production, and
     expect the spec format to change before the first stable release.
 
 Describe the tables you want in YAML or SQL, diff that against live Unity Catalog, review
-a plan, then apply it. deltaplan knows which Delta changes are metadata-only, which need
+a plan, then apply it. stevin knows which Delta changes are metadata-only, which need
 a table feature enabled first, and which force a rewrite — and it says so before it
 touches anything.
 
-![A deltaplan plan](assets/screens/tour-plan-change.svg)
+![A stevin plan](assets/screens/tour-plan-change.svg)
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
 [Take the tour](tour.md){ .md-button }
@@ -27,7 +27,7 @@ touches anything.
   tree, numbered steps, risk labels, and size hints on anything that rewrites.
 - **Delta-aware planning** — metadata-only vs. table-feature vs. rewrite is a
   classification the planner makes explicit, not a surprise at apply time.
-- **Safe by default** — only tables deltaplan manages can ever be drop candidates.
+- **Safe by default** — only tables stevin manages can ever be drop candidates.
   Everything else is reported as unmanaged and left alone; destructive steps need
   `--allow-destructive`.
 - **No state file** — Unity Catalog *is* the state. Nothing to sync, nothing to corrupt.
@@ -48,4 +48,11 @@ touches anything.
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
 - [Writing a spec](spec.md) — the YAML format, types, and renames.
 - [Commands](cli.md) — `validate`, `import`, `plan`, `apply`, `drift`.
-- [Safety model](safety.md) — ownership, risk classes, and what deltaplan refuses to do.
+- [Safety model](safety.md) — ownership, risk classes, and what stevin refuses to do.
+
+---
+
+stevin is named after Simon Stevin (1548–1620), engineer and mathematician, who designed
+sluices and introduced decimal notation. Precision before action.
+
+Community project, not affiliated with or endorsed by Databricks.

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from deltaplan.introspect import IntrospectionError, Progress, WarehouseRunner
+from stevin.introspect import IntrospectionError, Progress, WarehouseRunner
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -104,7 +104,7 @@ def test_a_stopped_warehouse_counts_as_starting() -> None:
 
 def test_a_running_warehouse_that_refuses_is_refusing() -> None:
     """The same sentence from a warehouse that has started is not a wait: a
-    person should hear it at once, with what deltaplan knows about it."""
+    person should hear it at once, with what stevin knows about it."""
     client = StartingClient(refusals=1, states=["RUNNING"])
     with pytest.raises(IntrospectionError, match="could not be processed") as raised:
         runner(client).query("SELECT 1")

@@ -1,13 +1,13 @@
 # Security
 
-## How deltaplan handles your workspace
+## How stevin handles your workspace
 
 - **No credentials are stored.** Authentication is delegated entirely to the Databricks
   SDK's unified auth (`~/.databrickscfg` profiles, OAuth token cache, or `DATABRICKS_*`
-  environment variables). deltaplan never writes a token anywhere.
+  environment variables). stevin never writes a token anywhere.
 - **No state file.** Unity Catalog is the state. There is no local artefact holding a
   copy of your schema, and nothing to leak or drift.
-- **Plans are inert.** `deltaplan plan` only reads (`information_schema`,
+- **Plans are inert.** `stevin plan` only reads (`information_schema`,
   `DESCRIBE TABLE EXTENDED`, `DESCRIBE DETAIL`). Every statement that changes anything
   is executed by `apply`, from a reviewed plan, and nowhere else.
 - **Identifiers are always quoted.** SQL is never assembled by concatenating raw
@@ -23,7 +23,7 @@ business-sensitive names, though never data.
 
 Please report security issues **privately**:
 
-- Open a [GitHub Security Advisory](https://github.com/misja-pronk/deltaplan/security/advisories/new), or
+- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/stevin/security/advisories/new), or
 - email **misja@prorexconsultancy.nl**.
 
 Do not open a public issue for security reports.

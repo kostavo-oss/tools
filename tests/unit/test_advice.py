@@ -1,11 +1,11 @@
-"""What deltaplan adds to the Databricks failures it meets often.
+"""What stevin adds to the Databricks failures it meets often.
 
 Each message below was recorded in the wild — most of them in one week of real
 use. They are here verbatim so that a Databricks rewording shows up as a failing
 test rather than as silence, and so nobody has to guess what these look like.
 
 Two rules hold for every entry: the workspace's own sentence comes first and
-whole, and an error deltaplan has nothing to add to is passed through untouched.
+whole, and an error stevin has nothing to add to is passed through untouched.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import pytest
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
 
-from deltaplan.advice import ADVICE, advice, error_class, with_advice
+from stevin.advice import ADVICE, advice, error_class, with_advice
 
 QUOTA = (
     "[RequestId=567896ae-de7c-4366-9417-b2c5c32eb347 "
@@ -84,7 +84,7 @@ def test_the_error_class_is_read_out_of_the_message(
         (NO_AUTH, "Set a profile on the target"),
     ],
 )
-def test_what_deltaplan_adds(message: str, says: str) -> None:
+def test_what_stevin_adds(message: str, says: str) -> None:
     said = advice(message)
     assert said is not None, f"no advice for {message[:40]}…"
     assert says in said
@@ -119,14 +119,14 @@ def test_every_entry_says_where_to_read_more_or_what_to_do() -> None:
         actionable = any(
             hint in said
             # A way forward is a link, a command, or a named thing to change.
-            for hint in ("http", "deltaplan ", "ALTER ", "RESTORE ", "issue", "`")
+            for hint in ("http", "stevin ", "ALTER ", "RESTORE ", "issue", "`")
         )
         assert actionable, f"{name} states a fact but no way forward"
 
 
 def test_a_failed_statement_carries_it_through_the_error() -> None:
     """The place it matters: a statement that a warehouse refused."""
-    from deltaplan.introspect import IntrospectionError, WarehouseRunner
+    from stevin.introspect import IntrospectionError, WarehouseRunner
 
     class Refusing:
         """A workspace client whose statement execution won't take the request."""

@@ -1,6 +1,6 @@
 """The first hour: an empty directory, `import`, `plan`, `apply`.
 
-`import` without a project writes `deltaplan.yml` — one target whose catalog is
+`import` without a project writes `stevin.yml` — one target whose catalog is
 the one imported from, so the specs say `${catalog}` — and the commands after it
 work as they are, with no editing. This is the path the getting-started page
 walks, so it is tested end to end against the fake warehouse.
@@ -11,12 +11,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.connect import Connection
-from deltaplan.history import MemoryHistory
-from deltaplan.model.table import Grant
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import cli
+from stevin.connect import Connection
+from stevin.history import MemoryHistory
+from stevin.model.table import Grant
 
 runner = CliRunner()
 
@@ -43,10 +43,10 @@ def workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeWarehouse:
 def test_import_plan_apply_from_nothing(workspace: FakeWarehouse, tmp_path: Path) -> None:
     imported = runner.invoke(cli.app, ["import", "main.crm", "--warehouse-id", "abc123"])
     assert imported.exit_code == 0, imported.output
-    assert "+ deltaplan.yml (target dev: catalog main)" in imported.output
-    assert "Next: deltaplan plan" in imported.output
+    assert "+ stevin.yml (target dev: catalog main)" in imported.output
+    assert "Next: stevin plan" in imported.output
 
-    project = (tmp_path / "deltaplan.yml").read_text()
+    project = (tmp_path / "stevin.yml").read_text()
     assert "catalog: main" in project and "warehouse_id: abc123" in project
     spec = (tmp_path / "tables" / "customers.yml").read_text()
     assert "table: ${catalog}.crm.customers" in spec
@@ -64,12 +64,12 @@ def test_import_plan_apply_from_nothing(workspace: FakeWarehouse, tmp_path: Path
 def test_an_existing_project_is_left_as_it_is(
     workspace: FakeWarehouse, tmp_path: Path
 ) -> None:
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         "version: 1\nspecs: [specs]\ntargets:\n  prod:\n    vars: {catalog: main}\n"
     )
     result = runner.invoke(cli.app, ["import", "main.crm"])
     assert result.exit_code == 0, result.output
-    assert "deltaplan.yml" not in result.output
+    assert "stevin.yml" not in result.output
     assert (tmp_path / "specs" / "customers.yml").exists()
 
 
@@ -79,21 +79,21 @@ def test_a_specs_entry_that_isnt_there_is_a_spec_error(tmp_path: Path) -> None:
     It used to raise a bare FileNotFoundError, which the CLI turned into a Rich
     traceback — the only bad input in the loader that didn't say where it was.
     """
-    from deltaplan.loader import SpecError, load_project, spec_files
+    from stevin.loader import SpecError, load_project, spec_files
 
-    (tmp_path / "deltaplan.yml").write_text("specs: [tabels]\ntargets:\n  dev: {}\n")
-    project = load_project(tmp_path / "deltaplan.yml")
+    (tmp_path / "stevin.yml").write_text("specs: [tabels]\ntargets:\n  dev: {}\n")
+    project = load_project(tmp_path / "stevin.yml")
     with pytest.raises(SpecError) as raised:
         spec_files(project)
     said = str(raised.value)
     assert "tabels" in said and "isn't there" in said
-    assert "deltaplan.yml" in said, "and it names the file that says so"
+    assert "stevin.yml" in said, "and it names the file that says so"
 
 
 def test_the_cli_says_it_in_one_line(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text("specs: [tabels]\ntargets:\n  dev: {}\n")
+    (tmp_path / "stevin.yml").write_text("specs: [tabels]\ntargets:\n  dev: {}\n")
     result = CliRunner().invoke(
-        cli.app, ["validate", "--config", str(tmp_path / "deltaplan.yml")]
+        cli.app, ["validate", "--config", str(tmp_path / "stevin.yml")]
     )
     assert result.exit_code == 1
     assert "Traceback" not in result.output

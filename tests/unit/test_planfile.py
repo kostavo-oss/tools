@@ -8,11 +8,11 @@ import json
 
 import pytest
 
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import Check, PrimaryKey
-from deltaplan.model.types import Decimal, Field, Primitive
-from deltaplan.render.json import PLAN_FORMAT_VERSION, PlanFileError, dumps, loads
 from helpers import col, plan_against, table
+from stevin.model.plan import Plan
+from stevin.model.table import Check, PrimaryKey
+from stevin.model.types import Decimal, Field, Primitive
+from stevin.render.json import PLAN_FORMAT_VERSION, PlanFileError, dumps, loads
 
 NAME = "main.sales.orders"
 
@@ -110,7 +110,7 @@ def test_steps_keep_everything_apply_needs() -> None:
     assert first.change >= 0, "the link back to its change survives"
 
 
-def test_the_file_is_readable_without_deltaplan() -> None:
+def test_the_file_is_readable_without_stevin() -> None:
     _, plan = plan_against(DESIRED, LIVE)
     document = json.loads(dumps(plan))
     assert document["format_version"] == PLAN_FORMAT_VERSION

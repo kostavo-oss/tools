@@ -86,7 +86,7 @@
             </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="365.2" rx="8"/><text class="dp-tour-apply-now-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">deltaplan</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="365.2" rx="8"/><text class="dp-tour-apply-now-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">stevin</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
@@ -96,7 +96,7 @@
     <g transform="translate(9, 41)" clip-path="url(#dp-tour-apply-now-clip-terminal)">
     
     <g class="dp-tour-apply-now-matrix">
-    <text class="dp-tour-apply-now-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-tour-apply-now-line-0)">$&#160;</text><text class="dp-tour-apply-now-r2" x="24.4" y="20" textLength="183" clip-path="url(#dp-tour-apply-now-line-0)">deltaplan&#160;apply</text><text class="dp-tour-apply-now-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-tour-apply-now-line-0)">
+    <text class="dp-tour-apply-now-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-tour-apply-now-line-0)">$&#160;</text><text class="dp-tour-apply-now-r2" x="24.4" y="20" textLength="146.4" clip-path="url(#dp-tour-apply-now-line-0)">stevin&#160;apply</text><text class="dp-tour-apply-now-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-tour-apply-now-line-0)">
 </text><text class="dp-tour-apply-now-r2" x="0" y="44.4" textLength="183" clip-path="url(#dp-tour-apply-now-line-1)">sales.orders&#160;&#160;&#160;</text><text class="dp-tour-apply-now-r4" x="183" y="44.4" textLength="97.6" clip-path="url(#dp-tour-apply-now-line-1)">~&#160;update</text><text class="dp-tour-apply-now-r5" x="280.6" y="44.4" textLength="109.8" clip-path="url(#dp-tour-apply-now-line-1)">&#160;&#160;(24&#160;GB)</text><text class="dp-tour-apply-now-r3" x="976" y="44.4" textLength="12.2" clip-path="url(#dp-tour-apply-now-line-1)">
 </text><text class="dp-tour-apply-now-r6" x="24.4" y="68.8" textLength="24.4" clip-path="url(#dp-tour-apply-now-line-2)">+&#160;</text><text class="dp-tour-apply-now-r3" x="48.8" y="68.8" textLength="170.8" clip-path="url(#dp-tour-apply-now-line-2)">channel&#160;STRING</text><text class="dp-tour-apply-now-r3" x="976" y="68.8" textLength="12.2" clip-path="url(#dp-tour-apply-now-line-2)">
 </text><text class="dp-tour-apply-now-r7" x="48.8" y="93.2" textLength="36.6" clip-path="url(#dp-tour-apply-now-line-3)">1.&#160;</text><text class="dp-tour-apply-now-r3" x="85.4" y="93.2" textLength="353.8" clip-path="url(#dp-tour-apply-now-line-3)">ADD&#160;COLUMN&#160;channel&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-tour-apply-now-r7" x="439.2" y="93.2" textLength="73.2" clip-path="url(#dp-tour-apply-now-line-3)">[meta]</text><text class="dp-tour-apply-now-r3" x="976" y="93.2" textLength="12.2" clip-path="url(#dp-tour-apply-now-line-3)">

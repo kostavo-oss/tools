@@ -1,7 +1,7 @@
-"""What Databricks does that deltaplan's plans are built around.
+"""What Databricks does that stevin's plans are built around.
 
-The assumptions no longer live here: they are `deltaplan.probes.PROBES`, which
-`deltaplan verify` runs in anyone's workspace, and which this runs in ours. One
+The assumptions no longer live here: they are `stevin.probes.PROBES`, which
+`stevin verify` runs in anyone's workspace, and which this runs in ours. One
 list, so an assumption is written down once and can't drift between the tool and
 the suite. Each probe names the Databricks page it rests on, and
 `probe.matters` says what it costs where it doesn't hold — which is what this
@@ -15,13 +15,13 @@ tags and grants while a replaced view or function loses them.
 Each probe gets a schema of its own here — the fixture drops it, and keeps
 nothing it drops — so one probe can never leave anything the next one reads.
 
-**Recording what the workspace answers.** With `DELTAPLAN_RECORD` set to a
+**Recording what the workspace answers.** With `STEVIN_RECORD` set to a
 directory, every probe that holds also writes a transcript there: the statements
 it sent and the answers that came back. `tests/unit/test_transcripts.py` then
 replays them offline, with no credentials, so an assumption keeps being checked
 between live runs.
 
-    DELTAPLAN_RECORD=tests/transcripts \\
+    STEVIN_RECORD=tests/transcripts \\
       uv run pytest -m integration tests/integration/test_live_assumptions.py
 """
 
@@ -32,18 +32,18 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.probes import PROBES, Bench, Probe, run
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.probes import PROBES, Bench, Probe, run
 from transcript import Recorder, masking
 
 pytestmark = pytest.mark.integration
 
 #: A principal to grant to. Every account has `account users`; a workspace that
 #: doesn't can name another.
-PRINCIPAL = os.environ.get("DELTAPLAN_TEST_PRINCIPAL", "account users")
+PRINCIPAL = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
 
 #: Where to write transcripts, if anywhere.
-RECORD = os.environ.get("DELTAPLAN_RECORD")
+RECORD = os.environ.get("STEVIN_RECORD")
 
 
 @pytest.fixture(scope="session")

@@ -2,13 +2,13 @@
 
 from syrupy.assertion import SnapshotAssertion
 
-from deltaplan.differ import diff, unmanaged
-from deltaplan.model.plan import Plan, TableDiff, TableFacts
-from deltaplan.model.table import Check, PrimaryKey, Table
-from deltaplan.planner import build_plan
-from deltaplan.render.labels import human_bytes
-from deltaplan.render.rich import plan_text
 from helpers import col, table
+from stevin.differ import diff, unmanaged
+from stevin.model.plan import Plan, TableDiff, TableFacts
+from stevin.model.table import Check, PrimaryKey, Table
+from stevin.planner import build_plan
+from stevin.render.labels import human_bytes
+from stevin.render.rich import plan_text
 
 TABLE = "main.sales.orders"
 
@@ -148,7 +148,7 @@ def test_step_numbers_line_up_past_nine() -> None:
 def test_steps_read_in_order_down_the_page() -> None:
     """A grant comes after the columns' changes in the plan, so it is shown
     there too — not hoisted up with the table's tags, out of step order."""
-    from deltaplan.model.table import Grant
+    from stevin.model.table import Grant
 
     live = table(col("id", "bigint"), col("email", "string"), name=TABLE)
     email = col("email", "string")
@@ -164,7 +164,7 @@ def test_steps_read_in_order_down_the_page() -> None:
 
 
 def test_constraints_say_what_they_are() -> None:
-    from deltaplan.model.table import ForeignKey
+    from stevin.model.table import ForeignKey
 
     live = table(col("id", "bigint", nullable=False), col("c", "bigint"), name=TABLE)
     desired = table(
@@ -185,7 +185,7 @@ def test_constraints_say_what_they_are() -> None:
 def test_a_before_hook_is_shown_before_the_changes() -> None:
     from dataclasses import replace
 
-    from deltaplan.model.table import Hooks
+    from stevin.model.table import Hooks
 
     live = table(col("id", "bigint"), name=TABLE)
     desired = replace(
@@ -214,7 +214,7 @@ def test_a_before_hook_is_shown_before_the_changes() -> None:
 
 def test_a_claim_belongs_to_the_table() -> None:
     """Its path is the property `deltaplan.managed`, which isn't a column."""
-    from deltaplan.differ import ownership
+    from stevin.differ import ownership
 
     live = table(col("id", "bigint"), name=TABLE)
     desired = table(col("id", "bigint"))
@@ -227,4 +227,4 @@ def test_a_claim_belongs_to_the_table() -> None:
         spec_hash="spec",
         state_fingerprint="live",
     )
-    assert "~ deltaplan" not in plan_text(plan)
+    assert "~ stevin" not in plan_text(plan)

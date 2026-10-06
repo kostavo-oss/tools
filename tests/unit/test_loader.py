@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.loader import (
+from stevin.loader import (
     SpecError,
     load_project,
     load_specs,
@@ -12,8 +12,8 @@ from deltaplan.loader import (
     spec_files,
     validate_table,
 )
-from deltaplan.model.table import Check, PrimaryKey, Table
-from deltaplan.model.types import Array, Field, Map, Primitive, Struct, render_type
+from stevin.model.table import Check, PrimaryKey, Table
+from stevin.model.types import Array, Field, Map, Primitive, Struct, render_type
 
 SPEC = """
 table: ${catalog}.sales.orders
@@ -331,7 +331,7 @@ columns:
 CONFIG = """
 version: 1
 specs: [tables]
-history_schema: main.deltaplan
+history_schema: main.stevin
 targets:
   dev:
     vars: {catalog: dev_catalog}
@@ -343,13 +343,13 @@ targets:
 
 
 def test_project_and_targets(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text(CONFIG)
+    (tmp_path / "stevin.yml").write_text(CONFIG)
     tables = tmp_path / "tables"
     tables.mkdir()
     (tables / "orders.yml").write_text(SPEC)
 
-    project = load_project(tmp_path / "deltaplan.yml")
-    assert project.history_schema == "main.deltaplan"
+    project = load_project(tmp_path / "stevin.yml")
+    assert project.history_schema == "main.stevin"
     assert spec_files(project) == (tables / "orders.yml",)
 
     dev = project.target("dev")
@@ -365,9 +365,9 @@ def test_project_and_targets(tmp_path: Path) -> None:
 
 
 def test_bad_mode_is_rejected(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text("targets:\n  dev:\n    mode: yolo\n")
+    (tmp_path / "stevin.yml").write_text("targets:\n  dev:\n    mode: yolo\n")
     with pytest.raises(SpecError, match="mode must be 'additive' or 'strict'"):
-        load_project(tmp_path / "deltaplan.yml")
+        load_project(tmp_path / "stevin.yml")
 
 
 def test_using_is_read_as_a_hint(tmp_path: Path) -> None:
@@ -410,9 +410,9 @@ columns:
 
 
 def test_modes_are_per_schema_and_resolve_per_target(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         """
-history_schema: ${catalog}.deltaplan
+history_schema: ${catalog}.stevin
 targets:
   dev:
     vars: {catalog: dev}
@@ -424,7 +424,7 @@ schemas:
   ${catalog}.archive: additive
 """
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     dev, prod = project.target("dev"), project.target("prod")
 
     assert project.mode_for(dev, "dev.sales") == "strict"
@@ -432,21 +432,21 @@ schemas:
     assert project.mode_for(prod, "prod.archive") == "additive", "the schema wins"
     assert project.mode_for(prod, "prod.other") == "strict"
 
-    assert project.history_schema_for(dev) == "dev.deltaplan"
-    assert project.history_schema_for(prod) == "prod.deltaplan"
+    assert project.history_schema_for(dev) == "dev.stevin"
+    assert project.history_schema_for(prod) == "prod.stevin"
 
 
 def test_a_schema_mode_must_name_catalog_and_schema(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text("schemas:\n  sales: strict\n")
+    (tmp_path / "stevin.yml").write_text("schemas:\n  sales: strict\n")
     with pytest.raises(SpecError, match="keyed catalog.schema"):
-        load_project(tmp_path / "deltaplan.yml")
+        load_project(tmp_path / "stevin.yml")
 
 
 def test_a_history_schema_variable_the_target_lacks(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text(
-        "history_schema: ${catalog}.deltaplan\ntargets:\n  dev: {}\n"
+    (tmp_path / "stevin.yml").write_text(
+        "history_schema: ${catalog}.stevin\ntargets:\n  dev: {}\n"
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     with pytest.raises(KeyError, match="undefined variable"):
         project.history_schema_for(project.target("dev"))
 
@@ -455,9 +455,9 @@ def test_import_leaves_out_platform_defaults_and_internals() -> None:
     """A spec written from a live table must not carry Unity Catalog's ids or
     the platform's defaults — replayed onto another table they'd be wrong or
     noise. A default someone changed is intent, and is kept."""
-    from deltaplan.loader import dump_spec
-    from deltaplan.model.table import Table
-    from deltaplan.model.types import Field, Primitive
+    from stevin.loader import dump_spec
+    from stevin.model.table import Table
+    from stevin.model.types import Field, Primitive
 
     live = Table(
         name="main.sales.orders",

@@ -1,7 +1,7 @@
 -- A SQL spec: the same model as a YAML one, written as the CREATE statement
--- you'd write anyway. It's a declaration, never run as written — deltaplan
+-- you'd write anyway. It's a declaration, never run as written — stevin
 -- plans its own statements from the difference with the live table.
--- What SQL specs support: https://misja-pronk.github.io/deltaplan/formats/
+-- What SQL specs support: https://kostavo-oss.github.io/stevin/formats/
 CREATE TABLE ${catalog}.sales.customers (
   customer_id BIGINT NOT NULL COMMENT 'Surrogate key',
   name        STRING,

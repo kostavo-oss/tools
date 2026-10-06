@@ -13,13 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.adopt import adopt
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector, WarehouseRunner
-from deltaplan.loader import LoadedSpec, load_spec_text
-from deltaplan.planning import plan_tables
-from deltaplan.sql import quote_qualified
+from stevin.adopt import adopt
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector, WarehouseRunner
+from stevin.loader import LoadedSpec, load_spec_text
+from stevin.planning import plan_tables
+from stevin.sql import quote_qualified
 
 pytestmark = pytest.mark.integration
 

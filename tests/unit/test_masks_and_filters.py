@@ -1,7 +1,7 @@
 """Column masks and row filters: security controls, handled like it.
 
 * Additive: a mask or filter the spec declares is set (or replaced if it
-  differs); one the spec doesn't mention is reported and left alone. deltaplan
+  differs); one the spec doesn't mention is reported and left alone. stevin
   never removes a security control on its own initiative.
 * A new table gets them inline in CREATE TABLE, so it never exists unprotected.
 * An existing table gets them by ALTER, refused up front if the function is
@@ -16,15 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff, is_applied, unmanaged
-from deltaplan.executor import ExecutionError, Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.loader import dump_spec, load_table, validate_table
-from deltaplan.model.table import MANAGED_PROPERTY, RowFilter, Table
-from deltaplan.model.types import Field, Mask, Primitive
-from deltaplan.render.json import dumps, loads
 from helpers import col, plan_against, run
+from stevin.differ import diff, is_applied, unmanaged
+from stevin.executor import ExecutionError, Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.loader import dump_spec, load_table, validate_table
+from stevin.model.table import MANAGED_PROPERTY, RowFilter, Table
+from stevin.model.types import Field, Mask, Primitive
+from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -79,7 +79,7 @@ def test_the_spec_declares_them(tmp_path: Path) -> None:
 
 
 def test_a_function_must_be_fully_qualified(tmp_path: Path) -> None:
-    from deltaplan.loader import SpecError
+    from stevin.loader import SpecError
 
     path = tmp_path / "orders.yml"
     path.write_text("table: c.s.t\ncolumns: [{name: a, type: string, mask: mask_a}]\n")
@@ -167,7 +167,7 @@ def test_a_missing_function_is_refused_before_anything_runs() -> None:
     fake.blocked = True  # the function isn't there
     from dataclasses import replace
 
-    from deltaplan.model.plan import fingerprint
+    from stevin.model.plan import fingerprint
 
     live = Introspector(fake).tables([NAME])
     plan = replace(plan, state_fingerprint=fingerprint(live.values()))

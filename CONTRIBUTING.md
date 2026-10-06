@@ -1,8 +1,8 @@
-# Contributing to deltaplan
+# Contributing to stevin
 
 Thanks for your interest! Issues and pull requests are very welcome.
 
-`deltaplan` is alpha: every milestone in the design is built and checked against a live
+`stevin` is alpha: every milestone in the design is built and checked against a live
 workspace, and the spec format may still change. [`docs/DESIGN.md`](docs/DESIGN.md) is the
 source of truth — if the code and the design disagree, that is a bug in one of them, so
 please say which.
@@ -15,7 +15,7 @@ please say which.
   strict mode, the wheel, and the workflows. These are required.
 - **`integration`** — the live suite, against a real workspace, on every pull request
   and nightly. It takes about 40 minutes and isn't required, so read it before merging
-  anything that changes what deltaplan sends to Databricks.
+  anything that changes what stevin sends to Databricks.
 
 Run `mise run check` before pushing; it is the `ci` gate minus the matrix. If you
 changed anything a user sees in the terminal, `mise run screens` remakes the docs'
@@ -23,20 +23,21 @@ pictures, and the check fails until you do.
 
 ## Toolchain
 
-deltaplan uses [`mise`](https://mise.jdx.dev) to pin tools and the all-Astral
+stevin uses [`mise`](https://mise.jdx.dev) to pin tools and the all-Astral
 stack — [`uv`](https://docs.astral.sh/uv/) (env / deps / run),
 [`ruff`](https://docs.astral.sh/ruff/) (lint + format), and
 [`ty`](https://docs.astral.sh/ty/) (type check).
 
 ```sh
-mise install   # installs the pinned Python + uv (optional but recommended)
-uv sync        # creates .venv and installs deps + dev tools
+mise install             # installs the pinned Python + uv (optional but recommended)
+uv sync                  # creates .venv and installs deps + dev tools
+uvx pre-commit install   # optional: ruff on every commit
 ```
 
 ## Day-to-day
 
 ```sh
-uv run deltaplan                  # run the CLI
+uv run stevin                  # run the CLI
 uv run pytest tests/unit          # fast tests, no workspace needed
 uv run ruff check . && uv run ruff format .   # lint + format
 uv run ty check                   # type check
@@ -72,14 +73,14 @@ The dependency rule is simple: **the middle of the pipeline does no I/O.**
 - **`executor.py`** / **`history.py`** — the only places that run SQL that changes
   anything.
 - **`action.yml`** + **`action/`** — the GitHub Action, at the repo root so
-  `uses: misja-pronk/deltaplan@v0` finds it.
+  `uses: kostavo-oss/stevin@v0` finds it.
 
 House rules worth repeating:
 
 - Never build SQL by concatenating unquoted identifiers — there is one
   `quote_ident()` helper, and it is used everywhere.
 - Anything not modelled on a live table is reported as **unmanaged** and never
-  diffed away. Only tables deltaplan created can be drop candidates.
+  diffed away. Only tables stevin created can be drop candidates.
 - No destructive step without the `destructive` risk class.
 - Every Databricks behaviour assumption gets a test and a link to the docs in the
   test docstring. If a behaviour is unclear, add a `TODO(verify)` and say so — don't
@@ -130,7 +131,7 @@ The [`release`](.github/workflows/release.yml) workflow watches `pyproject.toml`
 that commit, publishes to **PyPI** (Trusted Publishing — no API token), and creates the
 GitHub release with the changelog's notes, which is what makes the `v0.1.0a7` tag. A
 version with `a`, `b` or `rc` is marked a pre-release. The Action's `v0` tag moves to
-every 0.x release, so `uses: misja-pronk/deltaplan@v0` follows the newest.
+every 0.x release, so `uses: kostavo-oss/stevin@v0` follows the newest.
 
 Nothing else triggers it, so a `pyproject.toml` change that isn't a bump — a dependency,
 a ruff rule — costs one run that says "nothing to release" and stops. A bump without

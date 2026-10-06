@@ -3,15 +3,15 @@
 A spec can be written two ways, and a project can mix them freely: each file is one
 table, view or function.
 
-- **YAML** (`.yml`, `.yaml`) is deltaplan's own format. It can say everything
-  deltaplan manages — including its hints, like `renamed_from` and `using`, which have
+- **YAML** (`.yml`, `.yaml`) is stevin's own format. It can say everything
+  stevin manages — including its hints, like `renamed_from` and `using`, which have
   no SQL spelling. [Writing a spec](spec.md) covers it.
 - **SQL** (`.sql`) is a `CREATE TABLE`, `CREATE VIEW` or `CREATE FUNCTION` statement,
   in Databricks SQL, optionally followed by `ALTER … SET TAGS` and `GRANT` statements
   about the same object.
 
 Both are read into the same model, so a SQL spec and the YAML spec that says the same
-thing plan identically. `deltaplan import -f sql` writes SQL specs for what's already
+thing plan identically. `stevin import -f sql` writes SQL specs for what's already
 there.
 
 ```sql
@@ -37,7 +37,7 @@ spec is refused with the line it's on, and the feature is written in YAML instea
 sqlglot learns more of Databricks SQL, this list grows.
 
 - The statement is a declaration, never run as written: `CREATE`, `CREATE OR REPLACE`
-  and `IF NOT EXISTS` all mean the same thing. deltaplan plans its own statements from
+  and `IF NOT EXISTS` all mean the same thing. stevin plans its own statements from
   the difference with the live object, as for YAML.
 - `${catalog}` and friends work as in YAML, and so does the bundle spelling
   `${var.catalog}`.
@@ -71,11 +71,11 @@ sqlglot learns more of Databricks SQL, this list grows.
 |  | Row filters | ✓ | — | sqlglot passes `WITH ROW FILTER` through as unparsed text |
 |  | Owner | ✓ | — | sqlglot passes `ALTER … OWNER TO` through as unparsed text |
 |  | Removing a tag or property (`null`) | ✓ | — | a SQL spec says what is there; `pii: null` in YAML says what isn't |
-|  | Column renames (`renamed_from`) | ✓ | — | a deltaplan hint; SQL has no way to say it |
-|  | Table renames (`renamed_from`) | ✓ | — | a deltaplan hint; SQL has no way to say it |
-|  | Conversions and backfills (`using`) | ✓ | — | a deltaplan hint; SQL has no way to say it |
-|  | Hooks | ✓ | — | deltaplan's own; SQL has no way to say it |
-|  | Seeds (reference data) | ✓ | — | a deltaplan hint; a CSV beside the spec, or rows written out in it |
+|  | Column renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |
+|  | Table renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |
+|  | Conversions and backfills (`using`) | ✓ | — | a stevin hint; SQL has no way to say it |
+|  | Hooks | ✓ | — | stevin's own; SQL has no way to say it |
+|  | Seeds (reference data) | ✓ | — | a stevin hint; a CSV beside the spec, or rows written out in it |
 |  | Partitioning | ✓ | ✓ | or liquid clustering, not both; left out, a table's partitioning stays |
 | Schemas | Schemas: comment and grants | ✓ | ✓ | never dropped |
 |  | Schema tags | ✓ | — | sqlglot passes `ALTER SCHEMA … SET TAGS` through as unparsed text |

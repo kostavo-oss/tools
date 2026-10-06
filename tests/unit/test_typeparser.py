@@ -6,7 +6,7 @@ https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-datatypes
 
 import pytest
 
-from deltaplan.model.types import (
+from stevin.model.types import (
     Array,
     Char,
     Decimal,
@@ -19,7 +19,7 @@ from deltaplan.model.types import (
     type_kind,
     walk,
 )
-from deltaplan.typeparser import TypeParseError, parse_type
+from stevin.typeparser import TypeParseError, parse_type
 
 ROUND_TRIPS = [
     "string",

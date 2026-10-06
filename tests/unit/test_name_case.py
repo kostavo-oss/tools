@@ -1,4 +1,4 @@
-"""Names follow the catalog's case rules, or deltaplan plans the wrong thing.
+"""Names follow the catalog's case rules, or stevin plans the wrong thing.
 
 Unity Catalog stores catalog, schema, table, view and function names in lower
 case, whatever case they were written in. Delta keeps the case a column was
@@ -14,15 +14,15 @@ https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-names
 
 from pathlib import Path
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.loader import load_project, load_table, validate_table
-from deltaplan.model.table import MANAGED_PROPERTY, RowFilter, Table
-from deltaplan.model.types import Field, Mask, Primitive
-from deltaplan.model.view import View
-from deltaplan.planning import plan_tables
 from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.loader import load_project, load_table, validate_table
+from stevin.model.table import MANAGED_PROPERTY, RowFilter, Table
+from stevin.model.types import Field, Mask, Primitive
+from stevin.model.view import View
+from stevin.planning import plan_tables
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 LIVE = table(
@@ -120,9 +120,9 @@ def test_columns_that_differ_only_by_case_are_duplicates(tmp_path: Path) -> None
 
 
 def test_strict_schema_patterns_ignore_case(tmp_path: Path) -> None:
-    (tmp_path / "deltaplan.yml").write_text(
+    (tmp_path / "stevin.yml").write_text(
         "targets:\n  prod:\n    vars: {catalog: Main}\n"
         "schemas:\n  ${catalog}.Sales: strict\n"
     )
-    project = load_project(tmp_path / "deltaplan.yml")
+    project = load_project(tmp_path / "stevin.yml")
     assert project.mode_for(project.target("prod"), "main.sales") == "strict"

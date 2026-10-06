@@ -1,8 +1,8 @@
-<!-- Thanks for contributing to deltaplan! -->
+<!-- Thanks for contributing to stevin! -->
 
 ## What & why
 
-<!-- What does this change for someone using deltaplan, and why? Link any related issue (#123). -->
+<!-- What does this change for someone using stevin, and why? Link any related issue (#123). -->
 
 ## Checklist
 

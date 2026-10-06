@@ -1,7 +1,7 @@
-# A tour of deltaplan
+# A tour of stevin
 
 Ten minutes, one project, every command: from nothing, to tables, to a change reviewed
-in a pull request. Every terminal on this page is deltaplan's real output. A script runs
+in a pull request. Every terminal on this page is stevin's real output. A script runs
 the actual CLI against an in-memory catalog (`tests/screens.py`), and a test fails when a
 picture no longer matches what the CLI prints.
 
@@ -9,11 +9,11 @@ picture no longer matches what the CLI prints.
 
 ## 1. A project
 
-A project is a `deltaplan.yml` and a directory of specs. The project file says where the
+A project is a `stevin.yml` and a directory of specs. The project file says where the
 specs are and what each target substitutes into them. Here there's one target, `dev`, so
 every command below uses it without `-t dev`.
 
-```yaml title="deltaplan.yml"
+```yaml title="stevin.yml"
 --8<-- "assets/screens/tour-project.yml"
 ```
 
@@ -40,12 +40,12 @@ The project also has a view, `big_orders`, over `orders`.
 `validate` reads every spec and checks it: no workspace, no network, so it's safe in a
 pre-commit hook.
 
-![deltaplan validate](assets/screens/tour-validate.svg)
+![stevin validate](assets/screens/tour-validate.svg)
 
 A spec with mistakes in it says where, down to the line and column, so a typo in a key is
 caught here rather than silently ignored:
 
-![deltaplan validate, finding problems](assets/screens/tour-validate-errors.svg)
+![stevin validate, finding problems](assets/screens/tour-validate-errors.svg)
 
 ## 3. Plan
 
@@ -53,7 +53,7 @@ caught here rather than silently ignored:
 empty catalog that's everything. The schema is created first, then each table and the
 view, and every step is numbered and labelled with its **risk class**.
 
-![deltaplan plan, creating everything](assets/screens/tour-plan-create.svg)
+![stevin plan, creating everything](assets/screens/tour-plan-create.svg)
 
 | Risk | Means |
 |---|---|
@@ -67,20 +67,20 @@ what runs is exactly what was reviewed.
 
 ## 4. Apply
 
-![deltaplan apply](assets/screens/tour-apply-create.svg)
+![stevin apply](assets/screens/tour-apply-create.svg)
 
 Every run is recorded in Delta tables in your `history_schema`. The run id names it. An
 interrupted apply picks up where it stopped when you run it again.
 
-Working on your own, skip the file: `deltaplan apply` plans, shows the plan and asks
+Working on your own, skip the file: `stevin apply` plans, shows the plan and asks
 before it runs anything. Here, adding a column:
 
-![deltaplan apply, in one go](assets/screens/tour-apply-now.svg)
+![stevin apply, in one go](assets/screens/tour-apply-now.svg)
 
 Plan again and there's nothing left to do. Unity Catalog *is* the state: there's no state
 file to keep in sync.
 
-![deltaplan plan, nothing to do](assets/screens/tour-plan-clean.svg)
+![stevin plan, nothing to do](assets/screens/tour-plan-clean.svg)
 
 ## 5. Change something
 
@@ -92,7 +92,7 @@ amounts can't go negative, and analysts may read the table:
 --8<-- "assets/screens/tour-orders-changed.yml"
 ```
 
-![deltaplan plan, changing orders](assets/screens/tour-plan-change.svg)
+![stevin plan, changing orders](assets/screens/tour-plan-change.svg)
 
 Read it top to bottom. It's everything `apply` will do, in order:
 
@@ -107,19 +107,19 @@ Read it top to bottom. It's everything `apply` will do, in order:
 - **Nested fields are first class.** `address.country` is added inside the struct.
 - **Warnings say what a step costs.** A new CHECK scans every row, and the plan says so.
 
-![deltaplan apply, the change](assets/screens/tour-apply-change.svg)
+![stevin apply, the change](assets/screens/tour-apply-change.svg)
 
 ## 6. When the data has to move
 
 Some changes can't be made in place. Here `customer_ref` becomes a `bigint`. Delta can't
-cast a column's data in place, so deltaplan rebuilds the table: it stages the converted
+cast a column's data in place, so stevin rebuilds the table: it stages the converted
 rows, replaces the table from them (keeping its identity and history), puts back what a
 query result can't carry, and drops the staging table. `--clone` takes a zero-copy backup
 first.
 
-![deltaplan plan --clone, a rewrite](assets/screens/tour-plan-rewrite.svg)
+![stevin plan --clone, a rewrite](assets/screens/tour-plan-rewrite.svg)
 
-deltaplan writes the obvious conversions itself (a cast, a struct rebuilt field by field)
+stevin writes the obvious conversions itself (a cast, a struct rebuilt field by field)
 and asks for a [`using:` expression](spec.md#rewrites-and-using) where it shouldn't
 guess. The [safety model](safety.md#what-a-rewrite-actually-does) has the details.
 
@@ -127,13 +127,13 @@ guess. The [safety model](safety.md#what-a-rewrite-actually-does) has the detail
 
 Take `address` out of the spec and the plan says, in red, that it drops a column:
 
-![deltaplan plan, dropping a column](assets/screens/tour-plan-destroy.svg)
+![stevin plan, dropping a column](assets/screens/tour-plan-destroy.svg)
 
 `apply` refuses a plan like that before running anything, until you say you mean it:
 
-![deltaplan apply, refusing](assets/screens/tour-apply-refused.svg)
+![stevin apply, refusing](assets/screens/tour-apply-refused.svg)
 
-Only what deltaplan manages can ever be dropped. A table someone made by hand is
+Only what stevin manages can ever be dropped. A table someone made by hand is
 reported as unmanaged and left alone. See [ownership](features.md#ownership).
 
 ## 8. When someone changes things by hand
@@ -142,13 +142,13 @@ Someone edits a comment in Catalog Explorer and drops a constraint. `drift` comp
 tables with the specs and exits with **2** when they differ, so a scheduled job can
 alert on it:
 
-![deltaplan drift](assets/screens/tour-drift.svg)
+![stevin drift](assets/screens/tour-drift.svg)
 
 ## 9. In a pull request
 
 In CI, the [GitHub Action](ci.md) plans every pull request and posts the plan as a
 comment, updated on every push. This is the comment for the change in step 5, as
-`deltaplan plan -f md` writes it:
+`stevin plan -f md` writes it:
 
 <div class="dp-comment" markdown>
 
@@ -156,7 +156,7 @@ comment, updated on every push. This is the comment for the change in step 5, as
 
 </div>
 
-On merge, a workflow runs `deltaplan apply` on the plan that was reviewed. [In CI](ci.md)
+On merge, a workflow runs `stevin apply` on the plan that was reviewed. [In CI](ci.md)
 has both workflows, ready to copy.
 
 ## Where next
@@ -164,5 +164,5 @@ has both workflows, ready to copy.
 - **[Feature gallery](features.md)**: every kind of change, each with its spec and plan.
 - **[Writing a spec](spec.md)**: the full reference.
 - **[Commands](cli.md)**: every command and flag.
-- **[Safety model](safety.md)**: what deltaplan will and won't do to your tables.
+- **[Safety model](safety.md)**: what stevin will and won't do to your tables.
 - **[In CI](ci.md)**: the GitHub Action.

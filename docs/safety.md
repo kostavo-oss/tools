@@ -1,6 +1,6 @@
 # Safety model
 
-A schema tool is only useful if you trust it near production. deltaplan's defaults are
+A schema tool is only useful if you trust it near production. stevin's defaults are
 built around that.
 
 ## Ownership: it only touches what it made
@@ -8,7 +8,7 @@ built around that.
 There is no state file — Unity Catalog is the state — so ownership is recorded on the
 tables themselves.
 
-- Tables deltaplan creates get the property `deltaplan.managed = true`.
+- Tables stevin creates get the property `deltaplan.managed = true`.
 - **Only managed tables can ever become drop candidates.**
 - Anything else in the schema is reported as **unmanaged** and left untouched.
 - Writing a spec for a table someone else created is the decision to manage it, so
@@ -18,13 +18,13 @@ tables themselves.
 
 ```
 sales.orders   ~ update
-  + ownership — deltaplan manages this table from now on
+  + ownership — stevin manages this table from now on
     1. CLAIM ownership              [meta]
 ```
 
 ### Additive and strict schemas
 
-A table deltaplan created whose spec has since been deleted is **orphaned**. What
+A table stevin created whose spec has since been deleted is **orphaned**. What
 happens to it is up to the schema's mode:
 
 - **`additive`** (the default) — it stays. The plan lists it, so a deleted spec is never
@@ -39,14 +39,14 @@ sales.retired   - destroy  (12 GB)
 ```
 
 The mode is per schema, with the target's `mode` as the default — see
-[the project file](spec.md#the-project-file). Strict never reaches a table deltaplan
+[the project file](spec.md#the-project-file). Strict never reaches a table stevin
 didn't create: an unmanaged table is left alone in every mode.
 
 Access follows the same line. A principal a spec names gets exactly the privileges it
 lists; any principal a spec doesn't name is left alone. A revoke is planned like
 anything else — visible, numbered, with a warning and its undo.
 
-The same rule applies within a table. A table feature or property deltaplan doesn't
+The same rule applies within a table. A table feature or property stevin doesn't
 model is shown as *"unmanaged feature, left untouched"* — never diffed away just
 because the spec is silent about it. Partitioning a spec doesn't mention is left as it is,
 and a rewrite for another reason keeps it. Identity and generated columns are modelled,
@@ -70,23 +70,23 @@ Prerequisites are steps, not side effects: if a rename needs column mapping, you
 ## Without a history schema
 
 `apply` records every run in three Delta tables — `runs`, `steps` and `lock` — in the
-`history_schema` a project names. A project that names none applies anyway. deltaplan's
+`history_schema` a project names. A project that names none applies anyway. stevin's
 own state is on the tables themselves (the ownership marker, a seed's digest), so the
 history adds three things on top, and this is what each costs to give up:
 
 | With a history schema | Without one |
 |---|---|
-| **A lock per target**: one `apply` at a time | None. Whatever runs deltaplan has to be the only thing running it — a deploy pipeline usually already is. `force-unlock` says there is nothing to unlock. |
+| **A lock per target**: one `apply` at a time | None. Whatever runs stevin has to be the only thing running it — a deploy pipeline usually already is. `force-unlock` says there is nothing to unlock. |
 | **Resume**: an interrupted run continues from its recorded steps | Plan again. Every step is checked against the live table before it runs, so the new plan simply doesn't contain what is already true. |
 | **A restore point** before a risky step, in a table | Still taken, and printed — in the apply output and on `run.restore_points`. `RESTORE TABLE … TO VERSION AS OF` is still one command; the number is in the log rather than in a table. |
-| **An audit**: who ran what, when | Not deltaplan's. Your git history, your CI run, and Delta's own table history know. |
+| **An audit**: who ran what, when | Not stevin's. Your git history, your CI run, and Delta's own table history know. |
 
 Everything else is unchanged: a stale plan is still refused, a destructive step still
 needs `--allow-destructive`, and a second `apply` of the same plan is still refused
 because the world it described has moved.
 
 ```yaml
-# deltaplan.yml — with no history_schema, nothing is written outside your tables
+# stevin.yml — with no history_schema, nothing is written outside your tables
 specs: [tables]
 targets:
   prod: {catalog: prod}
@@ -95,7 +95,7 @@ targets:
 ## When Databricks refuses
 
 A refusal from the workspace arrives as the workspace wrote it — the error class, the
-request id, the sentence. deltaplan never rewrites that: it is what you search for, and
+request id, the sentence. stevin never rewrites that: it is what you search for, and
 what a Databricks engineer will ask you to paste.
 
 For the dozen failures that happen often, it adds one paragraph underneath with what it
@@ -109,19 +109,19 @@ nothing that tells you to install something you already have.
 
 A stopped SQL warehouse starts on the first request — and until it has started, it
 answers that request with the same sentence a warehouse that will never start gives.
-deltaplan tells them apart by asking the workspace what the warehouse is doing: while it
+stevin tells them apart by asking the workspace what the warehouse is doing: while it
 says *starting*, the request is made again (nothing ran, so that is safe for a write as
 much as for a read), for up to five minutes on a classic warehouse; the moment it says
 *running* and still refuses, the refusal is reported as it arrived, with the advice
 above. `apply` shows the wait as *warehouse starting*.
 
-## What isn't deltaplan's
+## What isn't stevin's
 
 A project can hand part of a table to the tool that already owns it —
-[`manage:`](spec.md#what-deltaplan-manages) in `deltaplan.yml`. That line is drawn where
+[`manage:`](spec.md#what-stevin-manages) in `stevin.yml`. That line is drawn where
 specs are read, so nothing handed over can reach a plan by any route.
 
-It cuts one way only. deltaplan stops *declaring* grants, tags or masks; it doesn't stop
+It cuts one way only. stevin stops *declaring* grants, tags or masks; it doesn't stop
 *knowing* about them, because knowing is what keeps it from destroying them. A table with
 a column mask still refuses to be rebuilt. A renamed column's tags are still put back
 after a rewrite. What another tool set stays exactly as that tool left it.
@@ -157,7 +157,7 @@ rather than one statement per change:
    set them again — but a *renamed* column's tags stay behind on the old name, and
    those it does put back. That includes what the spec doesn't declare: properties
    someone else set (a retention setting, say), their tags, their constraints and their
-   grants all survive. Rebuilding a table never diffs away what deltaplan doesn't
+   grants all survive. Rebuilding a table never diffs away what stevin doesn't
    manage.
 4. The staging table is dropped.
 
@@ -180,7 +180,7 @@ the version before the step, and the plan's undo hint is the `RESTORE TABLE` tha
 with it. Staging is kept for the one thing it was made for — a conversion that could
 quietly turn values into NULL.
 
-deltaplan writes the conversion itself where it honestly can: a cast between scalars, a
+stevin writes the conversion itself where it honestly can: a cast between scalars, a
 `named_struct` rebuilt **by name** (never by position, which would quietly move one
 field's values into another), and a `transform` over an array of structs. Where it
 can't — a struct becoming an array, a map whose shape moved — it says so and asks for a
@@ -194,30 +194,30 @@ can't — a struct becoming an array, a map whose shape moved — it says so and
 
 ## When something goes wrong
 
-DDL is not transactional across statements, so deltaplan makes no rollback promise. It
+DDL is not transactional across statements, so stevin makes no rollback promise. It
 makes narrower ones instead:
 
-- **Idempotent steps.** Before each step, deltaplan asks whether the change it implements
+- **Idempotent steps.** Before each step, stevin asks whether the change it implements
   is already true of the live table, and skips it if so — so a repeated run is a no-op
   rather than an error.
 - **Resume, don't restart.** Every step's outcome goes to the history table, and the next
   `apply` of the same plan continues from where it stopped.
 - **A restore point before every rewrite.** The Delta version is recorded first
   (`delta_version_before`), so `RESTORE` is one command.
-- **A clone, if you want one.** `deltaplan plan --clone` adds a `SHALLOW CLONE` of each
+- **A clone, if you want one.** `stevin plan --clone` adds a `SHALLOW CLONE` of each
   table just before the first step that could lose its data — a copy of the table as
   it was that you can query side by side with the new one. A shallow clone copies no
   data; it points at the table's current files, so it lasts until a `VACUUM` removes
   them.
 - **No stale applies.** The state fingerprint is recomputed at apply time; if the world
-  moved since the plan was made, deltaplan stops.
+  moved since the plan was made, stevin stops.
 - **One run at a time.** A lock table (with a TTL, and `force-unlock` if a run dies)
   keeps two applies off the same tables. A long step keeps the lock alive while it
   runs.
 - **A step takes as long as it takes.** Reading live state has a five-minute budget,
   because a read that takes that long has gone wrong. A step has none: a rewrite of a
   big table takes as long as it takes, and `apply` waits, saying every half minute how
-  long it has been. deltaplan never reports a statement as failed while it is still
+  long it has been. stevin never reports a statement as failed while it is still
   running — a statement that outlives a budget is cancelled on the warehouse first.
 - **Ctrl-C cancels.** Interrupting `apply` asks the warehouse to stop the statement that
   is running, releases the lock, and leaves the run resumable: the next `apply` of the
@@ -226,7 +226,7 @@ makes narrower ones instead:
 ## Honest about Databricks
 
 Delta's rules for nested fields, type widening and column mapping are specific, and they
-change. deltaplan's policy is that every behaviour it relies on has a test and a link to
+change. stevin's policy is that every behaviour it relies on has a test and a link to
 the documentation behind it — and where a behaviour is unverified, it is marked as such
 rather than guessed at.
 
@@ -234,11 +234,11 @@ Those tests ran against one workspace, on one runtime, on the day they ran. Your
 different workspace — so the assumptions ship as a command:
 
 ```sh
-deltaplan verify --schema main.scratch
+stevin verify --schema main.scratch
 ```
 
 [`verify`](cli.md#verify) runs them in a scratch schema of yours and says which hold,
 with the workspace's own words where one doesn't and what that costs. It is the same
-list deltaplan's own live suite runs, so it can't be a second opinion about what the
-tool assumes — it is the assumption itself. Worth running when you adopt deltaplan in a
+list stevin's own live suite runs, so it can't be a second opinion about what the
+tool assumes — it is the assumption itself. Worth running when you adopt stevin in a
 new workspace, and after a runtime upgrade.

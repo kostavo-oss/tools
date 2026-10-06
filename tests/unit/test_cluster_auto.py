@@ -12,14 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_table
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_table
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

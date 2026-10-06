@@ -100,6 +100,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **deltaplan is now stevin.** The command is `stevin`, the package is
+  `import stevin`, every error descends from `StevinError`, the project file is
+  `stevin.yml`, and the repository, the Action and the docs are at
+  `kostavo-oss/stevin`. It is named after Simon Stevin, who designed sluices and
+  introduced decimal notation — and it is one of a family of tools now, which
+  is what the old name had no room for.
+
+  Nothing changes in a workspace. The four names stevin writes onto tables stay
+  exactly as they were — the `deltaplan.managed` and `deltaplan.seed`
+  properties, and the `__deltaplan_rewrite` and `__deltaplan_backup` suffixes —
+  so a table deltaplan made is a table stevin manages: nothing is claimed
+  again, seeded again or left behind, and the SQL in a plan is what it was.
+  Renaming those would be a migration, and isn't part of this.
+
+  What an upgrade asks of a project:
+
+  - `deltaplan plan` → `stevin plan`. The `deltaplan` command is still
+    installed, says its new name on stderr, and runs stevin — so a script or a
+    pipeline keeps working until someone changes the word.
+  - `deltaplan.yml` → `stevin.yml`. The old file is still found (after a
+    `stevin.yml`, where both exist), and the command line says it can be
+    renamed.
+  - `uses: misja-pronk/deltaplan@v0` → `uses: kostavo-oss/stevin@v0`. The
+    Action's `config` input no longer defaults to a file name: left out, the
+    project file is found, under either name.
+  - `import deltaplan` → `import stevin`, and `DeltaplanError` → `StevinError`.
+  - The `$schema` line in a spec or project file points at
+    `https://kostavo-oss.github.io/stevin/schema/…`.
+  - A first `import` now proposes `<catalog>.stevin` as the history schema. A
+    project that already names one keeps it.
+  - For this repo's own suites: `DELTAPLAN_RECORD` and `DELTAPLAN_TEST_*` are
+    `STEVIN_RECORD` and `STEVIN_TEST_*`.
+
+
 - **The pull-request comment shows the comparison, not a list of changes.** The
   page `deltaplan ui` serves shows each object as *what it is now* beside *what
   it becomes*; the comment — where most reviewing actually happens — had the

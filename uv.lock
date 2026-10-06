@@ -390,51 +390,6 @@ wheels = [
 ]
 
 [[package]]
-name = "deltaplan"
-version = "0.2.0a4"
-source = { editable = "." }
-dependencies = [
-    { name = "databricks-sdk" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "sqlglot" },
-    { name = "typer" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "jsonschema" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "syrupy" },
-    { name = "ty" },
-    { name = "types-pyyaml" },
-]
-docs = [
-    { name = "mkdocs-material" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "databricks-sdk", specifier = ">=0.30" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "rich", specifier = ">=13.7" },
-    { name = "sqlglot", specifier = ">=30.18.0" },
-    { name = "typer", specifier = ">=0.12" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "jsonschema", specifier = ">=4.26.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.6" },
-    { name = "syrupy", specifier = ">=4.8" },
-    { name = "ty", specifier = ">=0.0.1a1" },
-    { name = "types-pyyaml", specifier = ">=6.0.12" },
-]
-docs = [{ name = "mkdocs-material", specifier = ">=9.7.5" }]
-
-[[package]]
 name = "ghp-import"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1121,6 +1076,51 @@ sdist = { url = "https://files.pythonhosted.org/packages/e4/73/5b5ce3e23b3ded3ea
 wheels = [
     { url = "https://files.pythonhosted.org/packages/08/9f/3dd2ec8dd84a33e0092f1c815267bc055073f9e833b93e389c59c10f62cc/sqlglot-30.18.0-py3-none-any.whl", hash = "sha256:ee0f9a9f3e2193e763c326e52dfb377b96fdb4292f6305c3ff2d9a220e71c601", size = 748788, upload-time = "2026-09-03T13:12:56.467Z" },
 ]
+
+[[package]]
+name = "stevin"
+version = "0.2.0a4"
+source = { editable = "." }
+dependencies = [
+    { name = "databricks-sdk" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "sqlglot" },
+    { name = "typer" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "jsonschema" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "syrupy" },
+    { name = "ty" },
+    { name = "types-pyyaml" },
+]
+docs = [
+    { name = "mkdocs-material" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "databricks-sdk", specifier = ">=0.30" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "rich", specifier = ">=13.7" },
+    { name = "sqlglot", specifier = ">=30.18.0" },
+    { name = "typer", specifier = ">=0.12" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "syrupy", specifier = ">=4.8" },
+    { name = "ty", specifier = ">=0.0.1a1" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
+]
+docs = [{ name = "mkdocs-material", specifier = ">=9.7.5" }]
 
 [[package]]
 name = "syrupy"

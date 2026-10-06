@@ -4,11 +4,11 @@ import os
 import sys
 from pathlib import Path
 
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import Constraint, Grant, Table
-from deltaplan.model.types import Column, Field
-from deltaplan.typeparser import parse_type
 from fake_warehouse import FakeWarehouse
+from stevin.model.plan import Plan
+from stevin.model.table import Constraint, Grant, Table
+from stevin.model.types import Column, Field
+from stevin.typeparser import parse_type
 
 
 def col(
@@ -94,7 +94,7 @@ def fake_runner(**rows: tuple[Row, ...]) -> FakeRunner:
     rows.setdefault("schemata", ({"schema_name": "present"},))
     # And SHOW CREATE TABLE answers with a statement that adds nothing, so the
     # columns are what information_schema says. (Without an answer, a table is
-    # flagged as having a definition deltaplan couldn't read.)
+    # flagged as having a definition stevin couldn't read.)
     rows.setdefault(
         "show_create",
         ({"createtab_stmt": "CREATE TABLE t (placeholder INT) USING delta"},),
@@ -116,10 +116,10 @@ def plan_against(
     The same shape as the CLI's pipeline and the integration suite's, so an
     offline test and a live one assert the same thing.
     """
-    from deltaplan.differ import diff, unmanaged
-    from deltaplan.introspect import Introspector
-    from deltaplan.model.plan import TableDiff, TableFacts
-    from deltaplan.planner import build_plan
+    from stevin.differ import diff, unmanaged
+    from stevin.introspect import Introspector
+    from stevin.model.plan import TableDiff, TableFacts
+    from stevin.planner import build_plan
 
     fake = FakeWarehouse.of(
         *((live,) if live is not None else ()),
@@ -163,7 +163,7 @@ def path_without(executable: str) -> str:
     """`PATH`, minus every directory that has this program in it.
 
     Offline tests must not shell out to whatever a machine happens to have
-    installed: with the real `databricks` on PATH, deltaplan would ask it about
+    installed: with the real `databricks` on PATH, stevin would ask it about
     a bundle instead of reading the file, and the test would say different
     things on different laptops. On Windows the program is `databricks.exe`, so
     every extension `PATHEXT` names counts as it too.

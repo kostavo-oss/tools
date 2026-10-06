@@ -1,6 +1,6 @@
 # Contributing
 
-deltaplan uses an all-[Astral](https://astral.sh) toolchain, version-managed by
+stevin uses an all-[Astral](https://astral.sh) toolchain, version-managed by
 [mise](https://mise.jdx.dev). Reach for exactly these four tools.
 
 | Tool | Role | Provided by |
@@ -21,7 +21,7 @@ deltaplan uses an all-[Astral](https://astral.sh) toolchain, version-managed by
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock
 
-uv run deltaplan        # run the CLI
+uv run stevin        # run the CLI
 uv run pytest tests/unit          # fast tests, no workspace needed
 uv run pytest -m integration      # needs DATABRICKS_HOST / token / warehouse id
 uv run ruff check .     # lint
@@ -71,7 +71,7 @@ messages. Describe the *why*. New behaviour comes with a test; changed plans com
 refreshed snapshots.
 
 Full details, including the release process, are in
-[CONTRIBUTING.md](https://github.com/misja-pronk/deltaplan/blob/main/CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/kostavo-oss/stevin/blob/main/CONTRIBUTING.md).
 
 ## Previewing these docs
 

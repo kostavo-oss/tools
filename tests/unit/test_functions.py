@@ -13,22 +13,22 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import is_applied
-from deltaplan.executor import Executor
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_spec, load_table, validate_spec
-from deltaplan.model.function import Function, Parameter
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Grant
-from deltaplan.model.types import Decimal, Field, Mask, Primitive
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import PlanningError, plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.markdown import render_markdown
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, fake_runner, run, table
+from stevin.differ import is_applied
+from stevin.executor import Executor
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_spec, load_table, validate_spec
+from stevin.model.function import Function, Parameter
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Grant
+from stevin.model.types import Decimal, Field, Mask, Primitive
+from stevin.model.view import Relation, View
+from stevin.planning import PlanningError, plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.markdown import render_markdown
+from stevin.render.rich import plan_text
 
 STRING = Primitive("string")
 MASK_EMAIL = Function(
@@ -370,7 +370,7 @@ def test_functions_calling_each_other_in_a_cycle_are_an_error() -> None:
 
 
 def test_a_function_without_a_spec_is_left_alone_even_in_a_strict_schema() -> None:
-    """There's no ownership marker on a function, so nothing proves deltaplan made
+    """There's no ownership marker on a function, so nothing proves stevin made
     it — and nothing it didn't make is ever dropped."""
     orders = table(
         col("id", "bigint"),

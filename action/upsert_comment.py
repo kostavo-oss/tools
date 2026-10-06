@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Post deltaplan's comment on a pull request, or update the one it posted before.
+"""Post stevin's comment on a pull request, or update the one it posted before.
 
 Used by the GitHub Action (`action.yml`). Standard library only, so it runs on
 any runner with a Python — no `gh`, no `jq`, no dependencies to install.
 
 The comment is found by the hidden marker on its first line
-(`<!-- deltaplan:plan:prod -->`), which the Markdown renderer writes. One marker
+(`<!-- stevin:plan:prod -->`), which the Markdown renderer writes. One marker
 per command and target means a `plan` and a `drift` comment, or comments for two
 targets, never overwrite each other.
 """
@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-MARKER_PREFIX = "<!-- deltaplan:"
+MARKER_PREFIX = "<!-- stevin:"
 PAGE_SIZE = 100
 
 #: (method, path, payload) -> decoded JSON. A seam, so tests need no network.
@@ -32,17 +32,17 @@ def marker_of(body: str) -> str:
     first = body.splitlines()[0] if body else ""
     if not first.startswith(MARKER_PREFIX):
         raise ValueError(
-            "the comment body must start with a deltaplan marker — render it with "
-            "`deltaplan plan -f md` or `deltaplan show -f md`"
+            "the comment body must start with a stevin marker — render it with "
+            "`stevin plan -f md` or `stevin show -f md`"
         )
     return first
 
 
 def find_comment(api: Api, repo: str, pr: str, marker: str) -> int | None:
-    """The id of the comment deltaplan posted for this marker, if any.
+    """The id of the comment stevin posted for this marker, if any.
 
     Only a comment that *starts* with the marker counts. Someone quoting
-    deltaplan's comment in a reply carries the marker along, but not at the start.
+    stevin's comment in a reply carries the marker along, but not at the start.
     """
     page = 1
     while True:

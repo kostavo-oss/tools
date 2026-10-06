@@ -1,6 +1,6 @@
 # Writing a spec
 
-A deltaplan project is a `deltaplan.yml` and a directory of specs — one file per
+A stevin project is a `stevin.yml` and a directory of specs — one file per
 table, view or function, describing the state you want rather than the statements to
 get there. This page covers YAML specs; a spec can also be a `CREATE` statement in a
 `.sql` file — see [YAML and SQL specs](formats.md) for what each can say.
@@ -30,14 +30,14 @@ constraints:
 
 ## The project file
 
-`deltaplan.yml` says where the specs are and what each target substitutes into them.
+`stevin.yml` says where the specs are and what each target substitutes into them.
 Commands find it by walking up from the working directory, or you can point at one with
 `--config`.
 
 ```yaml
 version: 1
 specs: [tables]                        # files or directories, relative to this file
-history_schema: ${catalog}.deltaplan   # where `apply` keeps its run history
+history_schema: ${catalog}.stevin   # where `apply` keeps its run history
 
 targets:
   dev:
@@ -55,23 +55,23 @@ schemas:                               # per-schema overrides of the target's mo
 ```
 
 A schema that doesn't exist yet is created — once, just before the first table or view
-that needs it — so a fresh target plans from nothing. deltaplan creates schemas but never
+that needs it — so a fresh target plans from nothing. stevin creates schemas but never
 catalogs, and never drops a schema. A schema an
 [Asset Bundle declares](#the-catalogs-schemas-and-volumes-a-bundle-declares) is the
-bundle's: deltaplan leaves that one alone too.
+bundle's: stevin leaves that one alone too.
 
 `history_schema` and the `schemas:` keys may use the target's variables, like a spec
 can, so one project file serves every catalog. What the modes mean is in the
 [safety model](safety.md#additive-and-strict-schemas).
 
 There is a runnable example of exactly this layout in
-[`examples/`](https://github.com/misja-pronk/deltaplan/tree/main/examples).
+[`examples/`](https://github.com/kostavo-oss/stevin/tree/main/examples).
 
 Without `-t`, a command uses the only target, or the one marked `default: true`.
 
-### What deltaplan manages
+### What stevin manages
 
-deltaplan manages everything it knows how to, unless the project says otherwise:
+stevin manages everything it knows how to, unless the project says otherwise:
 
 ```yaml
 manage:
@@ -81,23 +81,23 @@ manage:
 
 What can be handed over: `grants`, `tags`, `owner`, `properties`, `comments`, `masks`
 and `row_filters`. The shape of a table — its columns, types, constraints,
-partitioning — can't: that is what deltaplan is for.
+partitioning — can't: that is what stevin is for.
 
 Handing one over means the key is refused in a spec (where you write it, with the line
 number), left out of the editors' JSON Schema, never written by `import`, and never in a
 plan. For grants it also means the workspace isn't asked about them at all.
 
 `comments` is worth a word: a spec that says nothing about a comment normally means
-*remove it*, so handing comments over also stops deltaplan comparing them — a
+*remove it*, so handing comments over also stops stevin comparing them — a
 description its owner wrote stays exactly as written.
 
-It does **not** mean deltaplan forgets they exist. It still reads what it must not
+It does **not** mean stevin forgets they exist. It still reads what it must not
 destroy: a table with a column mask still refuses a rewrite, and a renamed column's tags
 are still put back afterwards. And turning something off later removes nothing — grants
-and tags deltaplan set stay where they are.
+and tags stevin set stay where they are.
 
 !!! tip "Your editor, too"
-    `deltaplan schema > .deltaplan/spec.json`, run inside the project, writes the schema
+    `stevin schema > .stevin/spec.json`, run inside the project, writes the schema
     with those keys left out; point your editor at that file and it stops offering what
     `validate` would refuse.
 
@@ -105,7 +105,7 @@ and tags deltaplan set stay where they are.
 
 A project that already has a [Databricks Asset Bundle](https://docs.databricks.com/aws/en/dev-tools/bundles/)
 doesn't repeat what it says. Name the bundle, and its targets, workspaces, variables and
-the Unity Catalog objects it declares become deltaplan's context:
+the Unity Catalog objects it declares become stevin's context:
 
 ```yaml
 specs: [tables]
@@ -113,7 +113,7 @@ bundle: databricks.yml                 # relative to this file
 ```
 
 **[With an Asset Bundle](bundles.md)** has the whole story: what is taken from where,
-how a spec names a schema the bundle declares, what deltaplan won't touch, and what
+how a spec names a schema the bundle declares, what stevin won't touch, and what
 development mode renames.
 
 ## Variables
@@ -184,7 +184,7 @@ Two limits Delta sets, which `validate` and the planner know about:
   says so.
 - **Some characters in a name need column mapping.** A name with a space, a comma or
   any of `;{}()=` (a newline or tab too) only exists on a table with column mapping.
-  deltaplan turns it on for you: in `CREATE TABLE`, or as a `[feature]` step before
+  stevin turns it on for you: in `CREATE TABLE`, or as a `[feature]` step before
   adding such a column.
 
 ## Clustering
@@ -199,7 +199,7 @@ Leave `cluster_by` out for no clustering: a clustered table is then set to
 to recluster what's there.
 
 With `auto`, the keys the table shows are Databricks' choice and can change, so
-deltaplan checks only that automatic clustering is on — it never diffs the keys, and
+stevin checks only that automatic clustering is on — it never diffs the keys, and
 `import` writes `auto` rather than the keys it happened to find. Naming keys turns
 automatic clustering off. It needs predictive optimization on the table; see
 [automatic liquid clustering](https://docs.databricks.com/aws/en/delta/clustering#automatic-liquid-clustering).
@@ -211,10 +211,10 @@ partitioned_by: [order_date]       # Hive-style partition columns
 ```
 
 Delta takes partitioning or liquid clustering, not both — and Databricks recommends
-clustering for new tables. deltaplan follows the spec, with one safeguard:
+clustering for new tables. stevin follows the spec, with one safeguard:
 
 - **Left out, a table's partitioning stays as it is.** A spec written before a table was
-  partitioned (or before deltaplan knew about partitioning) never plans a rewrite to
+  partitioned (or before stevin knew about partitioning) never plans a rewrite to
   remove it. `import` writes `partitioned_by`, so an imported spec says what's there.
 - **`partitioned_by: []`** says the table has none.
 - **Changing the columns is a rewrite**, shown with the table's size, like any other.
@@ -236,7 +236,7 @@ data loss. `renamed_from` says what actually happened:
   renamed_from: cust_id
 ```
 
-deltaplan plans a `RENAME COLUMN` (enabling column mapping first, if the table doesn't
+stevin plans a `RENAME COLUMN` (enabling column mapping first, if the table doesn't
 have it). Once the old name is gone and the new one exists, the hint is inert, and
 `plan` notes that it can be removed. (It's `plan` rather than `validate` that says so,
 because telling needs the live table.)
@@ -285,18 +285,18 @@ owner: data-eng                 # a user, group or service principal
 
 Tables, views, functions, schemas and volumes take an `owner`. Only an owner the spec
 names is enforced; without one, whoever owns the object stays its owner. Changing it is
-always the object's last step, because once it belongs to someone else, deltaplan may no
+always the object's last step, because once it belongs to someone else, stevin may no
 longer be allowed to change it — so the plan warns unless the principal running
-deltaplan is the new owner, a member of it, or has `MANAGE`.
+stevin is the new owner, a member of it, or has `MANAGE`.
 
-Replacing a view or function makes whoever ran the replace its owner; deltaplan puts the
+Replacing a view or function makes whoever ran the replace its owner; stevin puts the
 owner back straight after, as it does with tags and grants. A user's email is compared
 without regard to case, as Unity Catalog stores it lower-cased. `import` leaves owners
 out: they are often someone's email, and not the same in every workspace.
 
 ## Removing a tag or a property
 
-Leaving a tag or property out of a spec doesn't remove it: deltaplan can't tell "I stopped
+Leaving a tag or property out of a spec doesn't remove it: stevin can't tell "I stopped
 managing this" from "someone else set this", so it reports the key as unmanaged and
 leaves it alone. To remove one, say so with `null`:
 
@@ -316,7 +316,7 @@ The plan shows each as `- tag legacy`, with the statement that would put it back
 undo. It works for tags on tables, columns, views, schemas and volumes, and properties
 on tables and views. A key that is already gone plans nothing, and an empty value
 (`legacy:`) is an error rather than a removal, so a line typed halfway can't delete a
-tag. `deltaplan.managed` can't be removed: it is how deltaplan knows a table is its own.
+tag. `deltaplan.managed` can't be removed: it is how stevin knows a table is its own.
 
 ## Identity, generated and default columns
 
@@ -343,7 +343,7 @@ Databricks treats them differently, and so does the plan:
   step. A default applies to rows written from then on.
 - **An identity or generated column** exists only from the moment the table is created.
   `CREATE TABLE` includes it; adding one to an existing table, or changing or removing
-  one, is a step deltaplan won't run — the plan says so, and why.
+  one, is a step stevin won't run — the plan says so, and why.
 - A rewrite carries defaults across. A table with an identity or generated column is
   never rewritten: the rebuilt table would have plain columns in their place.
 
@@ -409,7 +409,7 @@ plain columns only: no structs, arrays or maps. An empty CSV cell is `NULL`.
 !!! warning "Reference data, not a dataset"
     A seed loads at most 1000 rows, because it becomes a `VALUES` list in one
     statement. Past that it belongs in a pipeline — `COPY INTO` from a volume — with
-    deltaplan keeping the table's shape.
+    stevin keeping the table's shape.
 
 Taking a seed out of a spec doesn't empty the table; it stops managing what is in it.
 
@@ -423,7 +423,7 @@ hooks:
 
 SQL to run around a table's changes, for what a spec can't say. Hooks run only when the
 table has changes in the plan — they are for the change, not for every apply — and
-`before` runs ahead of the table's first step, `after` behind its last. deltaplan runs
+`before` runs ahead of the table's first step, `after` behind its last. stevin runs
 them as written and can't tell what they do, so the plan shows them with that warning.
 
 ## Column masks and row filters
@@ -446,11 +446,11 @@ row_filter:
 
 The functions are SQL UDFs named in full (`catalog.schema.function`) — created by hand,
 or declared in a [function spec](#functions) so they're created in the same plan, before
-the tables that use them. deltaplan treats what they protect as security controls:
+the tables that use them. stevin treats what they protect as security controls:
 
 - **It only adds or replaces them.** A mask or filter in the spec is set, or replaced if
   it names a different function. One the spec doesn't mention is listed as unmanaged
-  and left in place — deltaplan will not remove a security control because a spec is
+  and left in place — stevin will not remove a security control because a spec is
   silent about it. Remove one by hand, deliberately.
 - **A new table never exists unprotected.** Masks and the filter are part of its
   `CREATE TABLE`, not added afterwards.
@@ -459,7 +459,7 @@ the tables that use them. deltaplan treats what they protect as security control
   half-applied.
 - **A protected table is not rewritten.** A rewrite stages a copy of the data, and that
   copy holds whatever the applying principal can see — possibly unmasked — in a table
-  without the protection. deltaplan plans that as a step it won't run, and says why.
+  without the protection. stevin plans that as a step it won't run, and says why.
 
 See [row filters and column masks](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
 for how to write the functions.
@@ -507,11 +507,11 @@ workspace:
 | `date` | `timestamp_ntz` |
 
 The integer-to-decimal floor is Delta's, not the digits the type needs: `tinyint` to
-`decimal(5,0)` is refused. For everything else deltaplan plans a
+`decimal(5,0)` is refused. For everything else stevin plans a
 [rewrite](safety.md#what-a-rewrite-actually-does) — the table is rebuilt from a query
 over itself — and writes the conversion where it honestly can:
 
-| Change | What deltaplan writes |
+| Change | What stevin writes |
 |---|---|
 | Between scalars | `CAST(amount AS STRING)` |
 | Inside a struct | `named_struct('street', address.street, …)`, matched **by name** |
@@ -539,7 +539,7 @@ happens. It applies to whole columns — build nested values inside the expressi
 than putting `using` on a nested field.
 
 !!! tip "A cast is not always what you mean"
-    deltaplan writes the obvious cast. If you want different semantics — a date parsed
+    stevin writes the obvious cast. If you want different semantics — a date parsed
     with a format, a rounding rule, a default instead of NULL — write it with `using`
     and the plan will show exactly what will run.
 
@@ -655,8 +655,8 @@ body: |
   in the same plan, and before views that call them. A function that calls another
   comes after it; a cycle is an error.
 - **A function is never dropped.** It carries no ownership marker, so nothing shows
-  deltaplan created it; one without a spec is left alone, in strict schemas too.
-- Unity Catalog lets a function share a table's name. deltaplan doesn't: plans are keyed
+  stevin created it; one without a spec is left alone, in strict schemas too.
+- Unity Catalog lets a function share a table's name. stevin doesn't: plans are keyed
   by name, so planning stops and asks you to rename one.
 
 ## Constraints
@@ -687,16 +687,16 @@ both sides are parsed and written back in one canonical form, so `cast(Placed_At
 date)` in a spec matches the catalog's `( CAST(placed_at AS DATE) )`.
 
 **A CHECK stands in the way of changing its columns.** Delta won't change the type of,
-rename or drop a column a `CHECK` uses. deltaplan plans around it: the `CHECK` is dropped
+rename or drop a column a `CHECK` uses. stevin plans around it: the `CHECK` is dropped
 first and put back afterwards as your spec has it — so after a rename, update the
 expression in the spec too (`validate` flags a check that uses a column the spec doesn't
 have). A **generated column** blocks the same changes to the columns it's computed from,
-and it can't be dropped and made again, so deltaplan refuses such a change and says why.
+and it can't be dropped and made again, so stevin refuses such a change and says why.
 
-## What deltaplan leaves alone
+## What stevin leaves alone
 
 Properties, tags and constraints that exist on the live table but aren't in the spec are
-reported as **unmanaged** and never diffed away — deltaplan can't tell "I stopped
+reported as **unmanaged** and never diffed away — stevin can't tell "I stopped
 managing this" from "someone else owns this", so it doesn't guess. To remove a tag or
 property, [say `null`](#removing-a-tag-or-a-property). The same goes for
 tables in the schema that no spec describes, and for views and non-Delta tables.

@@ -1,10 +1,10 @@
-site_name: deltaplan
-site_description: Declarative plan/apply for Databricks SQL tables — Terraform-style diffs for Unity Catalog.
+site_name: stevin
+site_description: Safe plan/apply migrations for Unity Catalog tables and schemas.
 site_author: Misja Pronk
-site_url: https://misja-pronk.github.io/deltaplan/
+site_url: https://kostavo-oss.github.io/stevin/
 
-repo_name: misja-pronk/deltaplan
-repo_url: https://github.com/misja-pronk/deltaplan
+repo_name: kostavo-oss/stevin
+repo_url: https://github.com/kostavo-oss/stevin
 edit_uri: edit/main/docs/
 
 copyright: Apache-2.0 © Misja Pronk
@@ -77,9 +77,9 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/misja-pronk/deltaplan
+      link: https://github.com/kostavo-oss/stevin
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/deltaplan/
+      link: https://pypi.org/project/stevin/
 
 nav:
   - Home: index.md

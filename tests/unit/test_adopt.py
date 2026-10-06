@@ -3,7 +3,7 @@
 The loop these close: `drift` says a table was changed by hand, `adopt` writes
 that change into the spec file, and `drift` is quiet again — with a git diff to
 review in between. So most of these assert two things at once: that the file now
-says what is live, and that *only* what deltaplan would have planned changed in
+says what is live, and that *only* what stevin would have planned changed in
 it.
 """
 
@@ -15,15 +15,15 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from deltaplan import cli
-from deltaplan.adopt import CannotAdopt, adopt
-from deltaplan.cli import app
-from deltaplan.connect import Connection
-from deltaplan.loader import LoadedSpec, load_spec_text
-from deltaplan.model.table import MANAGED_PROPERTY, Grant, Seed, Table
-from deltaplan.model.view import View
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import cli
+from stevin.adopt import CannotAdopt, adopt
+from stevin.cli import app
+from stevin.connect import Connection
+from stevin.loader import LoadedSpec, load_spec_text
+from stevin.model.table import MANAGED_PROPERTY, Grant, Seed, Table
+from stevin.model.view import View
 
 runner = CliRunner()
 
@@ -51,7 +51,7 @@ tags:
   domain: sales
 """
 
-#: The table that spec describes, as the workspace would hold it — deltaplan's
+#: The table that spec describes, as the workspace would hold it — stevin's
 #: own, so a plan is about drift rather than about claiming it.
 IN_SYNC = replace(
     table(
@@ -67,7 +67,7 @@ IN_SYNC = replace(
 
 def at(tmp_path: Path, spec: str = SPEC, name: str = "tables/orders.yml") -> Path:
     """A project with one spec in it, and the path of that spec."""
-    (tmp_path / "deltaplan.yml").write_text(CONFIG)
+    (tmp_path / "stevin.yml").write_text(CONFIG)
     path = tmp_path / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(spec)
@@ -80,7 +80,7 @@ def run(
     monkeypatch: pytest.MonkeyPatch,
     *args: str,
 ) -> tuple[str, int]:
-    """`deltaplan adopt` against a workspace holding `live`."""
+    """`stevin adopt` against a workspace holding `live`."""
     fake = FakeWarehouse.of(live)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
     monkeypatch.chdir(tmp_path)
@@ -89,7 +89,7 @@ def run(
 
 
 def drifted(tmp_path: Path, live: Table | View, monkeypatch: pytest.MonkeyPatch) -> int:
-    """What `deltaplan drift` says now: 0 in sync, 2 drifted."""
+    """What `stevin drift` says now: 0 in sync, 2 drifted."""
     fake = FakeWarehouse.of(live)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
     monkeypatch.chdir(tmp_path)
@@ -378,7 +378,7 @@ def test_the_seed_a_spec_keeps_is_the_one_it_had() -> None:
         seed=Seed(columns=("code",), rows=(("EUR",),)),
     )
     live = table(col("code", "string"), name="main.sales.currencies")
-    from deltaplan.adopt import _adopted
+    from stevin.adopt import _adopted
 
     adopted = _adopted(spec, live)
     assert isinstance(adopted, Table)

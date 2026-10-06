@@ -12,16 +12,16 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.differ import diff, unmanaged
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_table, validate_table
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, ForeignKey, PrimaryKey, Table
-from deltaplan.planning import plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.differ import diff, unmanaged
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_table, validate_table
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, ForeignKey, PrimaryKey, Table
+from stevin.planning import plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.rich import plan_text
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 TO_CUSTOMERS = ForeignKey(("customer_id",), "main.sales.customers", ("id",))

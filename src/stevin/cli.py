@@ -1,0 +1,1397 @@
+"""The `stevin` command line.
+
+`validate` lints specs offline; `import` writes specs for what already exists,
+and `adopt` rewrites them from live state; `plan`, `show`, `drift` and `doctor`
+read; `apply`, `force-unlock` and `verify` are the only commands that write to a
+workspace.
+"""
+
+import json
+import os
+import webbrowser
+from collections.abc import Callable, Sequence
+from enum import StrEnum
+from fnmatch import fnmatch
+from functools import partial
+from pathlib import Path
+from typing import Annotated
+
+import typer
+from rich.console import Console
+from rich.markup import escape
+from rich.padding import Padding
+from rich.status import Status
+from rich.text import Text
+
+from stevin import api, formerly, probes
+from stevin.adopt import CannotAdopt
+from stevin.bundle import BundleError
+from stevin.connect import Connection, NotConnected
+from stevin.doctor import look, worst
+from stevin.errors import StevinError
+from stevin.executor import DestructiveRefused, ExecutionError, ExecutionResult
+from stevin.history import HistoryStore, NoHistory
+from stevin.history import Status as StepStatus
+from stevin.introspect import IntrospectionError
+from stevin.loader import (
+    Diagnostic,
+    Project,
+    SpecError,
+    SpecErrors,
+    Specs,
+    Target,
+    as_deployed,
+    find_project_file,
+    load_project,
+    load_spec,
+    spec_files,
+    validate_spec,
+)
+from stevin.manage import EVERYTHING
+from stevin.model.plan import Plan, Step
+from stevin.probes import Result
+from stevin.render.html import render_html
+from stevin.render.json import PlanFileError
+from stevin.render.json import dumps as plan_json
+from stevin.render.json import loads as plan_loads
+from stevin.render.labels import count
+from stevin.render.markdown import render_markdown
+from stevin.render.rich import RISK_STYLE, TITLE_WIDTH, number_width, render_plan
+from stevin.serve import page_server
+from stevin.spec_schema import MODELINE, project_schema, spec_schema
+from stevin.sqlspec import sql_cannot_say
+
+app = typer.Typer(
+    name="stevin",
+    help="Declarative plan/apply for Databricks SQL tables.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+out = Console(highlight=False)
+# Errors carry paths and messages that people grep and paste; wrapping them
+# mid-word helps nobody, so let the terminal decide.
+err = Console(stderr=True, soft_wrap=True, highlight=False)
+
+
+#: Which workspace to talk to. Shared by every command that talks to one.
+ParallelOption = Annotated[
+    int,
+    typer.Option(
+        "--parallel",
+        min=1,
+        help="How many per-table queries run at once while reading live state.",
+    ),
+]
+
+SelectOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--select",
+        "-s",
+        help=(
+            "Only these: a table, view, function, schema or volume by name — "
+            "`orders`, `sales.orders`, or a pattern like `sales.*`. Repeatable."
+        ),
+    ),
+]
+
+ProfileOption = Annotated[
+    str | None,
+    typer.Option(
+        "--profile",
+        "-p",
+        help="~/.databrickscfg profile to connect with (default: the target's).",
+    ),
+]
+
+
+class SchemaKind(StrEnum):
+    """Which JSON Schema `stevin schema` prints."""
+
+    spec = "spec"
+    project = "project"
+
+
+class SpecFormat(StrEnum):
+    """Which spec format `import` writes."""
+
+    yaml = "yaml"
+    sql = "sql"
+
+
+class Format(StrEnum):
+    """How to render a plan."""
+
+    rich = "rich"
+    md = "md"
+    json = "json"
+    html = "html"
+
+
+def _print_version(value: bool) -> None:
+    if value:
+        typer.echo(f"stevin {package_version()}")
+        raise typer.Exit
+
+
+@app.callback()
+def cli(
+    _version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            is_eager=True,
+            callback=_print_version,
+            help="Print the stevin version and exit.",
+        ),
+    ] = False,
+) -> None:
+    # Registering a callback keeps this a command *group* — without it Typer
+    # collapses a one-command app into that single command.
+    pass
+
+
+def package_version() -> str:
+    """The installed distribution version. The library decides what that is."""
+    return api.package_version()
+
+
+@app.command()
+def version() -> None:
+    """Print the stevin version."""
+    typer.echo(f"stevin {package_version()}")
+
+
+# ---------------------------------------------------------------------------
+# validate
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def validate(
+    paths: Annotated[
+        list[Path] | None, typer.Argument(help="Spec files to lint (default: all).")
+    ] = None,
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Render variables for this target first."),
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+) -> None:
+    """Lint specs. No workspace, no network — safe in a pre-commit hook."""
+    chosen: Target | None = None
+    found: Project | None = None
+    if paths:
+        files = tuple(paths)
+        # A project is optional here, but if there is one its line between
+        # stevin and other tools holds for these files too.
+        found = _optional_project(config)
+        if target and found:
+            chosen = _target(found, target)
+    else:
+        found = _project(config)
+        chosen = _target(found, target)
+        try:
+            files = spec_files(found)
+        except SpecError as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            raise typer.Exit(1) from error
+    variables = chosen.variables_map() if chosen else {}
+    unresolved = chosen.unresolved_map() if chosen else {}
+    manage = found.manage if found else EVERYTHING
+
+    if not files:
+        err.print("[yellow]No specs found.[/]")
+        raise typer.Exit(1)
+
+    problems = 0
+    for path in files:
+        try:
+            table = load_spec(path, variables, unresolved, manage)
+        except SpecError as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            problems += 1
+            continue
+        for diagnostic in validate_spec(table, _shown(path)):
+            _print_diagnostic(diagnostic)
+            problems += diagnostic.severity == "error"
+
+    if problems:
+        err.print(f"[red]{count(problems, 'problem')} in {count(len(files), 'spec')}.[/]")
+        raise typer.Exit(1)
+    out.print(f"[green]{count(len(files), 'spec')} OK.[/]")
+
+
+def _print_diagnostic(diagnostic: Diagnostic) -> None:
+    colour = "red" if diagnostic.severity == "error" else "yellow"
+    err.print(f"[{colour}]{escape(str(diagnostic))}[/]")
+
+
+# ---------------------------------------------------------------------------
+# import
+# ---------------------------------------------------------------------------
+
+
+@app.command("schema")
+def schema_command(
+    kind: Annotated[
+        SchemaKind,
+        typer.Argument(help="spec (a table, view or function) or project (stevin.yml)."),
+    ] = SchemaKind.spec,
+) -> None:
+    """Print the JSON Schema editors use for completion and inline errors.
+
+    In a project that hands something to another tool (`manage:`), the spec
+    schema leaves those keys out — so an editor stops offering what `validate`
+    would refuse. Write it next to your specs and point your editor at it.
+    """
+    project = _optional_project(None)
+    manage = project.manage if project else EVERYTHING
+    schema = spec_schema(manage) if kind is SchemaKind.spec else project_schema()
+    typer.echo(json.dumps(schema, indent=2))
+
+
+@app.command("import")
+def import_schema(
+    schema: Annotated[
+        str, typer.Argument(help="The schema to import, as catalog.schema.")
+    ],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Directory to write specs into.")
+    ] = None,
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Write ${var} for this target's catalog."),
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    spec_format: Annotated[
+        SpecFormat,
+        typer.Option(
+            "--format",
+            "-f",
+            help="yaml, or sql — which falls back to YAML for what SQL can't say.",
+        ),
+    ] = SpecFormat.yaml,
+) -> None:
+    """Write specs for tables that already exist."""
+    parts = schema.split(".")
+    if len(parts) != 2:
+        err.print("[red]Give the schema as catalog.schema, e.g. main.sales[/]")
+        raise typer.Exit(1)
+
+    project = _optional_project(config)
+    chosen = _target(project, target) if project else None
+    manage = project.manage if project else EVERYTHING
+    connection = _connect(warehouse_id, chosen, profile)
+
+    if project is None and config is None and output is None:
+        # A first import is a first project: write the file that makes
+        # `plan` and `apply` work next, once reading the schema has worked.
+        # With -o the caller has a layout in mind, so nothing is added to it.
+        project_file = Path(PROJECT_FILE)
+        project_file.write_text(
+            starter_project(
+                parts[0],
+                specs=Path("tables"),
+                warehouse_id=warehouse_id,
+                profile=profile,
+            ),
+            encoding="utf-8",
+        )
+        out.print(
+            f"[green]+[/] {PROJECT_FILE} [dim](target dev: catalog {escape(parts[0])})[/]"
+        )
+        project = _project(project_file)
+        chosen = _target(project, None)
+
+    directory = output or (project.spec_paths[0] if project else Path("tables"))
+    directory.mkdir(parents=True, exist_ok=True)
+
+    variable = _catalog_variable(chosen, parts[0])
+    try:
+        found = api.import_schema(
+            connection,
+            schema,
+            manage=manage,
+            catalog_variable=variable,
+            owned_elsewhere=chosen.owned_by_the_bundle() if chosen else None,
+            spec_format=spec_format.value,
+            parallel=parallel,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+    for spec in found:
+        path = directory / spec.filename
+        # The first line points an editor at the schema: completion and inline
+        # errors from the moment the file is opened.
+        head = MODELINE + "\n" if path.suffix == ".yml" else ""
+        path.write_text(head + spec.text, encoding="utf-8")
+        reason = sql_cannot_say(spec.relation) if spec_format is SpecFormat.sql else None
+        note = f" [dim](YAML: SQL can't say {reason})[/]" if reason else ""
+        out.print(f"[green]+[/] {escape(_shown(path))}{note}")
+
+    for name, reason in found.skipped:
+        out.print(
+            f"[dim]· skipped {name} ({reason}) — stevin manages Delta tables, "
+            "views and SQL functions[/]"
+        )
+
+    if not found.specs:
+        err.print(
+            f"[yellow]No Delta tables, views or functions found in {escape(schema)}.[/]"
+        )
+        return
+    out.print(
+        "\nNext: [bold]stevin plan[/] shows what adopting them means — a claim "
+        "per table, nothing else — and [bold]stevin apply[/] does it."
+    )
+
+
+PROJECT_FILE = "stevin.yml"
+
+
+def starter_project(
+    catalog: str,
+    *,
+    specs: Path,
+    warehouse_id: str | None = None,
+    profile: str | None = None,
+) -> str:
+    """The `stevin.yml` a first `import` writes: one target, `dev`, whose
+    `catalog` is the one imported from — so the specs say `${catalog}` and the
+    next target is one more block."""
+    connection = "".join(
+        f"    {key}: {value}\n"
+        for key, value in (("profile", profile), ("warehouse_id", warehouse_id))
+        if value
+    )
+    return f"""\
+# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# Written by `stevin import`. Every key is explained at
+# https://kostavo-oss.github.io/stevin/spec/#the-project-file
+version: 1
+specs: [{specs.as_posix()}]
+
+# Where `apply` records its runs and holds its lock; created on first use.
+history_schema: ${{catalog}}.stevin
+
+targets:
+  dev:
+    vars:
+      catalog: {catalog}
+{connection}"""
+
+
+def _catalog_variable(target: Target | None, catalog: str) -> str | None:
+    """The variable whose value is this catalog, so specs stay target-neutral."""
+    if target is None:
+        return None
+    for name, value in target.variables:
+        if value == catalog:
+            return name
+    return None
+
+
+# ---------------------------------------------------------------------------
+# plan
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def plan(
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to plan for.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write the plan to a file.")
+    ] = None,
+    output_format: Annotated[
+        Format, typer.Option("--format", "-f", help="How to render the plan.")
+    ] = Format.rich,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    check_order: Annotated[
+        bool, typer.Option("--check-order", help="Also diff column order.")
+    ] = False,
+    clone: Annotated[
+        bool,
+        typer.Option(
+            "--clone", help="SHALLOW CLONE each table before a step that risks its data."
+        ),
+    ] = False,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    select: SelectOption = None,
+) -> None:
+    """Diff your specs against live Unity Catalog and show what would change."""
+    built = _plan_for(
+        config,
+        target,
+        warehouse_id,
+        profile=profile,
+        check_order=check_order,
+        clone=clone,
+        parallel=parallel,
+        select=select,
+    )
+    _output(built, output_format, output, heading="plan")
+
+
+@app.command()
+def show(
+    plan_file: Annotated[Path, typer.Argument(help="A plan written by `stevin plan`.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write it to a file.")
+    ] = None,
+    output_format: Annotated[
+        Format, typer.Option("--format", "-f", help="How to render the plan.")
+    ] = Format.rich,
+) -> None:
+    """Render a saved plan. What `apply` would run, without asking a warehouse."""
+    _output(_read_plan(plan_file), output_format, output, heading="plan")
+
+
+#: `drift`'s exit codes, the way `terraform plan -detailed-exitcode` has them.
+IN_SYNC, FAILED, DRIFTED = 0, 1, 2
+
+
+@app.command()
+def doctor(
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to check.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to check.")
+    ] = None,
+    profile: ProfileOption = None,
+    output_json: Annotated[
+        bool, typer.Option("--json", help="Print the findings as JSON.")
+    ] = False,
+) -> None:
+    """Check the setup, and say what to do about what isn't right.
+
+    The project, the target, the bundle, the workspace, the warehouse, the
+    metastore's table quota and where `apply` would record a run. Nothing is
+    changed: no schema is created, no warehouse started, no grant touched.
+
+    Exits 0 unless something will stop a run.
+    """
+    project = _optional_project(config)
+    chosen: Target | None = None
+    if project is not None:
+        try:
+            chosen = _named(project, target or str(project.default_target))
+        except (KeyError, BundleError) as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            chosen = None
+
+    def connect() -> Connection:
+        return (
+            Connection.from_target(chosen, profile=profile, warehouse_id=warehouse_id)
+            if chosen
+            else Connection(profile=profile, warehouse_id=warehouse_id)
+        )
+
+    findings = list(look(project, chosen, connect))
+    if output_json:
+        typer.echo(
+            json.dumps(
+                [
+                    {
+                        "about": f.about,
+                        "verdict": f.verdict,
+                        "found": f.found,
+                        "remedy": f.remedy,
+                    }
+                    for f in findings
+                ],
+                indent=2,
+            )
+        )
+    else:
+        width = max((len(f.about) for f in findings), default=0)
+        for finding in findings:
+            colour = {"ok": "green", "warning": "yellow", "problem": "red"}[
+                finding.verdict
+            ]
+            out.print(
+                f"[{colour}]{finding.mark}[/] [bold]{finding.about.ljust(width)}[/]  "
+                f"{escape(finding.found)}"
+            )
+            if finding.remedy:
+                out.print(f"  {' ' * width}[dim]→ {escape(finding.remedy)}[/]")
+    if worst(findings) == "problem":
+        raise typer.Exit(1)
+
+
+@app.command()
+def verify(
+    schema: Annotated[
+        str,
+        typer.Option(
+            "--schema",
+            help="The catalog.schema to make, use and drop — or just a catalog, "
+            "and stevin names it.",
+        ),
+    ],
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to verify.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to run on.")
+    ] = None,
+    profile: ProfileOption = None,
+    principal: Annotated[
+        str,
+        typer.Option("--principal", help="A principal to grant to while probing."),
+    ] = "account users",
+    slow: Annotated[
+        bool,
+        typer.Option(
+            "--slow/--no-slow",
+            help="Also run the probes that take minutes (they start a pipeline).",
+        ),
+    ] = False,
+    undrop: Annotated[
+        bool,
+        typer.Option(
+            "--undrop/--no-undrop",
+            help="Include the UNDROP probe, which needs a second schema that "
+            "keeps what it drops.",
+        ),
+    ] = True,
+    keep: Annotated[
+        bool, typer.Option("--keep", help="Leave the scratch schema behind.")
+    ] = False,
+    output_json: Annotated[
+        bool, typer.Option("--json", help="Print the results as JSON.")
+    ] = False,
+) -> None:
+    """Settle what Databricks does here, in a scratch schema of your own.
+
+    Every plan stevin makes rests on behaviour — that a `REPLACE` keeps a
+    table's tags and grants, that a nested `NOT NULL` is an ordinary `ALTER`,
+    that the warehouse runs in ANSI mode. This runs those assumptions against
+    *your* workspace and says which hold. Where one doesn't, it says what that
+    costs.
+
+    Unlike `doctor`, this writes: it makes a schema, makes tables, views and
+    functions in it, and drops the schema with everything in it when it is done.
+
+    Exits 0 when every probe held, 1 when one didn't.
+    """
+    project = _optional_project(config)
+    # A project is optional: verify needs a workspace, not specs. With one, its
+    # target says which workspace and which warehouse.
+    chosen = _target(project, target) if project is not None else None
+    connection = _connect(warehouse_id, chosen, profile)
+    where = schema if "." in schema else f"{schema}.{probes.scratch_name()}"
+    if not output_json:
+        host = getattr(getattr(connection.client, "config", None), "host", "") or ""
+        out.print(
+            "Databricks behaviour stevin relies on"
+            + (f", in [bold]{escape(host)}[/]" if host else "")
+            + f" [dim]({escape(where)})[/]:"
+        )
+    try:
+        results = api.verify(
+            connection,
+            where,
+            principal=principal,
+            slow=slow,
+            undrop=undrop,
+            keep=keep,
+            observer=None if output_json else _show_probe,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    if output_json:
+        typer.echo(
+            json.dumps(
+                [
+                    {
+                        "name": result.probe.name,
+                        "outcome": result.outcome,
+                        "detail": result.detail,
+                        "docs": result.probe.docs,
+                        "matters": result.probe.matters,
+                    }
+                    for result in results
+                ],
+                indent=2,
+            )
+        )
+    else:
+        held = [result for result in results if result.held]
+        out.print(_probe_summary(held, results))
+        left_out = len(probes.PROBES) - len(results)
+        if left_out:
+            out.print(f"[dim]{left_out} not run (--slow, --undrop).[/]")
+    if len(results) != len([result for result in results if result.held]):
+        raise typer.Exit(1)
+
+
+def _show_probe(result: Result) -> None:
+    """One probe, as it finishes: a run takes a while.
+
+    What the workspace said is indented under the probe and wraps to that
+    indent, because it is usually a sentence and a statement, not a word.
+    """
+    colour = {"held": "green", "differed": "red", "unknown": "yellow"}[result.outcome]
+    out.print(f"  [{colour}]{result.mark}[/] {escape(result.probe.name)}")
+    if result.detail:
+        out.print(_indented(result.detail), style="dim")
+    if not result.held:
+        out.print(_indented(f"\u2192 {result.probe.matters}"), style="yellow")
+
+
+def _indented(text: str) -> Padding:
+    """Text under a probe's line, wrapped to stay under it."""
+    return Padding(Text(text), (0, 0, 0, 6))
+
+
+def _probe_summary(held: Sequence[Result], results: Sequence[Result]) -> str:
+    """`18 held, 1 didn't, 1 couldn't be tried.`"""
+    parts = [f"{len(held)} held"]
+    differed = [result for result in results if result.outcome == "differed"]
+    unknown = [result for result in results if result.outcome == "unknown"]
+    if differed:
+        parts.append(f"{len(differed)} didn't")
+    if unknown:
+        parts.append(f"{len(unknown)} couldn't be tried")
+    joined = ", ".join(parts)
+    return f"[green]{joined}.[/]" if len(held) == len(results) else f"[bold]{joined}.[/]"
+
+
+@app.command()
+def ui(
+    plan_file: Annotated[
+        Path | None,
+        typer.Argument(help="A plan file to show. Without one, stevin plans now."),
+    ] = None,
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to plan for.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    select: SelectOption = None,
+    port: Annotated[
+        int, typer.Option("--port", help="Port to serve on; 0 picks a free one.")
+    ] = 0,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open a browser at the address.")
+    ] = True,
+) -> None:
+    """Read a plan in a browser: search it, fold it, see each step's SQL.
+
+    The terminal rendering is fine until a plan has thirty tables in it. This
+    serves the same plan as one page on localhost — nothing is fetched from
+    anywhere, nothing is written, and there is no apply button: to change
+    something, change a spec.
+
+    With a plan file it shows that plan; without one it plans first, the way
+    `stevin plan` would.
+    """
+    built = (
+        _read_plan(plan_file)
+        if plan_file
+        else _plan_for(
+            config,
+            target,
+            warehouse_id,
+            profile=profile,
+            parallel=parallel,
+            select=select,
+        )
+    )
+    server = page_server(render_html(built), port)
+    where = f"http://127.0.0.1:{server.server_address[1]}/"
+    out.print(f"[green]Serving[/] the plan at [bold]{where}[/]  [dim](Ctrl-C to stop)[/]")
+    if open_browser:
+        webbrowser.open(where)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        out.print("Stopped.")
+    finally:
+        server.server_close()
+
+
+@app.command()
+def adopt(
+    names: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="Which specs to rewrite: `orders`, `sales.orders`, `sales.*`. "
+            "With none, every spec that has drifted."
+        ),
+    ] = None,
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to read.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Print what would change, and write nothing."),
+    ] = False,
+    show_diff: Annotated[
+        bool, typer.Option("--diff", help="Print the new text of each file.")
+    ] = False,
+) -> None:
+    """Rewrite specs to say what is live — drift, back into the files.
+
+    `drift` tells you a table was changed by hand. Usually that change was
+    wanted, and the only ways out were to retype it into the spec or to apply
+    the plan and undo someone's work. This is the third: the spec file that
+    already describes the table is edited to match the workspace, and what you
+    are left with is a git diff to review.
+
+    It takes from the workspace what stevin would otherwise have planned — a
+    column, a type, `not null`, a comment, a view's query. It leaves alone
+    everything a spec never claimed: a tag or grant the file doesn't mention
+    stays unmanaged. And it keeps what only a file can say: `${catalog}`,
+    `renamed_from`, `using:`, a seed's rows, and every comment around them.
+
+    **No table is touched.** This writes spec files, and nothing else.
+    """
+    project = _project(config)
+    chosen = _target(project, target)
+    specs = _load(project, chosen)
+    _abort_on_lint_errors(specs)
+    connection = _connect(warehouse_id, chosen, profile)
+    select = _selection(names, [spec.table.name for spec in specs.files])
+    try:
+        adoptions = api.adopt(
+            project,
+            chosen,
+            connection,
+            select=select,
+            specs=specs,
+            parallel=parallel,
+        )
+    except (CannotAdopt, IntrospectionError) as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+    if not adoptions:
+        out.print("[green]Every spec already says what is live.[/]")
+        return
+    for adoption in adoptions:
+        out.print(f"[bold]{escape(_shown(adoption.path))}[/]")
+        for note in adoption.notes:
+            colour = {"+": "green", "-": "red", "~": "yellow"}.get(note[0], "white")
+            out.print(f"  [{colour}]{escape(note)}[/]")
+        if show_diff:
+            out.print(_indented(adoption.after), style="dim")
+        if adoption.remaining:
+            out.print(
+                f"  [yellow]Still planned: {escape(', '.join(adoption.remaining))}[/]"
+            )
+            out.print(
+                "  [dim]A spec says these, not the workspace — a seed's rows live "
+                "in the repo.[/]"
+            )
+        if not dry_run and adoption.changed:
+            adoption.write()
+    written = [adoption for adoption in adoptions if adoption.changed]
+    if dry_run:
+        out.print(
+            f"[yellow]Nothing written[/] (--dry-run): "
+            f"{count(len(written), 'spec')} would change."
+        )
+        return
+    if not written:
+        out.print("[green]Every spec already says what is live.[/]")
+        return
+    out.print(
+        f"[green]Adopted {count(len(written), 'spec')}.[/] "
+        "`stevin plan` is quiet now: read the diff, and commit it."
+    )
+
+
+@app.command()
+def drift(
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to check.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write the plan to a file.")
+    ] = None,
+    output_format: Annotated[
+        Format, typer.Option("--format", "-f", help="How to render the drift.")
+    ] = Format.rich,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+) -> None:
+    """Check live tables against their specs. Exits 2 if they have drifted.
+
+    Drift is anything `apply` would do: an edit made by hand, a table dropped
+    outside stevin, a spec merged but never applied. Unmanaged objects are
+    not drift — stevin never claimed them.
+    """
+    built = _plan_for(config, target, warehouse_id, profile=profile, parallel=parallel)
+    _output(built, output_format, output, heading="drift")
+    if built.empty:
+        raise typer.Exit(IN_SYNC)
+    drifted = len([diff for diff in built.diffs if diff.changes])
+    err.print(
+        f"[yellow]Drift: {count(drifted, 'table')} "
+        f"{'differs from its spec' if drifted == 1 else 'differ from their specs'}.[/] "
+        "Run `stevin plan` to see how to bring them back."
+    )
+    raise typer.Exit(DRIFTED)
+
+
+def _plan_for(
+    config: Path | None,
+    target: str | None,
+    warehouse_id: str | None,
+    *,
+    profile: str | None = None,
+    check_order: bool = False,
+    clone: bool = False,
+    parallel: int = 8,
+    select: list[str] | None = None,
+) -> Plan:
+    project = _project(config)
+    chosen = _target(project, target)
+    specs = _load(project, chosen)
+    _abort_on_lint_errors(specs)
+    return _plan(
+        project,
+        chosen,
+        specs,
+        _connect(warehouse_id, chosen, profile),
+        check_order=check_order,
+        clone=clone,
+        parallel=parallel,
+        select=select,
+    )
+
+
+def _output(
+    built: Plan, output_format: Format, output: Path | None, *, heading: str
+) -> None:
+    """Render a plan in the chosen format, to the terminal or to a file."""
+    match output_format:
+        case Format.json:
+            text = plan_json(built)
+        case Format.md:
+            text = render_markdown(built, heading=heading)
+        case Format.html:
+            text = render_html(built)
+        case Format.rich:
+            # The terminal view is for reading; the file is for `apply` and
+            # `show`, so it is the plan object, as the docs' `plan -o plan.json`
+            # followed by `apply plan.json` expects.
+            render_plan(built, out)
+            if output:
+                output.write_text(plan_json(built), encoding="utf-8")
+                out.print(f"\n[green]Wrote[/] {escape(_shown(output))}")
+            return
+    if output:
+        output.write_text(text, encoding="utf-8")
+        out.print(f"[green]Wrote[/] {escape(_shown(output))}")
+    else:
+        typer.echo(text, nl=False)
+
+
+def _plan(
+    project: Project,
+    target: Target,
+    specs: Specs,
+    connection: Connection,
+    *,
+    check_order: bool = False,
+    clone: bool = False,
+    parallel: int = 8,
+    select: list[str] | None = None,
+) -> Plan:
+    """`stevin.plan`, with this command line's reading of `--select`."""
+    try:
+        return api.plan(
+            project,
+            target,
+            connection,
+            select=_selection(select, [r.name for r in specs.relations]),
+            check_order=check_order,
+            clone=clone,
+            parallel=parallel,
+            specs=specs,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+
+def _selection(
+    patterns: list[str] | None, names: list[str]
+) -> Callable[[str], bool] | None:
+    """What `--select` accepts: a name from its last part up to all three —
+    `orders`, `sales.orders`, `dev.sales.orders` — or a pattern (`sales.*`).
+    A pattern that names nothing is an error, not an empty plan."""
+    if not patterns:
+        return None
+    wanted = [pattern.lower() for pattern in patterns]
+
+    def matches(name: str, pattern: str) -> bool:
+        parts = name.lower().split(".")
+        return any(
+            fnmatch(".".join(parts[start:]), pattern) for start in range(len(parts))
+        )
+
+    for pattern in wanted:
+        if not any(matches(name, pattern) for name in names):
+            err.print(f"[red]--select {escape(pattern)} matches no spec.[/]")
+            raise typer.Exit(1)
+    return lambda name: any(matches(name, pattern) for pattern in wanted)
+
+
+# ---------------------------------------------------------------------------
+# apply
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def apply(
+    plan_file: Annotated[
+        Path | None,
+        typer.Argument(
+            help="A plan written by `stevin plan -o`. Without one, plans now, "
+            "shows the plan and asks before running it."
+        ),
+    ] = None,
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Which target, when planning now."),
+    ] = None,
+    select: SelectOption = None,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Don't ask; apply what was planned.")
+    ] = False,
+    allow_destructive: Annotated[
+        bool,
+        typer.Option("--allow-destructive", help="Permit steps that drop something."),
+    ] = False,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to run on.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+) -> None:
+    """Apply your specs: plan, show, ask, run — or run a saved plan.
+
+    A saved plan (`stevin plan -o plan.json`) is what CI reviews and applies;
+    it resumes where an interrupted run stopped. Without one, apply plans now
+    and asks before it changes anything.
+    """
+    project = _project(config)
+    if plan_file is not None:
+        if target is not None or select:
+            err.print(
+                "[red]A saved plan already says what it does: --target and --select "
+                "are for planning now.[/]"
+            )
+            raise typer.Exit(1)
+        built = _read_plan(plan_file)
+        chosen = _target(project, built.target)
+        connection = _connect(warehouse_id, chosen, profile)
+    else:
+        chosen = _target(project, target)
+        specs = _load(project, chosen)
+        _abort_on_lint_errors(specs)
+        connection = _connect(warehouse_id, chosen, profile)
+        built = _plan(
+            project, chosen, specs, connection, parallel=parallel, select=select
+        )
+        render_plan(built, out)
+        if built.empty:
+            return
+        if any(s.risk == "destructive" for s in built.steps) and not allow_destructive:
+            err.print(
+                "\n[red]This plan destroys something. Run it again with "
+                "--allow-destructive if that is what you want.[/]"
+            )
+            raise typer.Exit(1)
+        if not yes and not _confirm(built):
+            out.print("Nothing applied.")
+            raise typer.Exit(1)
+        out.print()
+    history = _history(project, chosen, connection)
+
+    out.print(
+        f"[bold]{built.target}[/] · {count(len(built.steps), 'step')} · "
+        f"highest risk [{RISK_STYLE[built.highest_risk]}]{built.highest_risk}[/]"
+    )
+
+    try:
+        result = api.apply(
+            built,
+            connection,
+            history=history,
+            allow_destructive=allow_destructive,
+            observer=partial(_show_step, width=number_width(built)),
+        )
+    except DestructiveRefused as error:
+        # The refusal is the library's; the flag that lifts it is this CLI's.
+        err.print(f"[red]{escape(str(error))} Re-run with --allow-destructive.[/]")
+        raise typer.Exit(1) from error
+    except (ExecutionError, IntrospectionError) as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    except KeyboardInterrupt as interrupted:
+        # The runner has already asked the warehouse to stop the statement, and
+        # the executor has released the lock. What is left to say is that the
+        # run can be picked up where it stopped.
+        _running.stop()
+        err.print(
+            "\n[yellow]Stopped.[/] The statement that was running was cancelled on "
+            "the warehouse and the lock is released; `stevin apply` again "
+            "resumes from this step."
+        )
+        raise typer.Exit(130) from interrupted
+
+    _report(result, built, plan_file)
+    if not result.ok:
+        raise typer.Exit(1)
+
+
+def _confirm(built: Plan) -> bool:
+    """Ask before changing anything. No answer — a closed stdin, as in CI —
+    is no."""
+    from rich.prompt import Confirm
+
+    out.print()
+    try:
+        return Confirm.ask(
+            f"Apply {count(len(built.steps), 'step')} to [bold]{built.target}[/]?",
+            console=out,
+            default=False,
+        )
+    except EOFError:
+        out.print()
+        return False
+
+
+def _show_step(
+    step: Step, status: StepStatus, note: str | None, *, width: int = 1
+) -> None:
+    if status == "running":
+        _still_running(step, note or "", width=width)
+        return
+    _running.stop()
+    colour = {"succeeded": "green", "skipped": "dim", "failed": "red"}[status]
+    label = {"succeeded": "ok", "skipped": "skipped", "failed": "failed"}[status]
+    line = (
+        f"  [dim]{step.id:>{width}}.[/] {step.title.ljust(TITLE_WIDTH)} "
+        f"[{RISK_STYLE[step.risk]}]\\[{step.risk}][/] [{colour}]{label}[/]"
+    )
+    if status == "skipped" and note:
+        line += f" [dim]({escape(note)})[/]"
+    out.print(line)
+    if status == "failed" and note:
+        err.print(f"     [red]{escape(note)}[/]")
+
+
+class _Running:
+    """The line for a step that is still going: a spinner in a terminal, a
+    line every five minutes in a log. Either way, a long rewrite is never
+    silence — and the line says how long it has been."""
+
+    def __init__(self) -> None:
+        self.spinner: Status | None = None
+        self.last_logged: float | None = None
+
+    def show(self, text: str, elapsed: float) -> None:
+        if out.is_terminal:
+            if self.spinner is None:
+                self.spinner = out.status(text)
+                self.spinner.start()
+            else:
+                self.spinner.update(text)
+            return
+        # Not a terminal — CI, a redirect. A line each half minute would drown
+        # the log; one at the start and every five minutes says enough.
+        if self.last_logged is None or elapsed - self.last_logged >= 300:
+            out.print(text)
+            self.last_logged = elapsed
+
+    def stop(self) -> None:
+        if self.spinner is not None:
+            self.spinner.stop()
+            self.spinner = None
+        self.last_logged = None
+
+
+_running = _Running()
+
+
+def _still_running(step: Step, elapsed: str, *, width: int) -> None:
+    text = (
+        f"  [dim]{step.id:>{width}}.[/] {escape(step.title.ljust(TITLE_WIDTH))} "
+        f"[{RISK_STYLE[step.risk]}]\\[{step.risk}][/] [yellow]running[/] "
+        f"[dim]{escape(elapsed)}[/]"
+    )
+    _running.show(text, _seconds(elapsed))
+
+
+def _seconds(shown: str) -> float:
+    """`5m 12s` back to seconds — the executor sends the elapsed time as words."""
+    total = 0.0
+    for part in shown.split():
+        unit, number = part[-1], part[:-1]
+        if number.isdigit():
+            total += int(number) * {"h": 3600, "m": 60, "s": 1}.get(unit, 0)
+    return total
+
+
+def _report(result: ExecutionResult, built: Plan, plan_file: Path | None) -> None:
+    ran, skipped = len(result.ran), len(result.skipped)
+    if result.ok:
+        out.print(
+            f"\n[green]Applied[/] {count(ran, 'step')}, skipped {skipped} · run "
+            f"[bold]{result.run_id}[/]"
+        )
+        return
+    err.print(
+        f"\n[red]Failed at step {result.failed} of {len(built.steps)}[/] · run "
+        f"[bold]{result.run_id}[/]\n"
+        + (
+            f"Fix the cause and run `stevin apply {plan_file}` again — it resumes "
+            "from here rather than starting over."
+            if plan_file is not None
+            else "Fix the cause and run `stevin apply` again — it plans from where "
+            "the tables are now."
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# force-unlock
+# ---------------------------------------------------------------------------
+
+
+@app.command("force-unlock")
+def force_unlock(
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to unlock.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to run on.")
+    ] = None,
+    profile: ProfileOption = None,
+) -> None:
+    """Release the apply lock after a run died holding it."""
+    project = _project(config)
+    chosen = _target(project, target)
+    connection = _connect(warehouse_id, chosen, profile)
+    store = _history(project, chosen, connection, say=False)
+    if isinstance(store, NoHistory):
+        out.print("No history schema, so there is no lock and nothing to unlock.")
+        return
+    try:
+        holder = store.force_unlock(chosen.name)
+    except IntrospectionError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    if holder is None:
+        out.print(f"[green]{chosen.name} was not locked.[/]")
+        return
+    out.print(f"[yellow]Released[/] {chosen.name}, which run [bold]{holder}[/] held.")
+
+
+def _read_plan(path: Path) -> Plan:
+    try:
+        return plan_loads(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        err.print(f"[red]cannot read {escape(f'{_shown(path)}: {error}')}[/]")
+        raise typer.Exit(1) from error
+    except PlanFileError as error:
+        err.print(f"[red]{escape(f'{_shown(path)}: {error}')}[/]")
+        raise typer.Exit(1) from error
+
+
+def _history(
+    project: Project, target: Target, connection: Connection, *, say: bool = True
+) -> HistoryStore:
+    """Where this run is recorded — and a word when it isn't."""
+    try:
+        store = api.history_for(project, target, connection)
+    except KeyError as error:
+        err.print(f"[red]history_schema: {escape(str(error.args[0]))}[/]")
+        raise typer.Exit(1) from error
+    if isinstance(store, NoHistory) and say:
+        out.print(
+            "[dim]No history_schema: this run isn't recorded and takes no lock. "
+            "Restore points are printed below.[/]"
+        )
+    return store
+
+
+# ---------------------------------------------------------------------------
+# shared plumbing
+# ---------------------------------------------------------------------------
+
+
+def _project(config: Path | None) -> Project:
+    project = _optional_project(config)
+    if project is None:
+        err.print(f"[red]No stevin.yml found in {Path.cwd()} or any parent directory.[/]")
+        raise typer.Exit(1)
+    return project
+
+
+def _optional_project(config: Path | None) -> Project | None:
+    """`import` works without a project; everything else needs one."""
+    try:
+        path = config or _from_here(find_project_file(Path.cwd()))
+    except FileNotFoundError:
+        return None
+    if path.name in formerly.CONFIG_NAMES:
+        err.print(
+            f"[yellow]{escape(path.as_posix())} has the name this file had before "
+            f"stevin was stevin. It still works; rename it to {PROJECT_FILE} when "
+            "you can.[/]"
+        )
+    try:
+        return load_project(path, os.environ)
+    except SpecError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+
+def _from_here(path: Path) -> Path:
+    """A path relative to the working directory when it is under it, so the
+    spec paths in messages read `tables/orders.yml:6:5`, not the whole disk."""
+    try:
+        return path.relative_to(Path.cwd())
+    except ValueError:
+        return path
+
+
+def _shown(path: Path) -> str:
+    """A path as a person reads it: from here, with forward slashes on every
+    platform, so what Windows prints is what the docs show."""
+    return _from_here(path).as_posix()
+
+
+def _target(project: Project, name: str | None) -> Target:
+    if name is None and project.default_target is None:
+        known = ", ".join(t.name for t in project.targets) or "none defined"
+        err.print(f"[red]Pick a target with -t (known: {known}).[/]")
+        raise typer.Exit(1)
+    try:
+        return _named(project, name or str(project.default_target))
+    except KeyError as error:
+        err.print(f"[red]{escape(str(error.args[0]))}[/]")
+        raise typer.Exit(1) from error
+    except BundleError as error:
+        # The Databricks CLI answered with an error; it is the error.
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+
+def _named(project: Project, name: str) -> Target:
+    """The target, as the Databricks CLI resolves its bundle.
+
+    Variables, lookups and the names a deploy really uses are the CLI's to
+    settle, so it is asked once per command. Without it — not installed, or no
+    credentials for it to look anything up with — what stevin read from the
+    bundle file stands in, and says *unknown* rather than guessing.
+    """
+    return as_deployed(project, project.target(name))
+
+
+def _load(project: Project, target: Target) -> Specs:
+    try:
+        specs = project.load_specs(target)
+    except (SpecErrors, SpecError, FileNotFoundError) as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    if not specs:
+        err.print("[yellow]No specs found.[/]")
+        raise typer.Exit(1)
+    return specs
+
+
+def _abort_on_lint_errors(specs: Specs) -> None:
+    for diagnostic in specs.diagnostics:
+        _print_diagnostic(diagnostic)
+    if specs.errors:
+        err.print(f"[red]Refusing to plan: {count(len(specs.errors), 'spec error')}.[/]")
+        raise typer.Exit(1)
+
+
+def _connect(
+    warehouse_id: str | None, target: Target | None, profile: str | None = None
+) -> Connection:
+    """A workspace and a warehouse, or a red line and exit 1."""
+    try:
+        if target is None:
+            return Connection(profile=profile, warehouse_id=warehouse_id)
+        return Connection.from_target(target, profile=profile, warehouse_id=warehouse_id)
+    except NotConnected as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        if "no SQL warehouse" in str(error):
+            err.print(
+                "Pass --warehouse-id, set warehouse_id on the target, or export "
+                "DATABRICKS_WAREHOUSE_ID."
+            )
+        else:
+            err.print(
+                "Set `profile:` on the target, pass --profile, or export "
+                "DATABRICKS_HOST and a token."
+            )
+        raise typer.Exit(1) from error
+
+
+def main() -> None:
+    app()

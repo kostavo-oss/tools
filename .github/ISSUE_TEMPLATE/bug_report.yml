@@ -21,14 +21,14 @@ body:
     attributes:
       label: Plan output
       description: >
-        The output of `deltaplan plan --format json` (or the rich output if the
+        The output of `stevin plan --format json` (or the rich output if the
         failure happens before the plan is built).
       render: shell
   - type: input
     id: version
     attributes:
-      label: deltaplan version
-      placeholder: "0.1.0  (deltaplan version)"
+      label: stevin version
+      placeholder: "0.1.0  (stevin version)"
   - type: input
     id: python
     attributes:

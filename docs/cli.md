@@ -1,27 +1,27 @@
 # Commands
 
 ```
-deltaplan validate            # spec lint, no connection needed
-deltaplan import <schema>     # live tables -> YAML specs
-deltaplan plan -t <target> [-o plan.json] [--select <name>] [--format rich|md|json]
-deltaplan apply [-t <target>] [--select <name>] [--yes]   # plan, show, ask, run
-deltaplan apply plan.json     # run a saved plan, as CI does
-deltaplan show plan.json [--format rich|md|json]
-deltaplan drift -t <target>   # exit code 2 on drift, for CI
-deltaplan force-unlock
+stevin validate            # spec lint, no connection needed
+stevin import <schema>     # live tables -> YAML specs
+stevin plan -t <target> [-o plan.json] [--select <name>] [--format rich|md|json]
+stevin apply [-t <target>] [--select <name>] [--yes]   # plan, show, ask, run
+stevin apply plan.json     # run a saved plan, as CI does
+stevin show plan.json [--format rich|md|json]
+stevin drift -t <target>   # exit code 2 on drift, for CI
+stevin force-unlock
 ```
 
-Every command takes `--config` to point at a `deltaplan.yml`, and `-t/--target` to pick
+Every command takes `--config` to point at a `stevin.yml`, and `-t/--target` to pick
 the target whose variables are substituted — without it, the only target or the one
-marked `default: true` (in `deltaplan.yml` or the [bundle](spec.md#next-to-an-asset-bundle)).
+marked `default: true` (in `stevin.yml` or the [bundle](spec.md#next-to-an-asset-bundle)).
 `plan` and `import` also take `--warehouse-id`, which otherwise comes from the target
 or `$DATABRICKS_WAREHOUSE_ID`.
 
 ## `validate`
 
 ```sh
-deltaplan validate -t dev            # every spec in the project
-deltaplan validate tables/orders.yml # just these
+stevin validate -t dev            # every spec in the project
+stevin validate tables/orders.yml # just these
 ```
 
 Lints specs offline: unknown keys, type strings, duplicate columns and nested fields,
@@ -33,8 +33,8 @@ anything is wrong.
 ## `schema`
 
 ```sh
-deltaplan schema spec       # the JSON Schema for YAML specs
-deltaplan schema project    # ... and for deltaplan.yml
+stevin schema spec       # the JSON Schema for YAML specs
+stevin schema project    # ... and for stevin.yml
 ```
 
 Prints the JSON Schema an editor uses for completion and inline errors, for the version
@@ -43,8 +43,8 @@ you have installed. See [editor support](editors.md).
 ## `import`
 
 ```sh
-deltaplan import main.sales -o tables -t dev             # YAML specs
-deltaplan import main.sales -o tables -t dev -f sql      # SQL specs
+stevin import main.sales -o tables -t dev             # YAML specs
+stevin import main.sales -o tables -t dev -f sql      # SQL specs
 ```
 
 Generates specs from the tables, views and SQL functions that already exist, so adoption
@@ -61,15 +61,15 @@ instead, and the output says so.
 ## `adopt`
 
 ```sh
-deltaplan drift                      # main.sales.orders has a column no spec mentions
-deltaplan adopt main.sales.orders    # write it into the spec
+stevin drift                      # main.sales.orders has a column no spec mentions
+stevin adopt main.sales.orders    # write it into the spec
 git diff                             # and now it is a reviewable change
 ```
 
 ```
 tables/orders.yml
   + columns: region string
-Adopted 1 spec. `deltaplan plan` is quiet now: read the diff, and commit it.
+Adopted 1 spec. `stevin plan` is quiet now: read the diff, and commit it.
 ```
 
 The other direction from `apply`. `drift` can only tell you a table was changed by
@@ -79,7 +79,7 @@ edited to match the workspace, and what you are left with is a git diff.
 
 **No table is touched** — this writes spec files and nothing else.
 
-What it takes from the workspace is what deltaplan would otherwise have planned: a
+What it takes from the workspace is what stevin would otherwise have planned: a
 column, a type, a nested field, `not null`, a comment, clustering, a view's query, a
 function's body. What it leaves alone is everything a spec never claimed — a tag,
 property or grant the file doesn't mention stays unmanaged, because adopting drift is
@@ -95,24 +95,24 @@ rows, hooks — and the comments and blank lines around them.
 - `--dry-run` prints what would change and writes nothing; `--diff` prints the new text.
 - A `.sql` spec is refused with the reason: rewriting a `CREATE` statement from live
   state is not something to do by text search.
-- After writing, deltaplan reads the file back and diffs it against the workspace. What
+- After writing, stevin reads the file back and diffs it against the workspace. What
   it couldn't express is printed as *Still planned* — a seed is the usual one, because
   its rows live in the repo and no workspace can tell a file what they should be.
 
 ## `doctor`
 
 ```sh
-deltaplan doctor
+stevin doctor
 ```
 
 ```
-✓ project    deltaplan.yml, 14 specs in tables
+✓ project    stevin.yml, 14 specs in tables
 ✓ target     prod (catalog prod)
 ✓ bundle     databricks.yml — resolved via /opt/homebrew/bin/databricks
 ✓ workspace  https://dbc-1234abcd.cloud.databricks.com as you@example.com
 ⚠ warehouse  Serverless Starter (STOPPED)
              → It starts on the first statement. If it stays stopped, the workspace
-               can't give it compute — that is not something deltaplan can fix.
+               can't give it compute — that is not something stevin can fix.
 ✗ metastore  table quota 523 of 500
              → A dropped table counts for as long as UNDROP could bring it back, so
                this is often far above what the catalogs hold. …
@@ -132,18 +132,18 @@ into an apply instead of here.
 ## `verify`
 
 ```sh
-deltaplan verify --schema main.scratch      # makes it, uses it, drops it
-deltaplan verify --schema main              # deltaplan names the schema
+stevin verify --schema main.scratch      # makes it, uses it, drops it
+stevin verify --schema main              # stevin names the schema
 ```
 
 ```
-Databricks behaviour deltaplan relies on, in https://dbc-1234.cloud.databricks.com
+Databricks behaviour stevin relies on, in https://dbc-1234.cloud.databricks.com
 (main.scratch):
   ✓ a table can read itself in a REPLACE … AS SELECT
   ✓ a replace keeps a table's tags, column tags and grants
   ✓ RESTORE puts back the table a replace changed
   ✓ a nested field's NOT NULL is an ordinary ALTER
-  ✓ the widenings deltaplan calls metadata are allowed
+  ✓ the widenings stevin calls metadata are allowed
   ✓ a seed's INSERT OVERWRITE with a column list is accepted
   ✗ CLUSTER BY AUTO is accepted and reads back
       the table doesn't read back as CLUSTER BY AUTO
@@ -152,7 +152,7 @@ Databricks behaviour deltaplan relies on, in https://dbc-1234.cloud.databricks.c
   18 held, 1 didn't.
 ```
 
-Every plan deltaplan makes rests on Databricks behaviour: that a `REPLACE` keeps a
+Every plan stevin makes rests on Databricks behaviour: that a `REPLACE` keeps a
 table's tags and grants, that a nested `NOT NULL` is an ordinary `ALTER`, that the
 warehouse runs in ANSI mode. Those were settled against one workspace on one runtime.
 This runs them against **yours**, and where one doesn't hold it says what that costs —
@@ -175,8 +175,8 @@ Exits 0 when every probe held, 1 when one didn't. A `!` is a probe that couldn't
 carried out at all — a privilege you haven't got, a warehouse that stopped — which is
 not an answer about behaviour.
 
-Run it when adopting deltaplan in a new workspace, and after a runtime upgrade. The same
-list is what deltaplan's own live suite runs, so a probe here is never a second opinion
+Run it when adopting stevin in a new workspace, and after a runtime upgrade. The same
+list is what stevin's own live suite runs, so a probe here is never a second opinion
 about what the tool assumes: it is the assumption itself.
 
 ## `plan`
@@ -198,7 +198,7 @@ All of them render the same plan object, so the review and the artefact can't di
 
 Reading live state costs a query or two per table. Only tables a spec describes are read
 in full; the rest of each schema gets a light read — enough to list it and tell whether
-it's deltaplan's. `--parallel` (default 8) sets how many of those queries run at once;
+it's stevin's. `--parallel` (default 8) sets how many of those queries run at once;
 `drift` and `import` take it too.
 `--check-order` additionally diffs column order, which is off by default because a
 reordered spec is usually an edit to the file rather than an intent to move columns.
@@ -212,7 +212,7 @@ never touched.
 ## `show`
 
 ```sh
-deltaplan show plan.json -f md
+stevin show plan.json -f md
 ```
 
 Renders a saved plan in any format, without a warehouse. What you see is what
@@ -222,8 +222,8 @@ way rather than planning twice.
 ## `ui`
 
 ```sh
-deltaplan ui                  # plan now, and open it
-deltaplan ui plan.json        # show a plan you already have
+stevin ui                  # plan now, and open it
+stevin ui plan.json        # show a plan you already have
 ```
 
 Serves the plan as one page on `127.0.0.1` and opens your browser. Each object is shown
@@ -232,7 +232,7 @@ as a comparison — **now** on the left, as it was read when the plan was made, 
 
 Two readings of the same table, because a plan has two readers:
 
-- **Changes only** (the default) — the rows that move, each with the sentence deltaplan
+- **Changes only** (the default) — the rows that move, each with the sentence stevin
   uses for it elsewhere. For whoever has to approve the change.
 - **Full object** — every row, including what stays as it is, so the two sides can be
   checked against each other. For whoever wrote the spec.
@@ -252,7 +252,7 @@ Want the page without a server — to attach to a pull request, keep as a CI art
 send to someone who approves things:
 
 ```sh
-deltaplan plan -f html -o plan.html
+stevin plan -f html -o plan.html
 ```
 
 One file, no dependencies, opens offline.
@@ -260,14 +260,14 @@ One file, no dependencies, opens offline.
 ## `apply`
 
 ```sh
-deltaplan apply [-t dev] [--select sales.orders] [--yes] [--allow-destructive]
-deltaplan apply plan.json [--allow-destructive]
+stevin apply [-t dev] [--select sales.orders] [--yes] [--allow-destructive]
+stevin apply plan.json [--allow-destructive]
 ```
 
 Without a plan file, `apply` plans now, shows the plan and asks before it changes
 anything — the quickest way from a spec to a table:
 
-![deltaplan apply](assets/screens/tour-apply-now.svg)
+![stevin apply](assets/screens/tour-apply-now.svg)
 
 `--yes` skips the question; without it, a closed stdin (a CI job) counts as *no*. A plan
 that destroys something is refused before the question, unless you pass
@@ -307,10 +307,10 @@ no rollback:
   the plan was built from and recomputes the state fingerprint. If anything moved, it
   refuses and tells you to plan again. (Which is also why applying the same file twice
   is refused: the second time, it *is* stale.)
-- **Steps don't repeat themselves.** Before each step, deltaplan asks whether the change
+- **Steps don't repeat themselves.** Before each step, stevin asks whether the change
   it implements is already true of the live table, and skips it if so.
 - **A failed run resumes.** Every step's outcome is written to the history table, so
-  running `deltaplan apply plan.json` again picks up from the step that failed instead
+  running `stevin apply plan.json` again picks up from the step that failed instead
   of starting over. The fingerprint is not re-checked on a resume — of course the tables
   changed, the first half of the plan changed them.
 - **One run at a time.** A lock row per target, taken with a conditional update and
@@ -325,7 +325,7 @@ more. A selection plans only what it names — tables outside it are never repor
 orphans, and never dropped, even in a strict schema.
 
 `--allow-destructive` is required for any step in the `destructive` class; without it
-`apply` refuses before running anything at all. A plan containing a step deltaplan
+`apply` refuses before running anything at all. A plan containing a step stevin
 couldn't generate — a conversion it won't invent, a change a generated column
 blocks — is refused the same way, naming the step and what it needs. A restore point —
 the table's Delta version before the step — is recorded for every destructive step, so `RESTORE TABLE …
@@ -334,7 +334,7 @@ TO VERSION AS OF n` is one command.
 ### History
 
 `apply` keeps three Delta tables in the schema named by `history_schema` in
-`deltaplan.yml`, and creates the schema and the tables on first use:
+`stevin.yml`, and creates the schema and the tables on first use:
 
 | Table | One row per |
 |---|---|
@@ -345,7 +345,7 @@ TO VERSION AS OF n` is one command.
 ## `drift`
 
 ```sh
-deltaplan drift -t prod [-f rich|md|json] [-o file]
+stevin drift -t prod [-f rich|md|json] [-o file]
 ```
 
 Asks whether `apply` would do anything, and exits accordingly:
@@ -356,8 +356,8 @@ Asks whether `apply` would do anything, and exits accordingly:
 | `2` | They have drifted — the plan is printed. |
 | `1` | Something went wrong. |
 
-Drift is a hand edit in the catalog, a table dropped outside deltaplan, a spec merged but
-never applied. Unmanaged objects are not drift: deltaplan never claimed them. Point a
+Drift is a hand edit in the catalog, a table dropped outside stevin, a spec merged but
+never applied. Unmanaged objects are not drift: stevin never claimed them. Point a
 [scheduled workflow](ci.md#catch-drift-nightly) at it.
 
 When the hand edit was the right call, [`adopt`](#adopt) writes it into the spec instead
@@ -366,7 +366,7 @@ of planning it away.
 ## `force-unlock`
 
 ```sh
-deltaplan force-unlock -t prod
+stevin force-unlock -t prod
 ```
 
 `apply` takes a lock so two runs can't fight over the same tables. If a run dies hard

@@ -15,14 +15,14 @@ from dataclasses import replace
 
 import pytest
 
-from deltaplan.differ import diff
-from deltaplan.introspect import Introspector
-from deltaplan.model.plan import TableFacts
-from deltaplan.model.table import MANAGED_PROPERTY, Table
-from deltaplan.model.types import Field, Primitive
-from deltaplan.render.json import dumps, loads
 from fake_warehouse import FakeSqlError, FakeWarehouse
 from helpers import col, plan_against, run, table
+from stevin.differ import diff
+from stevin.introspect import Introspector
+from stevin.model.plan import TableFacts
+from stevin.model.table import MANAGED_PROPERTY, Table
+from stevin.model.types import Field, Primitive
+from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)

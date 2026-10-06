@@ -83,7 +83,7 @@ jobs:
         run: |
           uv venv /tmp/smoke -p 3.11
           uv pip install --python /tmp/smoke/bin/python dist/*.whl
-          /tmp/smoke/bin/deltaplan --version
+          /tmp/smoke/bin/stevin --version
       - uses: actions/upload-artifact@v7
         with:
           name: dist

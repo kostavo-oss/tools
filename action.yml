@@ -1,4 +1,4 @@
-name: deltaplan
+name: stevin
 description: Plan Databricks SQL table changes, comment the plan on the pull request, and apply it on merge.
 author: Misja Pronk
 branding:
@@ -10,19 +10,19 @@ inputs:
     description: "`plan` to show what would change, `apply` to plan and run it, or `drift` to check live tables against their specs."
     default: plan
   target:
-    description: The target in deltaplan.yml to plan for.
+    description: The target in stevin.yml to plan for.
     required: true
   config:
-    description: Path to deltaplan.yml, relative to working-directory.
-    default: deltaplan.yml
+    description: Path to stevin.yml, relative to working-directory. Left out, it is found by looking in working-directory and above.
+    default: ""
   working-directory:
-    description: Where the deltaplan project lives.
+    description: Where the stevin project lives.
     default: .
   clone:
     description: "`plan` only: add a SHALLOW CLONE of each table before a step that risks its data."
     default: "false"
   comment:
-    description: On a pull request, post the result as a comment — updating deltaplan's previous one rather than adding another.
+    description: On a pull request, post the result as a comment — updating stevin's previous one rather than adding another.
     default: "true"
   allow-destructive:
     description: "`apply` only: let the plan drop something. Without it, a plan that would stops before running anything."
@@ -39,7 +39,7 @@ outputs:
     description: "`true` when the plan would do something (or, for `drift`, when there is drift)."
     value: ${{ steps.run.outputs.has-changes }}
   plan-file:
-    description: The plan as JSON, for `deltaplan apply`. Empty for `drift`.
+    description: The plan as JSON, for `stevin apply`. Empty for `drift`.
     value: ${{ steps.run.outputs.plan-file }}
   markdown-file:
     description: The rendered comment.
@@ -69,36 +69,42 @@ runs:
           *) echo "::error::command must be plan, apply or drift, not '$COMMAND'"; exit 1 ;;
         esac
 
-        # deltaplan is installed from this action's own checkout, so the action
+        # stevin is installed from this action's own checkout, so the action
         # and the tool it runs are always the same version.
-        deltaplan() { uvx --from "$ACTION_PATH" deltaplan "$@"; }
+        stevin() { uvx --from "$ACTION_PATH" stevin "$@"; }
 
-        out="$RUNNER_TEMP/deltaplan"
+        out="$RUNNER_TEMP/stevin"
         mkdir -p "$out"
         markdown="$out/$COMMAND.md"
 
         if [ "$COMMAND" != drift ]; then
           plan_file="$out/plan.json"
-          args=(plan -t "$TARGET" --config "$CONFIG" -f json -o "$plan_file")
+          args=(plan -t "$TARGET")
+          if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
+          args+=(-f json -o "$plan_file")
           if [ "$CLONE" = true ]; then args+=(--clone); fi
-          deltaplan "${args[@]}"
+          stevin "${args[@]}"
           # The comment is rendered from the plan file, so it shows exactly what
           # `apply` of that file would run.
-          deltaplan show "$plan_file" -f md -o "$markdown"
+          stevin show "$plan_file" -f md -o "$markdown"
           has_changes=$(uv run --no-project python -c \
             'import json, sys; print(str(bool(json.load(open(sys.argv[1]))["steps"])).lower())' \
             "$plan_file")
           echo "plan-file=$plan_file" >> "$GITHUB_OUTPUT"
           if [ "$COMMAND" = apply ] && [ "$has_changes" = true ]; then
             # The same plan the summary shows, run by the same version.
-            args=(apply "$plan_file" --config "$CONFIG")
+            args=(apply "$plan_file")
+            if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
             if [ "$ALLOW_DESTRUCTIVE" = true ]; then args+=(--allow-destructive); fi
-            deltaplan "${args[@]}"
+            stevin "${args[@]}"
           fi
         else
           # drift exits 2 when there is drift; anything else non-zero is a failure.
+          args=(drift -t "$TARGET")
+          if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
+          args+=(-f md -o "$markdown")
           set +e
-          deltaplan drift -t "$TARGET" --config "$CONFIG" -f md -o "$markdown"
+          stevin "${args[@]}"
           code=$?
           set -e
           case "$code" in

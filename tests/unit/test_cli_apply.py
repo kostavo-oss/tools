@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner, Result
 
-from deltaplan import cli
-from deltaplan.cli import app
-from deltaplan.connect import Connection
-from deltaplan.history import MemoryHistory
-from deltaplan.introspect import Introspector
 from fake_warehouse import FakeWarehouse
 from helpers import col, table
+from stevin import cli
+from stevin.cli import app
+from stevin.connect import Connection
+from stevin.history import MemoryHistory
+from stevin.introspect import Introspector
 
 runner = CliRunner()
 
@@ -27,7 +27,7 @@ NAME = "main.sales.orders"
 CONFIG = """
 version: 1
 specs: [tables]
-history_schema: main.deltaplan
+history_schema: main.stevin
 targets:
   dev:
     vars: {catalog: main}
@@ -54,7 +54,7 @@ LIVE = table(
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    (tmp_path / "deltaplan.yml").write_text(CONFIG)
+    (tmp_path / "stevin.yml").write_text(CONFIG)
     (tmp_path / "tables").mkdir()
     (tmp_path / "tables" / "orders.yml").write_text(SPEC)
     return tmp_path
@@ -81,7 +81,7 @@ def write_plan(project: Path, destination: Path) -> None:
             "-t",
             "dev",
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
             "--format",
             "json",
             "-o",
@@ -96,7 +96,7 @@ def test_plan_then_apply(project: Path, warehouse: FakeWarehouse, tmp_path: Path
     write_plan(project, plan_file)
 
     result = runner.invoke(
-        app, ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+        app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     # The table was created by someone else; writing its spec claims it first.
@@ -109,7 +109,7 @@ def test_plan_then_apply(project: Path, warehouse: FakeWarehouse, tmp_path: Path
     assert live.table.column_names == ("order_id", "amount", "customer_ref")
     amount = live.table.column("amount")
     assert amount is not None
-    from deltaplan.model.types import Decimal
+    from stevin.model.types import Decimal
 
     assert amount.type == Decimal(18, 2)
 
@@ -120,12 +120,12 @@ def test_a_plan_that_already_ran_is_refused_as_stale(
     """Applying the same file twice is applying a stale plan, and is refused.
 
     The plan described a journey from one state to another; the journey has been
-    made. Re-running the file can only be a mistake, so deltaplan says so rather
+    made. Re-running the file can only be a mistake, so stevin says so rather
     than quietly doing nothing.
     """
     plan_file = tmp_path / "plan.json"
     write_plan(project, plan_file)
-    arguments = ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+    arguments = ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     assert runner.invoke(app, arguments).exit_code == 0
 
     ddl = len(warehouse.ddl)
@@ -143,13 +143,13 @@ def test_replanning_after_an_apply_finds_nothing_to_do(
     write_plan(project, plan_file)
     assert (
         runner.invoke(
-            app, ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+            app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
         ).exit_code
         == 0
     )
 
     result = runner.invoke(
-        app, ["plan", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+        app, ["plan", "-t", "dev", "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "No changes. Live tables match your specs." in result.output
@@ -160,7 +160,7 @@ def test_a_failed_step_is_reported_and_resumes(
 ) -> None:
     plan_file = tmp_path / "plan.json"
     write_plan(project, plan_file)
-    arguments = ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+    arguments = ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
 
     warehouse.failures["RENAME COLUMN"] = "connection reset"
     result = runner.invoke(app, arguments)
@@ -187,7 +187,7 @@ def test_a_destructive_plan_needs_the_flag(
     )
     plan_file = tmp_path / "plan.json"
     write_plan(project, plan_file)
-    arguments = ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+    arguments = ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
 
     refused = runner.invoke(app, arguments)
     assert refused.exit_code == 1
@@ -208,7 +208,7 @@ def test_a_stale_plan_is_refused(
     warehouse.query("ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)")
 
     result = runner.invoke(
-        app, ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+        app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 1
     assert "changed since this plan was made" in result.output
@@ -218,7 +218,7 @@ def test_an_unreadable_plan_file(project: Path, tmp_path: Path) -> None:
     broken = tmp_path / "plan.json"
     broken.write_text(json.dumps({"format_version": 99}))
     result = runner.invoke(
-        app, ["apply", str(broken), "--config", str(project / "deltaplan.yml")]
+        app, ["apply", str(broken), "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 1
     assert "plan format version" in result.output
@@ -229,7 +229,7 @@ def test_an_unreadable_plan_file(project: Path, tmp_path: Path) -> None:
             "apply",
             str(tmp_path / "nope.json"),
             "--config",
-            str(project / "deltaplan.yml"),
+            str(project / "stevin.yml"),
         ],
     )
     assert missing.exit_code == 1
@@ -244,17 +244,17 @@ def test_apply_without_a_history_schema_says_what_that_costs(
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
     plan_file = tmp_path / "plan.json"
     write_plan(project, plan_file)
-    (project / "deltaplan.yml").write_text(
-        CONFIG.replace("history_schema: main.deltaplan\n", "")
+    (project / "stevin.yml").write_text(
+        CONFIG.replace("history_schema: main.stevin\n", "")
     )
 
     result = runner.invoke(
-        app, ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+        app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 0, result.output
     assert "No history_schema" in result.output
     assert "takes no lock" in result.output
-    assert not [name for name in fake.schemas if "deltaplan" in name]
+    assert not [name for name in fake.schemas if "stevin" in name]
 
 
 def test_force_unlock_without_a_history_schema_has_nothing_to_unlock(
@@ -262,12 +262,10 @@ def test_force_unlock_without_a_history_schema_has_nothing_to_unlock(
 ) -> None:
     fake = FakeWarehouse.of(LIVE)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
-    (project / "deltaplan.yml").write_text(
-        CONFIG.replace("history_schema: main.deltaplan\n", "")
+    (project / "stevin.yml").write_text(
+        CONFIG.replace("history_schema: main.stevin\n", "")
     )
-    result = runner.invoke(
-        app, ["force-unlock", "--config", str(project / "deltaplan.yml")]
-    )
+    result = runner.invoke(app, ["force-unlock", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 0, result.output
     assert "no lock" in result.output.lower()
 
@@ -276,7 +274,7 @@ def test_force_unlock(
     project: Path, warehouse: FakeWarehouse, history: MemoryHistory
 ) -> None:
     del warehouse  # the fixture is what points the CLI at the fake
-    arguments = ["force-unlock", "-t", "dev", "--config", str(project / "deltaplan.yml")]
+    arguments = ["force-unlock", "-t", "dev", "--config", str(project / "stevin.yml")]
     free = runner.invoke(app, arguments)
     assert free.exit_code == 0
     assert "was not locked" in free.output
@@ -291,7 +289,7 @@ class StoppedWarehouse(FakeWarehouse):
     """A warehouse that answers nothing, the way a stopped one fails."""
 
     def query(self, statement: str) -> tuple[dict[str, str | None], ...]:
-        from deltaplan.introspect import IntrospectionError
+        from stevin.introspect import IntrospectionError
 
         raise IntrospectionError(f"FAILED: the warehouse is stopped\n  {statement}")
 
@@ -309,7 +307,7 @@ def test_a_warehouse_error_is_a_message_not_a_traceback(
         cli, "_connect", lambda *_a, **_k: Connection(runner=StoppedWarehouse())
     )
     result = runner.invoke(
-        app, ["apply", str(plan_file), "--config", str(project / "deltaplan.yml")]
+        app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     )
     assert result.exit_code == 1
     assert "the warehouse is stopped" in result.output
@@ -322,7 +320,7 @@ def test_a_warehouse_error_is_a_message_not_a_traceback(
 
 
 def apply_now(project: Path, *args: str, answer: str | None = None) -> Result:
-    config = ["--config", str(project / "deltaplan.yml")]
+    config = ["--config", str(project / "stevin.yml")]
     return runner.invoke(app, ["apply", *config, *args], input=answer)
 
 
@@ -394,7 +392,7 @@ OTHER = "table: ${catalog}.sales.customers\ncolumns:\n  - {name: id, type: bigin
 
 @pytest.fixture
 def two_tables(project: Path, warehouse: FakeWarehouse) -> Path:
-    (project / "deltaplan.yml").write_text(STRICT)
+    (project / "stevin.yml").write_text(STRICT)
     (project / "tables" / "customers.yml").write_text(OTHER)
     assert apply_now(project, "--yes").exit_code == 0
     return project
@@ -410,7 +408,7 @@ def test_select_plans_only_what_it_names(
     (two_tables / "tables" / "orders.yml").write_text(
         SPEC.replace("comment: Order facts", "comment: Changed")
     )
-    config = ["--config", str(two_tables / "deltaplan.yml")]
+    config = ["--config", str(two_tables / "stevin.yml")]
     result = runner.invoke(app, ["plan", *config, "--select", pattern])
     assert result.exit_code == 0, result.output
     assert "sales.customers" in result.output
@@ -422,7 +420,7 @@ def test_a_selection_never_drops_what_it_leaves_out(
 ) -> None:
     """The schema is strict, and `orders` is managed: planned without it, a
     selection must not take it for a table whose spec is gone."""
-    config = ["--config", str(two_tables / "deltaplan.yml")]
+    config = ["--config", str(two_tables / "stevin.yml")]
     result = runner.invoke(app, ["plan", *config, "--select", "customers"])
     assert result.exit_code == 0, result.output
     assert "destroy" not in result.output.replace("0 destroy", "")
@@ -432,7 +430,7 @@ def test_a_selection_never_drops_what_it_leaves_out(
 def test_a_selection_that_names_nothing_is_an_error(
     project: Path, warehouse: FakeWarehouse
 ) -> None:
-    config = ["--config", str(project / "deltaplan.yml")]
+    config = ["--config", str(project / "stevin.yml")]
     result = runner.invoke(app, ["plan", *config, "--select", "ordrs"])
     assert result.exit_code == 1
     assert "--select ordrs matches no spec." in result.output

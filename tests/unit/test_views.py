@@ -11,17 +11,17 @@ from pathlib import Path
 
 import pytest
 
-from deltaplan.introspect import Introspector
-from deltaplan.loader import SpecError, dump_spec, load_spec, load_table
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY, Grant
-from deltaplan.model.view import Relation, View
-from deltaplan.planning import PlanningError, order_views, plan_tables
-from deltaplan.render.json import dumps, loads
-from deltaplan.render.markdown import render_markdown
-from deltaplan.render.rich import plan_text
 from fake_warehouse import FakeWarehouse
 from helpers import col, run, table
+from stevin.introspect import Introspector
+from stevin.loader import SpecError, dump_spec, load_spec, load_table
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY, Grant
+from stevin.model.view import Relation, View
+from stevin.planning import PlanningError, order_views, plan_tables
+from stevin.render.json import dumps, loads
+from stevin.render.markdown import render_markdown
+from stevin.render.rich import plan_text
 
 MANAGED = ((MANAGED_PROPERTY, "true"),)
 ORDERS = table(

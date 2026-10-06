@@ -2,10 +2,10 @@
 
 from syrupy.assertion import SnapshotAssertion
 
-from deltaplan.model.plan import Plan
-from deltaplan.model.table import MANAGED_PROPERTY
-from deltaplan.render.markdown import marker, render_markdown
 from helpers import col, plan_against, table
+from stevin.model.plan import Plan
+from stevin.model.table import MANAGED_PROPERTY
+from stevin.render.markdown import marker, render_markdown
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -33,7 +33,7 @@ def design_example() -> Plan:
 
 def test_the_design_documents_plan_as_a_comment(snapshot: SnapshotAssertion) -> None:
     rendered = render_markdown(design_example())
-    assert rendered.startswith("<!-- deltaplan:plan:test -->\n")
+    assert rendered.startswith("<!-- stevin:plan:test -->\n")
     assert "**Plan: 0 add, 1 change, 0 destroy · 6 steps · 0 rewrites · 1 warning**" in (
         rendered
     )
@@ -77,7 +77,7 @@ def test_a_rewrite_is_a_warning_alert_with_its_size() -> None:
     rendered = render_markdown(plan)
     assert "> [!WARNING]" in rendered
     assert "Rewrites the data of `sales.orders` (412 GB)" in rendered
-    assert "### 🟠 deltaplan plan" in rendered
+    assert "### 🟠 stevin plan" in rendered
 
 
 def test_a_step_that_cannot_be_generated_is_called_out() -> None:
@@ -91,7 +91,7 @@ def test_a_step_that_cannot_be_generated_is_called_out() -> None:
 def test_an_empty_plan() -> None:
     _, plan = plan_against(LIVE, LIVE)
     rendered = render_markdown(plan)
-    assert "### ✅ deltaplan plan · `test`" in rendered
+    assert "### ✅ stevin plan · `test`" in rendered
     assert "**No changes.** Live tables match your specs." in rendered
     assert "<details" not in rendered
 
@@ -101,7 +101,7 @@ def test_drift_has_its_own_marker() -> None:
     # each other.
     rendered = render_markdown(design_example(), heading="drift")
     assert rendered.startswith(marker("drift", "test"))
-    assert "deltaplan drift" in rendered
+    assert "stevin drift" in rendered
 
 
 def test_the_sql_is_folded_away() -> None:
@@ -173,10 +173,10 @@ def test_every_change_the_differ_made_reaches_the_comment() -> None:
     a change is accounted for by its path or by its sentence."""
     from dataclasses import replace
 
-    from deltaplan.introspect import Introspector
-    from deltaplan.planning import plan_tables
-    from deltaplan.render.labels import describe
     from fake_warehouse import FakeWarehouse
+    from stevin.introspect import Introspector
+    from stevin.planning import plan_tables
+    from stevin.render.labels import describe
 
     live = replace(LIVE, partitioned_by=("region",), properties=MANAGED)
     desired = replace(

@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from deltaplan.yamledit import merge_into
+from stevin.yamledit import merge_into
 
 SPEC = """\
 # Orders, from the ingest pipeline
