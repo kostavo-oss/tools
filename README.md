@@ -29,7 +29,17 @@ says what moved.
 
 ## Install
 
-Run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
+> **Not on PyPI under this name yet.** The first release as `caland` is being prepared.
+> Until this notice is gone, do not install a `caland` from PyPI — it is not ours. Install
+> from GitHub instead:
+>
+> ```sh
+> uv tool install git+https://github.com/kostavo-oss/caland
+> ```
+>
+> Or stay on `isolinear`, the same tool under the name it was last released with.
+
+Once it is released: run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
 
 ```sh
 uvx caland              # run once, ephemerally
@@ -72,6 +82,18 @@ login` (host + `auth_type = external-browser`, **no secret ever stored**).
     <td align="center"><sub>Authorization overview</sub></td>
   </tr>
 </table>
+
+## The page (preview)
+
+Caland is becoming a page in your browser, served from your own machine:
+
+```sh
+caland --page prod
+```
+
+It browses, filters, shows and copies today, and changes nothing yet — see
+[the page](https://kostavo-oss.github.io/caland/page/). Everything below is the terminal
+version, which is still the whole tool.
 
 ## Features
 

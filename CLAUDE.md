@@ -11,6 +11,23 @@ change the spec in the same pull request when the behaviour changes. Where the s
 docs and the code disagree, say so instead of silently picking one. Don't build past a
 "To decide" that is still open — those are the owner's to answer.
 
+## The page
+
+Caland is moving from the terminal to a page in the browser (`spec/008-the-page.md`). Until
+the page does everything the terminal version does, it is behind `caland --page`; the
+terminal version is **frozen** — fix what is broken in it, add nothing.
+
+- The page is `src/caland/interface/web/`: `gate.py` (which requests are answered — pure),
+  `server.py`, `views.py` (what the page is told — pure), `opening.py`, and `static/`.
+- The gate is the security of it. A change there, or a new thing the server answers, gets
+  a test in `tests/test_web_gate.py` or `test_web_server.py`, and a second pair of eyes.
+- No cookie, no script or style written into the page, nothing from another origin, no
+  `innerHTML`: what a workspace says is text. Tests hold each of these.
+- `tests/test_page_in_a_browser.py` drives the real page in Chrome (`tests/chrome.py`, over
+  Chrome's debugging pipe — no package). It skips without Chrome; CI has one. Run it after
+  any change to `static/`.
+- Only the SDK: no query, no warehouse, no system table (`spec/000`).
+
 ## Toolchain — use these, nothing else
 
 This project is **all-[Astral](https://astral.sh)**, version-managed by

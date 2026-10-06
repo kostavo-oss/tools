@@ -1,6 +1,7 @@
 # 008 — the page
 
-**Status:** proposal; its shape is decided ([Decided](#decided)). Nothing is built. Written
+**Status:** the first part is built — reading ([As built](#as-built--the-first-part-reading-2026-10-06));
+the rest is proposal. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -98,8 +99,8 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
       of 500 scopes and 5,000 secrets filters within 50 ms a keystroke.
 - **R8 — A value is in the page only while it is shown.** Not in the page's source, not in a
   URL, not in anything the browser keeps: it arrives when asked for and is taken out again
-  when hidden or after 30 seconds. *Copy* is done by caland itself, on the machine — the
-  value goes to the clipboard without passing through the page. *(proposal)*
+  when hidden or after 30 seconds. *Copy* never writes it into the page. *(built; how copy
+  is done changed while building — see As built)*
 - **R9 — The local port is defended.** A server that can read secrets, on a machine with a
   browser full of other sites, is the new risk this shape brings. *(proposal — and the part
   to have reviewed by someone who did not write it, before any release)*
@@ -122,6 +123,64 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
 - **R10 — It says what it cannot defend.** A browser extension allowed to read every page
   can read a value while it is shown, as anyone who can see the screen can. The docs say
   so, beside the clipboard warning that is there today. *(proposal)*
+
+## As built — the first part: reading (2026-10-06)
+
+`caland --page [WORKSPACE] [--no-open]`. Built: R2, R3, R3a, R7, R8, R9, R10, and of R1
+the reading half — browse, filter, show, copy, copy as code, mine/all, read again. Not yet:
+everything that changes a workspace, R4–R6, the workspace picker, `.env`, the stale report.
+Until then the page is behind `--page` and `caland` alone is the terminal version: the
+switch D2 describes is made when R1 is whole, not before — a release in between must not
+hand people half a tool.
+
+Decided while building, the builder's unless marked:
+
+- **No cookie.** A cookie for `127.0.0.1` is sent to every port of the machine — so to any
+  other program serving pages there. The page holds a token in memory and sends it in a
+  header of its own; another site cannot send that header without asking, and nothing here
+  says yes. For a reload to work the token is also in the tab's `sessionStorage` — never a
+  value, and the one thing the browser keeps (R9 said nothing would be). It is taken from
+  there on a reload and on nothing else: a site the tab went on to can send the tab back, or
+  open a window that is handed a copy, and both find the page locked. A browser may write
+  what a tab keeps into its own profile on disk, the owner's alone; the token is worth
+  nothing once caland has stopped.
+- **A one-time key, in a file.** The browser is started with a file only its owner can read
+  (0600, in a 0700 folder), which sends it on to the page with a key in the address's
+  fragment. A link on a command line can be read by every user of the machine. The key is
+  good once, is taken out of the address at once, and the file is removed when it has been
+  used. With `--no-open` the link is printed instead — a terminal is its owner's.
+- **Copy happens in the page, not by caland** — R8 said the opposite. Copying on the
+  machine needs a different program on each system and copies to the wrong machine over a
+  forwarded port. The value goes from the server's answer to the clipboard without being
+  written into the page.
+- **Left alone for 30 minutes, it stops.** Enter in the terminal gives a new link, for a
+  tab that was closed.
+- **The shell of the page is public; everything it shows is not.** `/`, the stylesheet and
+  the script hold no name and no value, and are given to anyone who asks. Everything under
+  `/api/` needs the token.
+- **Python's own HTTP server** (D3), and no new dependency.
+
+Held by: `tests/test_web_gate.py` (the rules of R9, as a pure function),
+`test_web_server.py` (the server asked over real HTTP), `test_web_opening.py`,
+`test_web_run.py`, `test_loading.py`, and `test_page_in_a_browser.py` — the real page in
+Chrome: real keys, where the keyboard lands, that a value leaves the page when hidden, that
+a name with markup in it is text, and R7's two numbers.
+
+**Reviewed once, by someone who did not build it (2026-10-06).** Nothing was found by which
+a name, a value or the token reached another site or a client without the token. Found and
+fixed, each with a test: another site could put the person back inside the page with the
+kept token (now: only a reload); a scope named `constructor` or `__proto__` broke the page;
+a page that lost its key kept what it showed; the answers `http.server` gives by itself
+carried none of the headers; a broken connection printed a traceback; connections left
+hanging could use the process up (now 64 at most, 10 seconds of silence each); a name with
+a quote in it went into the copied code as it was. Still so: who holds all 64 connections —
+a program on the machine — keeps the page from loading; that is a nuisance, not a leak.
+Not tried: Firefox, Safari, a real DNS name pointed at the machine, and a Mac whose `.html`
+files open in something other than the browser — there `--no-open` gives the link.
+
+**Run on a real workspace once (2026-10-06):** it connected with a profile, signed in and
+was ready in 2.3 s, first paint at 60 ms. That workspace has no secret scopes, so what was
+shown was the empty page; listing and showing real secrets is proven against the fake only.
 
 ## Not in this spec
 

@@ -5,13 +5,16 @@ Depends only on `domain`; never on infrastructure or the UI. The read model
 """
 
 from .dotenv import format_dotenv, parse_dotenv
+from .loading import Loader, Progress
 from .onboarding import Connection, OnboardingService
 from .read_model import WorkspaceCache
 from .workspace import WorkspaceService
 
 __all__ = [
     "Connection",
+    "Loader",
     "OnboardingService",
+    "Progress",
     "WorkspaceCache",
     "WorkspaceService",
     "format_dotenv",

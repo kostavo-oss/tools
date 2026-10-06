@@ -18,7 +18,7 @@ with nothing built. What is not decided is in each spec's **To decide**, and gat
 | [005 — bulk work and audits](005-bulk-and-audit.md) | `.env` in and out, the stale-secret report | built |
 | [006 — what caland may do](006-safety.md) | What it never stores, what it asks before, read-only | built |
 | [007 — the name and the next release](007-name-and-release.md) | isolinear → caland, and the first release under it | prepared; questions open |
-| [008 — the page](008-the-page.md) | caland as a local page in lely's look, with a file picker | **proposal**; the shape is decided |
+| [008 — the page](008-the-page.md) | caland as a local page in lely's look, with a file picker | reading is built (`--page`); the rest is proposal |
 | [009 — who reads a secret](009-who-reads-a-secret.md) | Who can read it, through which group; when it was last read | parked; last-read ruled out |
 
 ## How to read a requirement
