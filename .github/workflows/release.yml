@@ -10,7 +10,8 @@ name: release
 # release, which is what makes the `vX.Y.Z` tag.
 #
 # A version that is already tagged, or already on PyPI, is not a release: the
-# run says so and stops. So a pyproject.toml change that isn't a bump is free.
+# run says so and stops. So is a push that leaves the version as it was. A
+# pyproject.toml change that isn't a bump is free.
 
 on:
   push:
@@ -39,6 +40,8 @@ jobs:
           persist-credentials: false
       - id: read
         name: The version, and whether it is already released
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -51,6 +54,18 @@ jobs:
             echo "lely $version is already on PyPI — nothing to release."
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+          # Before the first release no version is tagged, so "not out yet" is true
+          # of every push. A push that leaves the version as it was is not a bump.
+          # (Started by hand, this is skipped: that is how a release is picked up
+          # again after a failure.)
+          if [ "$EVENT" = push ]; then
+            before=$(git show "HEAD^:pyproject.toml" 2>/dev/null | python3 -c "import sys, tomllib; print(tomllib.loads(sys.stdin.read())['project']['version'])" 2>/dev/null || true)
+            if [ "$before" = "$version" ]; then
+              echo "The version is $version, as it was — nothing to release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           if ! grep -q "^## \[$version\]" CHANGELOG.md; then
             echo "::error::CHANGELOG.md says nothing about $version — move the [Unreleased] notes under a '## [$version] - <date>' heading"
