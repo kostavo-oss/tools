@@ -562,3 +562,94 @@ def test_a_steps_view_is_kept_with_its_plan() -> None:
         planfile.step_plan_from_json({"view": ["<p>"]})
     with pytest.raises(Exception, match="A plan's `view` is HTML, as text"):
         StepPlan(view=cast(Any, 5))
+
+
+# -- a run's record (007/R6) ------------------------------------------------------------
+
+
+def a_result() -> Result:
+    overview = Overview(
+        (
+            Item("job", "jobs.bar", "job bar", True, "1001", "https://x/1"),
+            Item("job", "jobs.new", "new", False),
+        ),
+        ("as seen by jane",),
+    )
+    return Result(
+        "apply",
+        "dev",
+        project.WORKSPACE,
+        (
+            StepResult("model", "lookup", "nothing", "nothing to do"),
+            StepResult(
+                "app",
+                "bundle",
+                "done",
+                "",
+                (Change("jobs.bar", "create", "jobs.bar", detail=("tasks",)),),
+                overview,
+                {"jobs.bar": "created", "jobs.gone": "deleted"},
+            ),
+            StepResult("notify", "command", "failed", "boom"),
+            StepResult("warm", "command", "not started"),
+        ),
+        "failed",
+        "step `notify` failed:\nboom",
+    )
+
+
+def test_a_runs_record_reads_back_as_the_run() -> None:
+    """Written when the run was asked to, and read back only to be shown: a
+    record, not state."""
+    result = a_result()
+    document = json.loads(json.dumps(planfile.result_to_json(result)))
+    assert document["result_format"] == 1 and planfile.is_result(document)
+    assert planfile.result_from_json(document) == result
+    assert not planfile.is_result(
+        planfile.plan_to_json(Plan("0", "apply", "d", project.WORKSPACE, Source(), ()))
+    )
+
+
+def test_a_run_that_never_started_has_a_record_too() -> None:
+    """It may not have known its workspace, or its target."""
+    stopped: dict[str, Any] = {
+        "result_format": 1,
+        "kind": "destroy",
+        "target": None,
+        "workspace": None,
+        "outcome": "refused",
+        "message": "Not approved. Nothing was run.",
+        "ran": [],
+        "failed": [],
+        "refused": [],
+        "not_started": [],
+        "rolled_back": [],
+        "steps": [],
+    }
+    result = planfile.result_from_json(stopped)
+    assert (result.kind, result.target, result.outcome) == ("destroy", "?", "refused")
+    assert str(result.workspace) == "? as ?" and result.steps == ()
+
+
+def test_a_record_is_read_as_strictly_as_a_plan() -> None:
+    good = planfile.result_to_json(a_result())
+
+    def refused(edit: Any, message: str) -> None:
+        document = json.loads(json.dumps(good))
+        edit(document)
+        with pytest.raises(PlanFileError, match=message):
+            planfile.result_from_json(document)
+
+    refused(lambda d: d.update(result_format=2), "format 2; this lely reads format 1")
+    refused(lambda d: d.update(extra=1), "the result file: unknown keys extra")
+    refused(lambda d: d.update(kind="plan"), "`kind` must be apply or destroy")
+    refused(lambda d: d.update(outcome="fine"), "`outcome` must be done, failed or")
+    refused(lambda d: d["steps"][1].update(outcome="ok"), "step `app`: `outcome` must")
+    refused(lambda d: d["steps"][1].update(note="x"), "step `app`: unknown keys note")
+    refused(
+        lambda d: d["steps"][1]["overview"]["items"][0].update(deployed="yes"),
+        "`deployed` must be true or false",
+    )
+    refused(
+        lambda d: d["steps"][1]["changes"][0].update(action="explode"), "action must be"
+    )

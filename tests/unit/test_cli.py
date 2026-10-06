@@ -1326,3 +1326,121 @@ def test_whatever_goes_wrong_while_posting_the_token_is_not_said(
         "--github: couldn't be done: ValueError: Invalid header value b'Bearer ***"
         in (" ".join(result.stderr.split()))
     )
+
+
+# -- the page (007) -------------------------------------------------------------------
+
+
+@pytest.fixture
+def browser(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    opened: list[str] = []
+    monkeypatch.setattr(cli, "BROWSER", lambda address: opened.append(address) or True)
+    return opened
+
+
+def test_a_plan_file_is_made_into_a_page_beside_it(
+    ready: Lely, browser: list[str]
+) -> None:
+    """007/R1, R4: from the file alone, and not opened where there is nobody
+    to look."""
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    result = ready("ui", "plan.json")
+    assert result.exit_code == 0 and "Wrote plan.html" in result.stdout
+    page = (ready.root / "plan.html").read_text()
+    assert page.startswith("<!doctype html>") and "<title>lely plan · dev</title>" in page
+    assert '<td class="what">jobs.bar</td>' in page
+    assert browser == []  # no terminal: nobody to open it for
+    ready.terminal(True)
+    ready("ui", "plan.json")
+    assert browser == [(ready.root / "plan.html").resolve().as_uri()]
+    ready("ui", "plan.json", "--no-open", "-o", "pages/dev.html")
+    assert len(browser) == 1 and not (ready.root / "pages").exists()
+
+
+def test_the_page_can_go_anywhere(ready: Lely, browser: list[str]) -> None:
+    ready("plan", "-t", "dev", "--destroy", "-o", "destroy.json")
+    (ready.root / "pages").mkdir()
+    written = ready("ui", "destroy.json", "-o", "pages/gone.html", "--open")
+    assert written.exit_code == 0
+    assert "lely destroy plan" in (ready.root / "pages" / "gone.html").read_text()
+    assert browser == [(ready.root / "pages" / "gone.html").resolve().as_uri()]
+    piped = ready("ui", "destroy.json", "-o", "-", "--open")
+    assert piped.stdout.startswith("<!doctype html>") and "Wrote" not in piped.stdout
+    assert len(browser) == 1  # what went to stdout is not a file to open
+    same = ready("ui", "destroy.json", "-o", "destroy.json")
+    assert same.exit_code == 1 and "the page needs another name" in same.stderr
+    assert json.loads((ready.root / "destroy.json").read_text())["kind"] == "destroy"
+
+
+def test_making_a_page_runs_nothing_of_the_project(
+    ready: Lely,
+    browser: list[str],
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """007/R4, R8: no workspace, no credentials, no plugin — a plan file from
+    anywhere is safe to open, and the page is the same on any machine."""
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    here = ready("ui", "plan.json", "-o", "-").stdout
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    (elsewhere / "plan.json").write_text((ready.root / "plan.json").read_text())
+    (ready.root / "ops" / "steps.py").write_text("raise SystemExit('ran its code')\n")
+    (ready.root / "lely.yml").write_text("not: [a config")
+
+    def never(profile: str | None) -> Workspace:
+        raise AssertionError("a page reached for the workspace")
+
+    monkeypatch.setattr(cli, "WHOAMI", never)
+    monkeypatch.chdir(elsewhere)
+    assert ready("ui", "plan.json", "-o", "-").stdout == here
+
+
+def test_a_file_that_is_no_plan_and_no_result_is_said(ready: Lely) -> None:
+    (ready.root / "notes.json").write_text('{"hello": 1}')
+    (ready.root / "broken.json").write_text("{not json")
+    for name, said_ in (
+        ("notes.json", "This plan file is format None"),
+        ("broken.json", "broken.json: not a plan or a result"),
+        ("missing.json", "missing.json: No such file"),
+    ):
+        result = ready("ui", name)
+        assert result.exit_code == 1 and said_ in " ".join(result.stderr.split())
+        assert not (ready.root / name).with_suffix(".html").exists()
+
+
+def test_a_run_can_write_its_record_and_the_record_becomes_a_page(
+    ready: Lely, browser: list[str]
+) -> None:
+    """007/R6: what each step did and what exists now, from a file the run
+    wrote when asked to. Nothing reads it back but the page."""
+    applied = ready("apply", "-t", "dev", "--yes", "-o", "result.json")
+    assert applied.exit_code == 0 and "Wrote result.json" in applied.stderr
+    record = json.loads((ready.root / "result.json").read_text())
+    assert (record["result_format"], record["outcome"]) == (1, "done")
+    assert ready("ui", "result.json").exit_code == 0
+    page = (ready.root / "result.html").read_text()
+    assert "<title>lely apply · dev</title>" in page
+    assert '<p class="outcome done">Applied: 3 steps.</p>' in page
+    assert f'<a href="{project.WORKSPACE.host}/jobs/1001"' in page
+    destroyed = ready("destroy", "-t", "dev", "--yes", "-o", "gone.json")
+    assert destroyed.exit_code == 0
+    assert "lely destroy" in ready("ui", "gone.json", "-o", "-").stdout
+
+
+def test_a_run_that_never_started_leaves_a_record_of_that(ready: Lely) -> None:
+    refused = ready("apply", "-t", "dev", "-o", "result.json")  # no --yes, no terminal
+    assert refused.exit_code == 2
+    record = json.loads((ready.root / "result.json").read_text())
+    assert (record["outcome"], record["steps"]) == ("refused", [])
+    page = ready("ui", "result.json", "-o", "-").stdout
+    assert '<strong class="refused">Refused.</strong> Nothing was rolled back.' in page
+    assert "Pass --yes to run without asking." in page
+
+
+def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely) -> None:
+    applied = ready("apply", "-t", "dev", "--yes", "-o", "no/such/folder/result.json")
+    assert applied.exit_code == 0
+    assert "Can't write the result to no/such/folder/result.json" in " ".join(
+        applied.stderr.split()
+    )
+    assert ready.fake.deployed()  # … and the run happened
