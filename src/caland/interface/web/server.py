@@ -24,8 +24,15 @@ from importlib import resources
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from ...application import Loader, WorkspaceService, files
-from ...domain import Exists, StoreError, Workspace, same_name
+from ...application import (
+    DotenvError,
+    Loader,
+    WorkspaceService,
+    files,
+    format_dotenv,
+    parse_dotenv,
+)
+from ...domain import Exists, Settings, StoreError, Workspace, same_name
 from . import gate, views
 
 #: The most a request may say: the largest value a secret may hold, as the page
@@ -36,6 +43,13 @@ _TOO_BIG = "a secret holds 128 kB at most"
 
 #: The longest a name may be. Databricks decides what else a name may be.
 NAME_LIMIT = 128
+
+#: After how many days a secret counts as stale: the choices there are.
+STALE_AFTER = (30, 90, 180, 365)
+
+#: The most secrets one import brings: what a scope holds.
+#: https://docs.databricks.com/aws/en/security/secrets/
+PAIRS_LIMIT = 1000
 
 _Said = dict[str, Any]
 _Asked = dict[str, list[str]]
@@ -84,11 +98,16 @@ class Page:
         show_all: bool = False,
         version: str = "",
         clock: Callable[[], float] = time.monotonic,
+        settings: Settings | None = None,
+        keep: Callable[[Settings], None] = lambda settings: None,
     ) -> None:
         self.loader = loader
         self.workspace = workspace
         self.read_only = read_only
-        self.show_all = show_all
+        #: What the person prefers — how things are shown, never a secret — and
+        #: what keeps it for the next run.
+        self.settings = settings or Settings(show_all_scopes=show_all)
+        self.keep = keep
         self.version = version
         #: What every request but the first must carry. Never leaves this process
         #: but as the answer to the one-time key.
@@ -244,13 +263,15 @@ class Handler(BaseHTTPRequestHandler):
                     service,
                     workspace=page.workspace,
                     read_only=page.read_only,
-                    show_all=page.show_all,
+                    settings=page.settings,
                     version=page.version,
                 )
             )
         if (method, path) == ("POST", "/api/describe"):
             # what a file is: asked before there is a workspace to put it in, too
             return self._json(files.describe(_bytes(body, "base64")).told())
+        if (method, path) == ("POST", "/api/settings"):
+            return self._json(self._prefer(body))
         if service is None:
             raise _Refused(409, "not connected yet")
 
@@ -293,6 +314,67 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(400, "a scope is a name")
         self.server.page.loader.refresh(scope)
         return {}, 202
+
+    def _grants(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        return views.grants(service), 200
+
+    def _prefer(self, body: _Said) -> dict[str, Any]:
+        """Keep a preference. It changes no workspace: read-only does not mind.
+        All of what is asked is looked at before any of it is taken."""
+        show_all, stale_after = body.get("show_all"), body.get("stale_after")
+        if "show_all" in body and not isinstance(show_all, bool):
+            raise _Refused(400, "show_all is yes or no")
+        if "stale_after" in body and not (
+            type(stale_after) is int and stale_after in STALE_AFTER
+        ):
+            raise _Refused(400, "stale_after is 30, 90, 180 or 365")
+        settings = self.server.page.settings
+        if isinstance(show_all, bool):
+            settings.show_all_scopes = show_all
+        if isinstance(stale_after, int):
+            settings.audit_threshold = stale_after
+        self.server.page.keep(settings)
+        return {}
+
+    # -- .env: a scope's secrets as lines of text -------------------------
+    def _env_preview(
+        self, service: WorkspaceService, body: _Said, query: _Asked
+    ) -> _Told:
+        """What an import would do, before it does it: the keys, and which of
+        them are there already. No value is said back."""
+        scope = _text(body, "scope")
+        self._may_change(service, scope)
+        pairs, empty = _pairs(body)
+        return {
+            "keys": list(pairs),
+            "overwrite": service.taken_over(scope, list(pairs)),
+            "empty": empty,
+        }, 200
+
+    def _env_import(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope = _text(body, "scope")
+        self._may_change(service, scope)
+        pairs, empty = _pairs(body)
+        try:
+            done, stopped_at = service.import_secrets(scope, pairs)
+        finally:
+            self._changed()  # whatever went in is there: the page reads again
+        return {
+            "done": done,
+            "total": len(pairs),
+            "stopped_at": stopped_at,
+            "error": service.import_error,
+            "empty": empty,
+        }, 200
+
+    def _env_export(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        """A scope's values as .env text, for the clipboard. Reads every value
+        in it — the one request that does — and so it is a POST like a value."""
+        scope = _text(body, "scope")
+        if service.scope(scope) is None:
+            raise _Refused(404, "no such scope")
+        pairs, left_out = service.export_secrets(scope)
+        return {"text": format_dotenv(pairs), "left_out": left_out}, 200
 
     # -- changing: nothing here runs when caland was started read-only ----
     def _may_change(self, service: WorkspaceService, scope: str | None = None) -> None:
@@ -505,11 +587,50 @@ def _bytes(body: dict[str, Any], name: str) -> bytes:
     return data
 
 
+def _pairs(body: dict[str, Any]) -> tuple[dict[str, str], list[str]]:
+    """A .env file as the page sends it, as KEY to value — and the keys that had
+    no value, which are left out: an empty value is a slip, not a wish to wipe.
+
+    A file that cannot be read without guessing is refused whole, before any of
+    it is used: a quote that is never closed, a value that is no text, two keys
+    that are one secret to Databricks."""
+    data = _bytes(body, "base64")
+    try:
+        pairs = parse_dotenv(data.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise _Refused(400, "that is no text file") from exc
+    except DotenvError as exc:
+        raise _Refused(400, f"that file cannot be read: {exc}") from exc
+    if len(pairs) > PAIRS_LIMIT:
+        raise _Refused(413, f"that is {len(pairs)} entries: a scope holds {PAIRS_LIMIT}")
+    seen: dict[str, str] = {}
+    for key, value in pairs.items():
+        if key.casefold() in seen:
+            raise _Refused(
+                400,
+                f"{seen[key.casefold()]} and {key} are one secret to Databricks: "
+                "the file has both",
+            )
+        seen[key.casefold()] = key
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise _Refused(
+                400, f"the value of {key} is no text that can be stored"
+            ) from exc
+    empty = [key for key, value in pairs.items() if not value]
+    return {key: value for key, value in pairs.items() if value}, empty
+
+
 #: What is answered under `/api/`, once the gate has let a request through and
 #: there is a workspace. Everything that changes one goes through `_may_change`.
 _ROUTES = {
     ("GET", "/api/scope"): Handler._scope,
     ("GET", "/api/keys"): Handler._keys,
+    ("GET", "/api/grants"): Handler._grants,
+    ("POST", "/api/env/preview"): Handler._env_preview,
+    ("POST", "/api/env/import"): Handler._env_import,
+    ("POST", "/api/env/export"): Handler._env_export,
     ("POST", "/api/value"): Handler._value,
     ("POST", "/api/forget"): Handler._forget,
     ("POST", "/api/refresh"): Handler._refresh,

@@ -11,7 +11,7 @@ import threading
 import pytest
 
 from caland.application import Loader, WorkspaceService
-from caland.domain import Acl, Scope, Secret, Workspace
+from caland.domain import Acl, Scope, Secret, StoreError, Workspace
 from caland.interface.web import Page, Server
 from chrome import CHROME, Browser
 from fakes import FakeSecretStore
@@ -910,6 +910,7 @@ def test_a_key_vault_scopes_secrets_can_only_be_copied_out(page):
         "Copy as code",
         "Copy to…",
         "Change",
+        "Copy as .env",
         "Delete scope",
     ]
     page.press("l", "e", "d")
@@ -938,8 +939,14 @@ def test_started_read_only_the_page_offers_no_change(browser, serve):
     assert (
         tab.js("getComputedStyle(document.getElementById('new-open')).display") == "none"
     )
-    assert tab.js(BUTTONS) == ["Show", "Copy", "Copy as code", "Look closer"]
-    tab.press("l", "n", "N", "e", "m", "d", "u")
+    assert tab.js(BUTTONS) == [
+        "Show",
+        "Copy",
+        "Copy as code",
+        "Look closer",
+        "Copy as .env",
+    ]
+    tab.press("l", "n", "N", "e", "m", "d", "D", "u", "i")
     assert tab.js("document.querySelector('dialog[open]')") is None
     tab.press("p")
     tab.wait(OPEN.format("grants"))
@@ -957,5 +964,357 @@ def test_the_buttons_of_a_secret_in_the_order_the_arrows_walk_them(prod):
         "Move or copy",
         "Delete",
         "Change",
+        "Import .env…",
+        "Copy as .env",
         "Delete scope",
     ]
+
+
+# ── the tools (spec/005, and 002 R5) ─────────────────────────────────
+LIST = (
+    "[...document.querySelectorAll('#list-rows tr')]"
+    ".map(r => [...r.cells].map(c => c.textContent))"
+)
+LIST_TITLE = "document.getElementById('list-title').textContent"
+
+
+def test_copy_puts_the_value_on_the_clipboard_and_never_in_the_page(prod):
+    prod.press("c")
+    prod.wait(f"{TOAST} === 'Copied api-key.'")
+    assert prod.clipboard() == VALUE
+    assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_s_sorts_the_pane_the_keyboard_is_in_and_keeps_what_was_selected(prod):
+    prod.press("j")  # db-password
+    prod.press("s")
+    shown = prod.js(KEYS_SHOWN)
+    assert shown[:2] == ["tls-cert", MARKUP] or shown[:2] == [
+        MARKUP,
+        "tls-cert",
+    ]  # the oldest
+    assert shown[-1] == "api-key" and prod.js(SELECTED_KEY) == "db-password"
+    assert prod.js("document.getElementById('by-changed').className") == "sorted"
+    prod.press("S")
+    assert prod.js(KEYS_SHOWN)[0] == "api-key"
+    assert prod.js("document.getElementById('by-changed').className") == "sorted down"
+    assert prod.js(SELECTED_KEY) == "db-password"
+    prod.press("s")
+    assert (
+        prod.js(KEYS_SHOWN)[0] == "api-key"
+        and prod.js("document.getElementById('by-key').className") == "sorted"
+    )
+    prod.press("h", "s")
+    scopes = (
+        "[...document.querySelectorAll('#scopes li span.mono')].map(n => n.textContent)"
+    )
+    assert prod.js(scopes) in (["kv", "staging", "prod"], ["staging", "kv", "prod"])
+    assert "by how many" in prod.js("document.getElementById('scopes-title').textContent")
+    assert prod.js(SELECTED_SCOPE) == "prod"
+
+
+def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    assert prod.js(LIST_TITLE) == "Not changed in 90 days: 6 secrets"
+    rows = prod.js(LIST)
+    assert rows[0][:2] == ["kv", "tenant-id"] and rows[-1][:2] == ["staging", "api-key"]
+    assert prod.store.reads() == 0  # names and dates: no value is read for it
+    prod.press("t", "t")
+    prod.wait(f"{LIST_TITLE}.startsWith('Not changed in 365 days')")
+    prod.wait("true")
+    assert prod.server.page.settings.audit_threshold == 365  # and kept
+    prod.press("c")
+    prod.wait("document.getElementById('list-note').textContent.startsWith('Copied')")
+    copied = prod.clipboard().splitlines()
+    assert (
+        copied[0] == "| Scope | Key | Last changed | Age |"
+        and copied[1] == "|---|---|---|---|"
+    )
+    assert copied[2].startswith("| `kv` | `tenant-id` | 2024-05-29 |")
+
+
+def test_enter_in_a_list_goes_to_what_is_picked(prod):
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.press("j", "Enter")  # the second oldest
+    prod.wait(f"!{OPEN.format('list')} && document.activeElement.id === 'keys'")
+    picked = (prod.js(SELECTED_SCOPE), prod.js(SELECTED_KEY))
+    assert picked in (("prod", "tls-cert"), ("prod", MARKUP))
+
+
+def test_the_overview_says_what_you_can_reach_strongest_first(prod):
+    prod.press("a")
+    prod.wait(OPEN.format("list"))
+    assert prod.js(LIST_TITLE) == "What you can reach: 3 of 4 scopes"
+    assert prod.js(LIST) == [
+        ["prod", "MANAGE", "3"],
+        ["staging", "MANAGE", "1"],
+        ["kv", "READ", "1"],
+        ["shut", "none", "0"],
+    ]
+    prod.press("j", "Enter")
+    prod.wait(f"{SELECTED_SCOPE} === 'staging' && document.activeElement.id === 'scopes'")
+
+
+def test_who_has_access_narrows_as_a_name_is_typed(prod):
+    prod.press("P")
+    prod.wait(OPEN.format("list"))
+    assert prod.focus() == "list-filter"
+    assert len(prod.js(LIST)) == 5
+    prod.type("users")
+    prod.wait(f"{LIST}.length === 2")
+    assert prod.js(LIST) == [["users", "kv", "READ"], ["users", "prod", "READ"]]
+    prod.press("ArrowDown", "Enter")
+    prod.wait(f"!{OPEN.format('list')} && {SELECTED_SCOPE} === 'prod'")
+
+
+def test_a_scope_is_filled_from_a_file_after_it_is_said_what_that_does(prod, tmp_path):
+    file = tmp_path / "app.env"
+    file.write_text("# made up\nexport NEW_ONE=first\nAPI-KEY='rotated'\nEMPTY=\n")
+    prod.choose_files("#env-file", str(file))
+    prod.wait(OPEN.format("confirm"))
+    said = prod.js("document.getElementById('confirm-what').innerText")
+    assert "Put 2 secrets into prod." in said
+    assert "1 secret there will be overwritten: api-key." in said
+    assert "Left out, having no value: EMPTY." in prod.js(
+        "document.getElementById('confirm-note').textContent"
+    )
+    assert "rotated" not in prod.js(WHOLE_PAGE) and wrote(prod.store) == []
+    prod.press("y")
+    prod.wait(f"{TOAST} === 'Imported 2 secrets into prod.'")
+    assert prod.store._values[("prod", "NEW_ONE")] == b"first"
+    assert prod.store._values[("prod", "api-key")] == b"rotated"
+    assert "NEW_ONE" in prod.js(KEYS_SHOWN)
+
+
+def test_an_import_that_overwrites_nothing_is_not_dressed_as_a_danger(prod, tmp_path):
+    file = tmp_path / "app.env"
+    file.write_text("ONLY_NEW=1\n")
+    prod.choose_files("#env-file", str(file))
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js("document.getElementById('confirm-what').className") == "quiet"
+    assert prod.js("document.getElementById('confirm-yes').className") == "main"
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    assert wrote(prod.store) == []
+    prod.press("d")  # and the next thing that is one, is
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js("document.getElementById('confirm-what').className") == "alert"
+
+
+def test_an_import_that_stops_says_where_and_that_the_rest_stays(prod, tmp_path):
+    file = tmp_path / "app.env"
+    file.write_text("FIRST=1\nSECOND=2\nTHIRD=3\n")
+    real = prod.store.put_secret_bytes
+
+    def refusing(scope, key, value):
+        if key == "SECOND":
+            raise StoreError("the workspace said no")
+        real(scope, key, value)
+
+    prod.store.put_secret_bytes = refusing
+    prod.choose_files("#env-file", str(file))
+    prod.wait(OPEN.format("confirm"))
+    prod.press("y")
+    prod.wait(f"{TOAST}.startsWith('Stopped at SECOND, after 1 of 3')")
+    assert "the workspace said no" in prod.js(TOAST) and "stays" in prod.js(TOAST)
+    assert "FIRST" in prod.js(KEYS_SHOWN) and "THIRD" not in prod.js(KEYS_SHOWN)
+
+
+def test_a_scopes_keys_are_copied_as_a_template_without_reading_a_value(prod):
+    prod.press("x")
+    prod.wait(OPEN.format("env"))
+    prod.press("1")
+    prod.wait(f"{TOAST}.startsWith('Copied 4 keys of prod')")
+    assert prod.clipboard() == f"api-key=\ndb-password=\ntls-cert=\n{MARKUP}=\n"
+    assert prod.store.reads() == 0
+
+
+def test_a_scopes_values_are_copied_only_after_a_y(prod):
+    prod.press("x")
+    prod.wait(OPEN.format("env"))
+    prod.press("2")
+    prod.wait(OPEN.format("confirm"))
+    assert "all 4 values of prod" in prod.js(
+        "document.getElementById('confirm-what').innerText"
+    )
+    assert prod.store.reads() == 0
+    prod.press("y")
+    prod.wait(f"{TOAST}.startsWith('Copied the values of prod as .env.')")
+    assert prod.clipboard().splitlines()[0] == f"api-key={VALUE}"
+    assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_f_is_kept_for_the_next_time(page):
+    page.press("f")
+    page.wait("document.querySelectorAll('#scopes li').length === 4")
+    page.wait("true")
+    for _ in range(100):
+        if page.server.page.settings.show_all_scopes:
+            break
+        page.wait("true")
+    assert page.server.page.settings.show_all_scopes is True
+
+
+def test_every_value_can_be_forgotten_from_the_keys(prod):
+    prod.press(" ")
+    prod.wait("document.querySelector('pre.value.shown')")
+    assert prod.server.page.loader.service.cache.raw != {}
+    prod.press("?")
+    prod.wait(OPEN.format("help"))
+    prod.js("document.getElementById('forget').click()")
+    prod.wait(f"{TOAST}.startsWith('Forgot every value')")
+    assert prod.server.page.loader.service.cache.raw == {}
+    assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+# ── what a second pair of eyes found in the tools ────────────────────
+SLOWLY = """(() => { const real = window.fetch;
+  window.fetch = (url, options) => String(url).includes('WHAT')
+    ? new Promise((done) => setTimeout(done, 400)).then(() => real(url, options))
+    : real(url, options); })()"""
+
+
+def test_an_import_answered_late_does_not_take_the_place_of_another_question(
+    prod, tmp_path
+):
+    """Choose a file, then `d` before the server has said what the import would
+    do: the question on the page stays "Delete", and `y` deletes — it must not
+    have become "Import" underneath."""
+    import time
+
+    file = tmp_path / "app.env"
+    file.write_text("NEW_ONE=1\nAPI-KEY=overwritten\n")
+    prod.js(SLOWLY.replace("WHAT", "/api/env/preview"))
+    prod.choose_files("#env-file", str(file))
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    time.sleep(0.8)  # the late answer has come by now
+    assert (
+        prod.js("document.getElementById('confirm-title').textContent") == "Delete secret"
+    )
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    prod.wait(f"{TOAST}.includes('was not imported')")
+    assert wrote(prod.store) == []
+    assert prod.js("document.getElementById('env-file').files.length") == 0
+
+
+def test_a_list_answered_late_does_not_open_over_a_question(prod):
+    """`P` then `d` at once: the list must not open over "Delete?" — typing a name
+    with a y in it into its filter would answer the question underneath."""
+    import time
+
+    prod.js(SLOWLY.replace("WHAT", "/api/grants"))
+    prod.press("P", "d")
+    prod.wait(OPEN.format("confirm"))
+    time.sleep(0.8)
+    assert prod.js(OPEN.format("list")) is False
+    assert prod.js("document.querySelectorAll('dialog[open]').length") == 1
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    assert wrote(prod.store) == []
+
+
+def test_no_dialog_opens_over_another_but_a_question_over_the_grants(prod):
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.js(
+        "for (const id of ['new-open', 'scope-new', 'help-open'])"
+        " document.getElementById(id).click()"
+    )
+    assert prod.js("[...document.querySelectorAll('dialog[open]')].map(d => d.id)") == [
+        "list"
+    ]
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('list')}")
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    prod.js("document.querySelector('#grants-rows tr button.danger').click()")
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js(
+        "[...document.querySelectorAll('dialog[open]')].map(d => d.id).sort()"
+    ) == [
+        "confirm",
+        "grants",
+    ]
+
+
+def test_a_y_typed_into_a_filter_answers_no_question(prod):
+    prod.press("P")
+    prod.wait(OPEN.format("list"))
+    prod.type("yy")
+    prod.press("y")
+    assert prod.js("document.getElementById('list-filter').value").startswith("yy")
+    assert wrote(prod.store) == []
+
+
+def test_a_list_asked_for_while_the_workspace_is_read_says_so_and_fills(browser, serve):
+    go_on = threading.Event()
+
+    class Held(FakeSecretStore):
+        """A workspace that answers nothing about its secrets until it is let."""
+
+        def list_secrets(self, scope):
+            go_on.wait(30)
+            return super().list_secrets(scope)
+
+    made = workspace()
+    store = Held(scopes=made._scopes, secrets=made._secrets, acls=made._acls)
+    try:
+        server = serve(store)
+        tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+        tab.wait("document.querySelectorAll('#scopes li').length > 0")
+        assert tab.js("document.body.dataset.phase") == "loading"
+        tab.press("A")
+        tab.wait(OPEN.format("list"))
+        assert "still being read" in tab.js(
+            "document.getElementById('list-note').textContent"
+        )
+        assert tab.js(LIST_TITLE) == "Not changed in 90 days: 0 secrets"
+        go_on.set()
+        tab.wait(f"{LIST_TITLE} === 'Not changed in 90 days: 6 secrets'", seconds=30)
+        note = "document.getElementById('list-note').textContent"
+        tab.wait(f"!{note}.includes('still being read')", seconds=30)
+    finally:
+        go_on.set()
+
+
+def test_a_locked_page_keeps_no_list_and_no_file(prod, tmp_path):
+    file = tmp_path / "app.env"
+    file.write_text("NEW_ONE=held-value\n")
+    prod.choose_files("#env-file", str(file))
+    prod.wait(OPEN.format("confirm"))
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('confirm')}")
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.server.page.token = "another-run"
+    prod.press("t")  # asks the server, and finds the key gone
+    prod.wait("!document.getElementById('locked').hidden")
+    whole = prod.js(WHOLE_PAGE)
+    for told in ("tenant-id", "api-key", "Not changed in", "NEW_ONE"):
+        assert told not in whole
+    assert prod.js("document.getElementById('env-file').files.length") == 0
+    assert prod.js("document.querySelector('dialog[open]')") is None
+
+
+def test_a_name_in_a_copied_table_stays_a_name(browser, serve):
+    odd = "a|b __init__ `x`"
+    server = serve(
+        FakeSecretStore(
+            scopes=[Scope("s")],
+            secrets={"s": [Secret("s", odd, 1_600_000_000_000)]},
+            acls={"s": [Acl("me@corp.com", "MANAGE")]},
+        )
+    )
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait("document.body.dataset.phase === 'ready'")
+    tab.press("A")
+    tab.wait(OPEN.format("list"))
+    tab.press("c")
+    tab.wait("document.getElementById('list-note').textContent.startsWith('Copied')")
+    row = tab.clipboard().splitlines()[2]
+    assert row.startswith("| `s` | `a\\|b __init__ 'x'` | 2020-09-13 |")
+    assert row.count(" | ") == 3  # four columns, as the heading has

@@ -23,6 +23,7 @@ from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Input, Static
 
 from ...application import (
+    DotenvError,
     OnboardingService,
     WorkspaceService,
     format_dotenv,
@@ -954,7 +955,11 @@ class MainScreen(Screen[None]):
         except OSError as exc:
             self.notify(f"Cannot read file: {exc}", severity="error")
             return
-        entries = parse_dotenv(text)
+        try:
+            entries = parse_dotenv(text)
+        except DotenvError as exc:
+            self.notify(f"That file cannot be read: {exc}", severity="error")
+            return
         if not entries:
             self.notify("No KEY=VALUE entries found in that file.")
             return

@@ -1,9 +1,10 @@
 # The page (preview)
 
-Caland is becoming a page in your browser, served from your own machine. It browses, shows
-and copies, and it changes things: secrets, files, grants and scopes. What is not on it yet
-— choosing a workspace from a list, `.env` in and out, the report of stale secrets — is in
-the terminal version, which is what `caland` without `--page` opens.
+Caland is becoming a page in your browser, served from your own machine. It does what the
+terminal version does — browse, show and copy, change secrets, grants and scopes, `.env` in
+and out, the report of stale secrets — and takes files besides. One thing is not on it yet:
+choosing a workspace from a list. Until it is, `caland` without `--page` opens the terminal
+version.
 
 ```sh
 caland --page            # the bundle's workspace here, or your only profile
@@ -59,6 +60,22 @@ Databricks does not tell names apart by their case — `API-KEY` is `api-key` �
 does Caland: a rename that only changes the case is refused, because it would write the
 secret and then remove it.
 
+**`.env` in and out.** ++i++ fills the scope from a `.env` file: before anything is written
+it says how many secrets go in and which of those that exist are overwritten. If the
+workspace refuses one halfway, the import stops and says at which key; what went in before
+it stays. ++x++ copies the scope as `.env` — the keys only, as a template, or with every
+value after a ++y++. Either way it goes to the clipboard and nowhere else.
+
+**What has gone stale, and who can reach what.** ++shift+a++ lists the secrets nobody has
+changed in 90 days, oldest first; ++t++ moves that to 30, 180 or 365 days and it is kept,
+++c++ copies the table as Markdown for a ticket, ++enter++ goes to the secret. ++a++ lists
+every scope with your access and how many have a grant on it. ++shift+p++ lists every grant
+made to a name — type a user, a group or a service principal — for an access review, or for
+someone who has left. None of the three reads a value.
+
+**Sorting.** ++s++ sorts the pane the keyboard is in by its next column, ++shift+s++ the
+other way round; a click on a heading does the same.
+
 **Read-only.** `caland --page prod --read-only` offers no change at all — and the server
 refuses one whatever the page shows.
 
@@ -83,7 +100,10 @@ Everything has a key, and everything can be clicked.
 | ++shift+d++ | Delete the scope |
 | ++u++ | Put back the secret last deleted or moved away |
 | ++p++ | Who has access to the scope |
-| ++f++ | Only the scopes you can reach, or all of them |
+| ++i++ / ++x++ | Fill the scope from a `.env` file / copy the scope as `.env` |
+| ++shift+a++ · ++a++ · ++shift+p++ | Secrets gone stale · what you can reach · what somebody else can |
+| ++s++ / ++shift+s++ | Sort the pane by its next column / the other way round |
+| ++f++ | Only the scopes you can reach, or all of them (kept) |
 | ++r++ / ++shift+r++ | Read the scope again / the whole workspace |
 | ++question++ | The keys |
 
@@ -120,6 +140,6 @@ asking.
 
 ## Not yet
 
-Choosing a workspace from a list and signing in by URL, `.env` in and out, the stale-secret
-report, searching by principal. They come to the page next; until they have, the terminal
-version has them.
+Choosing a workspace from a list, signing in by URL, and switching workspace without
+starting again. Until then `caland --page` takes the workspace by name, and the terminal
+version has the list.

@@ -30,6 +30,10 @@ terminal version is **frozen** — fix what is broken in it, add nothing.
 - A change goes through `WorkspaceService`, which takes one at a time and asks the
   workspace what is there *now* before it writes, moves or puts back. Two names that differ
   only in case are one name (`domain.same_name`): Databricks says so.
+- One dialog is open at a time (`open()` in `page.js`) — but a question over the grants —
+  and a dialog asked for before an `await` checks `moment` after it: what comes back late
+  does not open over what the person has gone on to do. `y` must only ever reach the
+  question that is showing.
 - A file is somebody else's bytes: `application/files.py` never does work the file sets
   the size of, and never raises. Nothing there opens a PKCS#12 bundle.
 

@@ -114,9 +114,16 @@ dialog td.end { text-align: right; white-space: nowrap; }
   border-radius: .4rem; padding: .5rem .9rem; margin-top: .6rem; }
 .picked dl.facts { margin: .3rem 0 0; }
 .grant { display: grid; grid-template-columns: 1fr 8rem auto; gap: .5rem; margin-top: .9rem; }
-#code-rows button { display: block; width: 100%; text-align: left; margin: .4rem 0;
-  padding: .45rem .8rem; }
-#code-rows .mono { display: block; overflow-wrap: anywhere; }
+#code-rows button, #env-rows button { display: block; width: 100%; text-align: left;
+  margin: .4rem 0; padding: .45rem .8rem; }
+#code-rows .mono, #env-rows span { display: block; overflow-wrap: anywhere; }
+#list { width: 48rem; }
+#list-box { max-height: 60vh; overflow-y: auto; }
+#list tbody tr { cursor: pointer; }
+#list-filter { margin-bottom: .6rem; }
+th.sorted::after { content: " \2191"; }
+th.sorted.down::after { content: " \2193"; }
+th[id^=by-] { cursor: pointer; }
 #toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%);
   background: Canvas; border: 1px solid var(--edge); border-left: .25rem solid var(--green);
   border-radius: .4rem; padding: .4rem .9rem; max-width: 40rem; }

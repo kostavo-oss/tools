@@ -42,6 +42,8 @@ class WorkspaceService:
         # one change at a time. Two at once — a delete and a put-back, two moves —
         # could each leave the other's work undone, and a value with it.
         self._one_at_a_time = threading.RLock()
+        #: Why the last import stopped, when it did.
+        self.import_error = ""
 
     @property
     def label(self) -> str:
@@ -192,8 +194,16 @@ class WorkspaceService:
                 self.cache.secrets[scope] = self._store.list_secrets(scope)
             except StoreError:
                 self.cache.upsert_secret(Secret(scope=scope, key=key))
-            self.cache.raw[(scope, key)] = value
-            self.cache.values.pop((scope, key), None)  # its text is no longer this
+            # under the name it has in the workspace — which may differ in case
+            # from the one it was just written under — and under no other
+            name = next(
+                (s.key for s in self.cache.secrets_for(scope) if same_name(s.key, key)),
+                key,
+            )
+            for held in (self.cache.raw, self.cache.values):
+                for other in [k for k in held if k[0] == scope and same_name(k[1], key)]:
+                    del held[other]
+            self.cache.raw[(scope, name)] = value
 
     def create_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
         """Put a secret that is not there yet. Raises `Exists` when one is."""
@@ -237,6 +247,59 @@ class WorkspaceService:
             if value is not None:
                 self._taken = (scope, key, value)
             return value is not None
+
+    def import_secrets(self, scope: str, pairs: dict[str, str]) -> tuple[list[str], str]:
+        """Put every pair into a scope as a secret, in order, stopping at the
+        first the workspace refuses. Returns the keys that went in and, when it
+        stopped, the key it stopped at ("" otherwise) — raising nothing once it
+        has begun, so that who asked can say how far it got. An overwritten
+        secret cannot be put back: this is not a delete.
+
+        Raises `ValueError` before anything is written when a value is no text
+        that can be stored: nothing is begun that cannot be finished."""
+        values = {key: value.encode("utf-8") for key, value in pairs.items()}
+        done: list[str] = []
+        with self._one_at_a_time:
+            for key, value in values.items():
+                try:
+                    self.put_secret_bytes(scope, key, value)
+                except StoreError as exc:
+                    self.import_error = str(exc)
+                    return done, key
+                done.append(key)
+        self.import_error = ""
+        return done, ""
+
+    def export_secrets(self, scope: str) -> tuple[list[tuple[str, str]], list[str]]:
+        """Every secret of a scope that is text, as (key, value) — and the keys
+        of those that are not, which a line of text cannot carry. Reads every
+        value, and reads it now: asked for, never done unasked, and never
+        answered from what was read before."""
+        pairs: list[tuple[str, str]] = []
+        left_out: list[str] = []
+        with self._one_at_a_time:
+            self.cache.secrets[scope] = self._store.list_secrets(scope)
+            for secret in self.cache.secrets[scope]:
+                data = self._read_now(scope, secret.key)
+                try:
+                    text = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    left_out.append(secret.key)
+                    continue
+                if "\x00" in text:
+                    left_out.append(secret.key)
+                else:
+                    pairs.append((secret.key, text))
+        return pairs, left_out
+
+    def taken_over(self, scope: str, keys: list[str]) -> list[str]:
+        """Which of these keys are in the scope already — as the workspace says
+        now, and whatever their case — under the names they have there."""
+        self.cache.secrets[scope] = self._store.list_secrets(scope)
+        there = {
+            secret.key.casefold(): secret.key for secret in self.cache.secrets[scope]
+        }
+        return [there[key.casefold()] for key in keys if key.casefold() in there]
 
     @property
     def taken(self) -> tuple[str, str] | None:

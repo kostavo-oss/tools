@@ -172,7 +172,7 @@ def _page(profile: str | None, args: list[str]) -> int:
         onboarding,
         profile,
         read_only="--read-only" in args,
-        settings=JsonSettingsStore().load(),
+        settings_store=JsonSettingsStore(),
         version=version("caland"),
         open_browser="--no-open" not in args,
     )

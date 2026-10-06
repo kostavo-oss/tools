@@ -11,7 +11,7 @@ import base64
 from typing import Any
 
 from ...application import Progress, WorkspaceService
-from ...domain import Workspace
+from ...domain import Settings, Workspace
 
 
 def state(
@@ -20,7 +20,7 @@ def state(
     *,
     workspace: Workspace,
     read_only: bool,
-    show_all: bool,
+    settings: Settings,
     version: str,
 ) -> dict[str, Any]:
     """Everything the page draws its frame from: how far the loading is, who is
@@ -35,7 +35,8 @@ def state(
         "workspace": {"name": workspace.name, "host": workspace.host_label},
         "identity": None,
         "read_only": read_only,
-        "show_all": show_all,
+        "show_all": settings.show_all_scopes,
+        "stale_after": settings.audit_threshold,
         "scopes": [],
         # the secret that can be put back — where it was, never what it held
         "taken": None,
@@ -80,6 +81,16 @@ def keys(service: WorkspaceService) -> dict[str, Any]:
     """Every secret's name and date, by scope — what the page filters over
     without asking again."""
     return {"scopes": {s.name: _secrets(service, s.name) for s in service.scopes}}
+
+
+def grants(service: WorkspaceService) -> dict[str, Any]:
+    """Every scope's grants — what "who has access" is answered from."""
+    return {
+        "scopes": {
+            s.name: [[acl.principal, acl.permission] for acl in service.acls_for(s.name)]
+            for s in service.scopes
+        }
+    }
 
 
 def value(data: bytes) -> dict[str, Any]:
