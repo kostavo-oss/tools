@@ -162,7 +162,7 @@ def test_nothing_is_answered_without_the_token(served, method, path, body):
         status, _, text = served.ask(method, path, body, token=token)
         assert status == 401
         assert SECRET.encode() not in text and b"api-key" not in text
-    assert served.store.count("get_secret_value") == 0
+    assert served.store.reads() == 0
 
 
 def test_a_site_whose_name_points_here_gets_nothing(served):
@@ -183,7 +183,7 @@ def test_another_site_gets_nothing_even_with_the_token(served):
     )
     assert status == 403 and SECRET.encode() not in text
     assert not any(name.lower().startswith("access-control") for name in headers)
-    assert served.store.count("get_secret_value") == 0
+    assert served.store.reads() == 0
 
 
 def test_asking_for_permission_from_another_site_is_refused(served):
@@ -252,28 +252,28 @@ def test_no_get_ever_reads_a_value(served):
     ):
         _, _, text = served.ask("GET", path)
         assert SECRET.encode() not in text
-    assert served.store.count("get_secret_value") == 0
+    assert served.store.reads() == 0
 
 
 def test_a_value_is_the_answer_to_a_post_with_the_token(served):
     served.enter()
     status, told = served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     assert (status, told) == (200, {"value": SECRET})
-    assert served.store.count("get_secret_value") == 1
+    assert served.store.reads() == 1
 
 
 def test_a_value_is_read_from_the_workspace_once(served):
     served.enter()
     for _ in range(3):
         served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
-    assert served.store.count("get_secret_value") == 1
+    assert served.store.reads() == 1
 
 
 def test_forgetting_drops_every_value_held(served):
     served.enter()
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     assert served.json("POST", "/api/forget", {})[0] == 200
-    assert served.page.loader.service.cached_value("prod", "api-key") is None
+    assert served.page.loader.service.cache.raw == {}
 
 
 @pytest.mark.parametrize(
@@ -283,7 +283,7 @@ def test_forgetting_drops_every_value_held(served):
 def test_a_secret_that_is_not_there_is_not_asked_for(served, body):
     served.enter()
     assert served.json("POST", "/api/value", body)[0] == 404
-    assert served.store.count("get_secret_value") == 0
+    assert served.store.reads() == 0
 
 
 @pytest.mark.parametrize(
@@ -296,9 +296,9 @@ def test_a_value_asked_for_badly_is_refused(served, body):
 
 def test_a_value_the_workspace_refuses_says_so_shortly(served):
     served.enter()
-    served.store._fail_on.add("get_secret_value")
+    served.store._fail_on.add("get_secret_bytes")
     status, told = served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
-    assert status == 502 and told == {"error": "boom:get_secret_value"}
+    assert status == 502 and told == {"error": "boom:get_secret_bytes"}
 
 
 def test_a_scope_that_is_not_there(served):

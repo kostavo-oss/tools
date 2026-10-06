@@ -4,6 +4,7 @@ Depends only on `domain`; never on infrastructure or the UI. The read model
 (`WorkspaceCache`) is pure in-memory app state, so it lives here too.
 """
 
+from . import files
 from .dotenv import format_dotenv, parse_dotenv
 from .loading import Loader, Progress
 from .onboarding import Connection, OnboardingService
@@ -17,6 +18,7 @@ __all__ = [
     "Progress",
     "WorkspaceCache",
     "WorkspaceService",
+    "files",
     "format_dotenv",
     "parse_dotenv",
 ]

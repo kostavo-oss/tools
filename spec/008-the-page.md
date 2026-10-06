@@ -1,7 +1,7 @@
 # 008 — the page
 
-**Status:** the first part is built — reading ([As built](#as-built--the-first-part-reading-2026-10-06));
-the rest is proposal. Its shape is decided ([Decided](#decided)). Written
+**Status:** two of three parts are built — reading, and changing with the file picker (see
+the two *As built* sections); the rest is proposal. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -181,6 +181,91 @@ files open in something other than the browser — there `--no-open` gives the l
 **Run on a real workspace once (2026-10-06):** it connected with a profile, signed in and
 was ready in 2.3 s, first paint at 60 ms. That workspace has no secret scopes, so what was
 shown was the empty page; listing and showing real secrets is proven against the fake only.
+
+## As built — the second part: changing (2026-10-06)
+
+Built: the rest of R1 that changes a workspace — secrets made, edited, deleted and put back,
+moved, copied and renamed; grants; scopes — and R4, R5, R6. Not yet: the workspace picker
+and signing in by URL, `.env` in and out, the stale report, the lookup by principal. So the
+page is still behind `--page`.
+
+Decided while building, the builder's unless marked:
+
+- **A value is bytes, end to end.** The store port has a second pair of methods that carry
+  a value as it is stored; the page uses only those. The terminal version's text methods
+  are as they were — a secret that is no text still does not survive a move *there*
+  ([003, D3](003-secrets.md#to-decide)); on the page it does.
+- **The file dialog is the browser's own** (`<input type="file">`), and a file can be
+  dropped on the form. The page reads it and sends it to caland on the same machine; caland
+  says what it is (`application/files.py`) and, on save, sends it on. The owner took the
+  `cryptography` library for that (D4, 2026-10-06).
+- **A private key and a protected PKCS#12 bundle are named, never opened.** Nothing asks
+  for a password.
+- **Stricter than the terminal version, on purpose:** a new secret does not overwrite one
+  that is there (edit it instead), and a move does not land on another secret. Neither can
+  be taken back, and both happen by a slip.
+- **The server holds every refusal** — read-only, a Key Vault scope's secrets, a value that
+  is empty or too large (128 kB, Databricks' own limit). The page leaves the buttons out as
+  well, but nothing depends on that.
+- **What can be put back is one secret, held in memory** with the value it had, until
+  another is deleted, values are forgotten, or caland stops. The state says *which* secret
+  can be put back, never what it held.
+- **Where a secret can be put:** the scopes the page shows — those you can reach, or all
+  after `f` — but for Azure's.
+- **`d` is the secret, `D` is the scope** — not `d` for whichever the keyboard is on, as in
+  the terminal. A key that deletes a scope when a secret was meant is one slip too many.
+- **A name in another case is the same name**, because to Databricks it is (tried on a
+  workspace: `Case-Key` then `case-key` is one secret, and a scope in capitals "already
+  exists"). A rename that only changes the case would write the secret and then remove it.
+  `domain.same_name` is the one place that says so.
+- **One change at a time, against what is there now.** The service takes a lock for every
+  change; a move, a delete and a put-back read the value at that moment, not from what was
+  read earlier; and "is there one already" is asked of the workspace, not of what the page
+  last saw. The page queues its changes too: a key pressed while one is under way waits.
+- **What is held to be put back is let go of only once it is back.**
+- **A PKCS#12 bundle is named by its shape and never opened.** It says itself how many
+  rounds its check takes, and a 785-byte file can ask for minutes of them.
+- **What goes wrong in a dialog is said in the dialog**, not behind it.
+
+Held by: `tests/test_values_as_bytes.py`, `test_files.py`, `test_web_changing.py` — every
+changing route refused when read-only, without the token, from another site and by a `GET`
+— and the browser tests, which type, press `y`, and hand real files to the file input.
+
+**Reviewed, by someone who did not build it (2026-10-06).** Nothing by which a change
+could be made that may not be — read-only, the token, another site, a Key Vault scope's
+secrets all held — and no value leaked. But eleven ways to lose or damage one, found and
+fixed, each with a test:
+
+- `d`, `y`, then `u` before the answer could lose the secret just deleted (no lock, and
+  the page a change behind). Now: one change at a time, in the service and on the page.
+- A move, a delete and a put-back used the value read earlier in the session, so a secret
+  changed elsewhere since was moved as it used to be — and the new value was gone.
+- An empty file wiped a secret. A PEM pasted into the value field was saved as one line.
+- A 785-byte PKCS#12 file froze the whole server for minutes; ctrl+c did nothing.
+- A file described late landed in the next form, over what had been typed there.
+- `u` overwrote a secret of the same name made since; "new never overwrites" held only
+  against what the page had last read.
+- `d` reached "delete scope" where a secret was meant; an unreadable scope was called
+  empty; after a delete the selection jumped to the top.
+- A certificate with an extension that makes no sense failed the request; a truncated
+  bundle was called "protected by a password".
+- **Found on the way, and in the released terminal version too:** a rename that only
+  changes the case deleted the secret. Fixed there as well.
+
+Not tried: Firefox, Safari, a real drag and drop.
+
+**Run on a real workspace (2026-10-06), with the owner's word:** the real page, driven in
+Chrome, against the test workspace, in a throwaway scope it made and removed. Each step
+was checked through the SDK, not through caland: a scope made; text stored as typed; a file
+of every byte there is — NULs, a BOM, CRLF, random bytes — stored **byte for byte** and
+shown as what it is; a certificate described and stored as the file was; a rename; the
+original put back; a delete and the secret put back byte for byte; a grant given and taken;
+a rename that only changes the case refused, with the secret still there; the scope deleted
+with what was in it. 20 checks, all held — run again after the review's fixes — and the
+workspace had the scopes afterwards that it had before. That settles what was assumed about `bytes_value`
+(it takes base64, and what comes back is the same bytes). Not run for real: a Key
+Vault-backed scope (the workspace has none), and a workspace where the person may not
+write.
 
 ## Not in this spec
 

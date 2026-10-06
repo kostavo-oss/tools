@@ -5,7 +5,7 @@ Everything here is exercisable in a plain unit test. Infrastructure implements
 the ports defined here; the application orchestrates these pieces.
 """
 
-from .errors import AuthError, StoreError
+from .errors import AuthError, Exists, StoreError
 from .host import normalize_host
 from .models import (
     SOURCE_BUNDLE,
@@ -18,6 +18,7 @@ from .models import (
     Secret,
     Settings,
     Workspace,
+    same_name,
 )
 from .permissions import AuthSummary, authorization_summary, perm_rank
 from .ports import (
@@ -36,6 +37,7 @@ __all__ = [
     "STALE_AFTER_DAYS",
     "Acl",
     "AuthError",
+    "Exists",
     "AuthSummary",
     "BundleStore",
     "Connected",
@@ -48,6 +50,7 @@ __all__ = [
     "SettingsStore",
     "StoreError",
     "Workspace",
+    "same_name",
     "WorkspaceConnector",
     "authorization_summary",
     "normalize_host",

@@ -27,6 +27,8 @@ class WorkspaceCache:
     secrets: dict[str, list[Secret]] = field(default_factory=dict)
     acls: dict[str, list[Acl]] = field(default_factory=dict)
     values: dict[tuple[str, str], str] = field(default_factory=dict)
+    # the same values as they are stored — bytes — for the face that can carry them
+    raw: dict[tuple[str, str], bytes] = field(default_factory=dict)
     # scopes whose secrets we could list ⇒ the user holds at least READ on them
     readable: set[str] = field(default_factory=set)
 
@@ -60,6 +62,7 @@ class WorkspaceCache:
     def remove_secret(self, scope: str, key: str) -> None:
         self.secrets[scope] = [s for s in self.secrets.get(scope, []) if s.key != key]
         self.values.pop((scope, key), None)
+        self.raw.pop((scope, key), None)
 
     def add_scope(self, scope: Scope) -> None:
         if not any(s.name == scope.name for s in self.scopes):
@@ -74,3 +77,4 @@ class WorkspaceCache:
         self.acls.pop(name, None)
         self.readable.discard(name)
         self.values = {k: v for k, v in self.values.items() if k[0] != name}
+        self.raw = {k: v for k, v in self.raw.items() if k[0] != name}

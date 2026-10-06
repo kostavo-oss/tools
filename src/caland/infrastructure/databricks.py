@@ -119,6 +119,26 @@ class DatabricksSecretStore:
         except Exception as exc:  # noqa: BLE001
             raise StoreError(_short(exc)) from exc
 
+    def get_secret_bytes(self, scope: str, key: str) -> bytes:
+        """The value as it is stored. The API hands every value over as base64,
+        text or not.
+        https://docs.databricks.com/api/workspace/secrets/getsecret"""
+        try:
+            resp = self.client.secrets.get_secret(scope=scope, key=key)
+            return base64.b64decode(resp.value or "")
+        except Exception as exc:  # noqa: BLE001
+            raise StoreError(_short(exc)) from exc
+
+    def put_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
+        """Store bytes byte for byte: `bytes_value` takes them as base64.
+        https://docs.databricks.com/api/workspace/secrets/putsecret"""
+        try:
+            self.client.secrets.put_secret(
+                scope=scope, key=key, bytes_value=base64.b64encode(value).decode("ascii")
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise StoreError(_short(exc)) from exc
+
     def delete_secret(self, scope: str, key: str) -> None:
         try:
             self.client.secrets.delete_secret(scope=scope, key=key)

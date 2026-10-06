@@ -727,6 +727,17 @@ class MainScreen(Screen[None]):
     async def _move_secret(
         self, scope: str, key: str, to_scope: str, to_key: str, keep: bool
     ) -> None:
+        if (
+            scope.casefold() == to_scope.casefold()
+            and key.casefold() == to_key.casefold()
+        ):
+            # to Databricks a name in another case is the same secret: writing it
+            # and then removing "the old one" would remove it altogether
+            self.notify(
+                "That is where it is: Databricks does not tell names apart by case.",
+                severity="error",
+            )
+            return
         try:
             value = await asyncio.to_thread(self._sess.reveal, scope, key)
             await asyncio.to_thread(self._sess.put_secret, to_scope, to_key, value)

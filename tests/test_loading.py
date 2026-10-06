@@ -49,7 +49,7 @@ def test_it_ends_ready_with_every_scope_read():
 def test_no_value_is_read_while_loading():
     store = seeded_store()
     loaded(store)
-    assert store.count("get_secret_value") == 0
+    assert store.reads() == 0
 
 
 def test_every_change_moves_the_version():

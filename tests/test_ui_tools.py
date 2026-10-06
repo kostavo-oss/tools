@@ -108,6 +108,25 @@ async def test_move_onto_itself_is_rejected():
         await pilot.press("escape")
 
 
+async def test_a_rename_that_only_changes_the_case_does_not_lose_the_secret():
+    """To Databricks `API-KEY` is `api-key`: writing the one and then removing
+    the other, as a rename does, would remove the secret altogether."""
+    app, session = _app()
+    async with app.run_test() as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        original = session.reveal("prod", "api-key")
+        await pilot.press("j", "tab", "m")
+        await pilot.pause()
+        app.screen.query_one("#f-key", Input).value = "API-KEY"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert [s.key for s in session.secrets_for("prod")] == ["api-key", "db-password"]
+        session.forget_values()
+        assert session.reveal("prod", "api-key") == original
+
+
 # ── .env import / export ────────────────────────────────────────────────
 
 

@@ -67,6 +67,13 @@ written anywhere. → [006](006-safety.md)
   the new place is no longer the file it was. And no binary file can be put in at all: the
   file field reads text. *Proposal:* values are carried as bytes end to end —
   [008, R6](008-the-page.md) needs it for certificates anyway. *(found while writing 008)*
+  **On the page this is so since 2026-10-06; the terminal version, which is frozen, is as
+  it was.**
+
+- **D4 — A rename that only changes the case deleted the secret.** *Found 2026-10-06 while
+  the page was reviewed, and fixed the same day — here too, though the terminal version is
+  frozen: it was losing secrets.* To Databricks `API-KEY` is `api-key`; move wrote the one
+  and removed the other, which was the same. It is refused now.
 
 ## Done when
 
