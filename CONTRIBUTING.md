@@ -68,7 +68,7 @@ been seen — a `TODO(verify)`.
 
 ## Releases
 
-A release is a version, the same way as for stevin and maeslant: a pull request bumps
+A release is a version, the same way as for stevin and caland: a pull request bumps
 `version` in `pyproject.toml` and moves the changelog's *Unreleased* notes under a
 `## [X.Y.Z] - <date>` heading, and merging it is the release. `.github/workflows/release.yml`
 notices the new version on `main`, runs the gate, publishes to PyPI with Trusted Publishing —

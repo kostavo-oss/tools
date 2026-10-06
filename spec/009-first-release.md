@@ -22,7 +22,7 @@ between the repository and `uvx lely`.
   Either the shared workflow learns `ty`, or lely's CI adds it.
 - **R5 — The README says what a new user needs**: install from PyPI, the quickstart, what is and
   isn't built. It already says the rest.
-- **R6 — Docs**, if lely gets a site like stevin's and maeslant's: [D2](#to-decide).
+- **R6 — Docs**, if lely gets a site like stevin's and caland's: [D2](#to-decide).
 
 ## What only the owner can do
 
@@ -36,7 +36,7 @@ between the repository and `uvx lely`.
 By the owner, on 2026-10-06, to the builder's proposals:
 
 - **How a release is made** (was D1): the same way for all three tools — merging a version
-  bump to `main` is the release, as stevin and maeslant do it. *(owner: "i want them all to
+  bump to `main` is the release, as stevin and caland do it. *(owner: "i want them all to
   use the same")* `.github/workflows/release.yml` is that workflow: it notices a version on
   `main` that isn't out, checks that `CHANGELOG.md` has a section for it, runs the gate,
   publishes with Trusted Publishing and makes the GitHub release and its tag. A change to

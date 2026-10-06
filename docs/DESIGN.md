@@ -560,9 +560,9 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 "Terraform for your platform, Asset Bundles for your code, stevin for your data model — and lely to
 deploy them as one." lely is not a fourth layer: it carries the layers out together. stevin stays a
-standalone CLI; maeslant stays a TUI for people.
+standalone CLI; caland stays a TUI for people.
 
-All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **maeslant**.
+All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **caland**.
 Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.
 
 ## Open questions
@@ -583,7 +583,9 @@ Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.
 
 ## Decided with the owner, 2026-10-05
 
-- Names: **stevin** (was deltaplan), **lely** (was sluis) and **maeslant** (was isolinear).
+- Names: **stevin** (was deltaplan), **lely** (was sluis) and **caland** (was isolinear; it
+  was to be maeslant, after the storm surge barrier, until 2026-10-06 — the owner wanted an
+  engineer's name there too).
 - License: Apache-2.0, the same for every Kostavo tool.
 - The direction in `spec/`: every step is a plugin, the bundle among them; three verbs; no state;
   one list of steps in `lely.yml` or `pyproject.toml`; declared outputs and one spelling for a

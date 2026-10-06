@@ -2,7 +2,7 @@ name: release
 
 # A release is a version. Bump `version` in pyproject.toml and move the
 # CHANGELOG's [Unreleased] notes under it, in a pull request — merging that pull
-# request is the release. The same way stevin and maeslant are released.
+# request is the release. The same way stevin and caland are released.
 #
 # This workflow notices a version on main that isn't out yet, runs the gate on
 # it, publishes to PyPI with Trusted Publishing (repository kostavo-oss/lely,
