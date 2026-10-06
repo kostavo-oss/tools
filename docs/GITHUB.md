@@ -40,9 +40,12 @@ lely isn't on PyPI yet, so the workflows below assume it is a dependency of the 
 
 ## Three rules these workflows keep
 
-1. **The plan job can only read.** Planning runs the pull request's own code — a plugin in
-   the repo, a `command` step — so it gets credentials that can't change the workspace: a
-   service principal of its own, in a GitHub environment of its own (`dev-plan`).
+1. **The plan job can only read the workspace.** Planning runs the pull request's own code —
+   a plugin in the repo, a `command` step — so it gets credentials that can't change the
+   workspace: a service principal of its own, in a GitHub environment of its own
+   (`dev-plan`). **The environment with the credentials that can change it (`dev`) must be
+   limited to the `main` branch** in the repository's settings ("deployment branches").
+   Without that, a pull request names `dev` in its own copy of a workflow and has them.
 2. **What is applied is what was reviewed.** The merge applies the plan file the pull request
    made. lely refuses it if the project, the workspace or the git tree is not what it was
    made on.
@@ -77,9 +80,11 @@ jobs:
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # no token left behind for later steps
       - uses: astral-sh/setup-uv@v6
       - uses: databricks/setup-cli@main
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run lely plan -t dev -o plan.json --github
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -97,7 +102,22 @@ move in between.
 **A pull request from a fork gets no plan.** It has no credentials and must not be given any:
 its code would run with them. `lely plan --github` sees where the pull request comes from,
 makes no plan, loads nothing of the project, says so on the run's page and ends with 0. Don't
-use `pull_request_target` to get a fork's plan.
+use `pull_request_target` to get a fork's plan. A run that is about a pull request and isn't
+told where it comes from — one started by a comment on it (`issue_comment`) — is treated the
+same way: lely can't tell that it isn't a fork's.
+
+`databricks/setup-cli@main` moves; pin it to a release once you have chosen one.
+
+### What the comment is worth
+
+The comment is written by a workflow that the pull request itself can change, in a job that
+runs the pull request's code. It is there to help a reviewer read the change. It is not
+evidence: someone who can push to the repository can make it say anything, and the reviewer
+is reading that person's diff as well.
+
+What is applied does not rest on the comment. `lely apply plan.json` plans every step again
+and refuses any change the file doesn't hold — and it runs on `main`, with the workflow as
+it is on `main`, and credentials no pull request can reach.
 
 ## Apply on merge
 
@@ -129,18 +149,29 @@ jobs:
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # no token left behind for later steps
       - uses: astral-sh/setup-uv@v6
       - uses: databricks/setup-cli@main
-      - run: uv sync
+      - run: uv sync --locked
       - name: Fetch the plan that was reviewed
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
-          head=$(gh api "repos/$REPO/commits/$COMMIT/pulls" --jq '.[0].head.sha')
-          run=$(gh run list --repo "$REPO" --workflow plan.yml --commit "$head" \
-            --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          head=$(gh api "repos/$REPO/commits/$COMMIT/pulls" --jq '.[0].head.sha // empty')
+          if [ -z "$head" ]; then
+            echo "This commit came from no pull request: no plan was reviewed."
+            exit 1
+          fi
+          run=$(gh run list --repo "$REPO" --workflow plan.yml --event pull_request \
+            --commit "$head" --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run" ]; then
+            echo "No plan was made for the pull request's last commit ($head)."
+            exit 1
+          fi
           gh run download "$run" --repo "$REPO" --name lely-plan-dev
       - run: uv run lely apply plan.json --yes --github
 ```
@@ -152,19 +183,24 @@ What this does not do, and what to do then:
 - **`main` moved between the plan and the merge.** The tree is another one and lely refuses
   the plan (exit 2). Require branches to be up to date before merging, or use a merge queue,
   and it doesn't happen.
-- **A push that came from no pull request** has no reviewed plan: the fetch fails, and nothing
-  is applied.
+- **A push that came from no pull request** has no reviewed plan: the fetch stops the job,
+  and nothing is applied.
 - **A plan with a destructive change** is refused without `--allow-destructive`. Apply it by
   hand, below, where someone says so.
 - **A first deploy with a waiting step** stops before that step, as the plan said it would.
-  The next plan shows the step ready. A step that waits on *every* deploy — it takes what only
-  a run produces — can never be applied from a file: for such a project, apply by hand.
+  The next plan shows the step ready.
+- **A step that waits on *every* deploy** — it takes what only a run produces — can never be
+  applied from a file, by a merge or by hand: only `lely apply -t <target> --yes` runs it,
+  which plans and applies in one go, so nobody reads that step's plan before it runs. Whether
+  that is acceptable is the project's to decide; these workflows don't do it.
 
 ## Apply or destroy by hand
 
 For what a merge doesn't cover, and for every destroy. The run plans, stops, and applies that
-plan once someone has read it and approved: give the environment **required reviewers** in
-the repository's settings, and the second job waits for one of them.
+plan once someone has read it and approved. The second job runs in an environment of its own,
+`<target>-by-hand`: the same credentials as `<target>`, limited to `main`, and with
+**required reviewers** in the repository's settings — so it waits for one of them. (Required
+reviewers on `<target>` itself would make every merge wait too.)
 
 ```yaml
 # .github/workflows/by-hand.yml
@@ -209,9 +245,11 @@ jobs:
     environment: ${{ inputs.target }}-plan # credentials that can only read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # no token left behind for later steps
       - uses: astral-sh/setup-uv@v6
       - uses: databricks/setup-cli@main
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run lely plan -t "$TARGET" $DESTROY -o plan.json --github
       - uses: actions/upload-artifact@v4
         with:
@@ -221,12 +259,14 @@ jobs:
   run:
     needs: plan
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target }} # required reviewers: the plan is read first
+    environment: ${{ inputs.target }}-by-hand # required reviewers: the plan is read first
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false # no token left behind for later steps
       - uses: astral-sh/setup-uv@v6
       - uses: databricks/setup-cli@main
-      - run: uv sync
+      - run: uv sync --locked
       - uses: actions/download-artifact@v4
         with:
           name: lely-plan
@@ -252,17 +292,22 @@ and nothing runs.
 - **Whether credentials are read-only** is nothing lely can check; `lely doctor` says what it
   can see.
 - **The comment with a run's own token.** lely only updates a comment it could have written:
-  one by whoever the token is, or — for a run's own token, which is nobody's — one by a bot.
-  That a run's token can't ask who it is was read in GitHub's forum, not seen.
+  one by whoever the token is, or — for a run's own token, which is nobody's — one by a bot,
+  any app's bot. That a run's token can't ask who it is was read in GitHub's forum, not seen.
 
 ## What is posted, and what never is
 
 - Nothing a plan says is Markdown where it is shown: a resource named `@everyone`, or a link,
   or an image, is text in a block, and can't end the block it is in.
 - A plan that couldn't be made takes the place of the last plan's comment, so an old plan
-  doesn't stand there as the new one. What went wrong is on the run's page, which hides a
-  run's secrets; the comment links there and repeats none of it.
-- The token is sent to GitHub's API over https and nowhere else, not along with a redirect,
-  and whatever is posted is searched for it first.
+  doesn't stand there as the new one. So does a plan that was made and can't be shown —
+  GitHub won't take it. What went wrong is on the run's page, which hides a run's secrets;
+  the comment links there and repeats none of it. If GitHub can't be reached at all, the
+  last comment stays: its last line names the commit it was made for.
+- The token is sent to GitHub's API over https and nowhere else, and not along with a
+  redirect. What is posted is searched for it first — as it is written, and as
+  `actions/checkout` keeps it — which catches a step that prints its environment, not every
+  spelling of a token. A plan that holds the token is not written at all: `lely plan
+  --github` fails and says which step printed it.
 - A comment too long for GitHub is told shorter — without each change's details, then as
   counts — and says so. The counts and the destructive changes are always there.

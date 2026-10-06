@@ -23,12 +23,13 @@ _INVISIBLE = frozenset("؜​‎‏⁠﻿‪‫‬‭‮⁦⁧⁨⁩")
 
 def clean(text: str) -> str:
     """`text` with what a terminal would obey, or a reader couldn't see, made
-    visible as `�`: every control character but a line break and a tab, and
-    the invisible characters that reorder text. What a plan file or a program
-    said is shown, never obeyed."""
+    visible as `�`: every control character but a line break and a tab, the
+    invisible characters that reorder text, and half a character — a lone
+    surrogate, which no file or terminal can be given. What a plan file or a
+    program said is shown, never obeyed."""
     return "".join(
         "�"
-        if (unicodedata.category(char) == "Cc" and char not in "\n\t")
+        if (unicodedata.category(char) in ("Cc", "Cs") and char not in "\n\t")
         or char in _INVISIBLE
         else char
         for char in text

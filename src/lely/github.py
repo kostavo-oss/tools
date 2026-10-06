@@ -21,13 +21,17 @@ because of where a command runs.
   what exists now, are written to the job summary.
 - **A pull request from a fork gets no plan.** Planning runs the pull
   request's own code, and that must not happen with a workspace's
-  credentials. The summary says so.
+  credentials. The summary says so. A run that is about a pull request and
+  doesn't say where it comes from — one started by a comment — is treated as
+  one from a fork.
 - **Nothing here decides how a command ends.** Outside a run, without a
   token, without permission: it says what it couldn't do and why, and the
   plan stands on its own.
 - **The token goes to GitHub's API and nowhere else.** Only over https, not
   along with a redirect, and never into an error, a comment or a summary:
-  what is posted is searched for it first.
+  what is posted is searched for it first, as it is written and as
+  `actions/checkout` keeps it. That is a net, not a wall: a token printed in
+  another spelling passes.
 
 What GitHub does, as assumed here:
 
@@ -45,6 +49,8 @@ What GitHub does, as assumed here:
 
 from __future__ import annotations
 
+import base64
+import http.client
 import json
 import re
 import urllib.error
@@ -73,9 +79,24 @@ _PAGES = 30
 
 _PERMISSION = "the job needs `permissions: pull-requests: write`"
 
+#: The most characters GitHub takes as a comment.
+_COMMENT = 65_536
+#: The most bytes GitHub takes as one step's summary.
+_STEP_SUMMARY = 1024 * 1024
+#: What GitHub answers when it is the body it won't take.
+_BODY_REFUSED = (413, 422)
+#: A token shorter than this is no token, and is not searched for: "a" would
+#: be found in every word.
+_SHORTEST = 8
+
 
 class GitHubError(LelyError):
-    """GitHub couldn't be reached, or refused."""
+    """GitHub couldn't be reached, or refused. `status` is what it answered
+    with, when it answered."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +139,8 @@ def here(env: Mapping[str, str]) -> Run | None:
         server = env.get("GITHUB_SERVER_URL") or "https://github.com"
         link = f"{server}/{repository}/actions/runs/{env['GITHUB_RUN_ID']}"
     summary = env.get("GITHUB_STEP_SUMMARY")
+    # a secret pasted with the line break after it is still that secret
+    token = (env.get("GITHUB_TOKEN") or env.get("GH_TOKEN") or "").strip()
     return Run(
         repository=repository,
         pull_request=number,
@@ -125,9 +148,12 @@ def here(env: Mapping[str, str]) -> Run | None:
         commit=head or env.get("GITHUB_SHA") or None,
         link=link,
         summary=Path(summary) if summary else None,
-        token=env.get("GITHUB_TOKEN") or env.get("GH_TOKEN") or None,
+        token=token or None,
         api_url=env.get("GITHUB_API_URL") or "https://api.github.com",
     )
+
+
+_UNNAMED = "a repository the run doesn't name"
 
 
 def _pull_request(
@@ -136,39 +162,69 @@ def _pull_request(
     """A pull request's number, the fork it comes from if any, and its last
     commit — from the payload of the event that started the run.
 
-    When the run is for a pull request and the payload doesn't say where it
-    comes from, that is a fork: lely can't tell that it isn't.
+    Whenever the run is about a pull request and the payload doesn't say
+    where that comes from, it is a fork: lely can't tell that it isn't. That
+    is so for a run started by a comment on a pull request (`issue_comment`),
+    whose payload never says.
     """
     for_one = env.get("GITHUB_EVENT_NAME", "").startswith("pull_request")
-    unknown = "a repository the run doesn't name" if for_one else None
+    unknown = _UNNAMED if for_one else None
     try:
         with open(env["GITHUB_EVENT_PATH"], encoding="utf-8") as file:
             event = json.load(file)
     except (KeyError, OSError, ValueError, RecursionError):
         return None, unknown, None
-    request = event.get("pull_request") if isinstance(event, dict) else None
-    if not isinstance(request, dict):
+    if not isinstance(event, dict):
         return None, unknown, None
-    number = request.get("number")
-    if not isinstance(number, int) or isinstance(number, bool):
-        number = None
-    head = request.get("head") if isinstance(request.get("head"), dict) else {}
-    base = request.get("base") if isinstance(request.get("base"), dict) else {}
-    commit = head.get("sha") if isinstance(head.get("sha"), str) else None
-    source, target = _full_name(head), _full_name(base) or repository
+    request = event.get("pull_request")
+    if isinstance(request, dict):
+        head = request.get("head") if isinstance(request.get("head"), dict) else {}
+        base = request.get("base") if isinstance(request.get("base"), dict) else {}
+        target = _name(base.get("repo")) or repository
+        return (
+            _number(request.get("number")),
+            _fork(_name(head.get("repo")), target),
+            _text(head.get("sha")),
+        )
+    issue = event.get("issue")
+    if isinstance(issue, dict) and issue.get("pull_request") is not None:
+        return _number(issue.get("number")), _UNNAMED, None
+    earlier = event.get("workflow_run")
+    if isinstance(earlier, dict):
+        # a run started by another run: where that one's code came from
+        target = (
+            _name(earlier.get("repository"))
+            or _name(event.get("repository"))
+            or repository
+        )
+        requests = earlier.get("pull_requests")
+        first = requests[0] if isinstance(requests, list) and requests else {}
+        return (
+            _number(first.get("number") if isinstance(first, dict) else None),
+            _fork(_name(earlier.get("head_repository")), target),
+            _text(earlier.get("head_sha")),
+        )
+    return None, unknown, None
+
+
+def _fork(source: str | None, target: str | None) -> str | None:
+    """The repository the code comes from, when it is not the one it goes to."""
     if source is None or target is None:
-        fork = "a repository that is gone, or that the run doesn't name"
-    elif source.lower() != target.lower():
-        fork = source
-    else:
-        fork = None
-    return number, fork, commit
+        return "a repository that is gone, or that the run doesn't name"
+    return source if source.lower() != target.lower() else None
 
 
-def _full_name(side: Mapping[str, Any]) -> str | None:
-    repo = side.get("repo")
+def _name(repo: object) -> str | None:
     name = repo.get("full_name") if isinstance(repo, dict) else None
     return name if isinstance(name, str) and name else None
+
+
+def _number(value: object) -> int | None:
+    return value if type(value) is int else None
+
+
+def _text(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 # -- what `--github` does ------------------------------------------------------------
@@ -177,14 +233,33 @@ def _full_name(side: Mapping[str, Any]) -> str | None:
 def post_plan(
     run: Run, plan: Plan, connect: Connect, *, saved: bool = True
 ) -> list[Note]:
-    """The plan on the run's page, and as the pull request's comment."""
-    footer = markdown.footer(
-        version=__version__, commit=run.commit, tree=plan.source.tree, link=run.link
+    """The plan on the run's page, and as the pull request's comment.
+
+    A plan that can't be shown there — it is too long for a comment whatever
+    is left out, or GitHub refuses it — is still a new plan: a note that says
+    so takes the last plan's place.
+    """
+    notice = markdown.unshown_markdown(
+        plan.kind, plan.target, plan.source.root, link=run.link
     )
-    room = markdown.COMMENT_LIMIT - len(footer.encode("utf-8")) - 1
-    comment = markdown.plan_markdown(plan, saved=saved, limit=room) + "\n" + footer
-    page = markdown.plan_markdown(plan, saved=saved, limit=markdown.SUMMARY_LIMIT)
-    return [_summarise(run, page), _comment(run, comment, connect)]
+    try:
+        footer = markdown.footer(
+            version=__version__, commit=run.commit, tree=plan.source.tree, link=run.link
+        )
+        room = markdown.COMMENT_LIMIT - len(footer.encode("utf-8")) - 1
+        comment = markdown.plan_markdown(plan, saved=saved, limit=room) + "\n" + footer
+        page = markdown.plan_markdown(plan, saved=saved, limit=markdown.SUMMARY_LIMIT)
+    except Exception as error:
+        # what a plan holds is anyone's to write; one lely can't write down
+        # must not leave the last one standing
+        return [
+            Note(f"the plan couldn't be written down: {type(error).__name__}", False),
+            _summarise(run, notice),
+            _comment(run, notice, connect),
+        ]
+    if len(comment) > _COMMENT:
+        comment = notice
+    return [_summarise(run, page), _comment(run, comment, connect, instead=notice)]
 
 
 def post_plan_failure(
@@ -194,14 +269,22 @@ def post_plan_failure(
     root: str | None,
     message: str,
     connect: Connect,
+    *,
+    placed: bool = True,
 ) -> list[Note]:
     """In place of a plan that couldn't be made. What went wrong is on the
     run's page, where GitHub hides a run's secrets; the comment only links
     there — what a failing program printed is not posted where nothing does.
+
+    `placed` is false when lely couldn't tell which project of the repository
+    this is: the comment of one project is not written over for another's.
     """
-    page = markdown.failure_markdown(kind, target, root, message=message)
+    page = _summarise(run, markdown.failure_markdown(kind, target, root, message=message))
+    if not placed:
+        unplaced = "no comment: lely couldn't tell which project of the repository it is"
+        return [page, Note(unplaced, False)]
     comment = markdown.failure_markdown(kind, target, root, link=run.link)
-    return [_summarise(run, page), _comment(run, comment, connect)]
+    return [page, _comment(run, comment, connect)]
 
 
 def post_skipped(run: Run, kind: PlanKind, target: str) -> list[Note]:
@@ -223,8 +306,13 @@ def post_stopped(
 
 
 def scrub(text: str, token: str | None) -> str:
-    """`text` without the token, should anything have printed it."""
-    return text.replace(token, "***") if token else text
+    """`text` without the token, should anything have printed it: as it is
+    written, and as `actions/checkout` keeps it in git's config. Other
+    spellings of it are not looked for."""
+    if not token or len(token) < _SHORTEST:
+        return text
+    kept = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return text.replace(token, "***").replace(kept, "***")
 
 
 def _summarise(run: Run, text: str) -> Note:
@@ -232,29 +320,48 @@ def _summarise(run: Run, text: str) -> Note:
         return Note(
             "no summary on the run's page: `GITHUB_STEP_SUMMARY` isn't set", False
         )
+    text = scrub(text, run.token) + "\n"
+    if len(text.encode("utf-8", "replace")) > _STEP_SUMMARY:
+        # GitHub drops the whole summary of a step that wrote more
+        text = "> lely's summary was too long for the run's page. The log has it.\n\n"
     try:
-        with open(run.summary, "a", encoding="utf-8") as file:
-            file.write(scrub(text, run.token) + "\n")
+        with open(run.summary, "a", encoding="utf-8", errors="replace") as file:
+            file.write(text)
     except OSError as error:
         return Note(f"no summary on the run's page: {error.strerror or error}", False)
     return Note("wrote the run's summary")
 
 
-def _comment(run: Run, body: str, connect: Connect) -> Note:
+def _comment(
+    run: Run, body: str, connect: Connect, *, instead: str | None = None
+) -> Note:
+    """`instead` is what to put there when GitHub won't take `body` itself."""
     if run.pull_request is None:
         return Note("no comment: this run is not for a pull request")
     if run.repository is None:
         return Note("no comment: `GITHUB_REPOSITORY` doesn't name a repository", False)
     if run.token is None:
+        # not a failure: the job that plans may well be given no token, and
+        # the plan be posted by one that runs none of the project's code
         return Note(
-            "no comment: there is no token. Give the step "
-            "`env: GITHUB_TOKEN: ${{ github.token }}`",
-            False,
+            "no comment: there is no token "
+            "(`env: GITHUB_TOKEN: ${{ github.token }}` gives the step one)"
         )
     where = f"pull request #{run.pull_request}"
     try:
         api = connect(run.token, run.api_url)
-        did = upsert(api, run.repository, run.pull_request, scrub(body, run.token))
+        try:
+            did = upsert(api, run.repository, run.pull_request, scrub(body, run.token))
+        except GitHubError as error:
+            if instead is None or error.status not in _BODY_REFUSED:
+                raise
+            upsert(api, run.repository, run.pull_request, instead)
+            said = scrub(str(error), run.token)
+            return Note(
+                f"GitHub wouldn't take the plan as a comment ({said}); {where} "
+                "says so, and the run's page has the plan",
+                False,
+            )
     except GitHubError as error:
         return Note(f"couldn't comment on {where}: {scrub(str(error), run.token)}", False)
     return Note(f"{did} the comment on {where}")
@@ -270,25 +377,28 @@ def upsert(api: Api, repository: str, pull_request: int, body: str) -> str:
     existing = find_comment(api, repository, pull_request, marker, author(api))
     try:
         if existing is None:
-            api(
-                "POST",
-                f"/repos/{repository}/issues/{pull_request}/comments",
-                {"body": body},
-            )
+            comments = f"/repos/{repository}/issues/{pull_request}/comments"
+            api("POST", comments, {"body": body})
             return "created"
         api("PATCH", f"/repos/{repository}/issues/comments/{existing}", {"body": body})
         return "updated"
     except GitHubError as error:
-        raise GitHubError(f"{error} ({_PERMISSION})") from None
+        if error.status in (403, 404):
+            raise GitHubError(f"{error} ({_PERMISSION})", error.status) from None
+        raise
 
 
 def author(api: Api) -> str | None:
     """Whose token this is — or `None` for one that is nobody's, as a run's
-    own token is: `GET /user` refuses it."""
+    own token is: `GET /user` refuses it with a 403. Any other failure is a
+    failure: taken for "nobody's", it would make lely pass over its own
+    comment and write a second one."""
     try:
         answer = api("GET", "/user", None)
-    except GitHubError:
-        return None
+    except GitHubError as error:
+        if error.status == 403:
+            return None
+        raise
     login = answer.get("login") if isinstance(answer, dict) else None
     return login if isinstance(login, str) and login else None
 
@@ -308,7 +418,7 @@ def find_comment(
         if not isinstance(comments, list):
             raise GitHubError("GitHub's list of comments is not a list")
         for comment in comments:
-            if not isinstance(comment, dict) or not isinstance(comment.get("id"), int):
+            if not isinstance(comment, dict) or type(comment.get("id")) is not int:
                 continue
             body = comment.get("body")
             if not isinstance(body, str) or body.split("\n", 1)[0].rstrip("\r") != marker:
@@ -346,29 +456,36 @@ def connect(token: str, base: str, send: Callable[..., Any] | None = None) -> Ap
         raise GitHubError(
             f"`GITHUB_API_URL` is not an https address ({base!r}): no token is sent there"
         )
+    if not token or any(char.isspace() or not char.isprintable() for char in token):
+        raise GitHubError("the token holds a space or a line break: it is not sent")
     send = send or urllib.request.build_opener(_NoRedirect).open
 
     def call(method: str, path: str, payload: Mapping[str, Any] | None) -> Any:
-        request = urllib.request.Request(
-            base.rstrip("/") + path,
-            method=method,
-            data=None if payload is None else json.dumps(payload).encode("utf-8"),
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": f"lely/{__version__}",
-                **({} if payload is None else {"Content-Type": "application/json"}),
-            },
-        )
         try:
+            request = urllib.request.Request(
+                base.rstrip("/") + path,
+                method=method,
+                data=None if payload is None else json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {token}",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "User-Agent": f"lely/{__version__}",
+                    **({} if payload is None else {"Content-Type": "application/json"}),
+                },
+            )
             with send(request, timeout=30) as response:
                 text = response.read().decode("utf-8")
         except urllib.error.HTTPError as error:
-            raise GitHubError(f"{error.code} {_said(error)}") from None
+            raise GitHubError(f"{error.code} {_said(error)}", error.code) from None
         except (urllib.error.URLError, OSError) as error:
             reason = getattr(error, "reason", None) or error
             raise GitHubError(f"GitHub couldn't be reached: {reason}") from None
+        except (ValueError, http.client.HTTPException) as error:
+            # in its own words this one may repeat the request, token and all
+            raise GitHubError(
+                f"the request to GitHub couldn't be made ({type(error).__name__})"
+            ) from None
         try:
             return json.loads(text) if text.strip() else None
         except ValueError:

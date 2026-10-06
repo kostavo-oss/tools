@@ -47,6 +47,10 @@ class FakeGitHub:
         self.connected: list[tuple[str, str]] = []
         #: Methods GitHub refuses, as a job without the permission is refused.
         self.refused: set[str] = set()
+        #: What the next calls end in, one each, before anything is answered.
+        self.failing: list[GitHubError] = []
+        #: The most characters a comment may hold.
+        self.longest = 65_536
         self._next = 100
 
     def connect(self, token: str, base: str) -> Api:
@@ -69,10 +73,14 @@ class FakeGitHub:
         self.calls.append((method, path))
         if (method, path) == ("GET", "/user"):
             if self.login is None:
-                raise GitHubError("403 Resource not accessible by integration")
+                raise GitHubError("403 Resource not accessible by integration", 403)
             return {"login": self.login}
+        if self.failing:
+            raise self.failing.pop(0)
         if method in self.refused:
-            raise GitHubError("403 Resource not accessible by integration")
+            raise GitHubError("403 Resource not accessible by integration", 403)
+        if payload is not None and len(payload["body"]) > self.longest:
+            raise GitHubError("422 Validation Failed", 422)
         listed = re.fullmatch(
             rf"/repos/{REPOSITORY}/issues/(\d+)/comments\?per_page=(\d+)&page=(\d+)", path
         )

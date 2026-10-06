@@ -28,7 +28,7 @@ import os
 import shutil
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -284,14 +284,15 @@ def _github(asked: bool) -> github.Run | None:
     return found
 
 
-def _post(notes: Callable[[], list[github.Note]]) -> None:
+def _post(hub: github.Run, notes: Callable[[], list[github.Note]]) -> None:
     """Do what `--github` asks and say how it went. Nothing here decides how
     the command ends: a plan stands on its own."""
     try:
         _noted(notes())
     except Exception as error:
+        # an error may quote what it choked on: the token is not to be in it
         problem = f"couldn't be done: {type(error).__name__}: {error}"
-        _noted([github.Note(problem, done=False)])
+        _noted([github.Note(github.scrub(problem, hub.token), done=False)])
 
 
 def _noted(notes: list[github.Note]) -> None:
@@ -303,18 +304,34 @@ def _noted(notes: list[github.Note]) -> None:
             err.print(f"[yellow]--github: {words}[/]")
 
 
-def _project(path: Path | None) -> str | None:
+def _project(path: Path | None) -> tuple[str | None, bool]:
     """Which project of its repository this is, for a plan that failed before
-    it could say — as a plan names it, so its comment is found again."""
+    it could say — as a plan names it, so its comment is found again — and
+    whether that could be told at all. Its folder may be gone: a pull request
+    that renames it still fails as that project."""
     try:
         file = path if path is not None else config.find(Path.cwd())
         folder = file.resolve().parent
     except (LelyError, OSError):
         folder = Path.cwd()
     try:
-        return source.read(folder).root
+        return source.named(folder), True
     except (LelyError, OSError):
-        return None
+        return None, False
+
+
+def _holds_no_token(built: Plan, hub: github.Run) -> None:
+    """A plan is shown and kept — as a file, as an artifact — so it holds no
+    credential. A step that prints its environment into its plan puts this
+    run's token there; nothing is written then."""
+    for step in built.steps:
+        alone = planfile.dumps(replace(built, steps=(step,)))
+        if github.scrub(alone, hub.token) != alone:
+            raise LelyError(
+                f"The plan of step `{step.name}` holds this run's GitHub token: "
+                "something it ran printed it — its environment, most likely. A plan "
+                "is shown and kept, so it may hold no credential. Nothing was written."
+            )
 
 
 def _no_fork(run: github.Run | None, verb: str) -> None:
@@ -568,7 +585,7 @@ def plan(
             "no plan is made. Planning runs the pull request's own code, and that "
             "must not happen with the credentials of a workspace.[/]"
         )
-        _post(lambda: github.post_skipped(hub, kind, target))
+        _post(hub, lambda: github.post_skipped(hub, kind, target))
         return
     try:
         run = _run(path, profile)
@@ -579,18 +596,21 @@ def plan(
             kind=kind,
             **run.edges,
         )
+        if hub is not None:
+            _holds_no_token(built, hub)
         _show_plan(built, output_format, output)
     except LelyError as error:
         if hub is not None:
-            failed, project = str(error), _project(path)
+            failed, (project, placed) = str(error), _project(path)
             _post(
+                hub,
                 lambda: github.post_plan_failure(
-                    hub, kind, target, project, failed, GITHUB
-                )
+                    hub, kind, target, project, failed, GITHUB, placed=placed
+                ),
             )
         raise _fail(error, refusals=False) from None
     if hub is not None:
-        _post(lambda: github.post_plan(hub, built, GITHUB))
+        _post(hub, lambda: github.post_plan(hub, built, GITHUB))
 
 
 @app.command()
@@ -606,8 +626,17 @@ def show(
         _show_plan(built, output_format, None)
     except LelyError as error:
         raise _fail(error, refusals=False) from None
-    if hub is not None:
-        _post(lambda: github.post_plan(hub, built, GITHUB))
+    if hub is None:
+        return
+    if hub.fork is not None:
+        # shown here, where it harms nobody; not posted as the plan
+        err.print(
+            f"[yellow]--github: this pull request comes from a fork "
+            f"({escape(clean(hub.fork))}): its plan is not posted.[/]"
+        )
+        _post(hub, lambda: github.post_skipped(hub, built.kind, built.target))
+        return
+    _post(hub, lambda: github.post_plan(hub, built, GITHUB))
 
 
 @app.command()
@@ -886,7 +915,9 @@ def _stopped(
     refused = isinstance(error, Refused)
     if hub is not None:
         said = str(error)
-        _post(lambda: github.post_stopped(hub, known.kind, known.target, refused, said))
+        _post(
+            hub, lambda: github.post_stopped(hub, known.kind, known.target, refused, said)
+        )
     workspace = known.workspace
     if output_format is Format.json:
         _echo_json(
@@ -924,7 +955,7 @@ def _finish(result: Result, output_format: Format, hub: github.Run | None = None
     else:
         out.print(result_view(result))
     if hub is not None:
-        _post(lambda: github.post_result(hub, result))
+        _post(hub, lambda: github.post_result(hub, result))
     if result.outcome != "done":
         raise typer.Exit(2 if result.outcome == "refused" else 1)
 

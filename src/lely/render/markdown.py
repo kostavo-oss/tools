@@ -44,6 +44,7 @@ orange. The word beside it says what the change is.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import NamedTuple
@@ -77,6 +78,20 @@ _GUTTER = {"create": "+", "update": "!", "delete": "-", "replace": "-", "run": "
 #: The longest text shown outside a block: a name, not a document.
 _NAME = 200
 
+#: The longest run of backticks shown as it is. A code span or a block is
+#: closed by more backticks than it holds — and GitHub stops counting: past 80
+#: for a span, past 255 for a block. A longer run inside one would stand where
+#: no delimiter can outnumber it, so it is cut (found in review, 2026-10-06).
+_TICKS = 16
+
+_LONG_RUN = re.compile("`{" + str(_TICKS + 1) + ",}")
+
+#: The most of a program's own words shown in one place; the log has the rest.
+_SAID = 20_000
+
+#: The longest a target or a project's folder is spelled out in the marker.
+_FIELD = 200
+
 #: How many destructive changes are named above the plan. All are in it.
 _NAMED = 10
 
@@ -106,8 +121,13 @@ def marker(kind: PlanKind, target: str, root: str | None = None) -> str:
 
 def _field(text: str) -> str:
     """`text` as part of the marker: nothing in it ends the comment it is in,
-    or reads as another part."""
-    return quote(text, safe="/").replace("--", "-%2D")
+    or reads as another part. One too long to spell out ends in a digest of
+    the whole of it, so it is still its own."""
+    spelled = quote(text, safe="/", errors="replace").replace("--", "-%2D")
+    if len(spelled) <= _FIELD:
+        return spelled
+    whole = hashlib.sha256(text.encode("utf-8", "backslashreplace")).hexdigest()
+    return f"{spelled[:_FIELD].rstrip('-')}~{whole[:16]}"
 
 
 # -- a plan -----------------------------------------------------------------------
@@ -294,7 +314,7 @@ def _result(result: Result, *, changes: bool, overview: bool) -> str:
     if block:
         parts += ["", block]
     if result.outcome != "done" and result.message:
-        parts += ["", _block([_Line(result.message)], "text", margin=False)]
+        parts += ["", _block([_Line(_said(result.message))], "text", margin=False)]
     if overview:
         exists = _exists(
             [
@@ -405,10 +425,30 @@ def failure_markdown(
         "plan says nothing about what is here now.",
     ]
     if message:
-        parts += ["", _block([_Line(message)], "text", margin=False)]
+        parts += ["", _block([_Line(_said(message))], "text", margin=False)]
     log = _followed(link or "", "The run's log")
     if log:
         parts += ["", f"{log} says what went wrong."]
+    return "\n".join(parts) + "\n"
+
+
+def unshown_markdown(
+    kind: PlanKind, target: str, root: str | None = None, *, link: str | None = None
+) -> str:
+    """In place of a plan that was made and can't be shown where this goes —
+    too long for it, or refused: a reader of the last one must not take it
+    for this one."""
+    title = "lely plan" if kind == "apply" else "lely destroy plan"
+    parts = [
+        marker(kind, target, root),
+        _heading(title, target, root, "not shown"),
+        "",
+        "**There is a new plan, and it could not be shown here.** An earlier plan "
+        "says nothing about what is here now.",
+    ]
+    run = _followed(link or "", "The run's page")
+    if run:
+        parts += ["", f"{run} has the plan."]
     return "\n".join(parts) + "\n"
 
 
@@ -432,7 +472,7 @@ def stopped_markdown(kind: str, target: str | None, refused: bool, message: str)
         "",
         "**Nothing was run.**",
         "",
-        _block([_Line(message)], "text", margin=False),
+        _block([_Line(_said(message))], "text", margin=False),
     ]
     return "\n".join(parts) + "\n"
 
@@ -478,7 +518,7 @@ def _workspace(host: str, identity: str) -> str:
 def _code(text: str) -> str:
     """`text` as a code span, on one line: shown as it is. The span's ticks
     outnumber any run of them inside it, so nothing in the text ends it."""
-    text = " ".join(clean(text).split())
+    text = _tamed(" ".join(clean(text).split()))
     if len(text) > _NAME:
         text = text[: _NAME - 1] + "…"
     if not text:
@@ -515,13 +555,28 @@ def _block(lines: Iterable[_Line], language: str, *, margin: bool = True) -> str
     body = []
     for line in lines:
         start = (f"{line.gutter} " if margin else "") + " " * line.indent
-        for part in clean(line.text).split("\n"):
+        for part in _tamed(clean(line.text)).split("\n"):
             body.append(f"{start}{part}".rstrip())
     if not body:
         return ""
     text = "\n".join(body)
     fence = "`" * max(3, _longest_run(text) + 1)
     return f"{fence}{language}\n{text}\n{fence}"
+
+
+def _tamed(text: str) -> str:
+    """`text` with no run of backticks longer than `_TICKS`."""
+    return _LONG_RUN.sub("`" * _TICKS + "…", text)
+
+
+def _said(message: str) -> str:
+    """A program's own words, cut to what one place can hold: where they
+    start, and where they end — which is where an error says what it is."""
+    if len(message) <= _SAID:
+        return message
+    head, tail = message[: _SAID // 10], message[-(_SAID - _SAID // 10) :]
+    left_out = len(message) - len(head) - len(tail)
+    return f"{head}\n… ({left_out} characters left out; the run's log has them)\n{tail}"
 
 
 def _longest_run(text: str) -> int:

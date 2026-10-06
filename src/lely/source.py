@@ -94,6 +94,19 @@ def read(root: Path, plan_file: Path | None = None) -> Source:
     return Source(tree=_tree(top, left_out, absent), dirty=dirty, root=project)
 
 
+def named(folder: Path) -> str | None:
+    """`folder` as git names it from the top of its repository — `.` for the
+    top itself — whether or not the folder is still there. `None` where there
+    is no repository; a `SourceError` when git can't say."""
+    folder = folder.absolute()
+    there = next((one for one in (folder, *folder.parents) if one.is_dir()), None)
+    if there is None or _top(there) is None:
+        return None
+    above = _git(there, "rev-parse", "--show-prefix")
+    gone = "" if there == folder else folder.relative_to(there).as_posix()
+    return (above + gone).rstrip("/") or "."
+
+
 def _top(root: Path) -> Path | None:
     """The top of the repository `root` is in; `None` if it is in none."""
     try:

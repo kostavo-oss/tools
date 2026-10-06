@@ -1244,3 +1244,85 @@ def test_a_run_and_what_it_left_go_on_its_page(ready: Lely, hub: FakeGitHub) -> 
     destroyed = ready("destroy", "-t", "dev", "--yes", "--github")
     assert destroyed.exit_code == 0
     assert "### lely destroy · target `dev`\n" in page(ready)
+
+
+# -- found in the fifth review ---------------------------------------------------------
+
+
+def test_a_saved_plan_is_not_posted_for_a_fork(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R4a: a plan file out of a fork's checkout is not "the plan"."""
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    fake_github.inside(monkeypatch, ready.root, head="someone/shop")
+    shown = ready("show", "plan.json", "--github")
+    assert shown.exit_code == 0 and "+ jobs.bar" in shown.stdout
+    assert "comes from a fork (someone/shop): its plan is not posted" in " ".join(
+        shown.stderr.split()
+    )
+    assert hub.calls == []
+    assert "### lely plan · target `dev` · skipped" in page(ready)
+
+
+def test_a_plan_that_holds_the_runs_token_is_not_written(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R6. A plan command that prints its environment puts the token in
+    the plan: in the file, which is kept as an artifact, and on stdout."""
+    ready("plan", "-t", "dev", "--github")
+    printing = (
+        "import json, os\n"
+        "print(json.dumps({'changes': [{'key': 'k', 'action': 'run',"
+        " 'summary': 'with ' + os.environ['GITHUB_TOKEN']}]}))\n"
+    )
+    (ready.root / "ops" / "leak.py").write_text(printing)
+    leaking = READY + (
+        "  - name: seed\n    uses: command\n    with:\n"
+        f"      apply: ['true']\n      plan: [{sys.executable}, ops/leak.py]\n"
+    )
+    (ready.root / "lely.yml").write_text(leaking)
+    for extra in ((), ("-f", "md"), ("-f", "json")):
+        result = ready("plan", "-t", "dev", "--github", "-o", "plan.json", *extra)
+        assert result.exit_code == 1
+        assert fake_github.TOKEN not in result.stdout + result.stderr
+        assert "The plan of step `seed` holds this run's GitHub token" in " ".join(
+            result.stderr.split()
+        )
+        assert not (ready.root / "plan.json").exists()
+    [body] = hub.bodies
+    assert "· failed\n" in body and fake_github.TOKEN not in body + page(ready)
+
+
+def test_a_failing_plan_of_a_project_whose_folder_is_gone_is_still_that_projects(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """A pull request that renames `team-a/` while the workflow still plans
+    `-c team-a/lely.yml`: the failure was filed as the top project's."""
+    subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
+    failed = ready("plan", "-t", "dev", "--github", "-c", "team-a/deploy/lely.yml")
+    assert failed.exit_code == 1
+    [body] = hub.bodies
+    assert body.startswith("<!-- lely:plan:dev:team-a/deploy -->\n")
+    # and a project at the top stays the top's
+    (ready.root / "lely.yml").write_text("steps: 5\n")
+    ready("plan", "-t", "dev", "--github")
+    assert hub.bodies[1].startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev` · f"
+    )
+
+
+def test_whatever_goes_wrong_while_posting_the_token_is_not_said(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An error may quote what it choked on."""
+
+    def choking(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError(f"Invalid header value b'Bearer {fake_github.TOKEN}\\n'")
+
+    monkeypatch.setattr(cli.github, "post_plan", choking)
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0 and fake_github.TOKEN not in result.stderr
+    assert (
+        "--github: couldn't be done: ValueError: Invalid header value b'Bearer ***"
+        in (" ".join(result.stderr.split()))
+    )

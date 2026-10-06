@@ -39,6 +39,7 @@ from lely.render.markdown import (
     skipped_markdown,
     status_markdown,
     stopped_markdown,
+    unshown_markdown,
 )
 from lely.step import NullLog
 
@@ -518,3 +519,125 @@ def test_only_an_address_a_reader_can_follow_is_a_link(url: str) -> None:
     step = StepStatus("app", "bundle", Overview((item,)))
     status = Status("dev", project.WORKSPACE, (step,))
     assert "](" not in status_markdown(status)
+
+
+# -- found in the fifth review ---------------------------------------------------------
+
+
+def ticks(text: str) -> int:
+    return max((len(run) for run in re.findall("`+", text)), default=0)
+
+
+@pytest.mark.parametrize("length", [17, 79, 80, 81, 254, 255, 256, 1000])
+def test_no_run_of_backticks_outgrows_what_github_counts(length: int) -> None:
+    """GitHub stops matching a code span's delimiter past 80 backticks and a
+    block's fence past 255. A run that long inside one stood where nothing
+    could close round it: the rest of the plan was Markdown. Seen on GitHub's
+    own renderer, with 80 and with 255."""
+    run = "`" * length
+    step = PlannedStep(
+        f"app {run} {EVIL}",
+        f"./ops/e.py:{run}\n{run}\n# {EVIL}",
+        "h",
+        StepPlan(
+            (
+                Change(
+                    "k",
+                    "delete",
+                    f"x {run} {EVIL}",
+                    destructive=True,
+                    detail=(f"{run}\n{run}\n{EVIL}",),
+                ),
+            ),
+            notes=(f"{run}\n{EVIL}",),
+        ),
+    )
+    plan = Plan(
+        "0",
+        "apply",
+        f"dev {run}",
+        Workspace(f"https://h {run}", f"me {run}"),
+        Source("4b82", root=f"team {run}"),
+        (step,),
+    )
+    result = Result(
+        "apply",
+        f"dev {run}",
+        Workspace(f"https://h {run}", f"me {run}"),
+        (
+            StepResult(
+                f"app {run}",
+                "bundle",
+                "failed",
+                f"boom {run}",
+                step.plan.changes,
+                Overview((Item(f"job {run}", f"jobs.{run}", run, True, run, run),)),
+            ),
+        ),
+        "failed",
+        f"{run}\n{run}\n{EVIL}",
+    )
+    for shown in (
+        plan_markdown(plan),
+        plan_markdown(plan, limit=10),
+        result_markdown(result),
+        failure_markdown("apply", f"dev {run}", run, message=f"{run}\n{EVIL}"),
+        stopped_markdown("apply", f"dev {run}", True, f"{run}\n{EVIL}"),
+        skipped_markdown("apply", f"dev {run}", run),
+    ):
+        # the longest run that is text is 16; what closes round it is one more
+        assert ticks(shown) <= 17, ticks(shown)
+        assert "`" * 16 + "…" in shown  # … and that it was cut is shown
+        left = outside(shown)
+        left = left.split("\n", 1)[1] if shown.startswith("<!--") else left
+        assert "@" not in left and "![" not in left
+
+
+def test_text_that_cant_be_written_is_shown_as_what_it_is_not() -> None:
+    """Half a character — a lone surrogate — in a change's name ended the
+    Markdown in a `UnicodeEncodeError`. With `--github` that left the plan of
+    the push before standing as this one's, under a green run."""
+    step = PlannedStep(
+        "app", "bundle", "h", StepPlan((Change("k", "delete", "jobs.\udc80gone"),))
+    )
+    plan = Plan("0", "apply", "dev\udc80", project.WORKSPACE, Source(), (step,))
+    for shown in (plan_markdown(plan), plan_markdown(plan, limit=100)):
+        shown.encode("utf-8")
+        assert "target `dev�`" in shown
+    assert "-     delete   jobs.�gone  destructive" in plan_markdown(plan)
+    assert marker("apply", "dev\udc80") == "<!-- lely:plan:dev%3F -->"
+
+
+def test_the_marker_has_a_size_and_is_still_its_plans_own() -> None:
+    """A hand-written plan file with a target of 70,000 characters made a
+    comment GitHub doesn't take, whatever was left out of the plan."""
+    long = "t" * 70_000
+    one, other = marker("apply", long), marker("apply", long + "x")
+    assert len(one) < 300 and one != other
+    assert one.startswith("<!-- lely:plan:" + "t" * 200 + "~") and one.endswith(" -->")
+    assert "--" not in marker("apply", "-" * 500)[4:-3]
+    plan = Plan("0", "apply", long, project.WORKSPACE, Source("4b", root=long), ())
+    assert len(plan_markdown(plan, limit=60_000)) < 2_000
+
+
+def test_a_programs_words_are_cut_where_they_are_shown() -> None:
+    """A failing program can print megabytes; a run's page takes one."""
+    said = "first line\n" + "x" * 2_000_000 + "\nError: the last line"
+    for shown in (
+        failure_markdown("apply", "dev", message=said),
+        stopped_markdown("apply", "dev", False, said),
+    ):
+        assert len(shown) < 25_000
+        assert "first line\n" in shown and "\nError: the last line\n" in shown
+        assert "characters left out; the run's log has them)" in shown
+
+
+def test_a_plan_that_cant_be_shown_says_so_where_the_last_one_stood() -> None:
+    link = "https://github.com/acme/shop/actions/runs/7"
+    shown = unshown_markdown("destroy", "dev", "team-a", link=link)
+    assert shown.startswith(
+        "<!-- lely:destroy:dev:team-a -->\n"
+        "### lely destroy plan · project `team-a` · target `dev` · not shown\n"
+    )
+    assert "**There is a new plan, and it could not be shown here.**" in shown
+    assert f"[The run's page](<{link}>) has the plan." in shown

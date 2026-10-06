@@ -105,6 +105,26 @@ spec left room — none is the owner's yet:
   by hand for a destroy and for whatever a merge doesn't cover — which plans, waits for an
   approval on the environment, and runs that plan.
 
+**Found in review, 2026-10-06** (the fifth, of this branch alone; each has a test):
+
+- A run of 80 backticks in a name, or a line of 255 in a block, ended the code span or the
+  block it stood in — GitHub stops counting there — and the rest of the plan was Markdown.
+  Seen on GitHub's own renderer. No run of backticks longer than 16 is shown as it is now.
+- A plan lely couldn't write down (half a character in a change's name) or GitHub wouldn't
+  take left the last plan standing under a green run. A note that there is a new plan now
+  takes its place.
+- A token pasted with its line break was repeated on stderr, in the words of an error.
+- `show --github` posted a fork's plan file; a run started by a comment on a pull request, or
+  by another run, was not placed and so not treated as a fork's.
+- A plan that holds the run's token was written to the plan file and to stdout. With
+  `--github`, `lely plan` now fails instead, and names the step (R6).
+- One failed request made a second comment that was never updated again.
+
+Left as it is, and said: with a run's own token, a comment by *any* app's bot that starts
+with the marker is taken for lely's. And the comment is written by a workflow the pull
+request can change, so it is an aid to the reviewer and not evidence — `docs/GITHUB.md`,
+"What the comment is worth".
+
 Not known, and said in `docs/GITHUB.md`: a plan made by one identity and applied by another
 ([004](004-asset-bundle.md), V7), which is what the workflows do; and that a run's own token
 can't ask who it is, which decides how lely finds its comment.
