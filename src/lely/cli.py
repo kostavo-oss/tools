@@ -3,11 +3,11 @@
     lely validate                 config, options, references: offline; the wiring
     lely steps                    plugins: options, outputs, what each can do
     lely schema [-o file]         a JSON Schema of the config, for editors
-    lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
-    lely show plan.json [-f rich|json]
+    lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json|md] [--github]
+    lely show plan.json [-f rich|json|md] [--github]
     lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
     lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
-    lely status -t <target> [-f rich|json]
+    lely status -t <target> [-f rich|json|md]
     lely doctor
 
 `-t` is always given to a command that touches a workspace: there is no default
@@ -28,7 +28,7 @@ import os
 import shutil
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -42,6 +42,7 @@ from lely import (
     __version__,
     approval,
     config,
+    github,
     options,
     planfile,
     planning,
@@ -53,7 +54,8 @@ from lely import schema as schema_
 from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
-from lely.model import KNOWN, Plan, PlannedStep, Result, Source, Workspace
+from lely.model import KNOWN, Plan, PlanKind, PlannedStep, Result, Source, Workspace
+from lely.render import markdown
 from lely.render.rich import (
     clean,
     render_plan,
@@ -81,6 +83,7 @@ DATABRICKS: tuple[str, ...] = ("databricks",)
 class Format(StrEnum):
     rich = "rich"
     json = "json"
+    md = "md"
 
 
 ConfigOption = Annotated[
@@ -117,6 +120,14 @@ ProfileOption = Annotated[
 FormatOption = Annotated[Format, typer.Option("--format", "-f", help="How to show it.")]
 YesOption = Annotated[
     bool, typer.Option("--yes", help="Don't ask: consent is given in the command.")
+]
+GithubOption = Annotated[
+    bool,
+    typer.Option(
+        "--github",
+        help="In a GitHub Actions run: keep the pull request's comment and the "
+        "run's page up to date.",
+    ),
 ]
 FromOption = Annotated[
     str | None,
@@ -205,6 +216,7 @@ def _interactive() -> bool:
 
 
 #: Tests put fakes here.
+GITHUB: github.Connect = github.connect
 WHOAMI: Callable[[str | None], Workspace] = _whoami
 CONNECT: Callable[[str | None], Any] = _connect
 POWERS: Callable[[str | None], str] = _powers
@@ -248,6 +260,88 @@ def _run(path: Path | None, profile: str | None) -> _Run:
         databricks=DatabricksCli(DATABRICKS, profile, env),
         connect=functools.cache(lambda: CONNECT(profile)),
     )
+
+
+# -- GitHub ------------------------------------------------------------------------
+
+
+def _github(asked: bool) -> github.Run | None:
+    """The GitHub Actions run this is, when `--github` asks for it. It is
+    never on because of where a command runs."""
+    if not asked:
+        return None
+    found = github.here(os.environ)
+    if found is None:
+        _noted(
+            [
+                github.Note(
+                    "this isn't a GitHub Actions run (`GITHUB_ACTIONS` isn't `true`), "
+                    "so nothing was posted",
+                    done=False,
+                )
+            ]
+        )
+    return found
+
+
+def _post(hub: github.Run, notes: Callable[[], list[github.Note]]) -> None:
+    """Do what `--github` asks and say how it went. Nothing here decides how
+    the command ends: a plan stands on its own."""
+    try:
+        _noted(notes())
+    except Exception as error:
+        # an error may quote what it choked on: the token is not to be in it
+        problem = f"couldn't be done: {type(error).__name__}: {error}"
+        _noted([github.Note(github.scrub(problem, hub.token), done=False)])
+
+
+def _noted(notes: list[github.Note]) -> None:
+    for note in notes:
+        words = escape(clean(note.words))
+        if note.done:
+            err.print(f"[dim]… github: {words}[/]")
+        else:
+            err.print(f"[yellow]--github: {words}[/]")
+
+
+def _project(path: Path | None) -> tuple[str | None, bool]:
+    """Which project of its repository this is, for a plan that failed before
+    it could say — as a plan names it, so its comment is found again — and
+    whether that could be told at all. Its folder may be gone: a pull request
+    that renames it still fails as that project."""
+    try:
+        file = path if path is not None else config.find(Path.cwd())
+        folder = file.resolve().parent
+    except (LelyError, OSError):
+        folder = Path.cwd()
+    try:
+        return source.named(folder), True
+    except (LelyError, OSError):
+        return None, False
+
+
+def _holds_no_token(built: Plan, hub: github.Run) -> None:
+    """A plan is shown and kept — as a file, as an artifact — so it holds no
+    credential. A step that prints its environment into its plan puts this
+    run's token there; nothing is written then."""
+    for step in built.steps:
+        alone = planfile.dumps(replace(built, steps=(step,)))
+        if github.scrub(alone, hub.token) != alone:
+            raise LelyError(
+                f"The plan of step `{step.name}` holds this run's GitHub token: "
+                "something it ran printed it — its environment, most likely. A plan "
+                "is shown and kept, so it may hold no credential. Nothing was written."
+            )
+
+
+def _no_fork(run: github.Run | None, verb: str) -> None:
+    """A pull request from a fork is not applied: its code would run with a
+    workspace's credentials."""
+    if run is not None and run.fork is not None:
+        raise Refused(
+            f"This pull request comes from a fork ({run.fork}), and lely doesn't "
+            f"{verb} one: its code would run with the credentials of a workspace."
+        )
 
 
 def _consent(question: str, yes: bool) -> None:
@@ -479,33 +573,70 @@ def plan(
     ] = None,
     output_format: FormatOption = Format.rich,
     profile: ProfileOption = None,
+    on_github: GithubOption = False,
 ) -> None:
     """Plan every step, in order, and show what would change. Changes nothing."""
+    kind: PlanKind = "destroy" if destroy else "apply"
+    hub = _github(on_github)
+    if hub is not None and hub.fork is not None:
+        # before anything of the project is loaded: planning runs its code
+        err.print(
+            f"[yellow]This pull request comes from a fork ({escape(clean(hub.fork))}): "
+            "no plan is made. Planning runs the pull request's own code, and that "
+            "must not happen with the credentials of a workspace.[/]"
+        )
+        _post(hub, lambda: github.post_skipped(hub, kind, target))
+        return
     try:
         run = _run(path, profile)
         built = planning.plan(
             run.config,
             target=target,
             source=source.read(run.config.root, output),
-            kind="destroy" if destroy else "apply",
+            kind=kind,
             **run.edges,
         )
+        if hub is not None:
+            _holds_no_token(built, hub)
         _show_plan(built, output_format, output)
     except LelyError as error:
+        if hub is not None:
+            failed, (project, placed) = str(error), _project(path)
+            _post(
+                hub,
+                lambda: github.post_plan_failure(
+                    hub, kind, target, project, failed, GITHUB, placed=placed
+                ),
+            )
         raise _fail(error, refusals=False) from None
+    if hub is not None:
+        _post(hub, lambda: github.post_plan(hub, built, GITHUB))
 
 
 @app.command()
 def show(
     plan_file: Annotated[Path, typer.Argument(help="A plan written by `lely plan -o`.")],
     output_format: FormatOption = Format.rich,
+    on_github: GithubOption = False,
 ) -> None:
     """Show a saved plan."""
+    hub = _github(on_github)
     try:
         built = _read_plan(plan_file)
         _show_plan(built, output_format, None)
     except LelyError as error:
         raise _fail(error, refusals=False) from None
+    if hub is None:
+        return
+    if hub.fork is not None:
+        # shown here, where it harms nobody; not posted as the plan
+        err.print(
+            f"[yellow]--github: this pull request comes from a fork "
+            f"({escape(clean(hub.fork))}): its plan is not posted.[/]"
+        )
+        _post(hub, lambda: github.post_skipped(hub, built.kind, built.target))
+        return
+    _post(hub, lambda: github.post_plan(hub, built, GITHUB))
 
 
 @app.command()
@@ -523,6 +654,8 @@ def status(
         raise _fail(error, refusals=False) from None
     if output_format is Format.json:
         _echo_json(planfile.status_to_json(found))
+    elif output_format is Format.md:
+        typer.echo(markdown.status_markdown(found), nl=False)
     else:
         out.print(status_view(found))
 
@@ -633,11 +766,14 @@ def apply(
     from_step: FromOption = None,
     output_format: FormatOption = Format.rich,
     profile: ProfileOption = None,
+    on_github: GithubOption = False,
 ) -> None:
     """Run a reviewed plan — or, with -t, plan, show, ask and run."""
     _a_target(target)
     known = _Known("apply", target)
+    hub = _github(on_github)
     try:
+        _no_fork(hub, "apply")
         run = _run(path, profile)
         known.workspace = run.workspace
         if plan_file is not None:
@@ -682,8 +818,8 @@ def apply(
             **run.edges,
         )
     except LelyError as error:
-        raise _stopped(known, error, output_format) from None
-    _finish(result, output_format)
+        raise _stopped(known, error, output_format, hub) from None
+    _finish(result, output_format, hub)
 
 
 @app.command()
@@ -698,10 +834,13 @@ def destroy(
     from_step: FromOption = None,
     output_format: FormatOption = Format.rich,
     profile: ProfileOption = None,
+    on_github: GithubOption = False,
 ) -> None:
     """Take a target down again: plan the destroy, show it, ask, and run."""
     known = _Known("destroy", target)
+    hub = _github(on_github)
     try:
+        _no_fork(hub, "destroy")
         run = _run(path, profile)
         known.workspace = run.workspace
         planning.runs_for(run.config, target)
@@ -732,8 +871,8 @@ def destroy(
             _consent_to_destroy(approved, run, yes)
         result = running.destroy(run.config, approved, from_step=from_step, **run.edges)
     except LelyError as error:
-        raise _stopped(known, error, output_format) from None
-    _finish(result, output_format)
+        raise _stopped(known, error, output_format, hub) from None
+    _finish(result, output_format, hub)
 
 
 def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
@@ -765,10 +904,20 @@ class _Known:
     workspace: Workspace | None = None
 
 
-def _stopped(known: _Known, error: LelyError, output_format: Format) -> typer.Exit:
+def _stopped(
+    known: _Known,
+    error: LelyError,
+    output_format: Format,
+    hub: github.Run | None = None,
+) -> typer.Exit:
     """A run that ended before its first step. With `-f json` that is said on
     stdout too, in the shape of a result, so whatever reads it reads something."""
     refused = isinstance(error, Refused)
+    if hub is not None:
+        said = str(error)
+        _post(
+            hub, lambda: github.post_stopped(hub, known.kind, known.target, refused, said)
+        )
     workspace = known.workspace
     if output_format is Format.json:
         _echo_json(
@@ -790,14 +939,23 @@ def _stopped(known: _Known, error: LelyError, output_format: Format) -> typer.Ex
                 "steps": [],
             }
         )
+    elif output_format is Format.md:
+        typer.echo(
+            markdown.stopped_markdown(known.kind, known.target, refused, str(error)),
+            nl=False,
+        )
     return _fail(error)
 
 
-def _finish(result: Result, output_format: Format) -> None:
+def _finish(result: Result, output_format: Format, hub: github.Run | None = None) -> None:
     if output_format is Format.json:
         _echo_json(planfile.result_to_json(result))
+    elif output_format is Format.md:
+        typer.echo(markdown.result_markdown(result), nl=False)
     else:
         out.print(result_view(result))
+    if hub is not None:
+        _post(hub, lambda: github.post_result(hub, result))
     if result.outcome != "done":
         raise typer.Exit(2 if result.outcome == "refused" else 1)
 
@@ -834,11 +992,13 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
         if output is None:
             typer.echo(planfile.dumps(built), nl=False)
             return
+    elif output_format is Format.md:
+        typer.echo(markdown.plan_markdown(built), nl=False)
     else:
         render_plan(built, out)
     if output is not None:
-        # with `-f json`, stdout is for JSON and nothing else
-        said = err if output_format is Format.json else out
+        # with `-f json` or `-f md`, stdout is for that and nothing else
+        said = out if output_format is Format.rich else err
         said.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 

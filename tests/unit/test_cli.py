@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner, Result
 
+import fake_github
 import project
+from fake_github import FakeGitHub
 from fakes import FakeDatabricks
 from lely import cli, planfile
 from lely.model import Workspace
@@ -1060,3 +1062,267 @@ def test_what_a_program_prints_is_logged_without_its_control_characters(
     assert result.exit_code == 0, result.output
     assert "\x1b" not in result.output
     assert "notify: done �[2J�[1;1H and more" in result.output
+
+
+# -- Markdown (008/R1) ----------------------------------------------------------------
+
+
+def test_a_plan_as_markdown_is_the_plan_the_file_holds(ready: Lely) -> None:
+    """`plan -f md`, `plan --destroy -f md` and `show -f md`: stdout holds the
+    Markdown and nothing else."""
+    planned = ready("plan", "-t", "dev", "-f", "md", "-o", "plan.json")
+    assert planned.exit_code == 0
+    assert planned.stdout.startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev`"
+    )
+    assert "\n+     create   jobs.bar\n" in planned.stdout
+    assert "Wrote" not in planned.stdout and "Wrote plan.json" in planned.stderr
+    shown = ready("show", "plan.json", "-f", "md")
+    assert shown.stdout == planned.stdout
+    destroy = ready("plan", "-t", "dev", "--destroy", "-f", "md")
+    assert destroy.stdout.startswith(
+        "<!-- lely:destroy:dev -->\n### lely destroy plan · "
+    )
+    assert "\n-     delete   jobs.backfill  destructive\n" in destroy.stdout
+
+
+def test_a_run_and_what_exists_as_markdown(ready: Lely) -> None:
+    refused = ready("apply", "-t", "dev", "-f", "md")  # no terminal, no --yes
+    assert refused.exit_code == 2
+    assert refused.stdout.startswith(
+        "### lely apply · target `dev` · refused\n\n**Nothing was run.**\n\n```text\n"
+    )
+    applied = ready("apply", "-t", "dev", "--yes", "-f", "md")
+    assert applied.exit_code == 0
+    assert applied.stdout.startswith("### lely apply · target `dev`\n")
+    assert "#### What exists now" in applied.stdout
+    assert "| `created` | [open](<" in applied.stdout
+    status = ready("status", "-t", "dev", "-f", "md")
+    assert status.stdout.startswith("### lely status · target `dev`\n")
+    assert "| `app` | `job` | `jobs.bar` | `job bar` | `1001` | [open](<" in status.stdout
+
+
+# -- GitHub (008) ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def hub(ready: Lely, monkeypatch: pytest.MonkeyPatch) -> FakeGitHub:
+    """A GitHub Actions run for a pull request, and a fake GitHub behind it."""
+    fake = FakeGitHub()
+    monkeypatch.setattr(cli, "GITHUB", fake.connect)
+    fake_github.inside(monkeypatch, ready.root)
+    return fake
+
+
+def page(ready: Lely) -> str:
+    summary = ready.root / "summary.md"
+    return summary.read_text() if summary.exists() else ""
+
+
+def test_github_is_never_on_because_of_where_a_command_runs(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R4: in a run, with a token and a pull request — and no `--github`."""
+    assert ready("plan", "-t", "dev").exit_code == 0
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+    assert hub.calls == [] and page(ready) == ""
+
+
+def test_outside_a_run_github_says_so_and_the_plan_stands(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R5."""
+    fake_github.outside(monkeypatch)
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0
+    assert "+ jobs.bar" in result.stdout
+    assert "--github: this isn't a GitHub Actions run" in " ".join(result.stderr.split())
+
+
+def test_the_plan_is_put_on_the_pull_request_and_kept_current(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R2, R3: one comment, updated by the next plan; the run's page too."""
+    first = ready("plan", "-t", "dev", "--github", "-o", "plan.json")
+    assert first.exit_code == 0
+    assert "… github: created the comment on pull request #12" in first.stderr
+    [body] = hub.bodies
+    assert body.startswith("<!-- lely:plan:dev -->\n### lely plan · target `dev`\n")
+    assert "\n+     create   jobs.bar\n" in body
+    assert "commit `0123456789ab`" in body and "[the run](<" in body
+    assert page(ready).startswith("<!-- lely:plan:dev -->\n### lely plan")
+
+    # the workspace moves on, so the next plan is another
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+    second = ready("plan", "-t", "dev", "--github")
+    assert "… github: updated the comment on pull request #12" in second.stderr
+    [body] = hub.bodies
+    assert "create   jobs.bar" not in body
+    # a saved plan is shown the same way, and it is the same comment
+    shown = ready("show", "plan.json", "--github")
+    assert shown.exit_code == 0 and len(hub.comments) == 1
+    assert "create   jobs.bar" in hub.bodies[0]
+    # a plan to destroy is another plan, with a comment of its own
+    ready("plan", "-t", "dev", "--destroy", "--github")
+    assert [body.split("\n", 1)[0] for body in hub.bodies] == [
+        "<!-- lely:plan:dev -->",
+        "<!-- lely:destroy:dev -->",
+    ]
+
+
+def test_a_plan_that_fails_says_so_where_the_last_plan_stood(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    ready("plan", "-t", "dev", "--github")
+    (ready.root / "lely.yml").write_text("steps:\n  - uses: nothing-like-it\n")
+    failed = ready("plan", "-t", "dev", "--github")
+    assert failed.exit_code == 1
+    [body] = hub.bodies
+    assert body.startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev` · failed"
+    )
+    assert "**The plan could not be made, so there is none to review.**" in body
+    assert "nothing-like-it" not in body  # what went wrong is on the run's page
+    assert "nothing-like-it" in page(ready)
+
+
+def test_a_comment_that_cant_be_written_doesnt_fail_the_plan(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R5: the job has no permission to comment."""
+    hub.refused = {"POST"}
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0 and hub.comments == []
+    said = " ".join(result.stderr.split())
+    assert "--github: couldn't comment on pull request #12: 403" in said
+    assert "the job needs `permissions: pull-requests: write`" in said
+    assert "### lely plan · target `dev`" in page(ready)
+
+
+def test_a_pull_request_from_a_fork_gets_no_plan_and_is_told_so(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R4a: nothing of the project is loaded, and no workspace is asked."""
+
+    def never(profile: str | None) -> Workspace:
+        raise AssertionError("a fork's plan reached for the workspace")
+
+    monkeypatch.setattr(cli, "WHOAMI", never)
+    (ready.root / "ops" / "steps.py").write_text("raise SystemExit('ran its code')\n")
+    fake_github.inside(monkeypatch, ready.root, head="someone/shop")
+    result = ready("plan", "-t", "dev", "--github", "-o", "plan.json")
+    assert result.exit_code == 0
+    assert "comes from a fork (someone/shop): no plan is made" in result.stderr
+    assert not (ready.root / "plan.json").exists()
+    assert hub.calls == []
+    assert "### lely plan · target `dev` · skipped" in page(ready)
+    # … and nothing is applied or destroyed for one
+    for command in (("apply", "-t", "dev", "--yes"), ("destroy", "-t", "dev", "--yes")):
+        refused = ready(*command, "--github")
+        assert refused.exit_code == 2
+        assert "This pull request comes from a fork (someone/shop)" in " ".join(
+            refused.stderr.split()
+        )
+    assert page(ready).count("· refused\n\n**Nothing was run.**") == 2
+
+
+def test_a_run_and_what_it_left_go_on_its_page(ready: Lely, hub: FakeGitHub) -> None:
+    """008/R3: what each step did, and what exists now, with links."""
+    refused = ready("apply", "-t", "dev", "--github")  # no terminal, no --yes
+    assert refused.exit_code == 2
+    assert "### lely apply · target `dev` · refused\n\n**Nothing was run.**" in page(
+        ready
+    )
+    applied = ready("apply", "-t", "dev", "--yes", "--github")
+    assert applied.exit_code == 0
+    assert "… github: wrote the run's summary" in applied.stderr
+    written = page(ready)
+    assert "### lely apply · target `dev`\n" in written
+    assert "#### What exists now" in written
+    assert f"| `created` | [open](<{project.WORKSPACE.host}/jobs/1001>) |" in written
+    assert hub.calls == []  # a run's result is on its page; the comment is the plan's
+    destroyed = ready("destroy", "-t", "dev", "--yes", "--github")
+    assert destroyed.exit_code == 0
+    assert "### lely destroy · target `dev`\n" in page(ready)
+
+
+# -- found in the fifth review ---------------------------------------------------------
+
+
+def test_a_saved_plan_is_not_posted_for_a_fork(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R4a: a plan file out of a fork's checkout is not "the plan"."""
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    fake_github.inside(monkeypatch, ready.root, head="someone/shop")
+    shown = ready("show", "plan.json", "--github")
+    assert shown.exit_code == 0 and "+ jobs.bar" in shown.stdout
+    assert "comes from a fork (someone/shop): its plan is not posted" in " ".join(
+        shown.stderr.split()
+    )
+    assert hub.calls == []
+    assert "### lely plan · target `dev` · skipped" in page(ready)
+
+
+def test_a_plan_that_holds_the_runs_token_is_not_written(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R6. A plan command that prints its environment puts the token in
+    the plan: in the file, which is kept as an artifact, and on stdout."""
+    ready("plan", "-t", "dev", "--github")
+    printing = (
+        "import json, os\n"
+        "print(json.dumps({'changes': [{'key': 'k', 'action': 'run',"
+        " 'summary': 'with ' + os.environ['GITHUB_TOKEN']}]}))\n"
+    )
+    (ready.root / "ops" / "leak.py").write_text(printing)
+    leaking = READY + (
+        "  - name: seed\n    uses: command\n    with:\n"
+        f"      apply: ['true']\n      plan: [{sys.executable}, ops/leak.py]\n"
+    )
+    (ready.root / "lely.yml").write_text(leaking)
+    for extra in ((), ("-f", "md"), ("-f", "json")):
+        result = ready("plan", "-t", "dev", "--github", "-o", "plan.json", *extra)
+        assert result.exit_code == 1
+        assert fake_github.TOKEN not in result.stdout + result.stderr
+        assert "The plan of step `seed` holds this run's GitHub token" in " ".join(
+            result.stderr.split()
+        )
+        assert not (ready.root / "plan.json").exists()
+    [body] = hub.bodies
+    assert "· failed\n" in body and fake_github.TOKEN not in body + page(ready)
+
+
+def test_a_failing_plan_of_a_project_whose_folder_is_gone_is_still_that_projects(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """A pull request that renames `team-a/` while the workflow still plans
+    `-c team-a/lely.yml`: the failure was filed as the top project's."""
+    subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
+    failed = ready("plan", "-t", "dev", "--github", "-c", "team-a/deploy/lely.yml")
+    assert failed.exit_code == 1
+    [body] = hub.bodies
+    assert body.startswith("<!-- lely:plan:dev:team-a/deploy -->\n")
+    # and a project at the top stays the top's
+    (ready.root / "lely.yml").write_text("steps: 5\n")
+    ready("plan", "-t", "dev", "--github")
+    assert hub.bodies[1].startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev` · f"
+    )
+
+
+def test_whatever_goes_wrong_while_posting_the_token_is_not_said(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An error may quote what it choked on."""
+
+    def choking(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError(f"Invalid header value b'Bearer {fake_github.TOKEN}\\n'")
+
+    monkeypatch.setattr(cli.github, "post_plan", choking)
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0 and fake_github.TOKEN not in result.stderr
+    assert (
+        "--github: couldn't be done: ValueError: Invalid header value b'Bearer ***"
+        in (" ".join(result.stderr.split()))
+    )

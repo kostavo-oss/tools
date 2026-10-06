@@ -126,6 +126,18 @@ do, and the plan says that instead of guessing. `lely apply plan.json` stops the
 a new plan, which shows the step ready: a first deploy through a reviewed file can take two
 rounds, and every one after it takes one.
 
+## On a pull request
+
+```sh
+lely plan -t dev --github
+```
+
+In a GitHub Actions run, `--github` puts the plan on the pull request as one comment —
+updated in place on every push — and on the run's page; after an apply the run's page says
+what each step did and what exists now, with links. `-f md` prints the same Markdown.
+[docs/GITHUB.md](docs/GITHUB.md) has the workflows to copy: plan on a pull request, apply the
+reviewed plan on merge, destroy only by hand.
+
 ## What may run
 
 - **Nothing runs unasked.** `apply` and `destroy` ask, or were given `--yes`. With no terminal
@@ -184,6 +196,9 @@ What one run could not show:
 5. That `bundle destroy` never removes more than `bundle summary` lists.
 
 `lely doctor` also can't tell whether credentials are read-only; it says so.
+
+**GitHub** (`--github`) is tested against a fake GitHub only. No pull request in a real
+repository has carried a plan yet, and the workflows in `docs/GITHUB.md` have never run.
 
 ## Named after
 

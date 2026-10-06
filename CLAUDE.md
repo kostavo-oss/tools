@@ -27,6 +27,8 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 - Nothing that changes a workspace runs unasked. A refusal is a `Refused` (exit 2); a failure
   is any other `LelyError` (exit 1).
 - Plan files carry no secrets. A value from the environment is a `Secret`.
+- Nothing a plan says is Markdown or markup where it is shown: in a terminal its control
+  characters are made visible, on GitHub it stands in a block or a code span.
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.
@@ -56,8 +58,11 @@ Not built, or not proven:
   in `src/lely/steps/bundle.py`.
 - **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
   that uses it. The owner takes it up separately — don't extend it.
-- **Phase two**: the page (`spec/007-ui.md`) and GitHub (`spec/008-github-actions.md`), whose
-  order is the owner's to decide.
+- **GitHub is built (2026-10-06) and unproven**: `--github` and `-f md`
+  (`spec/008-github-actions.md`, `docs/GITHUB.md`), tested against `tests/fake_github.py`. No
+  pull request in a real repository has carried a plan yet, and the workflows in the docs
+  have never run.
+- **Phase two, the rest**: the page (`spec/007-ui.md`).
 
 There is no Databricks CLI or workspace in the unit suite:
 
@@ -65,6 +70,8 @@ There is no Databricks CLI or workspace in the unit suite:
   recordings, or simulates a bundle in a workspace kept in a folder: `plan`, `deploy`,
   `summary`, `destroy`, `run`. What it simulates is what lely *believes* the CLI does.
 - `tests/fixtures/cli/` holds the CLI's own recorded outputs, from its acceptance tests.
+- `tests/fake_github.py` is a pull request's comments in memory, and a run's environment. What
+  it simulates is what lely *believes* GitHub does.
 - `tests/fixtures/stevin-*.json` are real stevin plan files, written by stevin against its fake
   warehouse; `tests/fake_stevin.py` answers from them.
 - `tests/project.py` is the scenario most tests share.

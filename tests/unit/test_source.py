@@ -440,3 +440,22 @@ def test_a_repository_with_no_commit_yet(tmp_path: Path) -> None:
     assert source.read(tmp_path) == Source(None, dirty=True, root=".")
     git(tmp_path, "add", ".")
     assert source.read(tmp_path) == Source(None, dirty=True, root=".")
+
+
+def test_a_folder_is_named_as_git_names_it_whether_or_not_it_is_there(
+    repo: Path, tmp_path: Path
+) -> None:
+    """For a plan that failed before it could say which project it is for —
+    a pull request that renamed the project's folder, say."""
+    (repo / "team-a" / "deploy").mkdir(parents=True)
+    assert source.named(repo) == "."
+    assert source.named(repo / "team-a" / "deploy") == "team-a/deploy"
+    assert source.named(repo / "team-a" / "gone" / "deeper") == "team-a/gone/deeper"
+    assert source.named(repo / "gone") == "gone"
+    assert (
+        source.named(repo / "team-a" / "deploy")
+        == source.read(repo / "team-a" / "deploy").root
+    )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    assert source.named(elsewhere) is None and source.named(elsewhere / "gone") is None
