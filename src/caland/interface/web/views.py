@@ -15,24 +15,32 @@ from ...domain import Settings, Workspace
 
 
 def state(
-    progress: Progress,
+    progress: Progress | None,
     service: WorkspaceService | None,
     *,
-    workspace: Workspace,
+    workspace: Workspace | None,
     read_only: bool,
     settings: Settings,
     version: str,
+    turn: int = 0,
 ) -> dict[str, Any]:
     """Everything the page draws its frame from: how far the loading is, who is
-    connected to what, and the scopes with how many secrets each holds."""
+    connected to what, and the scopes with how many secrets each holds. With no
+    workspace yet, that there is one to choose."""
+    progress = progress or Progress(phase="choosing")
     told: dict[str, Any] = {
         "caland": version,
         "phase": progress.phase,
         "done": progress.done,
         "total": progress.total,
         "error": progress.error,
-        "version": progress.version,
-        "workspace": {"name": workspace.name, "host": workspace.host_label},
+        # goes up with every change, and never comes round again when the
+        # workspace is another: what the page holds of one is not the other's
+        "version": turn * 1_000_000 + progress.version,
+        "workspace": {
+            "name": workspace.name if workspace else "",
+            "host": workspace.host_label if workspace else "",
+        },
         "identity": None,
         "read_only": read_only,
         "show_all": settings.show_all_scopes,
@@ -81,6 +89,23 @@ def keys(service: WorkspaceService) -> dict[str, Any]:
     """Every secret's name and date, by scope — what the page filters over
     without asking again."""
     return {"scopes": {s.name: _secrets(service, s.name) for s in service.scopes}}
+
+
+def workspaces(found: list[Workspace], current: Workspace | None) -> dict[str, Any]:
+    """The workspaces there are to choose from: a name to ask for each by, its
+    address, and where it was found."""
+    return {
+        "workspaces": [
+            {
+                "name": workspace.name,
+                "host": workspace.host_label,
+                "from": workspace.source_label,
+                "default": workspace.default,
+            }
+            for workspace in found
+        ],
+        "current": current.name if current else "",
+    }
 
 
 def grants(service: WorkspaceService) -> dict[str, Any]:

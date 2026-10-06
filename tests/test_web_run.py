@@ -93,9 +93,15 @@ def test_a_workspace_that_is_not_there_ends_it_before_it_starts():
     assert "http://" not in said
 
 
-def test_several_workspaces_and_no_name_asks_which():
+def test_several_workspaces_and_no_name_starts_and_lets_the_page_ask_which():
     code, said = run(onboarding=onboarding(workspaces=(DEV, PROD)))
-    assert code == 2 and "Which workspace? There is: dev, prod." in said
+    assert code == 0 and re.search(r"http://127\.0\.0\.1:\d+/#[\w-]{40,}", said)
+    assert "Which workspace?" not in said
+
+
+def test_no_workspace_at_all_starts_too_for_one_can_be_signed_in_to_by_address():
+    code, said = run(onboarding=onboarding(workspaces=()))
+    assert code == 0 and "caland stopped." in said
 
 
 def test_every_value_is_forgotten_when_it_stops():

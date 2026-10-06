@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import re
 import secrets
 import socketserver
 import threading
@@ -27,12 +28,21 @@ from urllib.parse import parse_qs, urlsplit
 from ...application import (
     DotenvError,
     Loader,
+    OnboardingService,
     WorkspaceService,
     files,
     format_dotenv,
     parse_dotenv,
 )
-from ...domain import Exists, Settings, StoreError, Workspace, same_name
+from ...domain import (
+    SOURCE_URL,
+    AuthError,
+    Exists,
+    Settings,
+    StoreError,
+    Workspace,
+    same_name,
+)
 from . import gate, views
 
 #: The most a request may say: the largest value a secret may hold, as the page
@@ -87,13 +97,15 @@ HEADERS = {
 
 
 class Page:
-    """One run of caland's page: a workspace, and who may ask about it."""
+    """One run of caland's page: a workspace — or none yet, and the choice of one
+    — and who may ask about it."""
 
     def __init__(
         self,
-        loader: Loader,
+        loader: Loader | None = None,
         *,
-        workspace: Workspace,
+        workspace: Workspace | None = None,
+        onboarding: OnboardingService | None = None,
         read_only: bool = False,
         show_all: bool = False,
         version: str = "",
@@ -101,8 +113,15 @@ class Page:
         settings: Settings | None = None,
         keep: Callable[[Settings], None] = lambda settings: None,
     ) -> None:
+        #: The workspace that is shown, being read in the background. None
+        #: while the person has yet to say which.
         self.loader = loader
         self.workspace = workspace
+        #: What there is to choose from, and how one is connected to.
+        self.onboarding = onboarding
+        #: Which workspace this is, counted from the first: so that what the page
+        #: holds of one workspace is never taken for another's.
+        self.turn = 0
         self.read_only = read_only
         #: What the person prefers — how things are shown, never a secret — and
         #: what keeps it for the next run.
@@ -135,6 +154,30 @@ class Page:
             self._key = None
         self.entered()
         return self.token
+
+    def connect(self, workspace: Workspace, save_as: str = "") -> None:
+        """Leave the workspace that is shown, if any, and start on another.
+        Returns at once: connecting, and signing in, happen in the background.
+        With `save_as`, the address is kept as a profile of that name once the
+        sign-in has worked — the address and how to sign in, never a token."""
+        onboarding = self.onboarding
+        if onboarding is None:
+            raise AuthError("There is nothing to choose a workspace from.")
+
+        def connected() -> WorkspaceService:
+            connection = onboarding.connect(workspace)
+            if save_as and connection.host:
+                onboarding.save_profile(save_as, connection.host)
+            return connection.service
+
+        loader = Loader(connected)
+        with self._lock:
+            left = self.loader
+            self.turn += 1
+            self.workspace, self.loader = workspace, loader
+        if left is not None and left.service is not None:
+            left.service.forget_values()  # nothing of the one that is left is kept
+        loader.start()
 
     def touch(self) -> None:
         self._used = self._clock()
@@ -254,19 +297,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"token": token})
 
         page.touch()
-        service = page.loader.service
+        loader = page.loader
+        service = loader.service if loader else None
 
         if (method, path) == ("GET", "/api/state"):
             return self._json(
                 views.state(
-                    page.loader.progress(),
+                    loader.progress() if loader else None,
                     service,
                     workspace=page.workspace,
                     read_only=page.read_only,
                     settings=page.settings,
                     version=page.version,
+                    turn=page.turn,
                 )
             )
+        if (method, path) == ("GET", "/api/workspaces"):
+            return self._json(self._workspaces())
+        if (method, path) == ("POST", "/api/connect"):
+            return self._json(self._connect(body), status=202)
         if (method, path) == ("POST", "/api/describe"):
             # what a file is: asked before there is a workspace to put it in, too
             return self._json(files.describe(_bytes(body, "base64")).told())
@@ -287,6 +336,13 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(502, str(exc)) from exc
         return self._json(told, status=status)
 
+    def _loader(self) -> Loader:
+        """The workspace that is shown. Asked for only where there is one."""
+        loader = self.server.page.loader
+        if loader is None:
+            raise _Refused(409, "not connected yet")
+        return loader
+
     # -- reading --------------------------------------------------------
     def _scope(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         told = views.scope(service, _one(query, "name"))
@@ -305,15 +361,49 @@ class Handler(BaseHTTPRequestHandler):
 
     def _forget(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         service.forget_values()
-        self.server.page.loader.changed()
+        self._loader().changed()
         return {}, 200
 
     def _refresh(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         scope = body.get("scope")
         if scope is not None and not isinstance(scope, str):
             raise _Refused(400, "a scope is a name")
-        self.server.page.loader.refresh(scope)
+        self._loader().refresh(scope)
         return {}, 202
+
+    # -- which workspace -------------------------------------------------
+    def _workspaces(self) -> dict[str, Any]:
+        """What there is to choose from, and where each was found."""
+        onboarding = self.server.page.onboarding
+        return views.workspaces(
+            onboarding.available_workspaces() if onboarding else [],
+            self.server.page.workspace,
+        )
+
+    def _connect(self, body: _Said) -> dict[str, Any]:
+        """Go to another workspace: one that was found, by its name — or one at
+        an address, signed in to through the browser. It changes no workspace;
+        read-only does not mind."""
+        page = self.server.page
+        onboarding = page.onboarding
+        if onboarding is None:
+            raise _Refused(409, "there is nothing to choose a workspace from")
+        if ("name" in body) == ("url" in body):
+            raise _Refused(400, "say which workspace: its name, or its address")
+        try:
+            if "name" in body:
+                page.connect(onboarding.choose(_text(body, "name")))
+                return {}
+            host = _address(body)
+            save_as = body.get("save_as", "")
+            if save_as:
+                save_as = _profile(
+                    save_as, [w.profile for w in onboarding.available_workspaces()]
+                )
+            page.connect(Workspace(host=host, source=SOURCE_URL), save_as)
+        except AuthError as exc:
+            raise _Refused(404, str(exc)) from exc
+        return {}
 
     def _grants(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         return views.grants(service), 200
@@ -392,7 +482,7 @@ class Handler(BaseHTTPRequestHandler):
             )
 
     def _changed(self) -> None:
-        self.server.page.loader.changed()
+        self._loader().changed()
 
     def _put(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         scope, key = _text(body, "scope"), _name(body, "key")
@@ -585,6 +675,48 @@ def _bytes(body: dict[str, Any], name: str) -> bytes:
     if len(data) > files.LIMIT:
         raise _Refused(413, _TOO_BIG)
     return data
+
+
+_PROFILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+
+
+def _address(body: dict[str, Any]) -> str:
+    """A workspace's address as it was typed: https, a host, and nothing more.
+    A name alone is taken to be https."""
+    typed = _text(body, "url").strip()
+    if "://" not in typed:
+        typed = "https://" + typed
+    try:
+        url = urlsplit(typed)
+        host, port = url.hostname, url.port
+    except ValueError as exc:
+        raise _Refused(400, "that is no address") from exc
+    if (
+        url.scheme != "https"
+        or not host
+        or "." not in host
+        or url.username is not None
+        or url.path not in ("", "/")
+        or url.query
+        or url.fragment
+        or len(typed) > 255
+    ):
+        raise _Refused(
+            400, "a workspace's address is https, its host, and nothing after it"
+        )
+    return f"https://{host}" + (f":{port}" if port else "")
+
+
+def _profile(name: object, there: list[str]) -> str:
+    """A name a workspace's address can be kept under. Letters, digits, dots,
+    dashes — it becomes a heading in ~/.databrickscfg, and nothing but a name
+    may be written there. Not a name that is in use: a profile keeps its way of
+    signing in, and must not be pointed at another address under it."""
+    if not isinstance(name, str) or not _PROFILE.fullmatch(name):
+        raise _Refused(400, "a profile's name is letters, digits, dots and dashes")
+    if name.casefold() == "default" or any(same_name(name, other) for other in there):
+        raise _Refused(409, f"there is a profile “{name}” already: give it another name")
+    return name
 
 
 def _pairs(body: dict[str, Any]) -> tuple[dict[str, str], list[str]]:
