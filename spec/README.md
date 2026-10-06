@@ -25,7 +25,7 @@ The numbers are names, not an order; the order of work is in
 | [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | built |
 | [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
-| [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | agreed |
+| [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | built |
 | [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; not yet run on a real repository |
 | [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | not started; questions open |
 

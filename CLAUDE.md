@@ -28,7 +28,10 @@ one. Don't build past a "To decide" that is still open — those are the owner's
   is any other `LelyError` (exit 1).
 - Plan files carry no secrets. A value from the environment is a `Secret`.
 - Nothing a plan says is Markdown or markup where it is shown: in a terminal its control
-  characters are made visible, on GitHub it stands in a block or a code span.
+  characters are made visible, on GitHub it stands in a block or a code span, on the page it
+  is escaped — and a plugin's view is written again from a short list of elements.
+- Showing a plan runs none of the project's code: `show` and `ui` load no plugin.
+- No raw invisible character in any file: write its escape. A test holds the repository to it.
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.
@@ -62,7 +65,8 @@ Not built, or not proven:
   (`spec/008-github-actions.md`, `docs/GITHUB.md`), tested against `tests/fake_github.py`. No
   pull request in a real repository has carried a plan yet, and the workflows in the docs
   have never run.
-- **Phase two, the rest**: the page (`spec/007-ui.md`).
+- **The page is built (2026-10-06)**: `lely ui`, `StepPlan.view`, a run's record with
+  `apply -o` (`spec/007-ui.md`). Looked at in a browser; not reviewed by anyone else yet.
 
 There is no Databricks CLI or workspace in the unit suite:
 

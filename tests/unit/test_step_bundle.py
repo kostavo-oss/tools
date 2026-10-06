@@ -577,3 +577,72 @@ def test_the_clis_own_refusal_to_destroy_unasked(tmp_path: Path) -> None:
     assert done.returncode == 1
     assert "To proceed, use --auto-approve." in done.stderr
     assert fake.deployed() == project.DEPLOYED
+
+
+# -- the bundle's own view, for the page (007/R2) --------------------------------------
+
+
+def test_the_bundles_view_is_its_resources_by_type_with_what_happens_to_each(
+    tmp_path: Path,
+) -> None:
+    """Every resource it declares — the one this plan leaves alone too, which
+    no list of changes names."""
+    fake = FakeDatabricks(project.world(tmp_path, deployed=False))
+    deploy(
+        fake.world,
+        {
+            **project.DEPLOYED,
+            "pipelines.foo": {
+                "id": "42",
+                "config": {"name": "pipeline foo", "storage": "dbfs:/old-storage"},
+            },
+        },
+    )
+    plan = check_plan(Bundle(), ctx(tmp_path, fake))
+    assert plan.view == (
+        "<h4>jobs <small>(2)</small></h4><table>"
+        "<tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr>"
+        '<tr><td class="key">jobs.backfill</td><td>backfill</td>'
+        '<td class="unchanged">unchanged</td><td class="dim">771</td></tr>'
+        '<tr><td class="key">jobs.bar</td><td>job bar</td>'
+        '<td class="create">create</td><td class="dim">not deployed</td></tr></table>'
+        "<h4>pipelines <small>(1)</small></h4><table>"
+        "<tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr>"
+        '<tr><td class="key">pipelines.foo</td><td>pipeline foo</td>'
+        '<td class="replace">replace <strong class="destructive">destructive</strong>'
+        '</td><td class="dim">42</td></tr></table>'
+    )
+    # nothing of a resource's config: that can hold whatever the bundle holds
+    assert "storage" not in plan.view and "model 14" not in plan.view
+    # the frame the page puts it in keeps all of it
+    from lely.render.html import framed
+
+    assert framed(plan.view) == plan.view
+
+
+def test_a_destroy_plans_view_is_what_would_go(tmp_path: Path) -> None:
+    removal = Bundle().plan_destroy(ctx(tmp_path))
+    assert removal.view is not None
+    assert (
+        '<td class="key">jobs.backfill</td><td>backfill</td><td class="delete">delete '
+        '<strong class="destructive">destructive</strong></td><td class="dim">771</td>'
+    ) in removal.view
+    assert '<td class="unchanged">unchanged</td><td class="dim">not deployed</td>' in (
+        removal.view
+    )
+
+
+def test_a_resources_name_is_text_in_the_view() -> None:
+    """A job can be named anything. The view is HTML, so a name is escaped
+    where it is written — and the page takes the view apart again anyway."""
+    from lely.render.html import framed
+
+    evil = '<script>alert(1)</script><img src=x onerror="x()">'
+    view = bundle.picture(
+        (Item("job", f"jobs.{evil}", evil, True, evil),),
+        (Change(f"jobs.{evil}", "create", "x"),),
+    )
+    assert view is not None and "<script>" not in view and "<img" not in view
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in view
+    assert framed(view) == view
+    assert bundle.picture((), ()) is None
