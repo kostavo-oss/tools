@@ -67,6 +67,14 @@ the owner to take by merging or to change first:
 
 After it is on PyPI: the shim, once, by hand, by the owner (R4).
 
+## 0.5.1 (2026-10-06)
+
+Released the same day as 0.5.0, on the owner's word, for one fix above all: a rename that
+only changes the case of a secret's name deleted the secret, in the terminal version as
+released in 0.4.1 and 0.5.0 ([003, D4](003-secrets.md#to-decide)). It also carries the
+second part of the page — changing things, and the file picker — still behind `--page`, and
+with it one new dependency, `cryptography`.
+
 ## To decide
 
 - **D1 — Which version is the first caland?** The shim is written for `0.5.0`.
