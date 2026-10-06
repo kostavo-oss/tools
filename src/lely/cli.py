@@ -26,6 +26,7 @@ Exit codes: 0 done, 1 something failed, 2 lely refused — plan again.
 from __future__ import annotations
 
 import contextlib
+import errno
 import functools
 import json
 import os
@@ -61,7 +62,16 @@ from lely import schema as schema_
 from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
-from lely.model import KNOWN, Plan, PlanKind, PlannedStep, Result, Source, Workspace
+from lely.model import (
+    KNOWN,
+    Plan,
+    PlanKind,
+    PlannedStep,
+    Result,
+    Source,
+    StepResult,
+    Workspace,
+)
 from lely.render import html, markdown
 from lely.render.rich import (
     clean,
@@ -169,12 +179,23 @@ def _main(
     ] = None,
 ) -> None:
     """One plan for your whole Databricks deploy."""
+    global _token
+    _token = None  # each command finds its own run, if it is asked to
+
+
+#: The token of the GitHub Actions run this is, once `--github` has found it:
+#: no line lely says holds it, whatever a step or a program printed.
+_token: str | None = None
+
+
+def _hide(text: str) -> str:
+    return github.scrub(text, _token)
 
 
 class _Log:
     def info(self, message: str) -> None:
         # what a program printed is shown, never obeyed
-        err.print(f"[dim]… {escape(clean(message))}[/]")
+        err.print(f"[dim]… {escape(clean(_hide(message)))}[/]")
 
 
 def _fail(error: Exception, *, refusals: bool = True) -> typer.Exit:
@@ -183,7 +204,7 @@ def _fail(error: Exception, *, refusals: bool = True) -> typer.Exit:
     `plan`, `status`, `validate` and `doctor` change nothing, so there is
     nothing to plan again for: they end with 1.
     """
-    err.print(f"[red]{escape(clean(str(error)))}[/]")
+    err.print(f"[red]{escape(clean(_hide(str(error))))}[/]")
     return typer.Exit(2 if refusals and isinstance(error, Refused) else 1)
 
 
@@ -284,9 +305,11 @@ def _run(path: Path | None, profile: str | None) -> _Run:
 def _github(asked: bool) -> github.Run | None:
     """The GitHub Actions run this is, when `--github` asks for it. It is
     never on because of where a command runs."""
+    global _token
     if not asked:
         return None
     found = github.here(os.environ)
+    _token = found.token if found is not None else None
     if found is None:
         _noted(
             [
@@ -313,7 +336,7 @@ def _post(hub: github.Run, notes: Callable[[], list[github.Note]]) -> None:
 
 def _noted(notes: list[github.Note]) -> None:
     for note in notes:
-        words = escape(clean(note.words))
+        words = escape(clean(_hide(note.words)))
         if note.done:
             err.print(f"[dim]… github: {words}[/]")
         else:
@@ -418,11 +441,16 @@ def _nothing_in(plan: Plan) -> bool:
     return not any(step.plan.changes or step.state == "waiting" for step in plan.steps)
 
 
-def _at_waiting(plan: Plan, run: _Run, yes: bool) -> running.AtWaiting:
+def _at_waiting(
+    plan: Plan, run: _Run, yes: bool, hub: github.Run | None = None
+) -> running.AtWaiting:
     """What `apply` without a file does at a step that was waiting: `--yes`
     runs it; at a terminal lely shows it and asks once more."""
 
     def ask(step: PlannedStep) -> bool:
+        if hub is not None:
+            # planned only now, and shown: held to what every shown plan is
+            _holds_no_token(replace(plan, steps=(step,)), hub)
         err.print()
         err.print(step_view(step))
         if yes:
@@ -639,6 +667,8 @@ def show(
     hub = _github(on_github)
     try:
         built = _read_plan(plan_file)
+        if hub is not None:
+            _holds_no_token(built, hub)
         _show_plan(built, output_format, None)
     except LelyError as error:
         raise _fail(error, refusals=False) from None
@@ -758,39 +788,87 @@ def _ours_to_write(page: Path) -> bool:
     return head.startswith("<!doctype html>") and made in head
 
 
+#: What means "there is no room for a second file beside this one": a folder
+#: that can't be written to, a file mounted on its own.
+_NO_ROOM = (errno.EACCES, errno.EPERM, errno.EROFS, errno.EBUSY, errno.EXDEV)
+
+
 def _write(path: Path, text: str) -> None:
     """Write `text` as the file at `path`: beside it first, then moved into
     its place. So a file is whole or as it was, never half written — and a
     link standing where the file goes is replaced, not followed: lely writes
     the file it was told to, never through to whatever a link points at.
-    Raises `OSError`."""
-    handle, beside = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+
+    What is no file is written to as it is: a device, a pipe (`-o /dev/null`).
+    A file marked read-only is left alone, as it always was. A second name of
+    the same file (a hard link) keeps what it held. Raises `OSError`.
+    """
+    try:
+        there = os.lstat(path)
+    except OSError:
+        there = None
+    if _a_device(path, there):
+        with open(path, "w", encoding="utf-8", errors="replace") as file:
+            file.write(text)
+        return
+    plain = there is not None and stat.S_ISREG(there.st_mode)
+    if plain and not os.access(path, os.W_OK):
+        raise PermissionError(errno.EACCES, "Permission denied", str(path))
+    try:
+        _in_its_place(path, text, there if plain else None)
+    except OSError as error:
+        if not plain or error.errno not in _NO_ROOM:
+            raise
+        # the file itself can be written, and nothing beside it: so, in place
+        flags = os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(
+            os.open(path, flags), "w", encoding="utf-8", errors="replace"
+        ) as file:
+            file.write(text)
+
+
+def _a_device(path: Path, there: os.stat_result | None) -> bool:
+    """Whether `path` names something to write *to*, not a file to make: a
+    pipe, a device, or anything under `/dev` — where `/dev/stdout` is a link,
+    and replacing it would take it away from everything else."""
+    if there is not None and not (
+        stat.S_ISREG(there.st_mode)
+        or stat.S_ISLNK(there.st_mode)
+        or stat.S_ISDIR(there.st_mode)
+    ):
+        return True
+    return there is not None and path.absolute().parts[:2] in (
+        ("/", "dev"),
+        ("/", "proc"),
     )
+
+
+def _in_its_place(path: Path, text: str, replaced: os.stat_result | None) -> None:
+    """`replaced` is the plain file that is there now, if one is: the new one
+    is readable by whoever could read that one, and by nobody more."""
+    handle, beside = tempfile.mkstemp(dir=path.parent, prefix=".lely-", suffix=".tmp")
     try:
         with os.fdopen(handle, "w", encoding="utf-8", errors="replace") as file:
             file.write(text)
-        os.chmod(beside, _mode_for(path))
+        if replaced is None:
+            mask = os.umask(0)
+            os.umask(mask)
+            mode = 0o666 & ~mask
+        else:
+            mode = stat.S_IMODE(replaced.st_mode) & 0o777
+            if os.stat(beside).st_gid != replaced.st_gid:
+                try:
+                    os.chown(beside, -1, replaced.st_gid)
+                except OSError:
+                    # it can't be given to the group the old one was for: then
+                    # no group reads it, and nobody else
+                    mode &= 0o700
+        os.chmod(beside, mode)
         os.replace(beside, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(beside)
         raise
-
-
-def _mode_for(path: Path) -> int:
-    """Who may read the file written at `path`: whoever could read the file
-    that is there now — a plan kept to oneself stays that way when it is made
-    again — and otherwise what any new file gets."""
-    try:
-        there = os.lstat(path)
-    except OSError:
-        there = None
-    if there is not None and stat.S_ISREG(there.st_mode):
-        return stat.S_IMODE(there.st_mode)
-    mask = os.umask(0)
-    os.umask(mask)
-    return 0o666 & ~mask
 
 
 def _page(file: Path) -> str:
@@ -953,7 +1031,7 @@ def apply(
                 source=_unsaved(run.config.root),
                 **run.edges,
             )
-            at_waiting = _at_waiting(approved, run, yes)
+            at_waiting = _at_waiting(approved, run, yes, hub)
         if hub is not None:
             _holds_no_token(approved, hub)
         render_plan(approved, err, saved=plan_file is not None)
@@ -1206,7 +1284,21 @@ def _scrubbed(result: Result, hub: github.Run | None) -> Result:
             return result
         return planfile.result_from_json(json.loads(cleaned))
     except (LelyError, TypeError, ValueError, RecursionError):
-        return result  # a result lely can't write down is shown as it is
+        # a result that can't be searched is not shown as it is: how each
+        # step ended is lely's own word, and the rest is left out
+        return Result(
+            result.kind,
+            result.target,
+            result.workspace,
+            tuple(
+                StepResult(step.name, step.uses, step.outcome) for step in result.steps
+            ),
+            result.outcome,
+            "What this run said is left out: it could not be searched for the run's "
+            "token."
+            if result.outcome != "done"
+            else "",
+        )
 
 
 def _echo_json(document: dict[str, Any], hub: github.Run | None = None) -> None:

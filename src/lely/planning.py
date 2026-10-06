@@ -448,6 +448,8 @@ class Session:
                 raise LelyError(
                     f"{where}: an overview line's `deployed` is true or false: {item}"
                 )
+        if not all(isinstance(note, str) for note in result.notes):
+            raise LelyError(f"{where}: an overview's notes are text")
         return result
 
     def shown(self, step: PlannedStep) -> PlannedStep:

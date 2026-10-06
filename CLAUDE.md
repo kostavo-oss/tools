@@ -33,7 +33,10 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 - Showing a plan runs none of the project's code: `show` and `ui` load no plugin.
 - No raw invisible character in any file: write its escape. A test holds the repository to it.
 - A file lely writes is written beside its place and moved there (`cli._write`): never
-  through a link, never half.
+  through a link, never half. What is no file — a device, a pipe — is written to as it is.
+- With `--github` lely knows the run's token, and no line it says holds it (`cli._hide`); a
+  plan that holds it is shown by no command (`cli._holds_no_token`). A new place that prints
+  goes through one of the two.
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.

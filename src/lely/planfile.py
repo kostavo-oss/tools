@@ -394,6 +394,17 @@ def _one_story(result: Result, doc: Mapping[str, Json], where: str) -> None:
     names = [step.name for step in result.steps]
     if len(set(names)) != len(names):
         raise PlanFileError(f"{where}: two steps share a name")
+    if len(result.failed) + len(result.refused) > 1:
+        # the first step that fails or is refused stops the run
+        raise PlanFileError(
+            f"{where}: more than one step failed or was refused; lely writes no "
+            "such record."
+        )
+    if result.outcome == "done" and result.message:
+        raise PlanFileError(
+            f"{where}: `outcome` says done, and its `message` says what went wrong; "
+            "lely writes no such record."
+        )
     if result.steps:
         ended = "refused" if result.refused else "failed" if result.failed else "done"
         unfinished = bool(result.not_started) and ended == "done"
@@ -409,12 +420,12 @@ def _one_story(result: Result, doc: Mapping[str, Json], where: str) -> None:
         "not_started": result.not_started,
     }
     for key, steps in lists.items():
-        if key in doc and doc[key] != [step.name for step in steps]:
+        if doc.get(key) != [step.name for step in steps]:
             raise PlanFileError(
                 f"{where}: `{key}` doesn't name the steps that its `steps` say "
                 f"{key.replace('_', ' ')}; lely writes no such record."
             )
-    if doc.get("rolled_back", []) != []:
+    if doc.get("rolled_back") != []:
         raise PlanFileError(
             f"{where}: `rolled_back` is never anything: lely rolls nothing back"
         )
