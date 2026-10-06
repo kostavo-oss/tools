@@ -1,7 +1,8 @@
 # 008 — the page
 
-**Status:** proposal. Nothing is built. Written 2026-10-06 from the owner's direction of that
-day; what is the owner's and what is the writer's is marked.
+**Status:** proposal; its shape is decided ([Decided](#decided)). Nothing is built. Written
+2026-10-06 from the owner's direction of that day; what is the owner's and what is the
+writer's is marked.
 
 ## Why
 
@@ -35,13 +36,14 @@ Two other shapes were looked at *(the writer's comparison)*:
 | Over SSH, in a dev container | yes, with a forwarded port | no | yes |
 | What it costs | a local port to defend (R9) | a heavier package, a second thing to trust | delivers none of the above |
 
-*Proposal:* the first — and built so that the second can wrap the same page later if the
-browser turns out to be the wrong home for it.
+**The first.** *(owner, 2026-10-06)* Nothing in it should stand in the way of the second
+wrapping the same page later, if the browser turns out to be the wrong home for it.
 
 ## Requirements
 
-- **R1 — Everything the terminal version does.** Specs 001–006 hold for the page: the same
-  actions, the same confirmations, the same refusals. The page is a second way in to the
+- **R1 — Everything the terminal version does, and that first.** Specs 001–006 hold for the
+  page: the same actions, the same confirmations, the same refusals. The first page does
+  that, with R4–R6 for files — nothing else new before it. *(the order is the owner's)* The page is a second way in to the
   same core — only `interface/` is new; `domain/`, `application/` and `infrastructure/` are
   what they are today. *(proposal)*
 - **R2 — It looks like lely's page.** The same colours and what they mean (green for made,
@@ -69,8 +71,8 @@ browser turns out to be the wrong home for it.
     - Filtering and searching happen in the page, over names it already has. No round-trip.
     - No framework, no build step, nothing fetched from the internet: one stylesheet, one
       script, both inside the package. It works with no network but the workspace.
-    - Anything slow — the access history ([009](009-who-reads-a-secret.md)), a group's
-      members — is asked for, never waited on, and kept for the session.
+    - Anything slow is asked for, never waited on, and kept for the session.
+    - It asks a workspace only what the terminal version asks: no query, no warehouse.
     - Numbers a test holds: first paint within 300 ms of the server being up; a workspace
       of 500 scopes and 5,000 secrets filters within 50 ms a keystroke.
 - **R8 — A value is in the page only while it is shown.** Not in the page's source, not in a
@@ -116,14 +118,18 @@ browser turns out to be the wrong home for it.
   runs unattended, no lely step for grants. *(owner, 2026-10-06)*
 - **It becomes a local tool with an HTML face, in lely's design language, with a file
   picker for certificates.** *(owner, 2026-10-06)*
+- **A browser tab, from a server on the person's own machine** — not a window of its own.
+  *(owner, 2026-10-06; was D1)*
+- **The terminal version is frozen, then dropped.** It stays as it is and gets nothing new;
+  `caland` opens the page and `caland --tui` the terminal; it goes in the release where the
+  page does everything it does. *(owner, 2026-10-06; was D2)*
+- **The page first, with what the terminal version does today.** Who reads a secret
+  ([009](009-who-reads-a-secret.md)) is not part of it. *(owner, 2026-10-06)*
+- **Only the SDK.** No audit table, no warehouse — caland reaches a workspace the way the
+  original did. *(owner, 2026-10-06)* → [000](000-what-caland-is.md#the-rules-it-keeps)
 
 ## To decide
 
-- **D1 — A browser tab, or a window of its own?** *Proposal:* the tab (see the table).
-- **D2 — Does the terminal version stay?** Two faces is twice the work on everything new.
-  *Proposal:* it stays as it is, gets nothing new, and goes in the release where the page
-  does everything it does; until then `caland` opens the page and `caland --tui` the
-  terminal.
 - **D3 — What the server is made of.** *The writer's choice unless the owner minds:* Python's
   own HTTP server — one person, one machine, no new dependency — and a small script of
   caland's own in the page.

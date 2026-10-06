@@ -1,8 +1,7 @@
 # 000 — what caland is
 
 **Status:** written 2026-10-06 from the tool as built. The owner gave the direction the same
-day ([Decided](#decided)); what follows from it is in [008](008-the-page.md) and
-[009](009-who-reads-a-secret.md).
+day ([Decided](#decided)); what follows from it is in [008](008-the-page.md).
 
 ## The line
 
@@ -55,6 +54,9 @@ one a person opens. It shares their toolchain, licence and release method, not t
   → [002](002-browsing.md)
 - **No credentials of its own.** It signs in the way the Databricks CLI does and stores no
   token. → [001](001-connecting.md)
+- **Only the SDK.** It reaches a workspace through the Databricks SDK's own calls — secrets,
+  grants, who you are. It runs no query, starts no warehouse and reads no system table.
+  *(owner, 2026-10-06)*
 - **The Databricks SDK is behind one door.** Only `infrastructure/` imports it; the screens
   and the rules have no way to the network, and are tested without one.
 
@@ -77,9 +79,11 @@ How it is built — the layers, the ports — is in `docs/architecture.md`.
   three directions the writer laid out — deepen it, a side that runs unattended, grants as
   a lely step — the first. *(owner, 2026-10-06)*
 - **What is to be refined is how it is to use.** It becomes a local tool with an HTML face
-  in lely's design language, with a file picker for certificates; it shows who has access
-  and when a secret was last read; and it stays fast. *(owner, 2026-10-06)* →
-  [008](008-the-page.md), [009](009-who-reads-a-secret.md)
+  in lely's design language, with a file picker for certificates, and it stays fast.
+  *(owner, 2026-10-06)* → [008](008-the-page.md)
+- **The page comes first; who has access comes after; when a secret was last read is out**
+  — it would take the audit table and a warehouse, and caland uses only the SDK.
+  *(owner, 2026-10-06)* → [009](009-who-reads-a-secret.md)
 
 ## To decide
 

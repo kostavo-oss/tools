@@ -43,7 +43,7 @@ first under a name nobody has registered yet.
 ## Not in this spec
 
 - **Dropping the old commands.** Not before there has been a release with them.
-- **What the tool should do next.** → [008](008-the-page.md), [009](009-who-reads-a-secret.md)
+- **What the tool should do next.** → [008](008-the-page.md)
 
 ## Decided
 
