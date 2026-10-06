@@ -122,6 +122,9 @@ class Page:
         #: Which workspace this is, counted from the first: so that what the page
         #: holds of one workspace is never taken for another's.
         self.turn = 0
+        #: Something the person should be told once, about the workspace they
+        #: are in: that it was reached, but its address could not be kept.
+        self.notice = ""
         self.read_only = read_only
         #: What the person prefers — how things are shown, never a secret — and
         #: what keeps it for the next run.
@@ -155,6 +158,13 @@ class Page:
         self.entered()
         return self.token
 
+    def current(self) -> tuple[int, Workspace | None, Loader | None]:
+        """Which workspace caland is in, as one answer: its number, what it is,
+        and what reads it. Asked once per request — never piece by piece, or a
+        request could name one workspace and act on another."""
+        with self._lock:
+            return self.turn, self.workspace, self.loader
+
     def connect(self, workspace: Workspace, save_as: str = "") -> None:
         """Leave the workspace that is shown, if any, and start on another.
         Returns at once: connecting, and signing in, happen in the background.
@@ -166,14 +176,21 @@ class Page:
 
         def connected() -> WorkspaceService:
             connection = onboarding.connect(workspace)
-            if save_as and connection.host:
-                onboarding.save_profile(save_as, connection.host)
+            # kept only if this is still where caland is going: a sign-in that
+            # was given up for another keeps nothing
+            if save_as and connection.host and self.loader is loader:
+                try:
+                    onboarding.add_profile(save_as, connection.host)
+                except (Exists, OSError) as exc:
+                    # signed in all the same: said, and not held against it
+                    self.notice = f"Signed in, but the profile was not kept: {exc}"
             return connection.service
 
         loader = Loader(connected)
         with self._lock:
             left = self.loader
             self.turn += 1
+            self.notice = ""
             self.workspace, self.loader = workspace, loader
         if left is not None and left.service is not None:
             left.service.forget_values()  # nothing of the one that is left is kept
@@ -235,6 +252,8 @@ class Handler(BaseHTTPRequestHandler):
     sys_version = ""
     timeout = QUIET
     server: Server
+    #: What reads the workspace the request in hand is about.
+    _reading: Loader | None = None
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         """Nothing a request says is written anywhere."""
@@ -297,7 +316,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"token": token})
 
         page.touch()
-        loader = page.loader
+        turn, workspace, loader = page.current()
+        self._reading = loader
         service = loader.service if loader else None
 
         if (method, path) == ("GET", "/api/state"):
@@ -305,11 +325,12 @@ class Handler(BaseHTTPRequestHandler):
                 views.state(
                     loader.progress() if loader else None,
                     service,
-                    workspace=page.workspace,
+                    workspace=workspace,
                     read_only=page.read_only,
                     settings=page.settings,
                     version=page.version,
-                    turn=page.turn,
+                    turn=turn,
+                    notice=page.notice,
                 )
             )
         if (method, path) == ("GET", "/api/workspaces"):
@@ -327,6 +348,10 @@ class Handler(BaseHTTPRequestHandler):
         route = _ROUTES.get((method, path))
         if route is None:
             raise _Refused(404, "nothing here")
+        # asked about a workspace, it says which one it means: a page that was left
+        # showing another — a second tab, a key pressed before a switch — is refused
+        if self.headers.get(gate.WORKSPACE_HEADER) != str(turn):
+            raise _Refused(412, "this page shows another workspace than caland is in")
         try:
             told, status = route(self, service, body, query)
         except Exists as exc:
@@ -337,8 +362,9 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(told, status=status)
 
     def _loader(self) -> Loader:
-        """The workspace that is shown. Asked for only where there is one."""
-        loader = self.server.page.loader
+        """What reads the workspace this request is about — the one it found when
+        it came in, also when caland has gone to another since."""
+        loader = self._reading
         if loader is None:
             raise _Refused(409, "not connected yet")
         return loader
@@ -392,14 +418,12 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(400, "say which workspace: its name, or its address")
         try:
             if "name" in body:
-                page.connect(onboarding.choose(_text(body, "name")))
+                page.connect(_found(onboarding, _text(body, "name"), body.get("host")))
                 return {}
             host = _address(body)
             save_as = body.get("save_as", "")
             if save_as:
-                save_as = _profile(
-                    save_as, [w.profile for w in onboarding.available_workspaces()]
-                )
+                save_as = _profile(save_as, onboarding.profile_names())
             page.connect(Workspace(host=host, source=SOURCE_URL), save_as)
         except AuthError as exc:
             raise _Refused(404, str(exc)) from exc
@@ -678,23 +702,42 @@ def _bytes(body: dict[str, Any], name: str) -> bytes:
 
 
 _PROFILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+# a host as a workspace has one: plain letters, digits and dashes, in parts
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOST = re.compile(rf"(?:{_LABEL}\.)+(?!\d+$){_LABEL}")
+
+
+def _found(onboarding: OnboardingService, name: str, host: object) -> Workspace:
+    """The workspace of this name — and of this address, where two that were
+    found have one name: a bundle's target and a profile, say."""
+    named = [w for w in onboarding.available_workspaces() if w.name == name]
+    if not named:
+        return onboarding.choose(name)  # says what there is, in its own words
+    if isinstance(host, str):
+        named = [w for w in named if w.host_label == host]
+        if not named:
+            raise AuthError(f"No workspace “{name}” at {host} was found.")
+    if len(named) > 1:
+        raise _Refused(409, f"there are {len(named)} called “{name}”: say which address")
+    return named[0]
 
 
 def _address(body: dict[str, Any]) -> str:
     """A workspace's address as it was typed: https, a host, and nothing more.
-    A name alone is taken to be https."""
+    A name alone is taken to be https. The host is one as workspaces have them —
+    plain letters, digits, dashes and dots — and no number in the place of a name:
+    what is kept in the profile file is what was read here, letter for letter."""
     typed = _text(body, "url").strip()
     if "://" not in typed:
         typed = "https://" + typed
     try:
         url = urlsplit(typed)
-        host, port = url.hostname, url.port
+        host, port = (url.hostname or "").lower(), url.port
     except ValueError as exc:
         raise _Refused(400, "that is no address") from exc
     if (
         url.scheme != "https"
-        or not host
-        or "." not in host
+        or not _HOST.fullmatch(host)
         or url.username is not None
         or url.path not in ("", "/")
         or url.query
@@ -710,8 +753,9 @@ def _address(body: dict[str, Any]) -> str:
 def _profile(name: object, there: list[str]) -> str:
     """A name a workspace's address can be kept under. Letters, digits, dots,
     dashes — it becomes a heading in ~/.databrickscfg, and nothing but a name
-    may be written there. Not a name that is in use: a profile keeps its way of
-    signing in, and must not be pointed at another address under it."""
+    may be written there. Not a name that is in use — by any profile the file
+    has, on the list or not: a profile keeps its way of signing in, and must not
+    be pointed at another address under it. (Asked again when it is written.)"""
     if not isinstance(name, str) or not _PROFILE.fullmatch(name):
         raise _Refused(400, "a profile's name is letters, digits, dots and dashes")
     if name.casefold() == "default" or any(same_name(name, other) for other in there):

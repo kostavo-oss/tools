@@ -1338,14 +1338,23 @@ def choosing(browser):
     connector = Connector()
     for name in ("dev", "prod", "https://new.example.com"):
         only = "only-" + name.removeprefix("https://").split(".")[0]
+        # `common` is in every one of them, under the same names: what is meant for
+        # the one must be seen not to reach the other
+        mine = [Acl("me@corp.com", "MANAGE")]
         connector.stores[name] = FakeSecretStore(
-            scopes=[Scope(only), Scope("shared")],
-            secrets={only: [Secret(only, f"key-of-{only}", 1_750_000_000_000)]},
-            acls={
-                only: [Acl("me@corp.com", "MANAGE")],
-                "shared": [Acl("me@corp.com", "MANAGE")],
+            scopes=[Scope("common"), Scope(only), Scope("shared")],
+            secrets={
+                "common": [
+                    Secret("common", "A", 1_750_000_000_000),
+                    Secret("common", "B"),
+                ],
+                only: [Secret(only, f"key-of-{only}", 1_750_000_000_000)],
             },
-            values={(only, f"key-of-{only}"): f"value of {only}"},
+            acls={"common": mine, only: mine, "shared": mine},
+            values={
+                (only, f"key-of-{only}"): f"value of {only}",
+                ("common", "A"): f"A of {only}",
+            },
         )
     profiles = StubProfiles([DEV, PROD])
     page = Page(onboarding=OnboardingService(connector, profiles, StubBundle()))
@@ -1372,7 +1381,7 @@ def test_with_several_workspaces_the_page_asks_which(choosing):
     choosing.wait(f"{PLACES}.length === 2")
     choosing.press("j", "Enter")
     choosing.wait(f"!{OPEN.format('picker')} && document.body.dataset.phase === 'ready'")
-    assert choosing.js(SCOPES) == ["only-prod", "shared"]
+    assert choosing.js(SCOPES) == ["common", "only-prod", "shared"]
     assert (
         choosing.js("document.getElementById('host').textContent") == "prod.example.com"
     )
@@ -1385,6 +1394,8 @@ def test_w_goes_to_another_workspace_and_keeps_nothing_of_the_one_left(choosing)
     choosing.wait(
         f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-dev')"
     )
+    choosing.press("j")
+    choosing.wait(f"{SELECTED_KEY} === 'key-of-only-dev'")
     choosing.press("l", " ")
     choosing.wait("document.querySelector('pre.value.shown')")
     assert "value of only-dev" in choosing.js(WHOLE_PAGE)
@@ -1405,7 +1416,7 @@ def test_w_goes_to_another_workspace_and_keeps_nothing_of_the_one_left(choosing)
     assert "only-dev" not in whole and "value of only-dev" not in whole
     choosing.press("A")  # and the lists are the new one's
     choosing.wait(OPEN.format("list"))
-    assert [row[0] for row in choosing.js(LIST)] == ["only-prod"]
+    assert [row[0] for row in choosing.js(LIST)] == ["common", "only-prod"]
 
 
 def test_esc_leaves_the_workspace_as_it_is_when_there_is_one(choosing):
@@ -1418,7 +1429,7 @@ def test_esc_leaves_the_workspace_as_it_is_when_there_is_one(choosing):
     choosing.wait(OPEN.format("picker"))
     choosing.press("j", "Escape")
     choosing.wait(f"!{OPEN.format('picker')}")
-    assert choosing.js(SCOPES) == ["only-dev", "shared"]
+    assert choosing.js(SCOPES) == ["common", "only-dev", "shared"]
     assert choosing.js("document.getElementById('host').textContent") == "dev.example.com"
 
 
@@ -1471,3 +1482,184 @@ def test_a_workspace_that_cannot_be_reached_brings_the_choice_back_with_the_reas
     choosing.wait(
         f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-dev')"
     )
+
+
+# ── what a second pair of eyes found in the choice of a workspace ─────
+#: The page has taken up the workspace of this name, and read it.
+READY_IN = (
+    "document.body.dataset.phase === 'ready'"
+    " && [...document.querySelectorAll('#scopes li span.mono')]"
+    ".some(n => n.textContent === 'only-{}')"
+)
+
+
+def in_common(tab, name):
+    """Go to workspace `name` from the open choice, and into `common`, which is first."""
+    tab.wait(OPEN.format("picker"))
+    tab.press(*(["j", "Enter"] if name == "prod" else ["Enter"]))
+    tab.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-{name}')"
+    )
+    tab.wait(f"{SELECTED_SCOPE} === 'common' && document.querySelector('#detail button')")
+    tab.press("l")
+
+
+def keys_of(store, scope="common"):
+    return sorted(secret.key for secret in store._secrets[scope])
+
+
+def test_a_change_asked_for_in_one_workspace_is_never_done_in_another(choosing):
+    """`d y`, `d y` again while the first is still under way, then off to prod: the
+    second delete was asked of dev. prod has the same names — and keeps them."""
+    import time
+
+    in_common(choosing, "dev")
+    dev, prod = choosing.connector.stores["dev"], choosing.connector.stores["prod"]
+    real = dev.delete_secret
+
+    def slowly(scope, key):
+        time.sleep(0.6)
+        real(scope, key)
+
+    dev.delete_secret = slowly
+    choosing.press("d")
+    choosing.wait(OPEN.format("confirm"))
+    choosing.press("y", "d")
+    choosing.wait(OPEN.format("confirm"))
+    choosing.press("y", "w")
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("j", "Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+    )
+    time.sleep(1.2)  # whatever was still to come has come
+    assert keys_of(prod) == ["A", "B"] and prod.count("delete_secret") == 0
+    assert keys_of(dev) == ["B"]  # the one that was under way, and no more
+
+
+def test_a_tab_left_showing_another_workspace_changes_nothing_and_catches_up(choosing):
+    from test_web_picker import PROD
+
+    in_common(choosing, "dev")
+    choosing.server.page.connect(PROD)  # another tab went to prod
+    prod = choosing.connector.stores["prod"]
+    choosing.press("d")
+    choosing.wait(OPEN.format("confirm"))
+    choosing.press("y")
+    choosing.wait(f"{TOAST}.includes('another workspace')")
+    choosing.wait(f"{SCOPES}.includes('only-prod')")
+    assert keys_of(prod) == ["A", "B"] and prod.count("delete_secret") == 0
+    assert "only-dev" not in choosing.js(WHOLE_PAGE)
+    assert (
+        choosing.js("document.getElementById('host').textContent") == "prod.example.com"
+    )
+
+
+def test_a_value_that_comes_late_is_not_shown_under_another_workspace(choosing):
+    import time
+
+    in_common(choosing, "dev")
+    dev = choosing.connector.stores["dev"]
+    real = dev.get_secret_bytes
+
+    def slowly(scope, key):
+        time.sleep(0.6)
+        return real(scope, key)
+
+    dev.get_secret_bytes = slowly
+    choosing.press(" ", "w")
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("j", "Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+    )
+    time.sleep(1.0)
+    assert "A of only-dev" not in choosing.js(WHOLE_PAGE)
+    assert choosing.js("document.querySelector('pre.value.shown')") is None
+
+
+def test_the_choice_comes_back_even_when_something_else_was_open(choosing):
+    go_on = threading.Event()
+    real = choosing.connector.connect_profile
+
+    def slowly(profile):
+        go_on.wait(10)
+        return real(profile)
+
+    choosing.connector.connect_profile = slowly
+    choosing.connector.refuse.add("prod")
+    try:
+        choosing.wait(OPEN.format("picker"))
+        choosing.press("j", "Enter")
+        choosing.wait("document.body.dataset.phase === 'connecting'")
+        for key in ("N", "A", "n", "i"):  # nothing to act on yet: they open nothing
+            choosing.press(key)
+        assert choosing.js("document.querySelector('dialog[open]')") is None
+        choosing.press("?")
+        choosing.wait(OPEN.format("help"))
+        go_on.set()
+        choosing.wait("document.body.dataset.phase === 'failed'")
+        assert choosing.js(OPEN.format("picker")) is False  # the keys' list is in the way
+        choosing.press("Escape")
+        choosing.wait(
+            "document.getElementById('picker').open"
+            " && document.getElementById('picker-error')"
+            ".textContent.includes('cancelled')"
+        )
+    finally:
+        go_on.set()
+
+
+def test_enter_twice_is_one_sign_in(choosing):
+    choosing.wait(OPEN.format("picker"))
+    choosing.js("document.getElementById('picker-url').focus()")
+    choosing.type("new.example.com")
+    choosing.press("Enter", "Enter", "Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-new')"
+    )
+    asked = (
+        "performance.getEntriesByType('resource')"
+        ".filter(r => r.name.endsWith('/api/connect')).length"
+    )
+    assert choosing.js(asked) == 1
+    assert choosing.server.page.turn == 1
+
+
+def test_after_going_elsewhere_nothing_of_the_old_is_behind_a_closed_dialog(choosing):
+    in_common(choosing, "dev")
+    opened = (("p", "grants"), ("m", "move"), ("C", "code"), ("A", "list"), ("e", "form"))
+    for key, dialog in opened:
+        choosing.press(key)
+        choosing.wait(OPEN.format(dialog))
+        choosing.press("Escape")
+        choosing.wait(f"!{OPEN.format(dialog)}")
+    choosing.press("w")
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("j", "Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+    )
+    whole = choosing.js(WHOLE_PAGE)
+    assert "only-dev" not in whole and "common/A" not in whole
+    for id_ in ("grants-rows", "move-from", "code-rows", "list-rows"):
+        assert choosing.js(f"document.getElementById('{id_}').childNodes.length") == 0
+    assert choosing.js("document.getElementById('form-key').value") == ""
+
+
+def test_a_profile_not_kept_is_said_once_and_the_sign_in_stands(choosing):
+    def refusing(name, host):
+        raise OSError("~/.databrickscfg cannot be written")
+
+    choosing.profiles.add = refusing
+    choosing.wait(OPEN.format("picker"))
+    choosing.js("document.getElementById('picker-url').focus()")
+    choosing.type("new.example.com")
+    choosing.js("document.getElementById('picker-save').click()")
+    choosing.type("kept")
+    choosing.press("Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-new')"
+    )
+    choosing.wait(f"{TOAST}.includes('profile was not kept')")
+    assert "cannot be written" in choosing.js(TOAST)

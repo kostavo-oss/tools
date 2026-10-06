@@ -89,6 +89,14 @@ class OnboardingService:
     def save_profile(self, name: str, host: str) -> None:
         self._profiles.save(name, host)
 
+    def profile_names(self) -> list[str]:
+        """Every profile there is — also those that are no workspace to offer."""
+        return self._profiles.names()
+
+    def add_profile(self, name: str, host: str) -> None:
+        """Keep an address under a new name. Raises `Exists` for a name in use."""
+        self._profiles.add(name, host)
+
     # -- connection use-cases -------------------------------------------
     def connect(self, workspace: Workspace) -> Connection:
         """Connect to a chosen workspace. A saved profile uses its stored auth; a

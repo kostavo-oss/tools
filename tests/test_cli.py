@@ -51,8 +51,9 @@ def test_a_profile_by_its_flag(started):
     assert started("--profile", "prod", "--read-only")[0] == (
         "page",
         "prod",
-        ["--profile", "--read-only"],
+        ["--read-only"],
     )
+    assert started("--profile=prod")[-2] == ("page", "prod", [])
 
 
 def test_the_flags_of_the_page_reach_it(started):
@@ -78,6 +79,30 @@ def test_the_terminal_version_takes_a_workspace_and_read_only(started):
 def test_a_profile_with_no_name_is_said_and_nothing_starts(started, capsys):
     assert started("--profile") == [("exit", 2)]
     assert "needs a workspace name" in capsys.readouterr().err
+    assert started("--profile", "--read-only")[-1] == ("exit", 2)
+    assert started("--profile=")[-1] == ("exit", 2)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--readonly", "prod"],  # meant: change nothing. Must not open prod to change
+        ["--read_only"],
+        ["-r"],
+        ["--tui", "--readonly"],
+        ["--no-browser"],
+        ["--profile", "prod", "--bogus"],
+    ],
+)
+def test_an_option_that_is_not_one_is_refused_and_nothing_starts(started, capsys, args):
+    assert started(*args) == [("exit", 2)]
+    assert "there is no option" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args", [["dev", "prod"], ["prod", "--profile", "dev"]])
+def test_one_workspace_at_a_time(started, capsys, args):
+    assert started(*args) == [("exit", 2)]
+    assert "one workspace at a time" in capsys.readouterr().err
 
 
 def test_help_says_what_caland_is_now(started, capsys):

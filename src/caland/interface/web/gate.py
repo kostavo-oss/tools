@@ -28,6 +28,11 @@ from dataclasses import dataclass
 #: The header the page sends the session's token in.
 TOKEN_HEADER = "X-Caland-Token"
 
+#: The header the page says in which workspace it believes it is: the number the
+#: state gave it. A request about a workspace is answered only for the one caland
+#: is in — a page left showing another must not change this one.
+WORKSPACE_HEADER = "X-Caland-Workspace"
+
 #: The one request under `/api/` that needs no token: it is how the token is got.
 ENTER = "/api/enter"
 

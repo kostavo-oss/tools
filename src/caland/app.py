@@ -129,6 +129,43 @@ forgets every value it held. On the page: ? for the keys.
 """
 
 
+#: The options that take no value. Anything else that starts with a dash is not
+#: caland's — and is refused: `--readonly` taken for nothing would open a
+#: workspace to change, when what was meant was that it should not be.
+_FLAGS = ("--tui", "--page", "--read-only", "--no-open")
+
+
+def _asked(args: list[str]) -> tuple[str | None, set[str]]:
+    """Which workspace was named, and which options were given. Raises
+    `SystemExit(2)`, having said why, for what cannot be understood."""
+    import sys
+
+    def refuse(why: str) -> SystemExit:
+        print(f"caland: {why} (caland --help says what there is)", file=sys.stderr)
+        return SystemExit(2)
+
+    profile: str | None = None
+    flags: set[str] = set()
+    rest = iter(args)
+    for arg in rest:
+        if arg == "--profile" or arg.startswith("--profile="):
+            name = arg.partition("=")[2] if "=" in arg else next(rest, "")
+            if not name or name.startswith("-"):
+                raise refuse("--profile needs a workspace name")
+            if profile is not None:
+                raise refuse("one workspace at a time")
+            profile = name
+        elif arg in _FLAGS:
+            flags.add(arg)
+        elif arg.startswith("-"):
+            raise refuse(f"there is no option {arg}")
+        elif profile is not None:
+            raise refuse("one workspace at a time")
+        else:
+            profile = arg  # a bare word is the workspace's name
+    return profile, flags
+
+
 def main() -> None:
     import sys
 
@@ -141,26 +178,16 @@ def main() -> None:
     if {"-h", "--help"} & set(args):
         print(_USAGE, end="")
         return
-    profile: str | None = None
-    if "--profile" in args:
-        i = args.index("--profile")
-        if i + 1 >= len(args):
-            print("error: --profile needs a workspace name", file=sys.stderr)
-            raise SystemExit(2)
-        profile = args[i + 1]
-    else:  # a bare positional is the workspace name
-        positional = [a for a in args if not a.startswith("-")]
-        if positional:
-            profile = positional[0]
-    if "--tui" in args:
+    profile, flags = _asked(args)
+    if "--tui" in flags:
         CalandApp(
-            read_only="--read-only" in args,
+            read_only="--read-only" in flags,
             settings_store=JsonSettingsStore(),
             profile=profile,
         ).run()
         return
     # the page is what caland is; `--page`, from when it was not, still says so
-    raise SystemExit(_page(profile, args))
+    raise SystemExit(_page(profile, sorted(flags)))
 
 
 def _page(profile: str | None, args: list[str]) -> int:

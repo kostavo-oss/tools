@@ -277,3 +277,220 @@ def test_a_page_with_nothing_to_choose_from_says_so():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+# ── what a second pair of eyes found ─────────────────────────────────
+ABOUT_A_WORKSPACE = [
+    ("GET", "/api/keys", None),
+    ("GET", "/api/grants", None),
+    ("GET", "/api/scope?name=prod", None),
+    ("POST", "/api/value", {"scope": "prod", "key": "api-key"}),
+    ("POST", "/api/forget", {}),
+    ("POST", "/api/refresh", {}),
+    ("POST", "/api/secret/put", {"scope": "prod", "key": "new", "text": "x"}),
+    ("POST", "/api/secret/delete", {"scope": "prod", "key": "api-key"}),
+    (
+        "POST",
+        "/api/secret/move",
+        {"scope": "prod", "key": "api-key", "to_scope": "prod", "to_key": "b"},
+    ),
+    ("POST", "/api/undo", {}),
+    (
+        "POST",
+        "/api/grant/put",
+        {"scope": "prod", "principal": "a@b.c", "permission": "READ"},
+    ),
+    ("POST", "/api/grant/delete", {"scope": "prod", "principal": "users"}),
+    ("POST", "/api/scope/create", {"name": "new-scope"}),
+    ("POST", "/api/scope/delete", {"name": "prod"}),
+    ("POST", "/api/env/preview", {"scope": "prod", "base64": "QT0x"}),
+    ("POST", "/api/env/import", {"scope": "prod", "base64": "QT0x"}),
+    ("POST", "/api/env/export", {"scope": "prod"}),
+]
+WRITES = (
+    "put_secret_bytes",
+    "delete_secret",
+    "put_acl",
+    "delete_acl",
+    "create_scope",
+    "delete_scope",
+)
+
+
+def wrote(store) -> list[str]:
+    return [call[0] for call in store.calls if call[0] in WRITES]
+
+
+@pytest.mark.parametrize(("method", "path", "body"), ABOUT_A_WORKSPACE)
+def test_a_page_left_showing_another_workspace_changes_and_reads_nothing(
+    served, method, path, body
+):
+    """A second tab still on dev, or a key pressed before the switch: what it
+    asks was meant for dev, and must not be done to prod."""
+    connect(served, name="dev")
+    ready(served)
+    on_dev = {"X-Caland-Workspace": str(served.page.turn)}
+    connect(served, name="prod")
+    ready(served)
+    reads = served.connector.stores["prod"].reads()
+    for headers in (on_dev, {"X-Caland-Workspace": None}, {"X-Caland-Workspace": "x"}):
+        status, _, text = served.ask(method, path, body, headers=headers)
+        assert status == 412 and b"another workspace" in text
+    assert wrote(served.connector.stores["prod"]) == []
+    assert served.connector.stores["prod"].reads() == reads
+
+
+def test_the_state_says_which_workspace_it_is_counted_from_the_first(served):
+    assert state(served)["turn"] == 0
+    connect(served, name="dev")
+    assert ready(served)["turn"] == 1
+    connect(served, name="prod")
+    assert ready(served)["turn"] == 2
+
+
+def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspace(served):
+    import time
+
+    connect(served, name="dev")
+    ready(served)
+    dev = served.connector.stores["dev"]
+    slow = dev.delete_secret
+
+    def slowly(scope, key):
+        time.sleep(0.3)
+        slow(scope, key)
+
+    dev.delete_secret = slowly
+    done = []
+    asking = threading.Thread(
+        target=lambda: done.append(
+            served.json("POST", "/api/secret/delete", {"scope": "prod", "key": "api-key"})
+        )
+    )
+    asking.start()
+    time.sleep(0.1)
+    connect(served, name="prod")
+    ready(served)
+    asking.join(timeout=5)
+    assert done[0][0] == 200
+    assert "delete_secret" in [call[0] for call in dev.calls]
+    assert wrote(served.connector.stores["prod"]) == []
+    assert any(
+        s.key == "api-key" for s in served.connector.stores["prod"]._secrets["prod"]
+    )
+
+
+def test_a_profile_that_is_on_no_list_is_in_use_all_the_same(served):
+    """One at the bundle's address, or with none: not offered, and still there —
+    with its token."""
+    served.profiles.others = ["prod-sp"]
+    for name in ("prod-sp", "PROD-SP"):
+        status, told = connect(served, url="https://evil.example.com", save_as=name)
+        assert status == 409 and "already" in told["error"]
+    assert served.connector.stores == {} and served.profiles.saved == []
+
+
+def test_a_name_taken_while_signing_in_is_said_and_the_sign_in_stands(served):
+    real, asked = served.profiles.names, []
+
+    def names():
+        asked.append(1)  # free when the request asks, taken when it is written
+        return ["DEFAULT"] if len(asked) == 1 else real()
+
+    served.profiles.names = names
+    assert connect(served, url="https://new.example.com", save_as="prod")[0] == 202
+    told = ready(served)
+    assert told["phase"] == "ready" and "profile was not kept" in told["notice"]
+    assert served.profiles.saved == []
+
+
+def test_a_sign_in_given_up_for_another_keeps_nothing(served):
+    import time
+
+    held = threading.Event()
+    real = served.connector.connect_url
+
+    def slowly(host):
+        held.wait(5)
+        return real(host)
+
+    served.connector.connect_url = slowly
+    connect(served, url="https://new.example.com", save_as="given-up")
+    connect(served, name="dev")
+    assert ready(served)["workspace"]["name"] == "dev"
+    held.set()
+    time.sleep(0.3)
+    assert served.profiles.saved == []
+    assert state(served)["workspace"]["name"] == "dev" and state(served)["notice"] == ""
+
+
+def test_whatever_goes_wrong_on_the_way_in_is_said(served):
+    def broken(profile):
+        raise PermissionError("~/.databrickscfg cannot be read")
+
+    served.connector.connect_profile = broken
+    connect(served, name="dev")
+    told = ready(served)
+    assert told["phase"] == "failed" and "cannot be read" in told["error"]
+
+
+def test_two_that_were_found_under_one_name_are_told_apart_by_their_address():
+    from caland.domain import SOURCE_BUNDLE
+
+    bundle = Workspace(
+        host="https://bundle.example.com", source=SOURCE_BUNDLE, target="prod"
+    )
+    connector = Connector()
+    page = Page(
+        onboarding=OnboardingService(connector, StubProfiles([PROD]), StubBundle(bundle))
+    )
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        served = Served(server, None)
+        served.enter()
+        rows = served.json("GET", "/api/workspaces")[1]["workspaces"]
+        assert [(row["name"], row["host"]) for row in rows] == [
+            ("prod", "bundle.example.com"),
+            ("prod", "prod.example.com"),
+        ]
+        status, told = connect(served, name="prod")
+        assert status == 409 and "say which address" in told["error"]
+        assert connect(served, name="prod", host="prod.example.com")[0] == 202
+        assert ready(served)["workspace"]["host"] == "prod.example.com"
+        assert list(connector.stores) == ["prod"]  # the profile, not the bundle's address
+        assert connect(served, name="prod", host="nope.example.com")[0] == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://exаmple.com",  # a Cyrillic а
+        "https://1.2.3.4",
+        "https://[::ffff:1.2.3.4]",
+        "https://a.%(token)s.b",
+        "https://dev.example.com\x00.evil.example",
+        "https://dev_example.com",
+        "https://-dev.example.com",
+        "https://dev.example.com.",
+        "https://dev..example.com",
+        "https://example.123",
+    ],
+)
+def test_a_host_is_one_as_workspaces_have_them(served, url):
+    status, told = connect(served, url=url, save_as="new-one")
+    assert status == 400 and "address" in told["error"]
+    assert served.connector.stores == {} and served.profiles.saved == []
+
+
+def test_an_address_is_kept_as_it_was_read_in_small_letters(served):
+    connect(served, url="HTTPS://Adb-123.AzureDatabricks.NET:443/", save_as="azure")
+    assert ready(served)["phase"] == "ready"
+    assert served.profiles.saved == [
+        ("azure", "https://adb-123.azuredatabricks.net:443", None)
+    ]

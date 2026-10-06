@@ -31,6 +31,8 @@ class Served:
             token = self.token
         if token:
             sent[gate.TOKEN_HEADER] = token
+        # as the page does: it says which workspace it believes it is in
+        sent[gate.WORKSPACE_HEADER] = str(self.server.page.turn)
         data = raw
         if body is not None:
             data = json.dumps(body).encode()

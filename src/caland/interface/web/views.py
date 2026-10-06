@@ -23,6 +23,7 @@ def state(
     settings: Settings,
     version: str,
     turn: int = 0,
+    notice: str = "",
 ) -> dict[str, Any]:
     """Everything the page draws its frame from: how far the loading is, who is
     connected to what, and the scopes with how many secrets each holds. With no
@@ -37,6 +38,10 @@ def state(
         # goes up with every change, and never comes round again when the
         # workspace is another: what the page holds of one is not the other's
         "version": turn * 1_000_000 + progress.version,
+        # which workspace this is, counted from the first: said back with every
+        # request about it
+        "turn": turn,
+        "notice": notice,
         "workspace": {
             "name": workspace.name if workspace else "",
             "host": workspace.host_label if workspace else "",
