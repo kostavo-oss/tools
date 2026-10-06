@@ -86,9 +86,6 @@ _TICKS = 16
 
 _LONG_RUN = re.compile("`{" + str(_TICKS + 1) + ",}")
 
-#: The most of a program's own words shown in one place; the log has the rest.
-_SAID = 20_000
-
 #: The longest a target or a project's folder is spelled out in the marker.
 _FIELD = 200
 
@@ -314,7 +311,7 @@ def _result(result: Result, *, changes: bool, overview: bool) -> str:
     if block:
         parts += ["", block]
     if result.outcome != "done" and result.message:
-        parts += ["", _block([_Line(_said(result.message))], "text", margin=False)]
+        parts += ["", _block([_Line(words.said(result.message))], "text", margin=False)]
     if overview:
         exists = _exists(
             [
@@ -425,7 +422,7 @@ def failure_markdown(
         "plan says nothing about what is here now.",
     ]
     if message:
-        parts += ["", _block([_Line(_said(message))], "text", margin=False)]
+        parts += ["", _block([_Line(words.said(message))], "text", margin=False)]
     log = _followed(link or "", "The run's log")
     if log:
         parts += ["", f"{log} says what went wrong."]
@@ -472,7 +469,7 @@ def stopped_markdown(kind: str, target: str | None, refused: bool, message: str)
         "",
         "**Nothing was run.**",
         "",
-        _block([_Line(_said(message))], "text", margin=False),
+        _block([_Line(words.said(message))], "text", margin=False),
     ]
     return "\n".join(parts) + "\n"
 
@@ -567,16 +564,6 @@ def _block(lines: Iterable[_Line], language: str, *, margin: bool = True) -> str
 def _tamed(text: str) -> str:
     """`text` with no run of backticks longer than `_TICKS`."""
     return _LONG_RUN.sub("`" * _TICKS + "…", text)
-
-
-def _said(message: str) -> str:
-    """A program's own words, cut to what one place can hold: where they
-    start, and where they end — which is where an error says what it is."""
-    if len(message) <= _SAID:
-        return message
-    head, tail = message[: _SAID // 10], message[-(_SAID - _SAID // 10) :]
-    left_out = len(message) - len(head) - len(tail)
-    return f"{head}\n… ({left_out} characters left out; the run's log has them)\n{tail}"
 
 
 def _longest_run(text: str) -> int:

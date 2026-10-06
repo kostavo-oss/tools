@@ -359,11 +359,11 @@ def test_what_a_plan_says_is_shown_never_obeyed() -> None:
         "app",
         "bundle",
         "h",
-        StepPlan((Change("k", "create", "jobs.‮elbat‬\x1b[2K\r"),)),
+        StepPlan((Change("k", "create", "jobs.\u202eelbat\u202c\x1b[2K\r"),)),
     )
     plan = Plan("0", "apply", "dev\x07", project.WORKSPACE, Source(), (step,))
     shown = plan_markdown(plan)
-    assert not re.search("[\x00-\x09\x0b-\x1f‮‬]", shown)
+    assert not re.search("[\x00-\x09\x0b-\x1f\u202e\u202c]", shown)
     assert "+     create   jobs.�elbat��[2K�" in shown
     assert "target `dev�`" in shown
 

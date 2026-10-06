@@ -18,7 +18,9 @@ from lely.model import Overview, Plan, PlannedStep, Result, Secret, StepResult, 
 #: the bidirectional overrides and isolates, the marks, and the zero-width
 #: space and word joiner. (The zero-width joiners stay: scripts and emoji
 #: are written with them.)
-_INVISIBLE = frozenset("؜​‎‏⁠﻿‪‫‬‭‮⁦⁧⁨⁩")
+_INVISIBLE = frozenset(
+    "\u061c\u200b\u200e\u200f\u2060\ufeff\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
+)
 
 
 def clean(text: str) -> str:
@@ -241,3 +243,19 @@ def rows(overview: Overview, happened: Mapping[str, str] | None) -> list[Row]:
     return listed + [
         Row("", key, "", "", word, "") for key, word in did.items() if key not in keys
     ]
+
+
+# -- a program's own words ------------------------------------------------------
+
+#: The most of a program's own words shown in one place; the log has the rest.
+SAID = 20_000
+
+
+def said(message: str) -> str:
+    """A program's own words, cut to what one place can hold: where they
+    start, and where they end — which is where an error says what it is."""
+    if len(message) <= SAID:
+        return message
+    head, tail = message[: SAID // 10], message[-(SAID - SAID // 10) :]
+    left_out = len(message) - len(head) - len(tail)
+    return f"{head}\n… ({left_out} characters left out; the run's log has them)\n{tail}"
