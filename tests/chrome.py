@@ -89,9 +89,15 @@ class Browser:
         self._out, self._in = ours_out, ours_in
         self._buffer = b""
         self._count = 0
+        # a first start can take its time, on a machine that has never run it
+        self.call("Browser.getVersion", seconds=120)
 
     def call(
-        self, method: str, params: dict | None = None, session: str | None = None
+        self,
+        method: str,
+        params: dict | None = None,
+        session: str | None = None,
+        seconds: float = 30,
     ) -> Any:
         self._count += 1
         message: dict[str, Any] = {
@@ -102,7 +108,7 @@ class Browser:
         if session:
             message["sessionId"] = session
         os.write(self._out, json.dumps(message).encode() + b"\0")
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + seconds
         while True:
             answer = self._read(deadline)
             if answer.get("id") == self._count:
