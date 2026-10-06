@@ -54,6 +54,27 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
 - **R3 — Still by keyboard.** Every action keeps its key — `/` to filter, `j` `k` to move,
   `n` `e` `d` `m`, `space` to show, `c` to copy — and `?` lists them. What the page adds is
   that everything can also be clicked. *(proposal)*
+- **R3a — Tab goes from pane to pane, not from button to button.** A browser's own rule —
+  tab stops at every button — makes a page of buttons a long walk, and never reaches a list
+  at all. So: *(owner found the first mock-up wanting here, 2026-10-06; the rules are the
+  writer's, and are what the mock-up now does)*
+    - **Each pane is one stop.** `tab` goes scopes → secrets → detail, `shift` `tab` back,
+      as it did in the terminal. The filter and the buttons above are stops before them.
+    - **Arrows move inside a pane, and across.** `↑` `↓` or `j` `k` within; `←` `→` or `h`
+      `l` to the next pane; `g` `G` to a pane's ends. In the detail they walk its buttons.
+      Nobody needs `tab` at all.
+    - **`space` and `enter` belong to what has the keyboard**: on a secret they show its
+      value, on a button they press that button. Letters act on the selected secret from
+      anywhere that is not a text field.
+    - **The keyboard is never nowhere.** The page opens with it in the scopes. Closing a
+      dialog, leaving the filter, or a change that redraws the page puts it back where it
+      was.
+    - **One mark for where it is.** Blue: a bar on the row, a ring on a button, and the
+      pane's heading at full strength. A ring shows only when a button was reached by key.
+    - **`tab` is not caught.** After the last stop it goes on to the browser's own bar, as on
+      any page; a page that keeps `tab` to itself is one people cannot leave by keyboard.
+    - **In the filter** `↑` `↓` pick while typing, `enter` goes to what is left, `esc`
+      clears it and goes back.
 - **R4 — Pick a file with the system's own dialog.** Where a value is asked for there is
   *choose a file*, which opens the file dialog the person's system has, and a file can be
   dropped onto the form. The file's content goes from the browser to caland on the same

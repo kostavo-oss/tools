@@ -55,6 +55,12 @@ input[type=text], input[type=password], select { background: none;
   border: 1px solid var(--edge); border-radius: .4rem; padding: .32rem .6rem; width: 100%; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 dialog:focus-visible { outline: none; }
+/* a pane is one stop for tab; inside it the row shows where the keyboard is, not a ring.
+   blue is the keyboard, wherever it is: the bar on a row, the ring on a button */
+#scopes:focus, #keys:focus { outline: none; }
+#scopes:focus [aria-selected=true], #keys:focus tr[aria-selected=true] td:first-child {
+  box-shadow: inset 3px 0 0 var(--blue); }
+section:focus-within > h2:first-child { color: inherit; }
 
 header { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline;
   border-bottom: 1px solid var(--edge); padding-bottom: .8rem; }
@@ -92,9 +98,10 @@ pre.value.shown { border-left-color: var(--green); }
 .acts { display: flex; flex-wrap: wrap; gap: .45rem; margin: .5rem 0 1.2rem; }
 
 dialog { border: 1px solid var(--edge); border-radius: .6rem; padding: 1.2rem 1.4rem;
-  width: 34rem; max-width: calc(100vw - 2rem); background: Canvas; color: CanvasText; }
+  width: 36rem; max-width: calc(100vw - 2rem); background: Canvas; color: CanvasText; }
 dialog::backdrop { background: #0007; }
 dialog h1 { font-size: 1.1rem; margin-bottom: .8rem; }
+dialog td:first-child { white-space: nowrap; }
 dialog label { display: block; margin: .7rem 0 .2rem; color: var(--dim); font-size: .85rem; }
 dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
 .or { display: flex; gap: .7rem; align-items: center; color: var(--dim);
@@ -139,21 +146,23 @@ dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
 </div>
 
 <main>
-  <section aria-label="Scopes">
+  <section aria-label="Scopes" data-pane="scopes">
     <h2>Scopes</h2>
-    <ul class="rows" id="scopes" role="listbox" aria-label="Scopes"></ul>
+    <ul class="rows" id="scopes" role="listbox" aria-label="Scopes" tabindex="0"></ul>
   </section>
 
-  <section aria-label="Secrets">
+  <section aria-label="Secrets" data-pane="secrets">
     <h2 id="secrets-title">Secrets</h2>
-    <table class="keys">
-      <thead><tr><th>Key</th><th>Last changed</th><th>Age</th></tr></thead>
-      <tbody id="secrets"></tbody>
-    </table>
+    <div id="keys" tabindex="0" role="group" aria-label="Secrets in the selected scope">
+      <table class="keys">
+        <thead><tr><th>Key</th><th>Last changed</th><th>Age</th></tr></thead>
+        <tbody id="secrets"></tbody>
+      </table>
+    </div>
     <p class="none" id="secrets-none" hidden></p>
   </section>
 
-  <section aria-label="Detail" id="detail"></section>
+  <section aria-label="Detail" id="detail" data-pane="detail"></section>
 </main>
 
 <footer>
@@ -223,9 +232,10 @@ dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
 <dialog id="help">
   <h1>Keys</h1>
   <table><tbody>
-    <tr><td><kbd>/</kbd></td><td>Filter scopes and secrets; <kbd>esc</kbd> clears</td></tr>
-    <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Next and previous secret</td></tr>
-    <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>Next and previous scope</td></tr>
+    <tr><td><kbd>tab</kbd></td><td>The next pane: scopes, secrets, detail. <kbd>shift</kbd> <kbd>tab</kbd> goes back</td></tr>
+    <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> &middot; <kbd>h</kbd> <kbd>l</kbd></td><td>Also from pane to pane</td></tr>
+    <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> &middot; <kbd>j</kbd> <kbd>k</kbd></td><td>Up and down inside a pane; <kbd>g</kbd> <kbd>G</kbd> to its ends</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Filter; <kbd>&darr;</kbd> picks while you type, <kbd>enter</kbd> goes to what is left, <kbd>esc</kbd> clears</td></tr>
     <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
     <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
     <tr><td><kbd>n</kbd> &middot; <kbd>N</kbd></td><td>New secret &middot; new scope</td></tr>
@@ -281,6 +291,8 @@ const mine = (scope) => {
 };
 
 let scope = SCOPES[0], secret = 0, shown = false, timer = null, left = 0, query = "";
+// where the keyboard is: one of the three panes, and which button of the detail
+let pane = "scopes", action = 0;
 
 const matches = (text) => {
   let at = 0;
@@ -292,16 +304,20 @@ const visibleSecrets = () => scope.secrets.filter(([key]) => matches(key) || mat
 const visibleScopes = () => SCOPES.filter((s) => !query || matches(s.name) || s.secrets.some(([key]) => matches(key)));
 
 function draw() {
+  // the lists stay in the page and only their rows are written again, so the keyboard stays
+  // where it is; the detail is written whole, and is given the keyboard back if it had it
+  const had = $("detail").contains(document.activeElement);
   const scopes = visibleScopes();
   if (!scopes.includes(scope) && scopes.length) { scope = scopes[0]; secret = 0; hide(); }
   $("scopes").replaceChildren(...scopes.map((s) => {
-    const row = el("li", { role: "option" }, el("span", { className: "mono", textContent: s.name }),
+    const row = el("li", { role: "option", id: `scope-${s.name}` }, el("span", { className: "mono", textContent: s.name }),
       s.backend === "Databricks" ? "" : el("small", { textContent: "Key Vault" }),
       el("span", { className: "count", textContent: String(s.secrets.length) }));
     row.setAttribute("aria-selected", String(s === scope));
-    row.onclick = () => { scope = s; secret = 0; hide(); draw(); };
+    row.onclick = () => { scope = s; secret = 0; action = 0; hide(); draw(); };
     return row;
   }));
+  $("scopes").setAttribute("aria-activedescendant", `scope-${scope.name}`);
   const keys = visibleSecrets();
   secret = Math.min(secret, Math.max(keys.length - 1, 0));
   $("secrets-title").replaceChildren("Secrets in ", el("span", { className: "mono", textContent: scope.name,
@@ -310,7 +326,7 @@ function draw() {
     const row = el("tr", {}, el("td", { className: "mono", textContent: key }),
       el("td", { className: "num", textContent: date }), el("td", { className: "num", textContent: age(date) }));
     row.setAttribute("aria-selected", String(index === secret));
-    row.onclick = () => { secret = index; hide(); draw(); };
+    row.onclick = () => { secret = index; action = 0; hide(); draw(); };
     return row;
   }));
   const none = $("secrets-none");
@@ -318,7 +334,33 @@ function draw() {
   none.textContent = scope.secrets.length ? "Nothing here matches the filter." :
     "No secrets in this scope yet.";
   drawDetail(keys[secret]);
+  rove(had);
 }
+
+// ── where the keyboard is ────────────────────────────────────────────
+// Tab has three stops in the page's body, one a pane. The two lists are each one thing to
+// the browser; of the detail's buttons one at a time can be reached by tab, and the arrows
+// move which.
+const actions = () => [...$("detail").querySelectorAll("button")];
+function rove(focus) {
+  const all = actions();
+  action = Math.max(0, Math.min(action, all.length - 1));
+  all.forEach((node, index) => { node.tabIndex = index === action ? 0 : -1; });
+  if (focus && all[action]) all[action].focus({ preventScroll: true });
+}
+function go(to) {
+  pane = to;
+  if (to === "scopes") $("scopes").focus({ preventScroll: true });
+  else if (to === "secrets") $("keys").focus({ preventScroll: true });
+  else rove(true);
+}
+document.addEventListener("focusin", (event) => {
+  const section = event.target.closest("main > section");
+  if (!section) return;
+  pane = section.dataset.pane;
+  const at = actions().indexOf(event.target);
+  if (pane === "detail" && at >= 0) { action = at; rove(false); }
+});
 
 function drawDetail(row) {
   const detail = $("detail");
@@ -462,45 +504,78 @@ $("filter").oninput = () => { query = $("filter").value.trim(); secret = 0; hide
 
 function step(by) {
   const count = visibleSecrets().length;
-  if (count) { secret = (secret + by + count) % count; hide(); draw(); }
+  if (count) { secret = (secret + by + count) % count; action = 0; hide(); draw(); }
 }
 function stepScope(by) {
   const scopes = visibleScopes();
-  if (scopes.length) { scope = scopes[(scopes.indexOf(scope) + by + scopes.length) % scopes.length]; secret = 0; hide(); draw(); }
+  if (scopes.length) { scope = scopes[(scopes.indexOf(scope) + by + scopes.length) % scopes.length]; secret = 0; action = 0; hide(); draw(); }
+}
+function stepAction(by) {
+  action = Math.max(0, Math.min(action + by, actions().length - 1));
+  rove(true);
+}
+const down = (by) => pane === "scopes" ? stepScope(by) : pane === "secrets" ? step(by) : stepAction(by);
+function ends(last) {
+  if (pane === "scopes") { const scopes = visibleScopes(); scope = scopes[last ? scopes.length - 1 : 0] ?? scope; secret = 0; }
+  else if (pane === "secrets") secret = last ? visibleSecrets().length - 1 : 0;
+  else action = last ? actions().length - 1 : 0;
+  action = pane === "detail" ? action : 0;
+  hide(); draw(); go(pane);
+}
+const right = () => pane === "scopes" ? go(visibleSecrets().length ? "secrets" : "detail")
+  : pane === "secrets" ? go("detail") : stepAction(1);
+const left_ = () => pane === "secrets" ? go("scopes")
+  : pane === "detail" ? (action === 0 ? go(visibleSecrets().length ? "secrets" : "scopes") : stepAction(-1)) : null;
+const chosen = () => visibleSecrets()[secret];
+
+const KEYS = {
+  "/": () => { $("filter").focus(); $("filter").select(); }, "?": () => $("help").showModal(),
+  ArrowDown: () => down(1), j: () => down(1), ArrowUp: () => down(-1), k: () => down(-1),
+  ArrowRight: right, l: right, ArrowLeft: left_, h: left_, g: () => ends(false), G: () => ends(true),
+  " ": toggle, Enter: () => pane === "scopes" ? right() : toggle(),
+  c: copy, n: () => openNew(), p: openGrants, N: () => $("scope-new").click(),
+  C: () => { if (chosen()) toast(`Copied dbutils.secrets.get(scope="${scope.name}", key="${chosen()[0]}")`); },
+  e: () => { if (chosen() && scope.backend === "Databricks") openNew(chosen()[0]); },
+  d: () => { if (scope.backend === "Databricks") openDelete(); },
+  m: () => toast("The move dialog is not in the mock-up."),
+  u: () => toast("Nothing to put back."),
+};
+// In the filter the arrows pick while you type, enter goes to what is left, esc clears.
+function filterKey(event) {
+  const back = () => go(pane === "detail" || !visibleSecrets().length ? "scopes" : pane);
+  if (event.key === "Escape") { $("filter").value = ""; query = ""; draw(); back(); }
+  else if (event.key === "Enter") go(visibleSecrets().length ? "secrets" : "scopes");
+  else if (event.key === "ArrowDown") step(1);
+  else if (event.key === "ArrowUp") step(-1);
+  else return;
+  event.preventDefault();
 }
 document.addEventListener("keydown", (event) => {
-  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.key === "Tab") return;
   const open = document.querySelector("dialog[open]");
   if (open) {
     if (open.id === "delete" && event.key === "y") { event.preventDefault(); $("delete-yes").click(); }
     return;
   }
-  const typing = event.target.matches("input, select, textarea");
-  if (typing) {
-    if (event.key === "Escape") { $("filter").value = ""; query = ""; event.target.blur(); draw(); }
-    if (event.key === "Enter") event.target.blur();
-    return;
-  }
-  const keys = {
-    "/": () => $("filter").focus(), "?": () => $("help").showModal(),
-    j: () => step(1), k: () => step(-1), ArrowDown: () => step(1), ArrowUp: () => step(-1),
-    J: () => stepScope(1), K: () => stepScope(-1),
-    " ": toggle, c: copy, n: () => openNew(), p: openGrants,
-    C: () => { const row = visibleSecrets()[secret]; if (row) toast(`Copied dbutils.secrets.get(scope="${scope.name}", key="${row[0]}")`); },
-    e: () => { const row = visibleSecrets()[secret]; if (row && scope.backend === "Databricks") openNew(row[0]); },
-    d: () => { if (scope.backend === "Databricks") openDelete(); },
-    N: () => $("scope-new").click(),
-    m: () => toast("The move dialog is not in the mock-up."),
-    u: () => toast("Nothing to put back."),
-  };
-  if (keys[event.key]) { event.preventDefault(); keys[event.key](); }
+  const target = event.target;
+  if (target === $("filter")) return filterKey(event);
+  if (target.matches("input, select, textarea")) return;
+  // space and enter belong to what has the keyboard: on a button they press that button
+  if (target.matches("button") && (event.key === " " || event.key === "Enter")) return;
+  if (!KEYS[event.key]) return;
+  event.preventDefault();
+  if (document.activeElement === document.body) go(pane);   // the keyboard is never nowhere
+  KEYS[event.key]();
 });
+// a dialog gives the keyboard back to the pane it was opened from
+document.querySelectorAll("dialog").forEach((node) => node.addEventListener("close", () => go(pane)));
 
 draw();
 // a view can be opened by its name, so that each can be looked at and pictured on its own
-({ "#new": () => openNew(), "#file": () => { openNew(); sample(); }, "#grants": openGrants,
-   "#delete": openDelete, "#shown": () => { show(); draw(); }, "#keys": () => $("help").showModal(),
-})[location.hash]?.();
+const VIEWS = { "#new": () => openNew(), "#file": () => { openNew(); sample(); }, "#grants": openGrants,
+  "#delete": openDelete, "#shown": () => { show(); draw(); go("secrets"); }, "#keys": () => $("help").showModal(),
+  "#secrets": () => go("secrets"), "#detail": () => go("detail") };
+(VIEWS[location.hash] ?? (() => go("scopes")))();   // the page opens with the keyboard in the scopes
 </script>
 </body>
 </html>
