@@ -1251,28 +1251,34 @@ def test_a_y_typed_into_a_filter_answers_no_question(prod):
 
 
 def test_a_list_asked_for_while_the_workspace_is_read_says_so_and_fills(browser, serve):
-    import time
+    go_on = threading.Event()
 
-    class Slow(FakeSecretStore):
+    class Held(FakeSecretStore):
+        """A workspace that answers nothing about its secrets until it is let."""
+
         def list_secrets(self, scope):
-            time.sleep(0.5)
+            go_on.wait(30)
             return super().list_secrets(scope)
 
     made = workspace()
-    store = Slow(scopes=made._scopes, secrets=made._secrets, acls=made._acls)
-    server = serve(store)
-    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
-    tab.wait("document.querySelectorAll('#scopes li').length > 0")
-    assert tab.js("document.body.dataset.phase") != "ready"
-    tab.press("A")
-    tab.wait(OPEN.format("list"))
-    assert "still being read" in tab.js(
-        "document.getElementById('list-note').textContent"
-    )
-    tab.wait(f"{LIST_TITLE} === 'Not changed in 90 days: 6 secrets'", seconds=20)
-    assert "still being read" not in tab.js(
-        "document.getElementById('list-note').textContent"
-    )
+    store = Held(scopes=made._scopes, secrets=made._secrets, acls=made._acls)
+    try:
+        server = serve(store)
+        tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+        tab.wait("document.querySelectorAll('#scopes li').length > 0")
+        assert tab.js("document.body.dataset.phase") == "loading"
+        tab.press("A")
+        tab.wait(OPEN.format("list"))
+        assert "still being read" in tab.js(
+            "document.getElementById('list-note').textContent"
+        )
+        assert tab.js(LIST_TITLE) == "Not changed in 90 days: 0 secrets"
+        go_on.set()
+        tab.wait(f"{LIST_TITLE} === 'Not changed in 90 days: 6 secrets'", seconds=30)
+        note = "document.getElementById('list-note').textContent"
+        tab.wait(f"!{note}.includes('still being read')", seconds=30)
+    finally:
+        go_on.set()
 
 
 def test_a_locked_page_keeps_no_list_and_no_file(prod, tmp_path):
