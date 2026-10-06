@@ -34,6 +34,8 @@ class WorkspaceService:
         self._store = store
         # The read model is injectable (decoupled), defaulting to a fresh one.
         self.cache = cache or WorkspaceCache(label=label)
+        # the one secret that can be put back: where it was, and what it held
+        self._taken: tuple[str, str, bytes] | None = None
 
     @property
     def label(self) -> str:
@@ -122,6 +124,8 @@ class WorkspaceService:
     def forget_values(self) -> None:
         """Purge every cached secret value; reveal will re-fetch on demand."""
         self.cache.values.clear()
+        self.cache.raw.clear()
+        self._taken = None
 
     def reveal(self, scope: str, key: str) -> str:
         """Return the secret value, fetching+caching it on first access."""
@@ -156,6 +160,68 @@ class WorkspaceService:
 
     def refresh_scope(self, scope: str) -> None:
         self.warm_scope(scope)
+
+    # -- values as they are: bytes ---------------------------------------
+    # What the page works with. A value is carried as the bytes it is stored
+    # as, so that a file that is no text goes in, moves and comes back whole.
+    def reveal_bytes(self, scope: str, key: str) -> bytes:
+        """The value as stored, read once and kept for the session."""
+        held = self.cache.raw.get((scope, key))
+        if held is not None:
+            return held
+        value = self._store.get_secret_bytes(scope, key)
+        self.cache.raw[(scope, key)] = value
+        return value
+
+    def put_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
+        self._store.put_secret_bytes(scope, key, value)
+        try:  # refresh metadata so the timestamp is accurate
+            self.cache.secrets[scope] = self._store.list_secrets(scope)
+        except StoreError:
+            self.cache.upsert_secret(Secret(scope=scope, key=key))
+        self.cache.raw[(scope, key)] = value
+        self.cache.values.pop((scope, key), None)  # the text of it is no longer this
+
+    def move_secret(
+        self, scope: str, key: str, to_scope: str, to_key: str, *, keep: bool = False
+    ) -> None:
+        """Move, rename or — with `keep` — copy a secret, in the safe order: read,
+        write at the new place, and only then remove the old. A failure halfway
+        leaves the secret in two places and never in none."""
+        value = self.reveal_bytes(scope, key)
+        self.put_secret_bytes(to_scope, to_key, value)
+        if not keep:
+            self.delete_secret(scope, key)
+            self._taken = (scope, key, value)
+
+    def delete_secret_kept(self, scope: str, key: str) -> bool:
+        """Delete a secret, keeping what it held so that it can be put back.
+        False when its value could not be read first: then it is gone for good."""
+        try:
+            value: bytes | None = self.reveal_bytes(scope, key)
+        except StoreError:
+            value = None
+        self.delete_secret(scope, key)
+        if value is not None:
+            self._taken = (scope, key, value)
+        return value is not None
+
+    @property
+    def taken(self) -> tuple[str, str] | None:
+        """The secret that can be put back, as (scope, key)."""
+        return self._taken[:2] if self._taken else None
+
+    def put_back(self) -> tuple[str, str]:
+        """Put back the secret last deleted or moved away. One deep."""
+        if self._taken is None:
+            raise StoreError("Nothing to put back.")
+        scope, key, value = self._taken
+        if self.scope(scope) is None:
+            self._taken = None
+            raise StoreError(f"Cannot put it back: scope “{scope}” is gone.")
+        self.put_secret_bytes(scope, key, value)
+        self._taken = None
+        return scope, key
 
     # -- scope permissions / ACLs (US-11 update, US-12) -----------------
     def set_acl(self, scope: str, principal: str, permission: str) -> None:

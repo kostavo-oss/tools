@@ -306,7 +306,7 @@ def test_a_value_is_in_the_page_only_while_it_is_shown(page):
     page.press("j")
     page.wait(PROD)
     page.press("l")
-    assert page.store.count("get_secret_value") == 0  # nothing was read to get here
+    assert page.store.reads() == 0  # nothing was read to get here
     assert VALUE not in page.js(WHOLE_PAGE)
     page.press(" ")
     page.wait("document.querySelector('pre.value.shown')")

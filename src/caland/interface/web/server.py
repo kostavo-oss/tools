@@ -10,6 +10,8 @@ dependency fewer to trust.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import secrets
 import socketserver
@@ -22,12 +24,22 @@ from importlib import resources
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from ...application import Loader
+from ...application import Loader, WorkspaceService, files
 from ...domain import StoreError, Workspace
 from . import gate, views
 
-#: The most a request may say. Nothing the page sends comes near it.
-BODY_LIMIT = 64 * 1024
+#: The most a request may say: the largest value a secret may hold, as the page
+#: sends a file (base64, which is a third longer), and room for the rest.
+BODY_LIMIT = 256 * 1024
+
+_TOO_BIG = "a secret holds 128 kB at most"
+
+#: The longest a name may be. Databricks decides what else a name may be.
+NAME_LIMIT = 128
+
+_Said = dict[str, Any]
+_Asked = dict[str, list[str]]
+_Told = tuple[dict[str, Any], int]
 
 #: How many connections are kept at once. A browser opens six; this is room for
 #: that many times over, and far below what a process may hold open — so that
@@ -236,34 +248,167 @@ class Handler(BaseHTTPRequestHandler):
                     version=page.version,
                 )
             )
+        if (method, path) == ("POST", "/api/describe"):
+            # what a file is: asked before there is a workspace to put it in, too
+            return self._json(files.describe(_bytes(body, "base64")).told())
         if service is None:
             raise _Refused(409, "not connected yet")
 
-        if (method, path) == ("GET", "/api/scope"):
-            told = views.scope(service, _one(query, "name"))
-            if told is None:
-                raise _Refused(404, "no such scope")
-            return self._json(told)
-        if (method, path) == ("GET", "/api/keys"):
-            return self._json(views.keys(service))
-        if (method, path) == ("POST", "/api/value"):
-            scope, key = _text(body, "scope"), _text(body, "key")
-            if service.secret(scope, key) is None:
-                raise _Refused(404, "no such secret")
-            try:
-                return self._json({"value": service.reveal(scope, key)})
-            except StoreError as exc:
-                raise _Refused(502, str(exc)) from exc
-        if (method, path) == ("POST", "/api/forget"):
-            service.forget_values()
-            return self._json({})
-        if (method, path) == ("POST", "/api/refresh"):
-            scope = body.get("scope")
-            if scope is not None and not isinstance(scope, str):
-                raise _Refused(400, "a scope is a name")
-            page.loader.refresh(scope)
-            return self._json({}, status=202)
-        raise _Refused(404, "nothing here")
+        route = _ROUTES.get((method, path))
+        if route is None:
+            raise _Refused(404, "nothing here")
+        try:
+            told, status = route(self, service, body, query)
+        except StoreError as exc:
+            # what the workspace said, shortly: it is the person's own to read
+            raise _Refused(502, str(exc)) from exc
+        return self._json(told, status=status)
+
+    # -- reading --------------------------------------------------------
+    def _scope(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        told = views.scope(service, _one(query, "name"))
+        if told is None:
+            raise _Refused(404, "no such scope")
+        return told, 200
+
+    def _keys(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        return views.keys(service), 200
+
+    def _value(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, key = _text(body, "scope"), _text(body, "key")
+        if service.secret(scope, key) is None:
+            raise _Refused(404, "no such secret")
+        return views.value(service.reveal_bytes(scope, key)), 200
+
+    def _forget(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        service.forget_values()
+        self.server.page.loader.changed()
+        return {}, 200
+
+    def _refresh(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope = body.get("scope")
+        if scope is not None and not isinstance(scope, str):
+            raise _Refused(400, "a scope is a name")
+        self.server.page.loader.refresh(scope)
+        return {}, 202
+
+    # -- changing: nothing here runs when caland was started read-only ----
+    def _may_change(self, service: WorkspaceService, scope: str | None = None) -> None:
+        """Refuse a change that may not be made. With a scope: one to its secrets."""
+        if self.server.page.read_only:
+            raise _Refused(403, "caland was started read-only: it changes nothing")
+        if scope is None:
+            return
+        found = service.scope(scope)
+        if found is None:
+            raise _Refused(404, "no such scope")
+        if found.is_keyvault:
+            raise _Refused(
+                409, f"“{scope}” is Azure Key Vault's: change its secrets there"
+            )
+
+    def _changed(self) -> None:
+        self.server.page.loader.changed()
+
+    def _put(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, key = _text(body, "scope"), _name(body, "key")
+        self._may_change(service, scope)
+        if ("text" in body) == ("base64" in body):
+            raise _Refused(400, "a value is text or a file, one of the two")
+        if "text" in body:
+            if not isinstance(body["text"], str) or not body["text"]:
+                # an empty value is taken for a slip, not for a wish to wipe
+                raise _Refused(400, "there is nothing to save: the value is empty")
+            data = body["text"].encode("utf-8")
+            if len(data) > files.LIMIT:
+                raise _Refused(413, _TOO_BIG)
+        else:
+            data = _bytes(body, "base64")
+        if body.get("new") is True and service.secret(scope, key) is not None:
+            raise _Refused(409, f"“{key}” is in “{scope}” already: edit it instead")
+        service.put_secret_bytes(scope, key, data)
+        self._changed()
+        return {}, 200
+
+    def _delete(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, key = _text(body, "scope"), _text(body, "key")
+        self._may_change(service, scope)
+        if service.secret(scope, key) is None:
+            raise _Refused(404, "no such secret")
+        kept = service.delete_secret_kept(scope, key)
+        self._changed()
+        return {"kept": kept}, 200
+
+    def _move(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, key = _text(body, "scope"), _text(body, "key")
+        to_scope, to_key = _text(body, "to_scope"), _name(body, "to_key")
+        keep = body.get("keep") is True
+        self._may_change(service, to_scope)
+        if not keep:
+            self._may_change(service, scope)  # moving away is a change there too
+        if service.secret(scope, key) is None:
+            raise _Refused(404, "no such secret")
+        if (scope, key) == (to_scope, to_key):
+            raise _Refused(400, "that is where it is")
+        if service.secret(to_scope, to_key) is not None:
+            raise _Refused(409, f"“{to_key}” is in “{to_scope}” already")
+        service.move_secret(scope, key, to_scope, to_key, keep=keep)
+        self._changed()
+        return {}, 200
+
+    def _undo(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        self._may_change(service)
+        if service.taken is None:
+            raise _Refused(409, "there is nothing to put back")
+        try:
+            scope, key = service.put_back()
+        finally:
+            self._changed()
+        return {"scope": scope, "key": key}, 200
+
+    def _grant(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, principal = _text(body, "scope"), _name(body, "principal")
+        permission = body.get("permission")
+        self._may_change(service)
+        if service.scope(scope) is None:
+            raise _Refused(404, "no such scope")
+        if permission not in ("READ", "WRITE", "MANAGE"):
+            raise _Refused(400, "a grant is READ, WRITE or MANAGE")
+        service.set_acl(scope, principal, permission)
+        self._changed()
+        return {}, 200
+
+    def _revoke(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
+        scope, principal = _text(body, "scope"), _text(body, "principal")
+        self._may_change(service)
+        if service.scope(scope) is None:
+            raise _Refused(404, "no such scope")
+        service.remove_acl(scope, principal)
+        self._changed()
+        return {}, 200
+
+    def _create_scope(
+        self, service: WorkspaceService, body: _Said, query: _Asked
+    ) -> _Told:
+        name = _name(body, "name")
+        self._may_change(service)
+        if service.scope(name) is not None:
+            raise _Refused(409, f"there is a scope “{name}” already")
+        service.create_scope(name)
+        service.refresh_scope(name)  # so that who made it is seen to have it
+        self._changed()
+        return {}, 200
+
+    def _delete_scope(
+        self, service: WorkspaceService, body: _Said, query: _Asked
+    ) -> _Told:
+        name = _text(body, "name")
+        self._may_change(service)
+        if service.scope(name) is None:
+            raise _Refused(404, "no such scope")
+        service.delete_scope(name)
+        self._changed()
+        return {}, 200
 
     def _body(self) -> dict[str, Any]:
         length = self.headers.get("Content-Length", "")
@@ -326,3 +471,46 @@ def _text(body: dict[str, Any], name: str) -> str:
     if not isinstance(value, str) or not value:
         raise _Refused(400, f"say which {name}")
     return value
+
+
+def _name(body: dict[str, Any], name: str) -> str:
+    """A name that is about to be made: said, not padded, and not endless."""
+    value = _text(body, name)
+    if value != value.strip() or len(value) > NAME_LIMIT:
+        raise _Refused(400, f"that is no {name}")
+    return value
+
+
+def _bytes(body: dict[str, Any], name: str) -> bytes:
+    """A file as the page sends it: base64, and no more than a secret may hold."""
+    value = body.get(name)
+    if not isinstance(value, str):
+        raise _Refused(400, "send the file")
+    if len(value) > files.LIMIT * 4 // 3 + 4:
+        raise _Refused(413, _TOO_BIG)
+    try:
+        data = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise _Refused(400, "that is no file") from exc
+    if len(data) > files.LIMIT:
+        raise _Refused(413, _TOO_BIG)
+    return data
+
+
+#: What is answered under `/api/`, once the gate has let a request through and
+#: there is a workspace. Everything that changes one goes through `_may_change`.
+_ROUTES = {
+    ("GET", "/api/scope"): Handler._scope,
+    ("GET", "/api/keys"): Handler._keys,
+    ("POST", "/api/value"): Handler._value,
+    ("POST", "/api/forget"): Handler._forget,
+    ("POST", "/api/refresh"): Handler._refresh,
+    ("POST", "/api/secret/put"): Handler._put,
+    ("POST", "/api/secret/delete"): Handler._delete,
+    ("POST", "/api/secret/move"): Handler._move,
+    ("POST", "/api/undo"): Handler._undo,
+    ("POST", "/api/grant/put"): Handler._grant,
+    ("POST", "/api/grant/delete"): Handler._revoke,
+    ("POST", "/api/scope/create"): Handler._create_scope,
+    ("POST", "/api/scope/delete"): Handler._delete_scope,
+}

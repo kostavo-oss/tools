@@ -75,6 +75,11 @@ class Loader:
             return self._run(self._warm)
         return self._run(lambda: self._warm_one(scope))
 
+    def changed(self) -> None:
+        """Something in the workspace was changed through its service: whoever is
+        showing it has something new to read."""
+        self._set()
+
     def _run(self, work: Callable[[], None]) -> threading.Thread:
         def in_turn() -> None:
             with self._turn:

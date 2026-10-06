@@ -19,7 +19,7 @@ class FakeSecretStore:
         scopes: list[Scope] | None = None,
         secrets: dict[str, list[Secret]] | None = None,
         acls: dict[str, list[Acl]] | None = None,
-        values: dict[tuple[str, str], str] | None = None,
+        values: dict[tuple[str, str], str | bytes] | None = None,
         identity: Identity | None = None,
         fail_on: set[str] | None = None,
         no_read: set[str] | None = None,
@@ -43,6 +43,10 @@ class FakeSecretStore:
 
     def count(self, name: str) -> int:
         return sum(1 for c in self.calls if c[0] == name)
+
+    def reads(self) -> int:
+        """How many times a value was read, as text or as it is."""
+        return self.count("get_secret_value") + self.count("get_secret_bytes")
 
     # -- Gateway protocol ----------------------------------------------
     def whoami(self) -> Identity:
@@ -73,10 +77,23 @@ class FakeSecretStore:
 
     def get_secret_value(self, scope: str, key: str) -> str:
         self._record("get_secret_value", scope, key)
-        return self._values.get((scope, key), f"value::{scope}/{key}")
+        held = self._values.get((scope, key), f"value::{scope}/{key}")
+        return held.decode("utf-8", "replace") if isinstance(held, bytes) else held
 
     def put_secret(self, scope: str, key: str, value: str) -> None:
         self._record("put_secret", scope, key, value)
+        self._values[(scope, key)] = value
+        rows = self._secrets.setdefault(scope, [])
+        if not any(s.key == key for s in rows):
+            rows.append(Secret(scope=scope, key=key))
+
+    def get_secret_bytes(self, scope: str, key: str) -> bytes:
+        self._record("get_secret_bytes", scope, key)
+        held = self._values.get((scope, key), f"value::{scope}/{key}")
+        return held if isinstance(held, bytes) else held.encode()
+
+    def put_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
+        self._record("put_secret_bytes", scope, key, value)
         self._values[(scope, key)] = value
         rows = self._secrets.setdefault(scope, [])
         if not any(s.key == key for s in rows):
