@@ -1,10 +1,12 @@
-"""Caland — a terminal Databricks secret manager.
+"""Caland — Databricks secrets, by hand.
 
-The App is the composition root: it builds the infrastructure adapters, wires
-them into the `OnboardingService`, installs the theme, and hands off to
-`MainScreen`. Domain logic lives in `caland.domain`, use-cases in
-`caland.application`, adapters in `caland.infrastructure`; UI in
-`caland.interface`.
+`main` is the command: it starts the page (`interface/web`), or with `--tui`
+the terminal version, which is frozen. The App below is that terminal version's
+composition root: it builds the infrastructure adapters, wires them into the
+`OnboardingService`, installs the theme, and hands off to `MainScreen`.
+
+Domain logic lives in `caland.domain`, use-cases in `caland.application`,
+adapters in `caland.infrastructure`; both faces in `caland.interface`.
 """
 
 from __future__ import annotations
@@ -107,23 +109,23 @@ class CalandApp(App[None]):
 
 
 _USAGE = """\
-caland — a keyboard-driven terminal UI for managing Databricks secrets.
+caland — Databricks secrets, from a page in your browser.
 
-usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
-       caland --page [WORKSPACE] [--no-open]
+usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--no-open]
+       caland --tui [WORKSPACE] [--read-only]
 
   WORKSPACE / --profile NAME
-                connect straight to a discovered workspace (a
-                ~/.databrickscfg profile or bundle target) and skip
-                the picker
-  --read-only   browse, reveal, and copy — but disable every mutation
-                (safe for poking around production)
-  --page        a preview: caland as a page in your browser, served from
-                this machine only. --read-only holds there too
-  --no-open     with --page: print the link instead of opening a browser
+                go straight to a workspace that was found — a profile in
+                ~/.databrickscfg, or the target of a bundle here. Without it
+                the page asks which, when there is more than one
+  --read-only   look, show and copy, and change nothing
+  --no-open     print the link instead of opening a browser
+  --tui         the terminal version, as it was. It gets nothing new
+  --version     which caland this is
+  --help        this
 
-Run with no arguments to launch the TUI. Inside: ? for help, ctrl+p for the
-command palette, q to quit.
+The page is served from this machine only, to you only. ctrl+c stops it and
+forgets every value it held. On the page: ? for the keys.
 """
 
 
@@ -150,17 +152,19 @@ def main() -> None:
         positional = [a for a in args if not a.startswith("-")]
         if positional:
             profile = positional[0]
-    if "--page" in args:
-        raise SystemExit(_page(profile, args))
-    CalandApp(
-        read_only="--read-only" in args,
-        settings_store=JsonSettingsStore(),
-        profile=profile,
-    ).run()
+    if "--tui" in args:
+        CalandApp(
+            read_only="--read-only" in args,
+            settings_store=JsonSettingsStore(),
+            profile=profile,
+        ).run()
+        return
+    # the page is what caland is; `--page`, from when it was not, still says so
+    raise SystemExit(_page(profile, args))
 
 
 def _page(profile: str | None, args: list[str]) -> int:
-    """`caland --page`: the same workspace, as a page in the browser."""
+    """caland: a workspace's secrets, as a page in the browser."""
     from importlib.metadata import version
 
     from .interface import web

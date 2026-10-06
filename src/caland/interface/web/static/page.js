@@ -80,7 +80,8 @@ function lock() {
   listing = null; everyGrant = new Map(); granted = null;
   for (const id of ["list-rows", "list-head", "list-title", "list-note", "confirm-note", "confirm-title",
     "env-scope", "move-from", "grants-scope"]) $(id).replaceChildren();
-  for (const id of ["env-file", "list-filter"]) $(id).value = "";
+  for (const id of ["env-file", "list-filter", "picker-url", "picker-name"]) $(id).value = "";
+  places = []; asked = null; $("picker-rows").replaceChildren();
   for (const id of ["form-value", "form-key", "move-key", "grant-who", "scope-name", "file"]) $(id).value = "";
   for (const id of ["picked", "grants-rows", "confirm-what"]) $(id).replaceChildren();
   $("app").hidden = true; $("locked").hidden = false;
@@ -128,7 +129,8 @@ async function look() {
   $("read-only").hidden = !told.read_only;
   document.body.dataset.readOnly = String(told.read_only);
   $("version").textContent = `caland ${told.caland}`;
-  $("progress").textContent = told.phase === "connecting" ? "Connecting…"
+  $("progress").textContent = told.phase === "connecting"
+    ? "Connecting\u2026 If a sign-in opened in another tab, finish it there."
     : told.phase === "loading" ? `Loading scopes… ${told.done}/${told.total}` : "";
   trouble(told.phase === "failed" ? told.error || "The workspace could not be read." : "");
 
@@ -148,6 +150,11 @@ async function look() {
     drawList();
   }
   document.body.dataset.phase = told.phase;   // said last: everything it stands for is drawn
+  // with no workspace — none chosen yet, or the one chosen could not be reached — ask which
+  if ((told.phase === "choosing" || (told.phase === "failed" && !told.identity)) && asked !== told.version) {
+    asked = told.version;
+    await openPicker(told.phase === "failed" ? told.error : "");
+  }
   if (told.phase === "connecting" || told.phase === "loading") looking = setTimeout(carefully(look), POLL);
 }
 // one scope's secrets and grants, once it has been read
@@ -864,6 +871,76 @@ function sortBy(which, by, down) {
 const sortNext = () => { const which = pane === "scopes" ? "scopes" : "secrets"; sortBy(which, (sorts[which].by + 1) % 2, false); };
 const sortOver = () => { const which = pane === "scopes" ? "scopes" : "secrets"; sortBy(which, sorts[which].by, !sorts[which].down); };
 
+// ── which workspace ──────────────────────────────────────────────────
+let places = [], place = 0;   // the workspaces there are to choose from, and the one picked
+let asked = null;             // the version of the state the picker was last opened for
+const mustChoose = () => !told || told.phase === "choosing" || (told.phase === "failed" && !told.identity);
+async function openPicker(why = "") {
+  const mine = ++moment;
+  const got = await ask("/api/workspaces");
+  if (mine !== moment && !mustChoose()) return;
+  places = got.workspaces;
+  place = Math.max(0, places.findIndex((w) => got.current ? w.name === got.current : w.default));
+  for (const id of ["picker-url", "picker-name"]) $(id).value = "";
+  $("picker-save").checked = false; $("picker-keep").hidden = true;
+  $("picker-close").hidden = mustChoose();   // with no workspace there is nothing to go back to
+  fail("picker-error", why ? new Error(why) : null);
+  drawPicker();
+  if (!open("picker")) return;
+  (places.length ? $("picker-box") : $("picker-url")).focus();
+}
+function drawPicker() {
+  $("picker-rows").replaceChildren(...places.map((w, index) => {
+    const row = el("tr", {}, el("td", { className: "mono", textContent: w.name }),
+      el("td", { className: "mono", textContent: w.host }), el("td", { className: "dim", textContent: w.from }));
+    row.setAttribute("aria-selected", String(index === place));
+    row.onclick = carefully(() => { place = index; return goToWorkspace({ name: w.name }); });
+    return row;
+  }));
+  $("picker-none").hidden = places.length > 0;
+  $("picker-rows").querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
+}
+// leave the workspace that is shown: nothing of it stays on the page
+function forgetWorkspace() {
+  hide();
+  keys = new Map(); detail = new Map(); scope = null; secret = 0; read = null;
+  everyGrant = new Map(); granted = null; listing = null;
+  query = ""; $("filter").value = "";
+  for (const id of ["scopes", "secrets", "detail", "who"]) $(id).replaceChildren();
+}
+async function goToWorkspace(body) {
+  try {
+    await ask("/api/connect", body);
+  } catch (error) {
+    if (error instanceof Told) throw error;
+    return fail("picker-error", error);
+  }
+  told.phase = "connecting";   // it is on its way: the choice need not come back
+  $("picker").close();
+  forgetWorkspace();
+  await look();
+  go("scopes");
+}
+function signIn() {
+  const url = $("picker-url").value.trim();
+  if (!url) return fail("picker-error", new Error("Type the workspace's address, or pick one from the list."));
+  const keep = $("picker-save").checked, name = $("picker-name").value.trim();
+  if (keep && !name) return fail("picker-error", new Error("Give the profile a name, or do not keep it."));
+  return goToWorkspace(keep ? { url, save_as: name } : { url });
+}
+function pickerKey(event) {
+  if (event.target.matches("input[type=text]")) {
+    if (event.key === "Enter") { event.preventDefault(); carefully(signIn)(); }
+    return;
+  }
+  const move = { ArrowDown: 1, ArrowUp: -1, j: 1, k: -1 }[event.key];
+  if (move && places.length) { place = (place + move + places.length) % places.length; drawPicker(); }
+  else if (event.key === "Enter" && places[place] && !event.target.matches("button, input")) {
+    carefully(goToWorkspace)({ name: places[place].name });
+  } else return;
+  event.preventDefault();
+}
+
 // ── where the keyboard is ────────────────────────────────────────────
 // Tab has three stops in the page's body, one a pane. The two lists are each one thing to
 // the browser; of the detail's buttons one at a time can be reached by tab, and the arrows
@@ -927,7 +1004,7 @@ const KEYS = {
   n: () => openForm(false), N: openScope, e: () => openForm(true), m: openMove,
   d: deleteSecret, D: deleteScope, u: inTurn(undo),
   p: openGrants, P: openWho, a: openOverview, A: openStale, i: importEnv, x: openEnv,
-  s: sortNext, S: sortOver,
+  s: sortNext, S: sortOver, w: () => openPicker(),
   f: async () => {
     showAll = !showAll; draw();
     toast(showAll ? `Showing all ${told.scopes.length} scopes.` : "Showing only the scopes you can reach.");
@@ -953,6 +1030,7 @@ document.addEventListener("keydown", (event) => {
     return $(event.key === "1" ? "env-keys" : "env-values").click();
   }
   if ($("list").open && !$("confirm").open) return listKey(event);
+  if ($("picker").open) return pickerKey(event);
   if (document.querySelector("dialog[open]")) return;
   const target = event.target;
   if (target === $("filter")) return filterKey(event);
@@ -972,6 +1050,21 @@ document.querySelectorAll("dialog").forEach((node) => {
 });
 $("help-open").onclick = () => open("help");
 $("new-open").onclick = () => openForm(false);
+$("picker-go").onclick = carefully(signIn);
+// said here and not in the page: the page itself names no address at all, so that it can
+// be seen at a glance to load nothing from one
+$("picker-url").placeholder = "https://adb-1234567890123456.7.azuredatabricks.net";
+$("picker-save").onchange = () => {
+  $("picker-keep").hidden = !$("picker-save").checked;
+  if ($("picker-save").checked) $("picker-name").focus();
+};
+// With no workspace to go back to, esc does not close the choice of one — and where a
+// browser closes it all the same (it lets a page hold esc back only so often), it is asked
+// again.
+$("picker").addEventListener("cancel", (event) => { if (mustChoose()) event.preventDefault(); });
+$("picker").addEventListener("close", () => {
+  if (token && mustChoose() && !$("picker").open) carefully(openPicker)();
+});
 $("env-file").onchange = carefully(() => takeEnv($("env-file").files[0]));
 $("env-keys").onclick = carefully(envKeys);
 $("env-values").onclick = envValues;

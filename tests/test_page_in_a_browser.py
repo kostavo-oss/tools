@@ -1318,3 +1318,156 @@ def test_a_name_in_a_copied_table_stays_a_name(browser, serve):
     row = tab.clipboard().splitlines()[2]
     assert row.startswith("| `s` | `a\\|b __init__ 'x'` | 2020-09-13 |")
     assert row.count(" | ") == 3  # four columns, as the heading has
+
+
+# ── which workspace (spec/001) ───────────────────────────────────────
+PLACES = (
+    "[...document.querySelectorAll('#picker-rows tr')].map(r => r.cells[0].textContent)"
+)
+SCOPES = "[...document.querySelectorAll('#scopes li span.mono')].map(n => n.textContent)"
+
+
+@pytest.fixture
+def choosing(browser):
+    """The page with two workspaces to choose from and none chosen. Each has a
+    scope the other has not, so that it shows which one is on the page."""
+    from caland.application import OnboardingService
+    from fakes import StubBundle, StubProfiles
+    from test_web_picker import DEV, PROD, Connector
+
+    connector = Connector()
+    for name in ("dev", "prod", "https://new.example.com"):
+        only = "only-" + name.removeprefix("https://").split(".")[0]
+        connector.stores[name] = FakeSecretStore(
+            scopes=[Scope(only), Scope("shared")],
+            secrets={only: [Secret(only, f"key-of-{only}", 1_750_000_000_000)]},
+            acls={
+                only: [Acl("me@corp.com", "MANAGE")],
+                "shared": [Acl("me@corp.com", "MANAGE")],
+            },
+            values={(only, f"key-of-{only}"): f"value of {only}"},
+        )
+    profiles = StubProfiles([DEV, PROD])
+    page = Page(onboarding=OnboardingService(connector, profiles, StubBundle()))
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    tab = browser.tab(f"{server.address}#{page.new_key()}")
+    tab.server, tab.connector, tab.profiles = server, connector, profiles
+    try:
+        yield tab
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_with_several_workspaces_the_page_asks_which(choosing):
+    choosing.wait(OPEN.format("picker"))
+    assert choosing.js(PLACES) == ["dev", "prod"]
+    assert choosing.js("document.getElementById('picker-close').hidden") is True
+    choosing.press("Escape")  # there is nothing to go back to: it stays, or comes back
+    choosing.wait("true")
+    choosing.wait(OPEN.format("picker"))
+    choosing.wait(f"{PLACES}.length === 2")
+    choosing.press("j", "Enter")
+    choosing.wait(f"!{OPEN.format('picker')} && document.body.dataset.phase === 'ready'")
+    assert choosing.js(SCOPES) == ["only-prod", "shared"]
+    assert (
+        choosing.js("document.getElementById('host').textContent") == "prod.example.com"
+    )
+    assert choosing.focus() == "scopes"
+
+
+def test_w_goes_to_another_workspace_and_keeps_nothing_of_the_one_left(choosing):
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("Enter")  # dev
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-dev')"
+    )
+    choosing.press("l", " ")
+    choosing.wait("document.querySelector('pre.value.shown')")
+    assert "value of only-dev" in choosing.js(WHOLE_PAGE)
+    choosing.press("w")
+    choosing.wait(OPEN.format("picker"))
+    assert (
+        choosing.js(
+            "document.querySelector('#picker-rows [aria-selected=true] td').textContent"
+        )
+        == "dev"
+    )
+    assert choosing.js("document.getElementById('picker-close').hidden") is False
+    choosing.press("j", "Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+    )
+    whole = choosing.js(WHOLE_PAGE)
+    assert "only-dev" not in whole and "value of only-dev" not in whole
+    choosing.press("A")  # and the lists are the new one's
+    choosing.wait(OPEN.format("list"))
+    assert [row[0] for row in choosing.js(LIST)] == ["only-prod"]
+
+
+def test_esc_leaves_the_workspace_as_it_is_when_there_is_one(choosing):
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-dev')"
+    )
+    choosing.press("w")
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("j", "Escape")
+    choosing.wait(f"!{OPEN.format('picker')}")
+    assert choosing.js(SCOPES) == ["only-dev", "shared"]
+    assert choosing.js("document.getElementById('host').textContent") == "dev.example.com"
+
+
+def test_a_workspace_is_signed_in_to_by_its_address_and_kept_under_a_name(choosing):
+    choosing.wait(OPEN.format("picker"))
+    choosing.js("document.getElementById('picker-url').focus()")
+    choosing.type("new.example.com")
+    choosing.js("document.getElementById('picker-save').click()")
+    assert choosing.focus() == "picker-name"
+    choosing.press("Enter")  # no name yet
+    choosing.wait("!document.getElementById('picker-error').hidden")
+    assert "Give the profile a name" in choosing.js(
+        "document.getElementById('picker-error').textContent"
+    )
+    choosing.type("prod")  # in use
+    choosing.press("Enter")
+    choosing.wait(
+        "document.getElementById('picker-error').textContent.includes('already')"
+    )
+    assert choosing.profiles.saved == []
+    choosing.type("-new")  # prod-new
+    choosing.press("Enter")
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-new')"
+    )
+    assert choosing.profiles.saved == [("prod-new", "https://new.example.com", None)]
+
+
+def test_an_address_that_is_none_is_said_in_the_dialog(choosing):
+    choosing.wait(OPEN.format("picker"))
+    choosing.js("document.getElementById('picker-url').focus()")
+    choosing.type("http://insecure.example.com/path")
+    choosing.press("Enter")
+    choosing.wait("!document.getElementById('picker-error').hidden")
+    assert "address" in choosing.js("document.getElementById('picker-error').textContent")
+    assert choosing.js(OPEN.format("picker")) is True
+
+
+def test_a_workspace_that_cannot_be_reached_brings_the_choice_back_with_the_reason(
+    choosing,
+):
+    choosing.connector.refuse.add("prod")
+    choosing.wait(OPEN.format("picker"))
+    choosing.press("j", "Enter")
+    choosing.wait(
+        "document.getElementById('picker').open"
+        " && document.getElementById('picker-error').textContent.includes('cancelled')"
+    )
+    choosing.press("k", "Enter")  # dev works
+    choosing.wait(
+        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-dev')"
+    )

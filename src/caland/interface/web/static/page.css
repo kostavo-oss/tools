@@ -117,7 +117,11 @@ dialog td.end { text-align: right; white-space: nowrap; }
 #code-rows button, #env-rows button { display: block; width: 100%; text-align: left;
   margin: .4rem 0; padding: .45rem .8rem; }
 #code-rows .mono, #env-rows span { display: block; overflow-wrap: anywhere; }
-#list { width: 48rem; }
+#list, #picker { width: 48rem; }
+#picker-box { max-height: 40vh; overflow-y: auto; }
+#picker-box:focus { outline: none; }
+#picker-box:focus tr[aria-selected=true] td:first-child { box-shadow: inset 3px 0 0 var(--blue); }
+#picker tbody tr { cursor: pointer; }
 #list-box { max-height: 60vh; overflow-y: auto; }
 #list tbody tr { cursor: pointer; }
 #list-filter { margin-bottom: .6rem; }

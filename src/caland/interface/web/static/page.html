@@ -183,6 +183,35 @@
 </dialog>
 <input type="file" id="env-file" hidden>
 
+<!-- which workspace: one that was found, or one at an address -->
+<dialog id="picker" aria-labelledby="picker-title">
+  <h1 id="picker-title">Choose a workspace</h1>
+  <div id="picker-box" tabindex="-1">
+    <table>
+      <thead><tr><th>Workspace</th><th>Address</th><th>Found in</th></tr></thead>
+      <tbody id="picker-rows"></tbody>
+    </table>
+  </div>
+  <p class="none" id="picker-none" hidden>None was found: there is no databricks.yml here and
+    no profile in ~/.databrickscfg. Sign in to one by its address.</p>
+  <div class="or">or sign in to one by its address, through the browser</div>
+  <label for="picker-url">Address</label>
+  <input type="text" id="picker-url" class="mono" autocomplete="off" spellcheck="false">
+  <label class="check"><input type="checkbox" id="picker-save"> Keep it as a profile, to come
+    back to by name</label>
+  <div id="picker-keep" hidden>
+    <label for="picker-name">Its name</label>
+    <input type="text" id="picker-name" class="mono" autocomplete="off" spellcheck="false">
+    <p class="quiet">Kept in ~/.databrickscfg: the address, and that you sign in through the
+      browser. No token is written.</p>
+  </div>
+  <p class="bad" id="picker-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close id="picker-close">Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="picker-go">Sign in <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
 <dialog id="help" aria-labelledby="help-title">
   <h1 id="help-title">Keys</h1>
   <table><tbody>
@@ -201,12 +230,12 @@
     <tr><td><kbd>A</kbd> &middot; <kbd>a</kbd> &middot; <kbd>P</kbd></td><td>Secrets gone stale &middot; what you can reach &middot; what somebody else can</td></tr>
     <tr><td><kbd>s</kbd> &middot; <kbd>S</kbd></td><td>Sort the pane by its next column &middot; the other way round</td></tr>
     <tr><td><kbd>f</kbd></td><td>Only the scopes you can reach, or all of them</td></tr>
+    <tr><td><kbd>w</kbd></td><td>Another workspace</td></tr>
     <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
   </tbody></table>
   <div class="acts"><button type="button" id="forget">Forget every value caland holds</button></div>
-  <p class="quiet">Not on the page yet: choosing a workspace from a list. For that, the
-    terminal version: <span class="mono">caland</span> without
-    <span class="mono">--page</span>.</p>
+  <p class="quiet">The terminal version is still there: <span class="mono">caland --tui</span>.
+    It gets nothing new.</p>
   <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
 </dialog>
 
