@@ -73,6 +73,18 @@ login` (host + `auth_type = external-browser`, **no secret ever stored**).
   </tr>
 </table>
 
+## The page (preview)
+
+Caland is becoming a page in your browser, served from your own machine:
+
+```sh
+caland --page prod
+```
+
+It browses, filters, shows and copies today, and changes nothing yet — see
+[the page](https://kostavo-oss.github.io/caland/page/). Everything below is the terminal
+version, which is still the whole tool.
+
 ## Features
 
 - **Workspace picker** — connect from a Databricks Asset Bundle (`databricks.yml`,

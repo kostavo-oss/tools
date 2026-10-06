@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`caland --page` — a preview of Caland as a page in your browser.** It is served
+  from your own machine and nowhere else, and looks like the rest of the family. This
+  first part reads: browse scopes, secrets and grants, filter, show and copy a value,
+  copy how to reach a secret from code. It changes nothing yet — for everything else,
+  `caland` without `--page` is the terminal version, as before.
+
+  `tab` goes from pane to pane, arrows move inside one, and every action has a key.
+  The server answers only to its own page at its own address, and to nothing without
+  the session's key; a value is in the page only while it is shown.
+  [The page](https://kostavo-oss.github.io/caland/page/) has the whole of it.
+
 ### Changed
 
 - **Isolinear is now Caland.** The command is `caland`, the package on PyPI is
