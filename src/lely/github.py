@@ -42,9 +42,11 @@ What GitHub does, as assumed here:
   characters: https://docs.github.com/en/rest/issues/comments
 - A step's summary may be 1 MiB, and one that is larger is dropped whole:
   https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
-- `GET /user` answers for a person's token and refuses a run's own.
-  TODO(verify): seen in GitHub's forum, not in its docs; if it is wrong, lely
-  falls back to "a bot's comment", which is where a run's token ends up.
+- `GET /user` answers for a person's token and refuses a run's own. Seen for
+  a person's token; for a run's own, what was seen (2026-10-06, a real run)
+  is the outcome: lely found the comment it had posted as
+  `github-actions[bot]` and updated it, twice. Read in GitHub's forum, not in
+  its docs, that the refusal is a 403.
 """
 
 from __future__ import annotations

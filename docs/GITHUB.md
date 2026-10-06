@@ -19,10 +19,11 @@ why, and the command ends as it would have without the flag.
 
 `-f md` prints the same Markdown, for anywhere else it is wanted.
 
-> **These workflows have not been run on a real repository yet.** The comment and the summary
-> are tested against a fake GitHub, and lely's own requests were checked against GitHub's API
-> for reading. A pull request that carried a plan, and a merge that applied it, is still to
-> come. Read them before you copy them.
+> **These workflows have run once, on a private repository, on 2026-10-06** — with two
+> differences from what stands here: the workspace was reached with a token kept as a secret,
+> not with GitHub's own identity, and there were no environments. What that run showed, and
+> what it couldn't, is under [What has been tried](#what-has-been-tried). Read the workflows
+> before you copy them.
 
 ## What lely needs from the workflow
 
@@ -79,11 +80,11 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false # no token left behind for later steps
-      - uses: astral-sh/setup-uv@v6
-      - uses: databricks/setup-cli@main
+      - uses: astral-sh/setup-uv@v7
+      - uses: databricks/setup-cli@v1.19.0
       - run: uv sync --locked
       - run: uv run lely plan -t dev -o plan.json --github
         env:
@@ -105,8 +106,6 @@ makes no plan, loads nothing of the project, says so on the run's page and ends 
 use `pull_request_target` to get a fork's plan. A run that is about a pull request and isn't
 told where it comes from — one started by a comment on it (`issue_comment`) — is treated the
 same way: lely can't tell that it isn't a fork's.
-
-`databricks/setup-cli@main` moves; pin it to a release once you have chosen one.
 
 ### What the comment is worth
 
@@ -148,11 +147,11 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false # no token left behind for later steps
-      - uses: astral-sh/setup-uv@v6
-      - uses: databricks/setup-cli@main
+      - uses: astral-sh/setup-uv@v7
+      - uses: databricks/setup-cli@v1.19.0
       - run: uv sync --locked
       - name: Fetch the plan that was reviewed
         env:
@@ -244,11 +243,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target }}-plan # credentials that can only read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false # no token left behind for later steps
-      - uses: astral-sh/setup-uv@v6
-      - uses: databricks/setup-cli@main
+      - uses: astral-sh/setup-uv@v7
+      - uses: databricks/setup-cli@v1.19.0
       - run: uv sync --locked
       - run: uv run lely plan -t "$TARGET" $DESTROY -o plan.json --github
       - uses: actions/upload-artifact@v4
@@ -261,11 +260,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target }}-by-hand # required reviewers: the plan is read first
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false # no token left behind for later steps
-      - uses: astral-sh/setup-uv@v6
-      - uses: databricks/setup-cli@main
+      - uses: astral-sh/setup-uv@v7
+      - uses: databricks/setup-cli@v1.19.0
       - run: uv sync --locked
       - uses: actions/download-artifact@v4
         with:
@@ -281,6 +280,28 @@ jobs:
 A target that was mistyped names an environment with no credentials: nothing can sign in,
 and nothing runs.
 
+## What has been tried
+
+One run through all three workflows, on 2026-10-06, in a private repository with one job in
+its bundle and a `command` step above it:
+
+- **A plan that failed left a comment that said so.** The first run had no credentials for the
+  workspace: lely posted "The plan could not be made, so there is none to review", with a link
+  to the run, as `github-actions[bot]`.
+- **The comment was kept current.** With credentials, the same comment became the plan; after
+  another push it was the plan of that push. One comment throughout, by the run's own token.
+- **The merge applied the plan that was reviewed.** The apply job found the pull request of
+  the merged commit, fetched the plan its last run had kept, and lely took it for the tree on
+  `main` — a merge commit has the tree the pull request was planned on. The job was created,
+  and read back from the workspace.
+- **A destroy started by hand** planned, then removed the job; it was asked for afterwards and
+  was not there.
+
+Not tried in that run: signing in with GitHub's own identity (a token secret was used);
+environments, and the pause for a reviewer in the by-hand workflow (a private repository on a
+free plan has none); a pull request from a fork; a plan that holds a destructive change; a
+merge after `main` moved; a first deploy with a waiting step.
+
 ## What is not known yet
 
 - **A plan made by one identity and applied by another.** The plan job and the job that
@@ -293,7 +314,7 @@ and nothing runs.
   can see.
 - **The comment with a run's own token.** lely only updates a comment it could have written:
   one by whoever the token is, or — for a run's own token, which is nobody's — one by a bot,
-  any app's bot. That a run's token can't ask who it is was read in GitHub's forum, not seen.
+  any app's bot. With a run's own token it found its comment and updated it, twice.
 
 ## What is posted, and what never is
 

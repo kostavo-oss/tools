@@ -147,7 +147,7 @@ The ones worth remembering:
 4. **Phase two is built: GitHub, then the page.** The order was the owner's to decide; the
    builder took GitHub first, said so, and was told to continue. What the builder decided is
    in [008, As built](008-github-actions.md#as-built) and
-   [007, As built](007-ui.md#as-built). **The workflows in `docs/GITHUB.md` have not run on a
-   real repository**: that takes one with a workspace's credentials in its settings. Which
-   plugins come after is still open. → [000](000-what-lely-is.md#to-decide)
+   [007, As built](007-ui.md#as-built). The workflows in `docs/GITHUB.md` have run once on a
+   real repository; what that didn't try is listed there. Which plugins come after is still
+   open. → [000](000-what-lely-is.md#to-decide)
 5. **The first release** waits for the owner's answers. → [009](009-first-release.md#to-decide)

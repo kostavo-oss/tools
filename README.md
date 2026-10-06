@@ -216,9 +216,11 @@ What two runs could not show:
 
 `lely doctor` also can't tell whether credentials are read-only; it says so.
 
-**GitHub** (`--github`) is tested against a fake GitHub. The run's summary has been written
-from a real plan; no pull request in a real repository has carried a plan yet, and the
-workflows in `docs/GITHUB.md` have never run.
+**GitHub** (`--github`) is tested against a fake GitHub, and the workflows in
+`docs/GITHUB.md` have run once on a real repository: a pull request carried a plan comment
+that was kept current, its merge applied the reviewed plan, and a destroy was started by
+hand. Signing in with GitHub's own identity, environments and a pull request from a fork
+were not part of that run.
 
 ## Named after
 
