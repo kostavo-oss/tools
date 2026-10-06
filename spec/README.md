@@ -131,10 +131,11 @@ The ones worth remembering:
 
 ## Still open
 
-1. **Phase one has run against a real workspace once**, on 2026-10-06, with one small bundle.
-   Six of the eight assumptions held, one could not be tried, and one was wrong: the CLI does
-   not refuse a bundle whose target names another host. What one run couldn't show is listed
-   with it. → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
+1. **lely has run against a real workspace twice**, on 2026-10-06, with small bundles. Six of
+   the eight assumptions held, one could not be tried, and one was wrong: the CLI does not
+   refuse a bundle whose target names another host. What the runs couldn't show is listed with
+   them: another identity, `bundle.run`, credentials that can only read.
+   → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
 2. **What the builder decided where the specs left room** is in each spec's "As built", and in
    `docs/DESIGN.md` under "Decided while building". None of it is the owner's yet. The one that
    adds something the specs didn't name: an option that names a whole step.
@@ -143,7 +144,10 @@ The ones worth remembering:
    variable's lookup answering something else, changes what is deployed without changing a line
    of the plan. Whether to fingerprint the resolved variables is the owner's to decide.
    → [004, As built](004-asset-bundle.md#as-built)
-4. **GitHub was built before the UI.** The order was the owner's to decide; the builder took
-   GitHub first, said so, and was told to continue. What the builder decided there is in
-   [008, As built](008-github-actions.md#as-built), and its workflows have not run on a real
-   repository. Which plugins come after is still open. → [000](000-what-lely-is.md#to-decide)
+4. **Phase two is built: GitHub, then the page.** The order was the owner's to decide; the
+   builder took GitHub first, said so, and was told to continue. What the builder decided is
+   in [008, As built](008-github-actions.md#as-built) and
+   [007, As built](007-ui.md#as-built). **The workflows in `docs/GITHUB.md` have not run on a
+   real repository**: that takes one with a workspace's credentials in its settings. Which
+   plugins come after is still open. → [000](000-what-lely-is.md#to-decide)
+5. **The first release** waits for the owner's answers. → [009](009-first-release.md#to-decide)
