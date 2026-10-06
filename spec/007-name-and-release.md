@@ -51,6 +51,22 @@ first under a name nobody has registered yet.
 - **All three tools release the same way.** *(owner, 2026-10-06, for lely; taken to hold
   here — say if not)*
 
+## As prepared — 0.5.0 (2026-10-06)
+
+The owner registered the Trusted Publisher and said to go on; the release is a pull request
+of its own, and merging it is what publishes. In it, the writer's proposals for D1–D3, for
+the owner to take by merging or to change first:
+
+- **0.5.0.** The shim was written for it.
+- **The author by name, without an address** — as the owner chose for lely.
+- **Not the rename on its own any more:** `main` already had the first part of the page
+  ([008](008-the-page.md)) when the release was prepared, so 0.5.0 carries `caland --page`
+  as a preview beside the terminal version, which is unchanged and still the whole tool.
+- The notices that `caland` is not on PyPI yet — in the README and two docs pages, put there
+  when the rename reached `main` before the name was registered — go with this release.
+
+After it is on PyPI: the shim, once, by hand, by the owner (R4).
+
 ## To decide
 
 - **D1 — Which version is the first caland?** The shim is written for `0.5.0`.
