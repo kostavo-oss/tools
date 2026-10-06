@@ -309,7 +309,7 @@ def test_nothing_a_run_says_is_markdown() -> None:
     result = Result(
         "apply",
         f"dev {EVIL}",
-        Workspace(f"https://h {EVIL}", f"me {EVIL}"),
+        Workspace("https://dbc.example", f"me {EVIL}"),
         (
             StepResult(
                 f"app {EVIL}",

@@ -318,7 +318,8 @@ def _result(result: Result, *, changes: bool, overview: bool) -> str:
                 (step.name, step.overview, step.happened)
                 for step in result.steps
                 if step.overview is not None
-            ]
+            ],
+            result.workspace.host,
         )
         if exists:
             parts += ["", "#### What exists now", "", exists]
@@ -352,7 +353,8 @@ def status_markdown(status: Status) -> str:
             (step.name, step.overview, None)
             for step in status.steps
             if step.overview is not None
-        ]
+        ],
+        status.workspace.host,
     )
     if exists:
         parts += ["", exists]
@@ -366,7 +368,9 @@ def status_markdown(status: Status) -> str:
     return "\n".join(parts) + "\n"
 
 
-def _exists(steps: Sequence[tuple[str, Overview, Mapping[str, str] | None]]) -> str:
+def _exists(
+    steps: Sequence[tuple[str, Overview, Mapping[str, str] | None]], workspace: str
+) -> str:
     """One table for every step that lists what it made, one row per thing —
     with what the run did to it, right after a run (a step's third part is not
     `None`) — and under it what the steps said about their lists."""
@@ -383,7 +387,7 @@ def _exists(steps: Sequence[tuple[str, Overview, Mapping[str, str] | None]]) -> 
             cells = [_cell(name), *(_cell(text) for text in row[:4])]
             if after_a_run:
                 cells.append(_cell(row.happened))
-            cells.append(_link(row.url))
+            cells.append(_link(row.url, workspace))
             table.append(cells)
         if not rows:
             asides.append(_Line(f"{name}: nothing declared"))
@@ -530,10 +534,12 @@ def _cell(text: str) -> str:
     return _code(text).replace("|", "\\|")
 
 
-def _link(url: str) -> str:
-    """Where a thing is, for a table: a link, or — for what isn't an address a
-    reader can follow — the text as text."""
-    return _followed(url, "open") or _cell(url)
+def _link(url: str, workspace: str) -> str:
+    """Where a thing is, for a table: a link when it leads into the workspace
+    the run was in, and otherwise the text as text."""
+    if words.into(url, workspace):
+        return f"[open](<{url}>)"
+    return _cell(url)
 
 
 def _followed(url: str, words: str) -> str:

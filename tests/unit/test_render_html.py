@@ -235,7 +235,7 @@ def test_nothing_a_run_says_is_markup() -> None:
     result = Result(
         "apply",
         f"dev{EVIL}",
-        Workspace(f"https://h{EVIL}", f"me{EVIL}"),
+        Workspace("https://dbc.example", f"me{EVIL}"),
         (
             StepResult(
                 f"app{EVIL}",
@@ -329,7 +329,8 @@ def test_a_plugins_view_is_shown_under_the_changes_never_in_their_place() -> Non
         ),
         ("<!-- <script>x</script> -->c", "c"),
         ("<![CDATA[<script>x</script>]]>d", "d"),
-        ("<details open><summary>more</summary>x</details>", None),
+        ("<details open><summary>more</summary>x</details>", "morex"),
+        ("<div class='dim'><p>in a div</p></div>", "<p>in a div</p>"),
         ("<h1>a</h1><h3>b</h3><h5>c</h5>", "<h4>a</h4><h4>b</h4><h5>c</h5>"),
         ("a<br>b<hr/>c", "a<br>b<hr>c"),
         ("1 < 2 & 3 > 2", "1 &lt; 2 &amp; 3 &gt; 2"),
@@ -352,7 +353,7 @@ def test_nothing_in_a_view_ends_the_frame_it_is_in() -> None:
         "</td></tr></table>stray",
         "<ul><li>a<li>b</ul></ul></ul>",
         "<p><b>x</p></b>",
-        "<div>" * 500 + "deep" + "</div>" * 3,
+        "<blockquote>" * 500 + "deep" + "</blockquote>" * 3,
         "<svg><svg>never closed",
         "<",
         "<<<>>>&#x;&bogus;",
@@ -370,8 +371,8 @@ def test_nothing_in_a_view_ends_the_frame_it_is_in() -> None:
     read = Read(with_view("</div></details></main><h1>lely plan · target prod</h1>"))
     assert sum(1 for tag, _ in read.elements if tag == "h1") == 1
     assert sum(1 for tag, _ in read.elements if tag == "main") == 1
-    deep = framed("<div>" * 500 + "deep")
-    assert deep.count("<div>") == 40 and "deep" in deep
+    deep = framed("<blockquote>" * 500 + "deep")
+    assert deep.count("<blockquote>") == 40 and "deep" in deep
 
 
 def test_a_view_no_parser_can_read_is_said_not_shown(
@@ -384,3 +385,109 @@ def test_a_view_no_parser_can_read_is_said_not_shown(
     assert (
         framed("<p>x</p>") == '<p class="dim">The plugin\'s view could not be read.</p>'
     )
+
+
+# -- found in the sixth review -----------------------------------------------------------
+
+
+def test_a_view_holds_no_element_the_page_around_it_is_built_from() -> None:
+    """A browser doesn't close elements where a count of tags says they
+    close: a `<li>` ends the one before it through whatever stands between, a
+    table throws out what doesn't belong in it. Each of these views, written
+    again "balanced", ended the frame — and some the step, and the list of
+    steps — in a real browser, and put its own words among lely's.
+
+    So a view keeps no `div`, no `details` and no `summary`: with no end tag
+    of theirs to write, nothing in a view can end the `div` it is in.
+    `tests/browser` asks a real browser, thousands of times.
+    """
+    got_out = (
+        "<ul><li><div><li>x</li></div>after</li></ul>",
+        "<li><div><div><li>x</li></div></div>after</li>",
+        "<table><div><table></table></div>after</table>",
+        "<table><details><table></table></details>after</table>",
+        "<dl><dd><div><dd>x</dd></div>after</dd></dl>",
+    )
+    for view in got_out:
+        written = framed(view)
+        assert "after" in written
+        for built_from in ("div", "details", "summary", "main", "body", "html"):
+            assert f"<{built_from}" not in written and f"</{built_from}" not in written
+
+
+def test_the_frame_stands_in_nothing_a_view_could_end() -> None:
+    """The other half: the frame is a `div` in a `div` in the step's fold —
+    in no list, no paragraph, no table and no heading, whose end tags a view
+    may well hold."""
+    read = Read(with_view("<p>x</p>"))
+    opened: list[str] = []
+    around: list[str] | None = None
+
+    class Walk(HTMLParser):
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            nonlocal around
+            if dict(attrs).get("class") == "frame":
+                around = list(opened)
+            if tag not in ("meta", "br", "hr"):
+                opened.append(tag)
+
+        def handle_endtag(self, tag: str) -> None:
+            while opened and opened.pop() != tag:
+                pass
+
+    Walk().feed(with_view("<p>x</p>"))
+    assert around == ["html", "body", "main", "details", "div"]
+    assert len(read.named("div")) == 2  # the step's body, and the frame
+
+
+@pytest.mark.parametrize(
+    ("url", "linked"),
+    [
+        ("https://dbc.example/jobs/1", True),
+        ("https://DBC.example/jobs/1?o=2#x", True),
+        ("https://other.example/jobs/1", False),  # found in review: any https host was
+        ("https://dbc.example.evil.example/jobs/1", False),
+        ("https://dbc.example@evil.example/jobs/1", False),
+        ("https://user@dbc.example/jobs/1", False),
+        ("https://dbc.example:8443/jobs/1", False),
+        ("http://dbc.example/jobs/1", False),
+        ("//dbc.example/jobs/1", False),
+        ("javascript:alert(1)", False),
+        ("", False),
+    ],
+)
+def test_open_leads_into_the_runs_own_workspace_and_nowhere_else(
+    url: str, linked: bool
+) -> None:
+    """007/R6 says "links into the workspace". What a result file says a
+    thing's address is becomes a link only when it is one."""
+    from lely.render.markdown import result_markdown
+
+    result = Result(
+        "apply",
+        "dev",
+        Workspace("https://dbc.example", "jane"),
+        (
+            StepResult(
+                "app",
+                "bundle",
+                "done",
+                "",
+                (),
+                Overview((Item("job", "jobs.a", "a", True, "1", url),)),
+            ),
+        ),
+    )
+    assert bool(Read(result_html(result)).named("a")) is linked
+    assert ("[open](<" in result_markdown(result)) is linked
+    nowhere = Result("apply", "dev", Workspace("?", "?"), result.steps)
+    assert Read(result_html(nowhere)).named("a") == []
+
+
+def test_a_view_cut_short_by_what_lely_drops_says_so() -> None:
+    """An element lely leaves out, never closed, takes all after it along —
+    as it would in a browser. The reader is told."""
+    written = framed("<p>shown</p><svg><p>and this is gone")
+    assert written.startswith("<p>shown</p>") and "gone" not in written
+    assert "The rest of this view is left out" in written
+    assert "left out" not in framed("<p>a</p><svg><p>x</p></svg><p>b</p>")

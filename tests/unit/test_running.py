@@ -14,7 +14,7 @@ import pytest
 
 import project
 from fakes import FakeDatabricks, deploy, write_bundle
-from lely import planning, running
+from lely import planfile, planning, running
 from lely.config import Config, load
 from lely.errors import LelyError, Refused
 from lely.model import Plan, PlanKind, PlannedStep, Result, Source
@@ -934,3 +934,35 @@ def test_a_target_no_step_runs_for_is_refused(tmp_path: Path) -> None:
         )
     assert p.fake.calls == []
     planning.runs_for(p.config, "prod")
+
+
+def test_an_overview_line_says_whether_it_is_deployed_in_one_word(tmp_path: Path) -> None:
+    """Found in the sixth review: `deployed=Decimal(1)` went through, and
+    ended `apply -o` in a traceback once the steps had run. A run is not
+    undone by a list lely can't take: it says so beside the step."""
+    (tmp_path / "odd.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from decimal import Decimal\n"
+        "from lely.model import Change, Item, Overview, StepPlan\n"
+        "class Odd:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pass\n"
+        "    def plan(self, ctx):\n"
+        "        return StepPlan((Change('k', 'run', 'runs'),))\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+        "    def overview(self, ctx):\n"
+        "        return Overview((Item('job', 'k', 'n', Decimal(1)),))\n"
+    )
+    config = load(
+        project.write(tmp_path, "steps:\n  - name: x\n    uses: ./odd.py:Odd\n")
+    )
+    fake = project.databricks(tmp_path)
+    approved = planning.plan(config, target="dev", source=Source(), **edges(fake))
+    result = running.apply(config, approved, **edges(fake))
+    assert result.outcome == "done"
+    [step] = result.steps
+    assert step.overview is None
+    assert "an overview line's `deployed` is true or false" in step.detail
+    json.dumps(planfile.result_to_json(result))

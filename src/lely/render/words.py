@@ -8,9 +8,11 @@ Pure words. How they look is each renderer's own.
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import NamedTuple
+from urllib.parse import urlsplit
 
 from lely.model import Overview, Plan, PlannedStep, Result, Secret, StepResult, Value
 
@@ -259,3 +261,25 @@ def said(message: str) -> str:
     head, tail = message[: SAID // 10], message[-(SAID - SAID // 10) :]
     left_out = len(message) - len(head) - len(tail)
     return f"{head}\n… ({left_out} characters left out; the run's log has them)\n{tail}"
+
+
+# -- links ----------------------------------------------------------------------
+
+
+def into(url: str, workspace: str) -> bool:
+    """Whether `url` is a link into the workspace at `workspace`: an https
+    address on that very host, with no name or password in it. What a plugin
+    says a thing's address is becomes a link only then — a page that says
+    "open" beside a job must not lead anywhere else."""
+    if not re.fullmatch(r"https://[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+", url):
+        return False
+    try:
+        there, here = urlsplit(url), urlsplit(workspace)
+    except ValueError:
+        return False
+    return (
+        here.scheme == "https"
+        and bool(here.hostname)
+        and "@" not in there.netloc
+        and there.netloc.lower() == here.netloc.lower()
+    )

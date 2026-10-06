@@ -653,3 +653,86 @@ def test_a_record_is_read_as_strictly_as_a_plan() -> None:
     refused(
         lambda d: d["steps"][1]["changes"][0].update(action="explode"), "action must be"
     )
+
+
+# -- found in the sixth review ---------------------------------------------------------
+
+
+def test_a_record_tells_one_story(tmp_path: Path) -> None:
+    """How a run ended is said in three places: its `outcome`, each step's
+    own, and the lists of names. A file where they disagree was edited — and
+    showed a run that failed as "Applied", in green."""
+    good = planfile.result_to_json(a_result())
+
+    def refused(edit: Any, message: str) -> None:
+        document = json.loads(json.dumps(good))
+        edit(document)
+        with pytest.raises(PlanFileError, match=message):
+            planfile.result_from_json(document)
+
+    refused(lambda d: d.update(outcome="done"), "`outcome` says done, and its")
+    refused(
+        lambda d: d.update(outcome="done", message=""),
+        "`outcome` says done, and its steps say otherwise",
+    )
+    refused(lambda d: d.update(outcome="refused"), "`outcome` says refused")
+    refused(lambda d: d.update(ran=[]), "`ran` doesn't name the steps")
+    refused(lambda d: d.update(failed=[]), "`failed` doesn't name the steps")
+    refused(lambda d: d.update(not_started="warm"), "`not_started` doesn't name")
+    refused(lambda d: d.update(rolled_back=["app"]), "`rolled_back` is never anything")
+    refused(lambda d: d["steps"].append(d["steps"][0]), "two steps share a name")
+
+    def all_done(document: Any) -> None:  # the steps changed, and not the rest
+        for step in document["steps"]:
+            step["outcome"] = "done"
+
+    refused(all_done, "`outcome` says failed, and its steps say otherwise")
+
+    def unfinished(document: Any) -> None:
+        document.update(outcome="done", message="", failed=[], ran=["app", "notify"])
+        document["steps"][2]["outcome"] = "done"
+
+    refused(unfinished, "`outcome` says done, and its steps say otherwise")
+
+    # found when the fixes were reviewed: each of these still read, and showed green
+    def no_steps_left(document: Any) -> None:
+        document.update(outcome="done", steps=[], ran=[], failed=[], not_started=[])
+
+    refused(no_steps_left, "`outcome` says done, and its `message` says what went wrong")
+
+    def lists_left_out(document: Any) -> None:
+        for key in ("ran", "failed", "refused", "not_started"):
+            del document[key]
+
+    refused(lists_left_out, "`ran` doesn't name the steps")
+    refused(lambda d: d.pop("rolled_back"), "`rolled_back` is never anything")
+
+    def two_stopped_it(document: Any) -> None:
+        document["steps"][3]["outcome"] = "refused"
+        document.update(outcome="refused", refused=["warm"], not_started=[])
+
+    refused(two_stopped_it, "more than one step failed or was refused")
+
+
+def test_a_view_has_its_size_in_a_file_too() -> None:
+    """The limit was held where a plugin hands a view over, and not where one
+    is read: a hand-written plan file brought twenty megabytes of it."""
+    with pytest.raises(PlanFileError, match="its view is 1000001 characters"):
+        planfile.step_plan_from_json({"view": "x" * 1_000_001})
+    assert planfile.step_plan_from_json({"view": "x" * 1_000_000}).view is not None
+
+
+def test_a_plan_nested_too_deep_to_write_is_said() -> None:
+    deep: Any = "x"
+    for _ in range(100_000):
+        deep = [deep]
+    plan = Plan(
+        "0",
+        "apply",
+        "dev",
+        project.WORKSPACE,
+        Source(),
+        (PlannedStep("app", "bundle", "h", StepPlan(payload=deep)),),
+    )
+    with pytest.raises(PlanFileError, match="nested too deep to write down"):
+        planfile.dumps(plan)

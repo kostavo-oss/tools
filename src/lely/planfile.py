@@ -81,8 +81,17 @@ class PlanFileError(LelyError):
     """A plan file (or a plan command's output) that can't be read."""
 
 
+#: The longest view a step's plan keeps, in characters: a view is a picture of
+#: the plan, not a copy of the data. Held where a plugin hands one over and
+#: where one is read from a file.
+VIEW_LIMIT = 1_000_000
+
+
 def dumps(plan: Plan) -> str:
-    return json.dumps(plan_to_json(plan), indent=2) + "\n"
+    try:
+        return json.dumps(plan_to_json(plan), indent=2) + "\n"
+    except RecursionError:
+        raise PlanFileError("The plan is nested too deep to write down.") from None
 
 
 def loads(text: str) -> Plan:
@@ -270,8 +279,18 @@ def step_plan_from_json(document: Json, where: str = "a step's plan") -> StepPla
         waiting=_optional_str(doc, "waiting", where),
         notes=_strings(doc.get("notes", []), f"{where}: `notes`"),
         payload=doc.get("payload"),
-        view=_optional_str(doc, "view", where),
+        view=_view(doc, where),
     )
+
+
+def _view(doc: Mapping[str, Json], where: str) -> str | None:
+    view = _optional_str(doc, "view", where)
+    if view is not None and len(view) > VIEW_LIMIT:
+        raise PlanFileError(
+            f"{where}: its view is {len(view)} characters, and a plan keeps at most "
+            f"{VIEW_LIMIT}"
+        )
+    return view
 
 
 # -- what a run leaves behind ---------------------------------------------------
@@ -352,7 +371,7 @@ def result_from_json(document: Json) -> Result:
         _only(workspace, _WORKSPACE_KEYS, f"{where}'s `workspace`")
         host = _str(workspace, "host", f"{where}'s `workspace`")
         identity = _str(workspace, "identity", f"{where}'s `workspace`")
-    return Result(
+    result = Result(
         kind=cast(PlanKind, kind),
         target=_optional_str(doc, "target", where) or "?",
         workspace=Workspace(host, identity),
@@ -363,6 +382,53 @@ def result_from_json(document: Json) -> Result:
         outcome=cast(RunOutcome, outcome),
         message=_optional_str(doc, "message", where) or "",
     )
+    _one_story(result, doc, where)
+    return result
+
+
+def _one_story(result: Result, doc: Mapping[str, Json], where: str) -> None:
+    """A record says how the run ended in three places: its `outcome`, each
+    step's own, and the lists of names. lely writes them from one result, so
+    they agree; a file where they don't was edited, and would show a run that
+    failed as one that was applied."""
+    names = [step.name for step in result.steps]
+    if len(set(names)) != len(names):
+        raise PlanFileError(f"{where}: two steps share a name")
+    if len(result.failed) + len(result.refused) > 1:
+        # the first step that fails or is refused stops the run
+        raise PlanFileError(
+            f"{where}: more than one step failed or was refused; lely writes no "
+            "such record."
+        )
+    if result.outcome == "done" and result.message:
+        raise PlanFileError(
+            f"{where}: `outcome` says done, and its `message` says what went wrong; "
+            "lely writes no such record."
+        )
+    if result.steps:
+        ended = "refused" if result.refused else "failed" if result.failed else "done"
+        unfinished = bool(result.not_started) and ended == "done"
+        if result.outcome != ended or unfinished:
+            raise PlanFileError(
+                f"{where}: `outcome` says {result.outcome}, and its steps say "
+                f"otherwise; lely writes no such record."
+            )
+    lists = {
+        "ran": result.ran,
+        "failed": result.failed,
+        "refused": result.refused,
+        "not_started": result.not_started,
+    }
+    for key, steps in lists.items():
+        if doc.get(key) != [step.name for step in steps]:
+            raise PlanFileError(
+                f"{where}: `{key}` doesn't name the steps that its `steps` say "
+                f"{key.replace('_', ' ')}; lely writes no such record."
+            )
+    if doc.get("rolled_back") != []:
+        raise PlanFileError(
+            f"{where}: `rolled_back` is never anything: lely rolls nothing back"
+        )
 
 
 def _step_result_from_json(document: Json) -> StepResult:

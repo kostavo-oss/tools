@@ -7,7 +7,9 @@ the requirement of `spec/005-plan-apply-destroy.md` it holds.
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
@@ -1444,3 +1446,325 @@ def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely
         applied.stderr.split()
     )
     assert ready.fake.deployed()  # … and the run happened
+
+
+# -- found in the sixth review ---------------------------------------------------------
+
+
+def test_a_page_is_never_written_through_a_link_or_over_someone_elses_file(
+    ready: Lely, browser: list[str], tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """A plan file can come from anywhere, and so can what lies beside it: a
+    `plan.html` that is a link to a file of the reader's own was written
+    through, and an unrelated `plan.html` written over."""
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    theirs = tmp_path_factory.mktemp("home") / "authorized_keys"
+    theirs.write_text("ssh-ed25519 the owner's key\n")
+    (ready.root / "plan.html").symlink_to(theirs)
+    planted = ready("ui", "plan.json")
+    assert planted.exit_code == 1
+    assert "plan.html is there already, and it isn't a page lely made" in " ".join(
+        planted.stderr.split()
+    )
+    assert theirs.read_text() == "ssh-ed25519 the owner's key\n"
+    # named outright, the link is replaced by the page — still not followed
+    assert ready("ui", "plan.json", "-o", "plan.html").exit_code == 0
+    assert theirs.read_text() == "ssh-ed25519 the owner's key\n"
+    assert not (ready.root / "plan.html").is_symlink()
+    assert (ready.root / "plan.html").read_text().startswith("<!doctype html>")
+    # a page lely made is its own to write again; anything else is not
+    assert ready("ui", "plan.json").exit_code == 0
+    (ready.root / "plan.html").write_text("<h1>our team's own page</h1>")
+    assert ready("ui", "plan.json").exit_code == 1
+    assert (ready.root / "plan.html").read_text() == "<h1>our team's own page</h1>"
+
+
+def test_the_file_to_read_is_never_the_file_written_however_it_is_spelled(
+    ready: Lely, browser: list[str]
+) -> None:
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    plan = (ready.root / "plan.json").read_text()
+    os.link(ready.root / "plan.json", ready.root / "second-name.html")
+    (ready.root / "link.html").symlink_to("plan.json")
+    for spelled in ("plan.json", "./plan.json", "second-name.html", "link.html"):
+        refused = ready("ui", "plan.json", "-o", spelled)
+        assert refused.exit_code == 1, spelled
+        assert "is the file to read: the page needs another name" in refused.stderr
+        assert (ready.root / "plan.json").read_text() == plan
+
+
+def test_a_file_is_whole_or_as_it_was(
+    ready: Lely, browser: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Written beside its place first and then moved there, so a write that
+    fails leaves no half of a plan behind — and nothing lying about."""
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    before = (ready.root / "plan.json").read_text()
+
+    def full(*args: Any, **kwargs: Any) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", full)
+    failed = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert failed.exit_code == 1 and "No space left on device" in failed.stderr
+    assert (ready.root / "plan.json").read_text() == before
+    assert sorted(path.name for path in ready.root.glob(".plan.json*")) == []
+
+
+def test_a_runs_record_never_holds_the_runs_token(ready: Lely, hub: FakeGitHub) -> None:
+    """007/R7. A step that fails may print it. What goes on the run's page is
+    searched for it; the record, which is kept and made into a page, was not."""
+    (ready.root / "ops" / "notify.sh").write_text(
+        '#!/bin/sh\necho "auth failed for $GITHUB_TOKEN" >&2; exit 1\n'
+    )
+    for extra in ((), ("-f", "json"), ("-f", "md")):
+        failed = ready(
+            "apply", "-t", "dev", "--yes", "--github", "-o", "result.json", *extra
+        )
+        assert failed.exit_code == 1
+        record = (ready.root / "result.json").read_text()
+        assert fake_github.TOKEN not in record and "auth failed for ***" in record
+        assert fake_github.TOKEN not in failed.stdout
+    assert fake_github.TOKEN not in ready("ui", "result.json", "-o", "-").stdout
+
+
+def test_a_file_made_again_is_readable_by_whoever_could_read_it_before(
+    ready: Lely, browser: list[str]
+) -> None:
+    """Written beside its place and moved there, a file is a new file: one
+    kept to oneself must not come back readable by everyone."""
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    plan = ready.root / "plan.json"
+    fresh = plan.stat().st_mode & 0o777
+    assert fresh & 0o600 == 0o600  # as any new file here
+    plan.chmod(0o600)
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    assert plan.stat().st_mode & 0o777 == 0o600
+    # a link standing there is replaced by a new file: nothing of its target's
+    theirs = ready.root / "theirs.txt"
+    theirs.write_text("x")
+    theirs.chmod(0o640)
+    (ready.root / "page.html").symlink_to(theirs)
+    assert ready("ui", "plan.json", "-o", "page.html").exit_code == 0
+    assert (ready.root / "page.html").stat().st_mode & 0o777 == fresh
+    assert theirs.read_text() == "x"
+
+
+# -- found when the sixth review's fixes were reviewed ---------------------------------
+
+
+LEAKING = (
+    "import json, os, sys\n"
+    "token = os.environ['GITHUB_TOKEN']\n"
+    "how = sys.argv[1]\n"
+    "if how == 'plan':\n"
+    "    print(json.dumps({'changes': [{'key': 'k', 'action': 'run',"
+    " 'summary': 'job with ' + token}]}))\n"
+    "elif how == 'plan-fails':\n"
+    "    sys.exit('auth failed for ' + token)\n"
+    "else:\n"
+    "    print('signed in with ' + token)\n"
+    "    print('and on stderr ' + token, file=sys.stderr)\n"
+    "    sys.exit(1 if how.endswith('fails') else 0)\n"
+)
+
+
+def leaking(ready: Lely, **commands: str) -> None:
+    """The scenario with a `seed` step whose commands print the run's token."""
+    (ready.root / "ops" / "leak.py").write_text(LEAKING)
+    lines = "".join(
+        f"      {verb}: [{sys.executable}, ops/leak.py, {how}]\n"
+        for verb, how in commands.items()
+    )
+    (ready.root / "lely.yml").write_text(
+        READY + "  - name: seed\n    uses: command\n    with:\n" + lines
+    )
+
+
+def nowhere(ready: Lely, hub: FakeGitHub, *results: Result) -> None:
+    """The token is in nothing lely said or wrote."""
+    said_ = "".join(result.stdout + result.stderr for result in results)
+    kept = "".join(
+        path.read_text()
+        for path in ready.root.iterdir()
+        if path.suffix in (".json", ".md", ".html")
+    )
+    assert fake_github.TOKEN not in said_ + kept + "".join(hub.bodies)
+    assert "***" in said_ + kept  # … and it was there to be searched for
+
+
+@pytest.mark.parametrize("extra", [(), ("-f", "json"), ("-f", "md")])
+def test_with_github_no_line_lely_says_holds_the_token(
+    ready: Lely, hub: FakeGitHub, extra: tuple[str, ...]
+) -> None:
+    """008/R6. Searching the result was not enough: a command that prints the
+    token and succeeds put it in lely's own progress lines; a plan command
+    that fails with it put it in the error."""
+    leaking(ready, apply="apply", destroy="destroy")
+    applied = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)
+    assert applied.exit_code == 0
+    destroyed = ready("destroy", "-t", "dev", "--yes", "--github", *extra)
+    assert destroyed.exit_code == 0
+    nowhere(ready, hub, applied, destroyed)
+
+    leaking(ready, apply="apply-fails")
+    failed = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)
+    assert failed.exit_code == 1
+    nowhere(ready, hub, failed)
+
+    leaking(ready, apply="apply", plan="plan-fails")
+    for command in (("plan", "-t", "dev"), ("apply", "-t", "dev", "--yes")):
+        stopped = ready(*command, "--github", *extra)
+        assert stopped.exit_code == 1
+        nowhere(ready, hub, stopped)
+
+
+def test_a_plan_that_holds_the_token_is_shown_by_no_command(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`plan`, `apply` and `destroy` refused one; `show --github` showed and
+    posted it, and so did `apply` for a step it could only plan mid-run."""
+    leaking(ready, apply="apply", plan="plan")
+    fake_github.outside(monkeypatch)  # a plan made without --github, earlier in the job
+    monkeypatch.setenv("GITHUB_TOKEN", fake_github.TOKEN)
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    assert fake_github.TOKEN in (ready.root / "plan.json").read_text()
+    (ready.root / "plan.json").rename(ready.root / "plan.kept")
+    fake_github.inside(monkeypatch, ready.root)
+    (ready.root / "plan.json").write_text((ready.root / "plan.kept").read_text())
+    (ready.root / "plan.kept").unlink()
+    for extra in ((), ("-f", "json"), ("-f", "md")):
+        shown = ready("show", "plan.json", "--github", *extra)
+        assert shown.exit_code == 1
+        assert fake_github.TOKEN not in shown.stdout + shown.stderr
+        assert "The plan of step `seed` holds this run's GitHub token" in " ".join(
+            shown.stderr.split()
+        )
+    assert hub.bodies == []
+    (ready.root / "plan.json").unlink()
+
+    # a step that waits is planned only when the run gets to it — and shown then
+    waiting = project.LELY_YML.replace(
+        'apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]',
+        f'apply: ["true"]\n      plan: [{sys.executable}, ops/leak.py, plan, '
+        '"${steps.app.resources.jobs.bar.id}"]',
+    )
+    (ready.root / "lely.yml").write_text(waiting)
+    stopped = ready("apply", "-t", "dev", "--yes", "--github")
+    assert stopped.exit_code == 1
+    assert fake_github.TOKEN not in stopped.stdout + stopped.stderr
+    assert "The plan of step `notify` holds this run's GitHub token" in " ".join(
+        stopped.stdout.split() + stopped.stderr.split()
+    )
+
+
+def test_a_result_that_cant_be_searched_is_not_shown_as_it_is(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It fell back to the result as it was, token and all."""
+    leaking(ready, apply="apply-fails")
+
+    def broken(document: Any) -> Any:
+        raise TypeError("Object of type PosixPath is not JSON serializable")
+
+    monkeypatch.setattr(cli.planfile, "result_from_json", broken)
+    failed = ready("apply", "-t", "dev", "--yes", "--github")
+    assert failed.exit_code == 1
+    assert fake_github.TOKEN not in failed.stdout + failed.stderr + page(ready)
+    assert "What this run said is left out" in " ".join(failed.stdout.split())
+    assert "✗ seed" in failed.stdout  # how each step ended is still said
+
+
+def test_what_is_no_file_is_written_to_as_it_is(ready: Lely, browser: list[str]) -> None:
+    """`-o /dev/null` worked, and stopped working when files came to be
+    written beside their place and moved there. A device is written to; and
+    under `/dev` nothing is ever replaced."""
+    assert ready("plan", "-t", "dev", "-o", "/dev/null").exit_code == 0
+    assert ready("apply", "-t", "dev", "--yes", "-o", "/dev/null").exit_code == 0
+    assert ready("schema", "-o", "/dev/null").exit_code == 0
+    assert Path("/dev/null").is_char_device()
+    pipe = ready.root / "pipe"
+    os.mkfifo(pipe)
+    reader = os.open(pipe, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        cli._write(pipe, "through the pipe\n")
+        assert os.read(reader, 100) == b"through the pipe\n"
+    finally:
+        os.close(reader)
+    assert stat.S_ISFIFO(pipe.stat().st_mode)
+
+
+def test_a_file_in_a_folder_that_cant_be_written_to(
+    ready: Lely, browser: list[str]
+) -> None:
+    """There is no room beside it for a second file: the file itself is
+    written, as it used to be. One marked read-only is left alone."""
+    kept = ready.root / "kept"
+    kept.mkdir()
+    (kept / "plan.json").write_text("old")
+    (kept / "locked.json").write_text("old")
+    (kept / "locked.json").chmod(0o444)
+    kept.chmod(0o555)
+    try:
+        cli._write(kept / "plan.json", "new")
+        assert (kept / "plan.json").read_text() == "new"
+        with pytest.raises(PermissionError):
+            cli._write(kept / "locked.json", "new")
+        with pytest.raises(PermissionError):  # … and no new file can be made there
+            cli._write(kept / "another.json", "new")
+        assert sorted(path.name for path in kept.iterdir()) == [
+            "locked.json",
+            "plan.json",
+        ]
+    finally:
+        kept.chmod(0o755)
+    (ready.root / "locked.json").write_text("old")
+    (ready.root / "locked.json").chmod(0o444)
+    with pytest.raises(PermissionError):  # in a folder that can be written to, too
+        cli._write(ready.root / "locked.json", "new")
+    assert (ready.root / "locked.json").read_text() == "old"
+
+
+def test_a_long_name_is_no_longer_for_being_written_beside(ready: Lely) -> None:
+    name = "p" * 245 + ".json"
+    cli._write(ready.root / name, "x")
+    assert (ready.root / name).read_text() == "x"
+
+
+def test_a_file_made_again_is_for_the_same_group_or_for_nobody_else(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mode was kept and the group was not: a file for one group to read
+    came back readable by another."""
+    plan = ready.root / "plan.json"
+    plan.write_text("old")
+    plan.chmod(0o640)
+    given: list[tuple[int, int]] = []
+    real_stat = os.stat
+
+    class Elsewhere:
+        """A new file here belongs to another group than the old one."""
+
+        def __init__(self, inner: os.stat_result) -> None:
+            self.st_gid = inner.st_gid + 1
+
+    def stat_(path: Any, *args: Any, **kwargs: Any) -> Any:
+        found = real_stat(path, *args, **kwargs)
+        return Elsewhere(found) if str(path).endswith(".tmp") else found
+
+    monkeypatch.setattr(os, "stat", stat_)
+    monkeypatch.setattr(os, "chown", lambda path, uid, gid: given.append((uid, gid)))
+    cli._write(plan, "new")
+    assert given == [(-1, plan.stat().st_gid)] and plan.stat().st_mode & 0o777 == 0o640
+
+    def refused(path: Any, uid: int, gid: int) -> None:
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(os, "chown", refused)
+    cli._write(plan, "newer")
+    assert plan.read_text() == "newer" and plan.stat().st_mode & 0o777 == 0o600
+    # … and what a mode says beyond who may read and write is not carried over
+    monkeypatch.undo()
+    plan.chmod(0o4755)
+    cli._write(plan, "newest")
+    assert plan.stat().st_mode & 0o7777 == 0o755
