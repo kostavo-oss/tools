@@ -246,6 +246,11 @@ requirement:
   `--var`s — and a step is given nothing but its options (R22). It is still R15: the dependency
   is written in `with:`, the named step stands above, and `validate` checks both. *This is a
   second way to depend on a step that the spec didn't name; the owner hasn't seen it.*
+  What a plugin reads from the step it names is **not** held to the plan the way a referenced
+  output is (005/R5): a plugin that acts on such a value puts it in the change it plans.
+- **A step is told what it is planned for** — apply, destroy or status — because for the last
+  two what exists now is what it gives the steps below, not what a deploy would make of it.
+  *(fourth review, 2026-10-06; the owner hasn't seen it.)*
 - **What a step is given (R22)** is also its own name, the workspace's host, the environment
   for a program it runs, and the Databricks CLI with this run's credentials — all "a way to
   reach the workspace", none another step's.
