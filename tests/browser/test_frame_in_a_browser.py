@@ -13,7 +13,8 @@ the result to four things:
 - inside the frame there is no element and no attribute lely doesn't keep;
 - no script ran.
 
-It needs Chrome and is skipped without it, so it is not part of the gate:
+It needs Chrome and is skipped without it. `mise run check` leaves it out; CI
+runs it, on runners that have Chrome:
 
     uv run pytest tests/browser
 

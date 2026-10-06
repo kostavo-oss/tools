@@ -69,8 +69,9 @@ Not built, or not proven:
   have never run.
 - **The page is built (2026-10-06)**: `lely ui`, `StepPlan.view`, a run's record with
   `apply -o` (`spec/007-ui.md`). Looked at in a browser and reviewed once. Whether a plugin's
-  view stays in its frame is asked of a real browser: `uv run pytest tests/browser` (needs
-  Chrome; not part of the gate). Run it after any change to `render/html.py`.
+  view stays in its frame is asked of a real browser: `uv run pytest tests/browser`. It needs
+  Chrome and skips without it; `mise run check` doesn't run it, CI does (its runners have
+  Chrome). Run it after any change to `render/html.py`.
 
 There is no Databricks CLI or workspace in the unit suite:
 
