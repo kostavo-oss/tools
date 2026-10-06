@@ -240,7 +240,10 @@ All by the owner, on 2026-10-05.
   plan, and held: two projects that share a tree — and, started from one template, their steps
   as written — are still two projects. And whether anything differed from `HEAD`: a changed,
   staged, added or removed file, a submodule that moved or has changes of its own, a file git
-  was told not to look at (`assume-unchanged`, `skip-worktree`). **A plan made on such a
+  was told not to look at (`assume-unchanged`, or `skip-worktree` on a file that is on disk).
+  A sparse checkout — `skip-worktree` on files that are not there — hides nothing and is not
+  dirty; its tree is the tree of what is checked out, so a plan made on a whole checkout is
+  not run on part of one *(fourth review, 2026-10-06)*. **A plan made on such a
   checkout says so and is not run from a file** — lely couldn't say what it was made on — and
   no plan is run from a file on such a checkout. Run it without a file instead. (Two earlier
   attempts were cleverer — hold such a plan to nothing; hold it to the exact contents of the
@@ -249,7 +252,9 @@ All by the owner, on 2026-10-05.
   itself; a second plan file in the repository is a change like any other. **Files git doesn't
   track yet are not seen**, so a new, unadded notebook is deployed without the plan knowing. A
   repository with no commit yet has no tree to record, and the plan says so.
-- **git failing is not "no repository".** Only git's own "not a git repository" means that.
+- **git failing is not "no repository".** Only git's own "not a git repository" means that —
+  and only where nothing looks like a repository: with a `.git` here or above (a worktree
+  copied without what it points to, a broken `HEAD`) that answer is a failure too.
   Any other failure — git missing, a checkout owned by someone else, as in many containers —
   fails `lely plan` and a run from a file, because a plan that quietly recorded nothing would
   be held to nothing. A run that is planned and applied in one go is held to nothing anyway,

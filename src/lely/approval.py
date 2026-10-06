@@ -20,6 +20,7 @@ from lely.model import (
     Secret,
     Source,
     StepPlan,
+    Value,
     Workspace,
 )
 
@@ -109,22 +110,30 @@ def same_inputs(approved: PlannedStep, inputs: Sequence[Input]) -> None:
     now: the plan showed `model_version = 14`, and 15 was never approved.
 
     The same value means the same kind of value: `1` is not `true`, `14` is
-    not `14.0` and not `"14"`.
+    not `14.0` and not `"14"`. A secret can't be compared, and stays one: a
+    value the plan showed is not replaced by one nobody can see, nor the other
+    way round.
     """
-    known = {
-        (taken.label, taken.source): taken.value
-        for taken in approved.inputs
-        if taken.known and not isinstance(taken.value, Secret)
-    }
+    known = {(one.label, one.source): one.value for one in approved.inputs if one.known}
     for taken in inputs:
         key = (taken.label, taken.source)
-        if key not in known or isinstance(taken.value, Secret) or not taken.known:
+        if key not in known or not taken.known:
             continue
-        if not _same(known[key], taken.value):
+        if not _unchanged(known[key], taken.value):
             raise Refused(
-                f"Step `{approved.name}` takes {taken.source} = {taken.value!r} now; "
-                f"the plan was approved with {known[key]!r}. {AGAIN}"
+                f"Step `{approved.name}` takes {taken.source} = {_said(taken.value)} "
+                f"now; the plan was approved with {_said(known[key])}. {AGAIN}"
             )
+
+
+def _unchanged(was: Value, now: Value) -> bool:
+    if isinstance(was, Secret) or isinstance(now, Secret):
+        return isinstance(was, Secret) and isinstance(now, Secret)
+    return _same(was, now)
+
+
+def _said(value: Value) -> str:
+    return "a secret" if isinstance(value, Secret) else repr(value)
 
 
 def _same(one: object, other: object) -> bool:

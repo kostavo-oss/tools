@@ -42,6 +42,14 @@ def head_tree(repo: Path) -> str:
     return git(repo, "rev-parse", "HEAD^{tree}")
 
 
+def tree_without(repo: Path, *paths: str) -> str:
+    """The tree `HEAD` would be without `paths`, as git itself makes it."""
+    git(repo, "rm", "-q", "-r", "--cached", "--", *paths)
+    tree = git(repo, "write-tree")
+    git(repo, "reset", "-q")
+    return tree
+
+
 def test_outside_a_repository_nothing_is_recorded(tmp_path: Path) -> None:
     assert source.read(tmp_path) == Source()
 
@@ -158,11 +166,65 @@ def test_a_file_git_was_told_not_to_look_at_cant_be_vouched_for(repo: Path) -> N
     assert not source.read(repo).dirty
 
 
-def test_a_sparse_checkout_is_not_dirty_for_what_it_leaves_out(repo: Path) -> None:
-    """There `skip-worktree` marks a file that isn't on disk: nothing is hidden."""
+def test_a_sparse_checkout_is_the_tree_of_what_is_checked_out(repo: Path) -> None:
+    """There `skip-worktree` marks a file that isn't on disk: nothing is hidden,
+    so the checkout is clean — and it is not the whole one. A plan made where
+    every file was there isn't run where a step would find some missing."""
+    whole = source.read(repo)
+    part = tree_without(repo, "other/notes.txt")
+    assert part != whole.tree
     git(repo, "update-index", "--skip-worktree", "other/notes.txt")
     (repo / "other" / "notes.txt").unlink()
-    assert source.read(repo) == Source(head_tree(repo), root=".")
+    sparse = source.read(repo)
+    assert sparse == Source(part, root=".")
+    # with the plan file left out as well
+    (repo / "plan.json").write_text("{}")
+    git(repo, "add", "plan.json")
+    git(repo, "commit", "-q", "-m", "a plan to review")
+    assert source.read(repo, repo / "plan.json") == sparse
+    # back to the whole checkout
+    git(repo, "update-index", "--no-skip-worktree", "other/notes.txt")
+    git(repo, "checkout", "-q", "--", "other/notes.txt")
+    assert source.read(repo, repo / "plan.json") == whole
+
+
+def test_a_link_to_nowhere_where_a_file_was_is_not_nothing(repo: Path) -> None:
+    git(repo, "update-index", "--skip-worktree", "other/notes.txt")
+    (repo / "other" / "notes.txt").unlink()
+    (repo / "other" / "notes.txt").symlink_to("/nonexistent/notes.txt")
+    assert source.read(repo).dirty
+
+
+def test_a_clone_without_all_its_files_is_read_without_fetching_them(
+    tmp_path: Path,
+) -> None:
+    """A blobless, sparse clone — what a large repository is checked out as —
+    with a committed plan file: the tree is made of names, and no file is
+    fetched to make it. Here the remote is gone, so a fetch would fail."""
+    origin = tmp_path / "origin"
+    (origin / "deploy").mkdir(parents=True)
+    (origin / "big").mkdir()
+    git(origin, "init", "-q")
+    (origin / "deploy" / "lely.yml").write_text("steps: []\n")
+    (origin / "deploy" / "plan.json").write_text("{}")
+    (origin / "big" / "f.bin").write_text("blob\n")
+    git(origin, "add", ".")
+    git(origin, "commit", "-q", "-m", "first")
+    git(origin, "config", "uploadpack.allowFilter", "true")
+    clone = tmp_path / "clone"
+    git(
+        tmp_path,
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--sparse",
+        f"file://{origin}",
+        str(clone),
+    )
+    git(clone, "sparse-checkout", "set", "deploy")
+    git(clone, "remote", "set-url", "origin", "file:///nonexistent/origin")
+    found = source.read(clone / "deploy", clone / "deploy" / "plan.json")
+    assert found == Source(tree_without(origin, "big", "deploy/plan.json"), root="deploy")
 
 
 def test_a_submodule_counts_whatever_git_was_told_to_ignore(
@@ -195,6 +257,34 @@ def test_a_submodule_counts_whatever_git_was_told_to_ignore(
     git(repo / "lib", "commit", "-q", "-am", "two")  # … and on another commit
     assert git(repo, "status", "--porcelain", "--untracked-files=no") == ""
     assert source.read(repo).dirty
+
+
+def test_a_file_a_submodule_doesnt_track_is_not_seen_either(
+    repo: Path, tmp_path: Path
+) -> None:
+    """A build's leftovers in a submodule are no more a change than they are
+    at the top."""
+    library = tmp_path / "library"
+    library.mkdir()
+    git(library, "init", "-q")
+    (library / "lib.py").write_text("v = 1\n")
+    git(library, "add", ".")
+    git(library, "commit", "-q", "-m", "one")
+    git(
+        repo,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        str(library),
+        "lib",
+    )
+    git(repo, "commit", "-q", "-m", "a submodule")
+    (repo / "lib" / "__pycache__").mkdir()
+    (repo / "lib" / "__pycache__" / "lib.pyc").write_text("x")
+    (repo / "left-over.txt").write_text("x")
+    assert not source.read(repo).dirty
 
 
 def test_nothing_of_the_users_is_written(repo: Path) -> None:
@@ -277,6 +367,44 @@ def test_git_refusing_is_not_the_same_as_no_repository(
         source.read(repo)
     assert "dubious ownership" in str(caught.value)
     assert "would be held to nothing" in str(caught.value)
+
+
+def test_a_git_folder_git_cant_use_is_not_no_repository(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """git says "not a git repository" for these too. A plan made there would
+    record nothing, and be run on any commit."""
+    copied = tmp_path / "copied"  # a worktree, copied without what it points to
+    copied.mkdir()
+    (copied / ".git").write_text("gitdir: /nonexistent/.git/worktrees/x\n")
+    with pytest.raises(SourceError, match="There is a `.git` here or above"):
+        source.read(copied)
+
+    project_dir = repo / "deploy"
+    project_dir.mkdir()
+    with monkeypatch.context() as patch:  # git told not to look above the folder
+        patch.setenv("GIT_CEILING_DIRECTORIES", str(repo))
+        with pytest.raises(SourceError, match="would be held to nothing"):
+            source.read(project_dir)
+    assert source.read(project_dir).root == "deploy"
+
+    (repo / ".git" / "HEAD").write_text("garbage\n")
+    with pytest.raises(SourceError, match="git says this is no repository"):
+        source.read(repo)
+
+
+def test_a_project_outside_the_checkout_git_names(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`GIT_DIR` and `GIT_WORK_TREE` naming another checkout: its tree says
+    nothing about the files of this project."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.setenv("GIT_DIR", str(repo / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(repo))
+    with pytest.raises(SourceError, match="is not in the checkout git names"):
+        source.read(elsewhere)
+    assert source.read(repo) == Source(head_tree(repo), root=".")
 
 
 def test_no_git_in_a_repository_is_an_error_and_outside_one_it_isnt(

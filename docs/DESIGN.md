@@ -207,6 +207,7 @@ class Context:  # everything a step is given
     host: str  # the workspace this run talks to
     env: Mapping[str, str]  # for a program the step runs
     databricks: Cli  # the Databricks CLI, with this run's credentials
+    purpose: str  # what it is planned for: apply, destroy or status
     log: Log
     workspace: WorkspaceClient  # the SDK, connected on first use
 
@@ -619,6 +620,25 @@ Each is the builder's call where the spec left room; none is the owner's yet.
 - **`doctor` reports what it can read off**: the CLI's version, the workspace, the identity,
   whether it is a workspace admin, and whether each program a step runs is there. Not the
   bundle's engine, and not whether credentials are read-only.
+
+## Decided in the fourth review, 2026-10-06
+
+The builder's calls again; none is the owner's yet.
+
+- **A step is told what it is planned for** (`Context.purpose`: apply, destroy or status). For
+  a destroy and a status, `plan` is asked only for what the step gives the ones below, and
+  there what exists now is what counts. The bundle held back the id of a pipeline the next
+  deploy would replace — right for a deploy, and for a destroy it skipped the step that had to
+  take down what it made for that pipeline.
+- **A sparse checkout is the tree of what is checked out.** It read as the whole checkout, so
+  a plan made where every file was there ran where a step would find some missing.
+- **What a plugin reads from a linked step is not held to the plan.** Holding all of it was
+  tried and backed out: a bundle step gives who is running, so a plan made by one person and
+  applied by CI was refused for nothing. The rule is the plugin's: a value it acts on goes in
+  the change it plans, and then a run on another value is a change nobody approved.
+- **A plugin can't end lely or take its streams.** `sys.exit` in a plugin is that step's
+  error. What a plugin prints, however it prints it, goes to stderr through a stream of its
+  own.
 
 ## Stack
 

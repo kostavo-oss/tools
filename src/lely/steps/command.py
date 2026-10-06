@@ -95,6 +95,9 @@ class Command:
                     f"`outputs` must list plain names (letters, digits, `_`, `-`), "
                     f"not {name!r}"
                 )
+        twice = sorted({str(name) for name in names if names.count(name) > 1})
+        if twice:
+            raise LelyError(f"`outputs` lists {', '.join(twice)} more than once")
         known = "exists" if written.get("plan") else "run"
         return tuple(Output(str(name), known) for name in names)
 
@@ -112,6 +115,8 @@ class Command:
         options = ctx.options
         if not options.apply:
             raise LelyError(f"step `{ctx.name}`: `apply` needs a command to run")
+        if options.plan is not None and not options.plan:
+            raise LelyError(f"step `{ctx.name}`: `plan` needs a command to run")
         if options.plan is None:
             shown = shlex.join(options.apply)
             return StepPlan(
@@ -187,7 +192,7 @@ class Command:
         same = {
             name: plan.outputs[name]
             for name, value in written.items()
-            if name in plan.outputs and _as_text(plan.outputs[name]) == value
+            if name in plan.outputs and _says(str(value), plan.outputs[name])
         }
         return {**plan.outputs, **written, **same}
 
@@ -238,17 +243,27 @@ def _env(ctx: Context[Command.Options]) -> dict[str, str]:
     return {**ctx.env, **own, "LELY_TARGET": ctx.target, "LELY_STEP": ctx.name}
 
 
-def _as_text(value: object) -> str:
-    """A value the plan command printed, as a script would write it."""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if value is None:
-        return ""
-    if isinstance(value, int | float):
-        return str(value)
-    return json.dumps(value)
+def _says(written: str, planned: object) -> bool:
+    """Whether `written` — text, as an apply command writes it — is the value
+    `planned` that the plan command printed as JSON. A script writes `True`
+    for `true` and `3.0` for `3` without meaning another value."""
+    if isinstance(planned, str):
+        return written == planned
+    if isinstance(planned, bool):
+        return written.lower() == ("true" if planned else "false")
+    if planned is None:
+        return written in ("", "null")
+    try:
+        parsed = json.loads(written)
+    except ValueError:
+        return False
+    if isinstance(planned, int | float):
+        return (
+            isinstance(parsed, int | float)
+            and not isinstance(parsed, bool)
+            and parsed == planned
+        )
+    return bool(parsed == planned)
 
 
 def _only_listed(outputs: Outputs, options: Command.Options, where: str) -> None:
@@ -273,5 +288,6 @@ def _read_outputs(text: str, step: str) -> dict[str, Json]:
                 f"step `{step}`'s apply command wrote line {number} to the file "
                 f"`LELY_OUTPUTS` names, which isn't `name=value`: {line!r}"
             )
-        outputs[name.strip()] = value
+        # the spaces round a value are how it was written, not part of it
+        outputs[name.strip()] = value.strip()
     return outputs

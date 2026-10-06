@@ -260,8 +260,19 @@ def test_no_config_anywhere_says_what_was_looked_for(tmp_path: Path) -> None:
     [
         ("base: &b {uses: bundle}\nsteps:\n  - <<: *b\n", "not valid YAML"),
         ("steps:\n  - uses: !foo bar\n", "not valid YAML"),
-        ("steps:\n  - uses: bundle\n    with: {when: 2024-02-30}\n", "can't read"),
-        ("steps:\n  - uses: bundle\n    with: {n: !!int abc}\n", "can't read"),
+        (
+            "steps:\n  - uses: bundle\n    with: {when: 2024-02-30}\n",
+            "lely.yml:3:18: `2024-02-30` can't be read as YAML's `timestamp`; quote",
+        ),
+        (
+            "steps:\n  - uses: bundle\n    with: {n: !!int abc}\n",
+            "lely.yml:3:15: `abc` can't be read as YAML's `int`",
+        ),
+        # found in the fourth review: each of these was a traceback
+        ("steps:\n  - uses: bundle\n    with: {n: !!bool maybe}\n", "YAML's `bool`"),
+        ("steps:\n  - uses: bundle\n    with: {n: !!int ''}\n", "YAML's `int`"),
+        ("steps:\n  - uses: bundle\n    with: {n: !!float ''}\n", "YAML's `float`"),
+        ("steps:\n  - uses: bundle\n    with: {n: !!timestamp x}\n", "`timestamp`"),
         ("steps: &a\n  - uses: bundle\n  - *a\n", "refers to itself"),
         ("steps:\n  - uses: \x01\n", "not valid YAML"),
     ],

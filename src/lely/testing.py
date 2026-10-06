@@ -39,7 +39,7 @@ from lely import step as contract
 from lely.model import Json, Output, Outputs, Overview, Skip, StepPlan
 from lely.planfile import normalised, step_plan_from_json, step_plan_to_json
 from lely.refs import match
-from lely.step import Cli, Context, NullLog
+from lely.step import Cli, Context, NullLog, Purpose
 
 OptionsT = TypeVar("OptionsT")
 
@@ -97,6 +97,7 @@ def context(
     env: Mapping[str, str] | None = None,
     databricks: Cli | None = None,
     connect: Any = None,
+    purpose: Purpose = "apply",
 ) -> Context[OptionsT]:
     return Context(
         target=target,
@@ -108,6 +109,7 @@ def context(
         databricks=databricks or NoDatabricks(),
         log=NullLog(),
         connect=connect or _no_workspace,
+        purpose=purpose,
     )
 
 

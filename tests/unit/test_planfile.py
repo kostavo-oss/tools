@@ -425,3 +425,120 @@ def test_a_plan_that_names_a_tree_names_its_project(tmp_path: Path) -> None:
         planfile.plan_from_json(document)
     document["source"] = {"tree": None, "dirty": False, "root": None}  # outside git
     assert planfile.plan_from_json(document).source == Source()
+
+
+# -- found in the fourth review ------------------------------------------------------
+
+
+def test_what_a_file_says_of_a_steps_state_is_what_lely_reads(tmp_path: Path) -> None:
+    """`state` is there for whoever reads the JSON — in a pull request's diff,
+    say. A file that calls a step skipped, and lely then runs it, told its
+    reader something else than it told lely."""
+    document = planfile.plan_to_json(planned(tmp_path))
+    app = document["steps"][1]
+    assert app["state"] == "ready" and app["plan"]["changes"]
+    app["state"] = "skipped"
+    with pytest.raises(PlanFileError) as caught:
+        planfile.plan_from_json(document)
+    assert str(caught.value) == (
+        "step `app`: `state` says 'skipped', and the rest of the step says it is "
+        "ready; lely writes no such plan. Run `lely plan` again."
+    )
+    app["state"] = "waiting"
+    with pytest.raises(PlanFileError, match="`state` says 'waiting'"):
+        planfile.plan_from_json(document)
+    del app["state"]  # a file from before lely wrote it says nothing false
+    planfile.plan_from_json(document)
+
+
+def test_where_a_plan_was_made_is_read_strictly_too(tmp_path: Path) -> None:
+    good = planfile.plan_to_json(planned(tmp_path))
+
+    def refused(edit: Any, message: str) -> None:
+        document = json.loads(json.dumps(good))
+        edit(document)
+        with pytest.raises(PlanFileError, match=message):
+            planfile.plan_from_json(document)
+
+    refused(lambda d: d["source"].update(commit="abc"), "`source`: unknown keys commit")
+    refused(lambda d: d["workspace"].update(o="1"), "`workspace`: unknown keys o")
+    # left out, `dirty` would read as a clean checkout
+    refused(lambda d: d["source"].pop("dirty"), "`dirty` must be true or false")
+
+
+def test_a_kind_of_text_or_number_is_the_text_or_number_it_is() -> None:
+    """A member of an enum, a `numpy.float64`: equal to the plain value, and
+    not the same kind — so a plan read back from its file was refused for a
+    value that hadn't changed."""
+    import enum
+
+    class Mode(enum.StrEnum):
+        FAST = "fast"
+
+    class Level(enum.IntEnum):
+        HIGH = 3
+
+    class Metric(float):
+        pass
+
+    class Name(str):
+        __slots__ = ()
+
+    plan = StepPlan(
+        outputs=cast(
+            Any,
+            {
+                "mode": Mode.FAST,
+                "level": Level.HIGH,
+                "score": Metric(0.5),
+                "names": [Name("a"), {"deep": Mode.FAST}],
+                "flag": True,
+            },
+        )
+    )
+    plain = planfile.normalised(plan)
+    assert plain.outputs == {
+        "mode": "fast",
+        "level": 3,
+        "score": 0.5,
+        "names": ["a", {"deep": "fast"}],
+        "flag": True,
+    }
+    names = cast(Any, plain.outputs["names"])
+    kinds = [
+        type(plain.outputs["mode"]),
+        type(plain.outputs["level"]),
+        type(plain.outputs["score"]),
+        type(names[0]),
+        type(names[1]["deep"]),
+        type(plain.outputs["flag"]),
+    ]
+    assert kinds == [str, int, float, str, str, bool]
+    back = planfile.step_plan_from_json(
+        json.loads(json.dumps(planfile.step_plan_to_json(plain)))
+    )
+    assert back == plain
+
+
+def test_what_a_run_removed_is_listed_in_the_result_as_the_terminal_lists_it() -> None:
+    """It is no longer in the overview — nothing is deployed to list — and the
+    JSON left it out where the terminal showed it."""
+    overview = Overview((Item("job", "jobs.bar", "job bar", True, "1001"),))
+    happened = {"jobs.bar": "changed", "jobs.gone": "deleted"}
+    document = planfile.overview_to_json(overview, happened)
+    assert document is not None
+    assert [(item["key"], item["happened"]) for item in document["items"]] == [
+        ("jobs.bar", "changed"),
+        ("jobs.gone", "deleted"),
+    ]
+    assert document["items"][1] == {
+        "kind": "",
+        "key": "jobs.gone",
+        "name": "",
+        "deployed": False,
+        "id": None,
+        "url": None,
+        "happened": "deleted",
+    }
+    listed = planfile.overview_to_json(overview)
+    assert listed is not None and len(listed["items"]) == 1  # a status: no run to tell

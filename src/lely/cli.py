@@ -352,12 +352,18 @@ def steps(path: ConfigOption = None) -> None:
             f"[bold]{escape(found.uses)}[/]  [dim]{escape(found.source)}[/]"
             + (f"\n  {escape(doc[0])}" if doc else "")
         )
-        for f in options.fields_of(found.options):
+        try:
+            fields = options.fields_of(found.options)
+            gives = _gives(found.cls)
+        except LelyError as error:  # a default, or its outputs, that can't be made
+            err.print(f"    [red]{escape(clean(str(error)))}[/]")
+            continue
+        for f in fields:
             default = "required" if f.required else f"default {f.default}"
             out.print(
                 f"    {escape(f.name)}: {escape(f.type)}  [dim]{escape(default)}[/]"
             )
-        for line in _gives(found.cls):
+        for line in gives:
             out.print(f"    [dim]gives[/]  {escape(line)}")
         out.print(f"    [dim]can[/]    {escape(_can(found.cls))}")
 

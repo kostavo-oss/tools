@@ -119,6 +119,43 @@ def test_a_project_in_pyproject(lely: Lely) -> None:
     assert lely("plan", "-t", "dev").exit_code == 0
 
 
+def test_a_plugin_whose_default_cant_be_made_is_said_and_the_rest_listed(
+    lely: Lely,
+) -> None:
+    """Found in the fourth review: `lely steps` and `lely schema` ended in a
+    traceback, and what a default's function printed landed in the schema."""
+    (lely.root / "ops" / "odd.py").write_text(
+        "from dataclasses import dataclass, field\n"
+        "def loud():\n    print('LOUD'); return ['a']\n"
+        "def broken():\n    raise RuntimeError('no default today')\n"
+        "class Loud:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n        names: list = field(default_factory=loud)\n"
+        "    def plan(self, ctx): pass\n    def apply(self, ctx, plan): pass\n"
+        "class Broken(Loud):\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n        names: list = field(default_factory=broken)\n"
+    )
+    project.write(
+        lely.root,
+        "steps:\n  - name: a\n    uses: ./ops/odd.py:Loud\n"
+        "  - name: b\n    uses: ./ops/odd.py:Broken\n",
+    )
+    listed = lely("steps")
+    assert listed.exit_code == 0
+    shown = " ".join(said(listed).split())
+    assert "names: list default ['a']" in shown
+    assert "the default of its option `names` can't be made: RuntimeError" in shown
+    assert "bundle.run" in shown
+    failed = lely("schema")
+    assert failed.exit_code == 1
+    assert "can't be made: RuntimeError" in " ".join(said(failed).split())
+    project.write(lely.root, "steps:\n  - name: a\n    uses: ./ops/odd.py:Loud\n")
+    schema = lely("schema")
+    assert schema.exit_code == 0
+    assert json.loads(schema.stdout)["title"] == "lely"
+
+
 def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> None:
     """002, done when: options, outputs and when each is known, and whether it
     has an overview and a destroy."""

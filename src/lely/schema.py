@@ -32,7 +32,7 @@ from typing import Any, Literal
 from lely import step as contract
 from lely.errors import LelyError
 from lely.model import KNOWN, Linked, Secret
-from lely.options import option_fields
+from lely.options import default_of, option_fields
 from lely.registry import Found
 
 DRAFT = "http://json-schema.org/draft-07/schema#"
@@ -194,12 +194,11 @@ def _options(cls: type, docs: Mapping[str, str]) -> dict[str, Any]:
         if field.name in docs:
             schema["description"] = docs[field.name]
         default: Any = None
-        if field.default is not dataclasses.MISSING:
-            default = _plain_value(field.default)
-        elif field.default_factory is not dataclasses.MISSING:
-            default = _plain_value(field.default_factory())
-        else:
+        made = default_of(cls, field)
+        if made is dataclasses.MISSING:
             required.append(field.name)
+        else:
+            default = _plain_value(made)
         if default is not _NOT_JSON and default not in (None, [], {}):
             schema["default"] = default
         properties[field.name] = schema

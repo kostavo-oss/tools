@@ -68,6 +68,8 @@ _STEP_KEYS = frozenset(
     }
 )
 _INPUT_KEYS = frozenset({"label", "from", "known", "value"})
+_WORKSPACE_KEYS = frozenset({"host", "identity"})
+_SOURCE_KEYS = frozenset({"tree", "dirty", "root"})
 _CHANGE_KEYS = frozenset({"key", "action", "summary", "destructive", "detail"})
 
 
@@ -118,7 +120,12 @@ def plan_from_json(document: Json) -> Plan:
         )
     _only(doc, _PLAN_KEYS, "the plan file")
     workspace = _object(doc.get("workspace"), "the plan file's `workspace`")
+    _only(workspace, _WORKSPACE_KEYS, "the plan file's `workspace`")
     source = _object(doc.get("source"), "the plan file's `source`")
+    _only(source, _SOURCE_KEYS, "the plan file's `source`")
+    if "dirty" not in source:
+        # left out, it would read as a clean checkout
+        raise PlanFileError("the plan file's `source`: `dirty` must be true or false")
     target = _str(doc, "target", "the plan file")
     if not target.strip():
         # the Databricks CLI would read an empty target as "the default one"
@@ -177,10 +184,17 @@ def normalised(plan: StepPlan, where: str = "a step's plan") -> StepPlan:
 
 
 def normalised_outputs(outputs: Outputs, where: str) -> dict[str, Value]:
-    return {
-        name: value if isinstance(value, Secret) else plain(value, f"{where}: an output")
-        for name, value in outputs.items()
-    }
+    try:
+        return {
+            name: value
+            if isinstance(value, Secret)
+            else plain(value, f"{where}: an output")
+            for name, value in outputs.items()
+        }
+    except RecursionError:
+        raise PlanFileError(
+            f"{where}: an output is nested too deep to write down"
+        ) from None
 
 
 def plain(value: Any, where: str) -> Json:
@@ -194,15 +208,22 @@ def plain(value: Any, where: str) -> Json:
             f"{where} holds a secret; a plan file never does. Make it an output of "
             "its own (a `Secret`), or fetch it at apply."
         )
-    if value is None or isinstance(value, str | bool):
+    if value is None or isinstance(value, bool):
         return value
+    # A kind of text or of number — a member of an enum, a `numpy.float64` — is
+    # written as the text or the number it is, and is that from here on: what
+    # a plan file reads back is then what a run in one go holds.
+    if isinstance(value, str):
+        return value if type(value) is str else str.__str__(value)
     if isinstance(value, int):
+        value = value if type(value) is int else int(value)
         try:
             str(value)
         except ValueError:  # Python won't write an integer of thousands of digits
             raise PlanFileError(f"{where} holds a number too long to write") from None
         return value
     if isinstance(value, float):
+        value = value if type(value) is float else float(value)
         if value != value or value in (float("inf"), float("-inf")):
             raise PlanFileError(f"{where} holds {value}, which isn't JSON")
         return value
@@ -296,8 +317,14 @@ def status_to_json(status: Status) -> dict[str, Any]:
 def overview_to_json(
     overview: Overview | None, happened: Mapping[str, str] | None = None
 ) -> dict[str, Any] | None:
+    """An overview as JSON — and, right after a run (`happened` is not `None`),
+    what the run did to each thing. What the run removed is no longer in the
+    overview: it is listed after what is left, by its key, as the terminal
+    lists it."""
     if overview is None:
         return None
+    did = happened or {}
+    listed = {item.key for item in overview.items}
     return {
         "items": [
             {
@@ -310,10 +337,23 @@ def overview_to_json(
                 **(
                     {}
                     if happened is None
-                    else {"happened": happened.get(item.key, "unchanged")}
+                    else {"happened": did.get(item.key, "unchanged")}
                 ),
             }
             for item in overview.items
+        ]
+        + [
+            {
+                "kind": "",
+                "key": key,
+                "name": "",
+                "deployed": False,
+                "id": None,
+                "url": None,
+                "happened": word,
+            }
+            for key, word in did.items()
+            if key not in listed
         ],
         "notes": list(overview.notes),
     }
@@ -382,6 +422,15 @@ def _step_from_json(document: Json) -> PlannedStep:
         raise PlanFileError(
             f"{where} is {step.state} and holds changes; lely writes no such plan. "
             "Run `lely plan` again."
+        )
+    # `state` is written for whoever reads the file, and worked out again from
+    # the rest by lely. A file where the two differ tells its reader one thing
+    # and lely another.
+    said = doc.get("state", step.state)
+    if said != step.state:
+        raise PlanFileError(
+            f"{where}: `state` says {said!r}, and the rest of the step says it is "
+            f"{step.state}; lely writes no such plan. Run `lely plan` again."
         )
     return step
 

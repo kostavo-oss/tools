@@ -435,7 +435,20 @@ class _Reader:
     def node(self, node: YamlNode) -> Node:
         loc = self.loc(node)
         if isinstance(node, ScalarNode):
-            value = self._constructor.construct_object(node)
+            try:
+                value = self._constructor.construct_object(node)
+            except (yaml.YAMLError, RecursionError):
+                raise
+            except Exception:
+                # a tag the value doesn't fit — `!!bool maybe`, `!!int ''` —
+                # which PyYAML answers with whatever went wrong inside it
+                tag = node.tag.rsplit(":", 1)[-1]
+                self.problem(
+                    loc,
+                    f"`{node.value}` can't be read as YAML's `{tag}`; quote it if "
+                    "it is text",
+                )
+                value = str(node.value)
             if not isinstance(value, str | int | float | bool) and value is not None:
                 # Timestamps and the like: keep what was written.
                 value = str(node.value)

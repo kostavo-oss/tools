@@ -25,21 +25,26 @@ recorded:
   change. A plan committed to be reviewed — a destroy going through a pull
   request — would otherwise change the tree it records, and refuse itself.
   Only that one file.
+- **Without what a sparse checkout leaves out.** The tree is the tree of what
+  is checked out, so a plan made on a whole checkout isn't run on part of one:
+  the files a step would read are not all there.
 
-Files git doesn't track yet are not seen. A repository with no commit yet has
-no tree to record, and the plan says so.
+Files git doesn't track yet are not seen, in a submodule either. A repository
+with no commit yet has no tree to record, and the plan says so.
 
-Only git's own "not a git repository" means that — any other failure fails
-the plan, because a plan that quietly recorded nothing would be held to
-nothing. And lely writes nothing to the repository: no index, no ref, no
-object. (The one tree it has to make, `HEAD`'s without a tracked plan file, is
-made in an index and an object store of its own.)
+Only git's own "not a git repository" means that, and only where nothing
+looks like one — any other failure fails the plan, because a plan that quietly
+recorded nothing would be held to nothing. And lely writes nothing to the
+repository: no index, no ref, no object; nor does it fetch one. (A tree it has
+to make — `HEAD`'s without a tracked plan file, or without what isn't checked
+out — is made in an index and an object store of its own.)
 """
 
 from __future__ import annotations
 
 import os
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from lely.errors import LelyError
@@ -71,14 +76,22 @@ def read(root: Path, plan_file: Path | None = None) -> Source:
     top = _top(root)
     if top is None:
         return Source()
+    if _git(root, "rev-parse", "--is-inside-work-tree") != "true":
+        # `GIT_DIR` naming a checkout somewhere else, or a folder inside `.git`
+        raise SourceError(
+            f"git couldn't say which version of the project this is: {root} is not "
+            f"in the checkout git names ({top}), and a plan held to another "
+            "project's files would be held to nothing."
+        )
     # as git names it, so a path spelled another way is still the same folder
     project = _git(root, "rev-parse", "--show-prefix").rstrip("/") or "."
     left_out = _named(top, plan_file)
     changed = [path for path in _changed(top) if path != left_out]
-    dirty = bool(changed) or _has_hidden(top)
+    hidden, absent = _unseen(top)
+    dirty = bool(changed) or hidden
     if _try(top, "rev-parse", "--verify", "--quiet", "HEAD") is None:
         return Source(tree=None, dirty=True, root=project)  # no commit yet
-    return Source(tree=_tree(top, left_out), dirty=dirty, root=project)
+    return Source(tree=_tree(top, left_out, absent), dirty=dirty, root=project)
 
 
 def _top(root: Path) -> Path | None:
@@ -95,13 +108,21 @@ def _top(root: Path) -> Path | None:
     if result.returncode == 0:
         return Path(result.stdout.strip("\n"))
     said = result.stderr.strip()
-    if "not a git repository" in said.lower():
-        return None
-    raise SourceError(_failed("`git rev-parse`", said))
+    if "not a git repository" not in said.lower():
+        raise SourceError(_failed("`git rev-parse`", said))
+    if _looks_like_a_repository(root):
+        # a worktree or a submodule copied without what it points to, a broken
+        # `HEAD`, a `GIT_CEILING_DIRECTORIES` in the way
+        raise SourceError(
+            "There is a `.git` here or above, and git says this is no repository. "
+            + _failed("`git rev-parse`", said)
+        )
+    return None
 
 
 def _looks_like_a_repository(root: Path) -> bool:
-    return any((folder / ".git").exists() for folder in (root, *root.parents))
+    root = root.absolute()
+    return any(os.path.lexists(folder / ".git") for folder in (root, *root.parents))
 
 
 def _named(top: Path, path: Path | None) -> str | None:
@@ -111,7 +132,11 @@ def _named(top: Path, path: Path | None) -> str | None:
     if path is None:
         return None
     folder = path.resolve().parent
-    if not folder.is_dir() or _try(folder, "rev-parse", "--show-toplevel") != str(top):
+    if not folder.is_dir():
+        return None
+    its_top = _try(folder, "rev-parse", "--show-toplevel")
+    # as paths: on Windows git writes `C:/…` for what Python writes `C:\…`
+    if its_top is None or Path(its_top) != top:
         return None
     prefix = _try(folder, "rev-parse", "--show-prefix")
     return None if prefix is None else prefix + path.name
@@ -119,13 +144,14 @@ def _named(top: Path, path: Path | None) -> str | None:
 
 def _changed(top: Path) -> list[str]:
     """Every tracked path that differs from `HEAD`, both names of a rename. A
-    submodule counts whatever the repository was told to ignore about it."""
+    submodule counts whatever the repository was told to ignore about it —
+    but for files it doesn't track, which are seen there as little as here."""
     said = _git(
         top,
         "status",
         "--porcelain",
         "--untracked-files=no",
-        "--ignore-submodules=none",
+        "--ignore-submodules=untracked",
         "-z",
     )
     fields = said.split("\0")
@@ -145,24 +171,35 @@ def _changed(top: Path) -> list[str]:
     return paths
 
 
-def _has_hidden(top: Path) -> bool:
-    """Whether git was told not to look at a file that is there: `git status`
-    then reports it as it was, not as it is, and lely can't vouch for it.
+def _unseen(top: Path) -> tuple[bool, list[str]]:
+    """What `git status` doesn't speak of: whether git was told not to look at
+    a file that is there — it then reports the file as it was, not as it is,
+    and lely can't vouch for it — and which files are not checked out at all.
 
-    `assume-unchanged` always counts. `skip-worktree` counts when the file is
-    on disk — in a sparse checkout it isn't, and there is nothing to hide.
+    `assume-unchanged` always hides. `skip-worktree` hides a file that is on
+    disk, a link to nowhere included; in a sparse checkout the file isn't, and
+    is one the tree is made without.
     """
-    listed = _git(top, "ls-files", "-v", "-z")
-    for entry in listed.split("\0"):
+    hidden = False
+    absent: list[str] = []
+    for entry in _git(top, "ls-files", "-v", "-z").split("\0"):
         tag, path = entry[:1], entry[2:]
-        if tag.islower() or (tag == "S" and (top / path).exists()):
-            return True
-    return False
+        if not path:
+            continue
+        if tag.islower() or (tag == "S" and os.path.lexists(top / path)):
+            hidden = True
+        elif tag == "S":
+            absent.append(path)
+    return hidden, absent
 
 
-def _tree(top: Path, left_out: str | None) -> str:
-    """`HEAD`'s tree, without `left_out` if that is a tracked file."""
-    if left_out is None or not _git(top, "ls-tree", "HEAD", "--", left_out):
+def _tree(top: Path, plan_file: str | None, absent: Sequence[str]) -> str:
+    """`HEAD`'s tree, without the plan file if that is tracked and without the
+    files that aren't checked out."""
+    without = list(absent)
+    if plan_file is not None and _git(top, "ls-tree", "HEAD", "--", plan_file):
+        without.append(plan_file)
+    if not without:
         return _git(top, "rev-parse", "--verify", "HEAD^{tree}")
     objects = Path(_git(top, "rev-parse", "--git-path", "objects"))
     with tempfile.TemporaryDirectory(prefix="lely-tree-") as scratch:
@@ -181,10 +218,21 @@ def _tree(top: Path, left_out: str | None) -> str:
             "GIT_OBJECT_DIRECTORY": str(store),
             "GIT_ALTERNATE_OBJECT_DIRECTORIES": os.pathsep.join(shared),
         }
-        quiet = ("-c", f"core.hooksPath={hooks}")
+        quiet = ("-c", f"core.hooksPath={hooks}", "-c", "index.sparse=false")
         _git(top, *quiet, "read-tree", "HEAD", env=env)
-        _git(top, *quiet, "update-index", "--force-remove", "--", left_out, env=env)
-        return _git(top, *quiet, "write-tree", env=env)
+        _git(
+            top,
+            *quiet,
+            "update-index",
+            "--force-remove",
+            "-z",
+            "--stdin",
+            env=env,
+            given="".join(f"{path}\0" for path in without),
+        )
+        # `--missing-ok`: a tree is made of names. In a clone without all of
+        # its files, git has no need to go and fetch one to look at it.
+        return _git(top, *quiet, "write-tree", "--missing-ok", env=env)
 
 
 def _listed(path: Path) -> str:
@@ -211,10 +259,15 @@ def _env() -> dict[str, str]:
     return env
 
 
-def _git(folder: Path, *args: str, env: dict[str, str] | None = None) -> str:
+def _git(
+    folder: Path,
+    *args: str,
+    env: dict[str, str] | None = None,
+    given: str | None = None,
+) -> str:
     """What git prints, or a `SourceError` in git's own words."""
     try:
-        result = run(["git", *_QUIET, *args], folder, env=env or _env())
+        result = run(["git", *_QUIET, *args], folder, env=env or _env(), given=given)
     except ProcessError as error:
         raise SourceError(_failed(_verb(args), str(error))) from None
     if result.returncode != 0:
