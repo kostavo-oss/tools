@@ -7,7 +7,19 @@ on:
 
 jobs:
   # ruff and the tests on every supported Python — the same gate for every
-  # Kostavo tool, kept in one place. `mise run check` also runs ty, which the
-  # shared gate doesn't yet.
+  # Kostavo tool, kept in one place.
   python:
     uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
+
+  # `mise run check` also runs ty, which the shared gate doesn't: so here it is,
+  # and the gate in CI is the gate at a desk.
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - name: Type check (ty)
+        run: uv run ty check

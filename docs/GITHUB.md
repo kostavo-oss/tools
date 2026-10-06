@@ -297,10 +297,15 @@ its bundle and a `command` step above it:
 - **A destroy started by hand** planned, then removed the job; it was asked for afterwards and
   was not there.
 
+- **A destructive change was refused on merge.** A pull request that removed a deployed job
+  carried a comment that opened with it — "Destructive: `app: jobs.second`". Its merge was
+  not applied: lely ended with 2 and said to pass `--allow-destructive`, and the job was
+  still there. Started by hand with that box ticked, the same change was planned and applied.
+
 Not tried in that run: signing in with GitHub's own identity (a token secret was used);
 environments, and the pause for a reviewer in the by-hand workflow (a private repository on a
-free plan has none); a pull request from a fork; a plan that holds a destructive change; a
-merge after `main` moved; a first deploy with a waiting step.
+free plan has none); a pull request from a fork; a merge after `main` moved; a first deploy
+with a waiting step.
 
 ## What is not known yet
 
