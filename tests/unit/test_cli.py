@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner, Result
 
+import fake_github
 import project
+from fake_github import FakeGitHub
 from fakes import FakeDatabricks
 from lely import cli, planfile
 from lely.model import Workspace
@@ -1098,3 +1100,147 @@ def test_a_run_and_what_exists_as_markdown(ready: Lely) -> None:
     status = ready("status", "-t", "dev", "-f", "md")
     assert status.stdout.startswith("### lely status · target `dev`\n")
     assert "| `app` | `job` | `jobs.bar` | `job bar` | `1001` | [open](<" in status.stdout
+
+
+# -- GitHub (008) ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def hub(ready: Lely, monkeypatch: pytest.MonkeyPatch) -> FakeGitHub:
+    """A GitHub Actions run for a pull request, and a fake GitHub behind it."""
+    fake = FakeGitHub()
+    monkeypatch.setattr(cli, "GITHUB", fake.connect)
+    fake_github.inside(monkeypatch, ready.root)
+    return fake
+
+
+def page(ready: Lely) -> str:
+    summary = ready.root / "summary.md"
+    return summary.read_text() if summary.exists() else ""
+
+
+def test_github_is_never_on_because_of_where_a_command_runs(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R4: in a run, with a token and a pull request — and no `--github`."""
+    assert ready("plan", "-t", "dev").exit_code == 0
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+    assert hub.calls == [] and page(ready) == ""
+
+
+def test_outside_a_run_github_says_so_and_the_plan_stands(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R5."""
+    fake_github.outside(monkeypatch)
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0
+    assert "+ jobs.bar" in result.stdout
+    assert "--github: this isn't a GitHub Actions run" in " ".join(result.stderr.split())
+
+
+def test_the_plan_is_put_on_the_pull_request_and_kept_current(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R2, R3: one comment, updated by the next plan; the run's page too."""
+    first = ready("plan", "-t", "dev", "--github", "-o", "plan.json")
+    assert first.exit_code == 0
+    assert "… github: created the comment on pull request #12" in first.stderr
+    [body] = hub.bodies
+    assert body.startswith("<!-- lely:plan:dev -->\n### lely plan · target `dev`\n")
+    assert "\n+     create   jobs.bar\n" in body
+    assert "commit `0123456789ab`" in body and "[the run](<" in body
+    assert page(ready).startswith("<!-- lely:plan:dev -->\n### lely plan")
+
+    # the workspace moves on, so the next plan is another
+    assert ready("apply", "-t", "dev", "--yes").exit_code == 0
+    second = ready("plan", "-t", "dev", "--github")
+    assert "… github: updated the comment on pull request #12" in second.stderr
+    [body] = hub.bodies
+    assert "create   jobs.bar" not in body
+    # a saved plan is shown the same way, and it is the same comment
+    shown = ready("show", "plan.json", "--github")
+    assert shown.exit_code == 0 and len(hub.comments) == 1
+    assert "create   jobs.bar" in hub.bodies[0]
+    # a plan to destroy is another plan, with a comment of its own
+    ready("plan", "-t", "dev", "--destroy", "--github")
+    assert [body.split("\n", 1)[0] for body in hub.bodies] == [
+        "<!-- lely:plan:dev -->",
+        "<!-- lely:destroy:dev -->",
+    ]
+
+
+def test_a_plan_that_fails_says_so_where_the_last_plan_stood(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    ready("plan", "-t", "dev", "--github")
+    (ready.root / "lely.yml").write_text("steps:\n  - uses: nothing-like-it\n")
+    failed = ready("plan", "-t", "dev", "--github")
+    assert failed.exit_code == 1
+    [body] = hub.bodies
+    assert body.startswith(
+        "<!-- lely:plan:dev -->\n### lely plan · target `dev` · failed"
+    )
+    assert "**The plan could not be made, so there is none to review.**" in body
+    assert "nothing-like-it" not in body  # what went wrong is on the run's page
+    assert "nothing-like-it" in page(ready)
+
+
+def test_a_comment_that_cant_be_written_doesnt_fail_the_plan(
+    ready: Lely, hub: FakeGitHub
+) -> None:
+    """008/R5: the job has no permission to comment."""
+    hub.refused = {"POST"}
+    result = ready("plan", "-t", "dev", "--github")
+    assert result.exit_code == 0 and hub.comments == []
+    said = " ".join(result.stderr.split())
+    assert "--github: couldn't comment on pull request #12: 403" in said
+    assert "the job needs `permissions: pull-requests: write`" in said
+    assert "### lely plan · target `dev`" in page(ready)
+
+
+def test_a_pull_request_from_a_fork_gets_no_plan_and_is_told_so(
+    ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """008/R4a: nothing of the project is loaded, and no workspace is asked."""
+
+    def never(profile: str | None) -> Workspace:
+        raise AssertionError("a fork's plan reached for the workspace")
+
+    monkeypatch.setattr(cli, "WHOAMI", never)
+    (ready.root / "ops" / "steps.py").write_text("raise SystemExit('ran its code')\n")
+    fake_github.inside(monkeypatch, ready.root, head="someone/shop")
+    result = ready("plan", "-t", "dev", "--github", "-o", "plan.json")
+    assert result.exit_code == 0
+    assert "comes from a fork (someone/shop): no plan is made" in result.stderr
+    assert not (ready.root / "plan.json").exists()
+    assert hub.calls == []
+    assert "### lely plan · target `dev` · skipped" in page(ready)
+    # … and nothing is applied or destroyed for one
+    for command in (("apply", "-t", "dev", "--yes"), ("destroy", "-t", "dev", "--yes")):
+        refused = ready(*command, "--github")
+        assert refused.exit_code == 2
+        assert "This pull request comes from a fork (someone/shop)" in " ".join(
+            refused.stderr.split()
+        )
+    assert page(ready).count("· refused\n\n**Nothing was run.**") == 2
+
+
+def test_a_run_and_what_it_left_go_on_its_page(ready: Lely, hub: FakeGitHub) -> None:
+    """008/R3: what each step did, and what exists now, with links."""
+    refused = ready("apply", "-t", "dev", "--github")  # no terminal, no --yes
+    assert refused.exit_code == 2
+    assert "### lely apply · target `dev` · refused\n\n**Nothing was run.**" in page(
+        ready
+    )
+    applied = ready("apply", "-t", "dev", "--yes", "--github")
+    assert applied.exit_code == 0
+    assert "… github: wrote the run's summary" in applied.stderr
+    written = page(ready)
+    assert "### lely apply · target `dev`\n" in written
+    assert "#### What exists now" in written
+    assert f"| `created` | [open](<{project.WORKSPACE.host}/jobs/1001>) |" in written
+    assert hub.calls == []  # a run's result is on its page; the comment is the plan's
+    destroyed = ready("destroy", "-t", "dev", "--yes", "--github")
+    assert destroyed.exit_code == 0
+    assert "### lely destroy · target `dev`\n" in page(ready)
