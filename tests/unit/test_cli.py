@@ -1525,3 +1525,25 @@ def test_a_runs_record_never_holds_the_runs_token(ready: Lely, hub: FakeGitHub) 
         assert fake_github.TOKEN not in record and "auth failed for ***" in record
         assert fake_github.TOKEN not in failed.stdout
     assert fake_github.TOKEN not in ready("ui", "result.json", "-o", "-").stdout
+
+
+def test_a_file_made_again_is_readable_by_whoever_could_read_it_before(
+    ready: Lely, browser: list[str]
+) -> None:
+    """Written beside its place and moved there, a file is a new file: one
+    kept to oneself must not come back readable by everyone."""
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    plan = ready.root / "plan.json"
+    fresh = plan.stat().st_mode & 0o777
+    assert fresh & 0o600 == 0o600  # as any new file here
+    plan.chmod(0o600)
+    assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
+    assert plan.stat().st_mode & 0o777 == 0o600
+    # a link standing there is replaced by a new file: nothing of its target's
+    theirs = ready.root / "theirs.txt"
+    theirs.write_text("x")
+    theirs.chmod(0o640)
+    (ready.root / "page.html").symlink_to(theirs)
+    assert ready("ui", "plan.json", "-o", "page.html").exit_code == 0
+    assert (ready.root / "page.html").stat().st_mode & 0o777 == fresh
+    assert theirs.read_text() == "x"

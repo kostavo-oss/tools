@@ -30,6 +30,7 @@ import functools
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import webbrowser
@@ -769,14 +770,27 @@ def _write(path: Path, text: str) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8", errors="replace") as file:
             file.write(text)
-        mask = os.umask(0)
-        os.umask(mask)
-        os.chmod(beside, 0o666 & ~mask)
+        os.chmod(beside, _mode_for(path))
         os.replace(beside, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(beside)
         raise
+
+
+def _mode_for(path: Path) -> int:
+    """Who may read the file written at `path`: whoever could read the file
+    that is there now — a plan kept to oneself stays that way when it is made
+    again — and otherwise what any new file gets."""
+    try:
+        there = os.lstat(path)
+    except OSError:
+        there = None
+    if there is not None and stat.S_ISREG(there.st_mode):
+        return stat.S_IMODE(there.st_mode)
+    mask = os.umask(0)
+    os.umask(mask)
+    return 0o666 & ~mask
 
 
 def _page(file: Path) -> str:
