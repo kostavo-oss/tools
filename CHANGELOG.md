@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-06
+
 ### Added
 
 - **The page changes things.** `caland --page` now does what the terminal version does to a
@@ -351,7 +353,8 @@ Initial release.
 - Pre-loads and caches scopes/secrets/ACLs on startup.
 - Three switchable themes (violet, amber Okudagram, phosphor green).
 
-[Unreleased]: https://github.com/kostavo-oss/caland/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kostavo-oss/caland/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/kostavo-oss/caland/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kostavo-oss/caland/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kostavo-oss/caland/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kostavo-oss/caland/compare/v0.3.0...v0.4.0
