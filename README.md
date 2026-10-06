@@ -14,7 +14,7 @@ and delete; show and copy values; put a certificate in from a file.
 ![Caland with a secret's value shown](docs/img/page-browse.png)
 
 **[Read the docs →](https://kostavo-oss.github.io/caland/)** — installation,
-connecting, the full keyboard reference, themes, and the security model.
+connecting, every key, and how the page is kept yours.
 
 ## Named after
 
@@ -22,10 +22,9 @@ Pieter Caland (1826–1902), the engineer who designed and built the Nieuwe Wate
 cut through the dunes that gave Rotterdam its way to the sea. Like the other Kostavo
 tools, Caland carries an engineer's name.
 
-Up to 0.4.1 Caland was called `isolinear`. That command, `iso`, your settings and your
-theme all still work —
-[coming from isolinear](https://kostavo-oss.github.io/caland/installation/#coming-from-isolinear)
-says what moved.
+Until 0.6 Caland was a terminal app, and before that it was called `isolinear`. That
+terminal app is still on PyPI under that name, as it was, and is a separate tool now —
+[if you want a terminal app](https://kostavo-oss.github.io/caland/installation/#if-you-want-a-terminal-app).
 
 ## Install
 
@@ -39,8 +38,7 @@ uv tool install caland  # install the `caland` command on PATH
 Or with pipx: `pipx run caland` / `pipx install caland`.
 
 > Requires Python ≥ 3.11 and a browser. Built on the
-> [Databricks SDK](https://github.com/databricks/databricks-sdk-py); the terminal
-> version on [Textual](https://textual.textualize.io).
+> [Databricks SDK](https://github.com/databricks/databricks-sdk-py).
 
 ## Quickstart
 
@@ -97,14 +95,6 @@ Everything has a key, and everything can be clicked. `?` on the page lists them 
 | <kbd>s</kbd> · <kbd>S</kbd> · <kbd>f</kbd> | Sort · the other way round · all scopes or only yours |
 | <kbd>w</kbd> | Another workspace |
 
-## The terminal version
-
-Until 0.6 Caland was a terminal app, and `caland --tui` still is one. It does what it did
-and gets nothing new — see
-[the terminal version](https://kostavo-oss.github.io/caland/terminal/).
-
-![The terminal version](docs/img/browse.svg)
-
 ## Security
 
 - **A value is read when you ask for it, and written nowhere**: not to disk, not to a cache,
@@ -130,8 +120,8 @@ caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore, BundleStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the only Databricks-SDK importers
-  interface/       Textual presentation (no business logic, no infra)
-  app.py           composition root
+  interface/web/   the page: a server on this machine, and what it serves
+  app.py           the command
 ```
 
 ## Contributing
@@ -142,7 +132,7 @@ all-[Astral](https://astral.sh): **uv** (env/deps/run), **ruff** (lint+format),
 
 ```sh
 uv sync
-uv run pytest        # tests (core units + UI via Textual Pilot)
+uv run pytest        # tests (units, the server over HTTP, the page in Chrome)
 uv run ruff check .  # lint
 uv run ty check      # types
 uv run caland     # run it

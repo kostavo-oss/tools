@@ -17,8 +17,8 @@ uv sync        # creates .venv and installs deps + dev tools
 ## Day-to-day
 
 ```sh
-uv run caland                  # run the app
-uv run textual run --dev caland.app:CalandApp   # with Textual devtools
+uv run caland                  # run it: opens the page
+uv run caland --no-open        # print the link instead
 
 uv run pytest                     # test suite
 uv run ruff check . && uv run ruff format .   # lint + format
@@ -36,14 +36,15 @@ The codebase is hexagonal / DDD; the dependency rule is enforced by convention:
 interface → application → domain ← infrastructure
 ```
 
-- **`domain/`** — pure model, rules, and ports (`Protocol`s). No Textual, SDK,
-  or asyncio.
+- **`domain/`** — pure model, rules, and ports (`Protocol`s). No UI, no SDK.
 - **`application/`** — use-cases (`WorkspaceService`, `OnboardingService`) and
   the in-memory read model. Depends only on `domain`.
 - **`infrastructure/`** — adapters that implement the ports; the *only* place
   that imports the Databricks SDK.
-- **`interface/`** — the Textual UI. Talks to `application` + `domain` only.
-- **`app.py`** — the composition root that wires the adapters together.
+- **`interface/web/`** — the page: a server on this machine (`gate.py` decides which
+  requests are answered, `server.py` answers them) and what it serves (`static/`). Talks
+  to `application` + `domain` only.
+- **`app.py`** — the command, which wires the adapters together.
 
 Keep business logic out of the UI, keep the SDK out of everything but
 `infrastructure/`, and tests can substitute the in-memory fakes in `tests/`.
@@ -51,8 +52,10 @@ Keep business logic out of the UI, keep the SDK out of everything but
 ## Tests
 
 - `domain` / `application` are covered by fast unit tests with fake ports.
-- The UI is driven through Textual's `Pilot` harness — no network, no real
-  Databricks. See `tests/fakes.py` for the in-memory doubles.
+- The server is asked over real HTTP, and the page is driven in a real browser — Chrome,
+  over its debugging pipe (`tests/chrome.py`) — against the in-memory doubles in
+  `tests/fakes.py`. No network, no real Databricks. The browser tests skip without Chrome;
+  CI has one. Run them after any change to `interface/web/static/`.
 
 ## Commits & PRs
 

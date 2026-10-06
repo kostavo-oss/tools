@@ -77,12 +77,9 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/caland/
 
-# docs/ also holds repo-only files and screenshot tooling — keep them out of the
-# site (the redesign/ folder holds capture.py + its scratch SVGs; the published
-# screenshots live in docs/img/*.svg and must NOT be excluded)
+# docs/ also holds a file that is the repository's and not the site's
 exclude_docs: |
   USER_STORIES.md
-  redesign/
 
 nav:
   - Home: index.md
@@ -90,11 +87,6 @@ nav:
   - Guide:
       - Connecting: connecting.md
       - Using the page: page.md
-  - The terminal version:
-      - What it is: terminal.md
-      - Browsing & managing: browsing.md
-      - Keyboard: keyboard.md
-      - Themes: themes.md
   - Security: security.md
   - Develop:
       - Architecture: architecture.md

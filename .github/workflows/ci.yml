@@ -42,7 +42,7 @@ jobs:
         run: uv run --python ${{ matrix.python-version }} pytest
 
   docs:
-    name: docs (strict build + screenshots)
+    name: docs (strict build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,8 +53,6 @@ jobs:
       - run: uv sync --group docs
       - name: Build the docs site (strict — broken links/nav fail)
         run: uv run --group docs mkdocs build --strict
-      - name: Screenshot pipeline still runs
-        run: uv run --group docs python docs/redesign/capture.py
 
   build:
     name: build (wheel + sdist)

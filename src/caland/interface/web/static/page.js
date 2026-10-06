@@ -202,7 +202,7 @@ async function refresh(all) {
 }
 
 // ── what is shown ────────────────────────────────────────────────────
-// letters in order, as the terminal version filters
+// a filter is letters in order: `tk` finds `tls-key`
 const matches = (text) => {
   let at = 0;
   const lower = text.toLowerCase();

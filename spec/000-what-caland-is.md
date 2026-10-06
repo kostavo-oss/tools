@@ -9,8 +9,8 @@ day ([Decided](#decided)); what follows from it is in [008](008-the-page.md).
 machine.** Browse scopes, secrets and grants; create, edit, move and delete; show and copy
 values; put a certificate in from a file.
 
-Until 0.6 the line said "terminal UI". The terminal version is still there, as
-`caland --tui`, and gets nothing new ([008](008-the-page.md)).
+Until 0.6 the line said "terminal UI". That terminal app is not in caland any more: it is
+`isolinear`, on PyPI as it was, and a separate tool ([007](007-name-and-release.md)).
 
 ## Why
 
@@ -67,6 +67,14 @@ Pieter Caland (1826–1902), the engineer who designed and built the Nieuwe Wate
 barrier, until the owner wanted a person's name there, as stevin and lely have.
 → [007](007-name-and-release.md)
 
+## And isolinear
+
+The terminal app caland was until 0.6 was first released as `isolinear`, and that is what
+it is again: `isolinear` 0.4.1 on PyPI, untouched. caland is the better tool and the one
+that is worked on; isolinear is left as it is until the owner removes it. *(owner,
+2026-10-07)* They share nothing: caland installs no command under the old name and reads
+none of isolinear's settings.
+
 ## Not in this spec
 
 How it is built — the layers, the ports — is in `docs/architecture.md`.
@@ -75,6 +83,9 @@ How it is built — the layers, the ports — is in `docs/architecture.md`.
 
 - **The name is caland.** *(owner, 2026-10-06: "the first ones are people, maeslant is not")*
 - **Specs come before any further work on the tool.** *(owner, 2026-10-06)*
+- **caland has no terminal version; isolinear is left as it is until the owner removes
+  it.** *(owner, 2026-10-07: "dont need the terminal in caland, we can treat caland as the
+  better tool and leave isolinear until I remove it")*
 - **It stays a tool for people working with secrets in Databricks, and only that.** Of the
   three directions the writer laid out — deepen it, a side that runs unattended, grants as
   a lely step — the first. *(owner, 2026-10-06)*

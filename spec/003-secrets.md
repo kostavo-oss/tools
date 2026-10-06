@@ -1,6 +1,8 @@
 # 003 — secrets
 
-**Status:** built. Written 2026-10-06 from the tool at 0.4.1.
+**Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
+met these first and is not in caland any more ([008](008-the-page.md)); where the page does
+a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
 
 ## Why
 
@@ -45,6 +47,17 @@ memory for the session, so asking twice does not ask Databricks twice. Hiding af
 seconds takes it off the screen, not out of memory; R9 and quitting do that. It is never
 written anywhere. → [006](006-safety.md)
 
+## What changed with the page
+
+- R2: a file is chosen with the system's own dialog, or dropped, or pasted; it is said what
+  it is before it is saved, and is stored byte for byte ([008, R4–R6](008-the-page.md)).
+- R3, R5: the dialog says the truth — `u` puts it back (D1). `u` does not put a secret
+  back over one made since, and holds what it holds until it is back.
+- R4: a move does not land on another secret, takes the value as it is at that moment,
+  and refuses a rename that only changes the case (D4).
+- A new secret does not overwrite one that is there: edit it instead.
+- D3: a value that is no text survives — it is carried as bytes.
+
 ## Not in this spec
 
 - **Versions of a secret.** Databricks keeps none; neither does caland.
@@ -77,5 +90,5 @@ written anywhere. → [006](006-safety.md)
 
 ## Done when
 
-Built. Held by `tests/test_ui_modals.py`, `test_ui_browse.py`, `test_ui_tools.py`,
-`test_session.py` and the snapshots of the dialogs.
+Built. Held by `tests/test_values_as_bytes.py`, `test_web_changing.py`, `test_files.py` and
+the browser tests under "changing things".

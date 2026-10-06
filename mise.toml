@@ -19,10 +19,6 @@ description = "Run Caland (the page)"
 alias = "run"
 run = "uv run caland"
 
-[tasks.tui]
-description = "Run the terminal version (frozen)"
-run = "uv run caland --tui"
-
 [tasks.test]
 description = "Run the test suite (pytest)"
 alias = "t"

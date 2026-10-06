@@ -4,8 +4,8 @@ That file holds tokens. So it is written one writer at a time, never half — a
 copy beside it is written and moved into its place — and never left readable by
 anybody but its owner. A profile that is added is added to the end of what is
 there, which is left exactly as it was; and a profile that is there is never
-written over by `add`: it keeps its own way of signing in, and under another
-address that would be sent there.
+written over: it keeps its own way of signing in, and under another address
+that would be sent there.
 """
 
 from __future__ import annotations
@@ -107,30 +107,3 @@ class DatabricksCfgProfileStore:
                 before += "\n"
             added = f"[{name}]\nhost = {host}\nauth_type = external-browser\n"
             _replace(path, before + ("\n" if before else "") + added)
-
-    def save(
-        self,
-        name: str,
-        host: str,
-        account_id: str | None = None,
-        auth_type: str = "external-browser",
-    ) -> None:
-        """Write a reusable profile into ~/.databrickscfg (mirrors
-        `databricks auth login`): host + auth_type, no secret stored. Writes
-        over a profile of that name — the terminal version's way; the page
-        uses `add`, which does not."""
-        path = config_path()
-        with _WRITING:
-            parser = _read(path)
-            name = name.strip() or "caland"
-            if name != parser.default_section and not parser.has_section(name):
-                parser.add_section(name)
-            parser.set(name, "host", normalize_host(host))
-            parser.set(name, "auth_type", auth_type)
-            if account_id:
-                parser.set(name, "account_id", account_id.strip())
-            import io
-
-            text = io.StringIO()
-            parser.write(text)
-            _replace(path, text.getvalue())

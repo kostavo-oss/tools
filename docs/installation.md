@@ -55,7 +55,7 @@ enter: a new link · ctrl+c: stop
 See [Connecting](connecting.md) for which workspace it shows, and [Using the page](page.md)
 for the rest. If no tab opens, `caland --no-open` prints the link instead; it works once.
 
-`caland --tui` is [the terminal version](terminal.md), as it was.
+Until 0.6 `caland` opened a terminal app. [That app is isolinear](#if-you-want-a-terminal-app).
 
 ## Upgrading
 
@@ -82,17 +82,13 @@ for the rest. If no tab opens, `caland --no-open` prints the link instead; it wo
 !!! note "No config needed up front"
     Caland ships with sensible defaults and discovers your workspaces at runtime. You do not need to create a config file, set environment variables, or store a token before the first launch.
 
-## Coming from isolinear
+## If you want a terminal app
 
-Up to 0.4.1 Caland was released as `isolinear`. The rename changed what you type; nothing
-you had is lost, and nothing in a workspace is touched.
+Caland was a terminal app until 0.6, under its former name too: **isolinear**. That app is
+still on PyPI as it was — `uvx isolinear` — and Caland no longer has it. The two are
+separate tools and can be installed side by side; they share nothing but your
+`~/.databrickscfg`.
 
-| Before | Now | If you do nothing |
-|---|---|---|
-| `uv tool install isolinear` | `uv tool install caland` | — |
-| `isolinear`, `iso` | `caland` | Both old commands still run: they say the new name on stderr, then open the app |
-| `~/.config/isolinear/settings.json` | `~/.config/caland/settings.json` | The old file is read until you change a preference; that saves the new one, and the old file is left where it is |
-| theme `isolinear-violet` (and the other three) | `caland-violet` | A saved theme is still the theme you get |
-
-Workspaces and profiles are found the way they always were — `~/.databrickscfg`, a
-bundle's targets, the environment — and none of that carries the tool's name.
+isolinear gets nothing new, and that includes two fixes Caland has: it deletes a secret that
+is renamed to the same name in another case, and it mis-reads a `.env` value quoted over
+several lines. Don't do either there.

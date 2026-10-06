@@ -52,7 +52,6 @@ asks which. ++ctrl+c++ in the terminal stops it and forgets every value it held.
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
 - [Connecting](connecting.md) — which workspace, and how it is found.
 - [Using the page](page.md) — what it does, its keys, and how it is kept yours.
-- [The terminal version](terminal.md) — `caland --tui`, as it was.
 
 ---
 

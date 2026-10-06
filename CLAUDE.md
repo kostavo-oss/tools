@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-Guidance for Claude / agents working in this repo. **Caland** is a
-keyboard-driven Textual TUI for managing Databricks secrets.
+Guidance for Claude / agents working in this repo. **Caland** manages Databricks
+secrets by hand: a keyboard-driven page in the browser, served from the person's
+own machine.
 
 ## The spec
 
@@ -13,9 +14,10 @@ docs and the code disagree, say so instead of silently picking one. Don't build 
 
 ## The page
 
-Caland is a page in the browser (`spec/008-the-page.md`): that is what `caland` opens. The
-terminal version is `caland --tui` and is **frozen** — fix what is broken in it, add
-nothing. Whether and when it is removed is the owner's (`spec/008`, D5): don't.
+Caland is a page in the browser (`spec/008-the-page.md`), served from the person's own
+machine. There is no terminal version: the terminal app it was until 0.6 is `isolinear`, a
+separate tool on PyPI that the owner leaves as it is. Caland installs no command under that
+name and reads none of its settings — don't bring either back.
 
 - The page is `src/caland/interface/web/`: `gate.py` (which requests are answered — pure),
   `server.py`, `views.py` (what the page is told — pure), `opening.py`, and `static/`.
@@ -78,8 +80,8 @@ This project is **all-[Astral](https://astral.sh)**, version-managed by
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock (incl. dev group)
 
-uv run caland        # run the app
-uv run pytest           # tests (core units + UI via Textual Pilot)
+uv run caland           # run it: opens the page (--no-open prints the link)
+uv run pytest           # tests (units, the server over HTTP, the page in Chrome)
 uv run ruff check .     # lint
 uv run ruff format .    # format
 uv run ty check         # type check
@@ -97,34 +99,26 @@ src/caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the ONLY place the Databricks SDK is imported
-  interface/       Textual presentation — no business logic, no infra imports
-  app.py           composition root (wires it all together)
+  interface/web/   the page: a server on this machine, and what it serves
+  app.py           the command (reads what was asked, wires it all together)
 ```
 
 - The `interface/` layer never touches the SDK or infra directly — it talks to
   `application/` services. The `domain/` layer imports nothing outward.
-- UI theming lives in `interface/theme.py` (Textual `Theme`s) and
-  `styles.tcss` (Textual CSS).
+- The page's look is `interface/web/static/page.css`: lely's page, taken over — the
+  same colours and what they mean. Light or dark is the system's.
 
 ## Conventions
 
 - Python ≥ 3.11 syntax (`from __future__ import annotations` is used throughout).
 - ruff: line length **90**, rules `E,F,I,UP,B,SIM` (see `pyproject.toml`).
 - ty must report no errors.
-- Keep blocking I/O off the UI thread — services run in worker threads via
-  `asyncio.to_thread` (see `interface/screens/main.py`).
+- The server answers each request on a thread of its own; a workspace is read in the
+  background (`application/loading.py`). Nothing the page asks may wait on a workspace
+  it did not ask about.
 
-## The rename
+## The name
 
-Caland was `isolinear` up to 0.4.1 — renamed on its way into the Kostavo tools
-(`kostavo-oss`: stevin, lely, caland). `src/caland/formerly.py` is the one module
-that spells the old name, and `tests/test_formerly.py` keeps it that way. It holds what
-still answers to it: the old settings directory (read until a file exists under the new
-name, never written), the old theme names (a saved `isolinear-violet` is
-`caland-violet`), and the `isolinear` and `iso` commands (still installed; they say the
-new name on stderr and run caland). `isolinear-shim/` is the last `isolinear` release
-for PyPI — it installs caland — and no workflow publishes it.
-
-The TUI snapshots and `docs/img/*.svg` cannot be search-and-replaced: their element ids
-are hashed from the window title. Regenerate them (`--snapshot-update`, and
-`docs/redesign/capture.py` with its `cp` lines).
+Caland was `isolinear` up to 0.4.1, and a terminal app until 0.6. `isolinear` is still on
+PyPI as that terminal app; the owner leaves it as it is (`spec/007`). Nothing in this
+repository answers to the old name any more.
