@@ -67,5 +67,11 @@ been seen — a `TODO(verify)`.
 
 ## Releases
 
-Not decided yet: no version of lely has been released. `spec/009-first-release.md` has what
-a first release needs and the proposal for how releases are made.
+A release is a version, the same way as for stevin and maeslant: a pull request bumps
+`version` in `pyproject.toml` and moves the changelog's *Unreleased* notes under a
+`## [X.Y.Z] - <date>` heading, and merging it is the release. `.github/workflows/release.yml`
+notices the new version on `main`, runs the gate, publishes to PyPI with Trusted Publishing —
+no token — and makes the GitHub release and its tag. A change to `pyproject.toml` that isn't a
+new version releases nothing.
+
+No version of lely has been released yet.

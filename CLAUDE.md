@@ -40,6 +40,9 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.
+- **A change to `version` in `pyproject.toml`, merged to `main`, publishes to PyPI**
+  (`.github/workflows/release.yml`). Never bump it in passing: a release is a pull request of
+  its own, opened when the owner says.
 
 ## Commands
 

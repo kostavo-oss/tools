@@ -1,8 +1,8 @@
 # 009 — first release
 
-**Status:** prepared in part, 2026-10-06: R1, R2 and R4 are done, and the open questions
-have a proposal each ([Proposed](#proposed)). Nothing is published, tagged or registered: a
-release happens when the owner says.
+**Status:** prepared, 2026-10-06: the questions are answered ([Decided](#decided)) and R1–R4
+are done. Nothing is published, tagged or registered: the release is one pull request, opened
+when the owner says.
 
 ## Why
 
@@ -31,56 +31,45 @@ between the repository and `uvx lely`.
 - Protect `main`, if lely should work the way stevin does (every change a pull request, the
   checks required).
 
+## Decided
+
+By the owner, on 2026-10-06, to the builder's proposals:
+
+- **How a release is made** (was D1): the same way for all three tools — merging a version
+  bump to `main` is the release, as stevin and maeslant do it. *(owner: "i want them all to
+  use the same")* `.github/workflows/release.yml` is that workflow: it notices a version on
+  `main` that isn't out, checks that `CHANGELOG.md` has a section for it, runs the gate,
+  publishes with Trusted Publishing and makes the GitHub release and its tag. A change to
+  `pyproject.toml` that isn't a new version releases nothing.
+- **A docs site** (was D2): yes. *(owner: "make a nice docs site")* → R6.
+- **The recorded CLI outputs** (was D3): they stay as they are. *(owner: "i dont think i
+  care")* `tests/fixtures/cli/README.md` says where each came from.
+- **The author's email in the package** (was D4): name only. *(owner: "sounds good")*
+- **The first version** (was D5): `0.1.0`, as alpha. *(owner: "sounds good")* The name was
+  free on PyPI on 2026-10-06.
+
 ## To decide
 
-- **D1 — How a release is made.** The setup plan for the Kostavo tools says: push a `vX.Y.Z` tag.
-  stevin and maeslant do it differently today: merging a version bump to `main` is the release.
-  One way for all three, or each its own?
-- **D2 — A docs site?** stevin and maeslant have one (MkDocs Material, on Pages). For lely the
-  README and `docs/DESIGN.md` may be enough until `apply` exists.
-- **D3 — The recorded CLI outputs.** `tests/fixtures/cli/*.json` are derived from the Databricks
-  CLI's own acceptance tests, and that repository is under the Databricks License, not an
-  open-source one. They are what the CLI prints, edited by hand, and the folder's README says
-  where each came from. Keep them as they are, replace them with outputs recorded from lely's own
-  runs against a workspace, or write them by hand from the CLI's documented output?
-- **D4 — The author's email in the package.** `pyproject.toml` lists a ProRex address under
-  `authors`, as stevin and maeslant do. It becomes public metadata on PyPI with the first
-  release. Keep, or name only?
-- **D5 — What the first version is.** `0.0.1` today, classified pre-alpha. Does a first release
-  wait for `apply` ([005](005-plan-apply-destroy.md)), or go out read-only so the name is taken and
-  `plan` can be tried?
+Nothing. What is left is the owner's to do — register the publisher on PyPI — and then to
+say: the release is one pull request that bumps the version, and merging it publishes.
 
-## Proposed
-
-The builder's answers, 2026-10-06, for the owner to take or change. None is decided.
-
-- **D1 — as stevin and maeslant do it**: merging a version bump to `main` is the release. A
-  workflow started by a change to `pyproject.toml` checks that the version is new and that
-  `CHANGELOG.md` has a section for it, runs the gate, publishes with Trusted Publishing and
-  tags. One way for all three tools; the setup plan's "push a tag" is the odd one out.
-  *Not written for lely yet, on purpose: the day that workflow is on `main` with a publisher
-  registered, `0.0.1` goes out.*
-- **D2 — no docs site yet.** The README, `docs/DESIGN.md` and `docs/GITHUB.md` carry it. A
-  site when there is more to say than they hold.
-- **D3 — replace the recorded CLI outputs before a release**, with outputs recorded from
-  lely's own runs. They are what the CLI printed for a bundle of ours, which is ours to
-  keep; what is in `tests/fixtures/cli/` today is taken from a repository under a licence
-  that is not an open-source one. lely has now run on a real workspace three times, so they
-  can be recorded. This is the one thing in the way of a release that is work and not a
-  decision.
-- **D4 — name only.** The address under `authors` would be public on PyPI for good. GitHub's
-  issues are where lely is reached.
-- **D5 — `0.1.0`, as alpha, once D3 is done.** `apply` exists and has run for real; nothing
-  is gained by a read-only release first. The name is free on PyPI (looked on 2026-10-06).
-
-What was done towards the requirements, 2026-10-06:
+## As prepared, 2026-10-06
 
 - **R1** — `CHANGELOG.md`, with what is built under *Unreleased*.
-- **R2** — `CONTRIBUTING.md`: the gate, how a change lands, and that the parts that decide
-  what may run are reviewed before a pull request is opened. How a release is made waits for
-  D1.
+- **R2** — `CONTRIBUTING.md`: the gate, how a change lands, how a release is made, and that
+  the parts that decide what may run are reviewed before a pull request is opened.
+- **R3** — `.github/workflows/release.yml`, on stevin's pattern. It has never run: it has
+  nothing to release until the version is bumped, and can't publish until PyPI knows the
+  publisher (owner `kostavo-oss`, repository `lely`, workflow `release.yml`, environment
+  `pypi`).
 - **R4** — lely's CI runs `ty` in a job of its own, beside the shared workflow.
-- **R3, R5, R6** — not done: they follow from D1, from a release existing, and from D2.
+- **R5** — waits for the release: until then the README's "isn't on PyPI yet" is true.
+- **R6** — the docs site, in a pull request of its own.
+
+The release itself will be one pull request: `version = "0.1.0"`, the classifier *Alpha*,
+the name alone under `authors`, the changelog's notes moved under `## [0.1.0]`, and the
+README's install line. Nothing in it is done yet, so that merging anything else releases
+nothing.
 
 ## Done when
 
