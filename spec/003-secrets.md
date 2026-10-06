@@ -67,6 +67,8 @@ written anywhere. → [006](006-safety.md)
   the new place is no longer the file it was. And no binary file can be put in at all: the
   file field reads text. *Proposal:* values are carried as bytes end to end —
   [008, R6](008-the-page.md) needs it for certificates anyway. *(found while writing 008)*
+  **On the page this is so since 2026-10-06; the terminal version, which is frozen, is as
+  it was.**
 
 ## Done when
 

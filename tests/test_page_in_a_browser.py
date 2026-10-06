@@ -575,6 +575,26 @@ def test_typing_a_value_lets_go_of_the_file_and_the_other_way_round(prod, tmp_pa
     assert prod.store._values[("prod", "k")] == b"typed again"
 
 
+def test_a_form_that_is_closed_keeps_nothing_typed_or_chosen(prod, tmp_path):
+    file = tmp_path / "note.txt"
+    file.write_text("from the file\n")
+    prod.press("n")
+    prod.type("k")
+    prod.press("Tab")
+    prod.type("typed-and-abandoned")
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('form')}")
+    assert prod.js("document.getElementById('form-value').value") == ""
+    prod.press("n")
+    prod.choose_files("#file", str(file))
+    prod.wait("!document.getElementById('picked').hidden")
+    prod.press("Escape")
+    prod.wait(f"!{OPEN.format('form')}")
+    assert prod.js("document.getElementById('picked').hidden") is True
+    assert prod.js("document.getElementById('file').files.length") == 0
+    assert wrote(prod.store) == []
+
+
 def test_editing_with_nothing_typed_changes_nothing(prod):
     prod.press("e")
     prod.wait(OPEN.format("form"))

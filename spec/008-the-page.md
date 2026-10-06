@@ -1,7 +1,7 @@
 # 008 — the page
 
-**Status:** the first part is built — reading ([As built](#as-built--the-first-part-reading-2026-10-06));
-the rest is proposal. Its shape is decided ([Decided](#decided)). Written
+**Status:** two of three parts are built — reading, and changing with the file picker (see
+the two *As built* sections); the rest is proposal. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -181,6 +181,42 @@ files open in something other than the browser — there `--no-open` gives the l
 **Run on a real workspace once (2026-10-06):** it connected with a profile, signed in and
 was ready in 2.3 s, first paint at 60 ms. That workspace has no secret scopes, so what was
 shown was the empty page; listing and showing real secrets is proven against the fake only.
+
+## As built — the second part: changing (2026-10-06)
+
+Built: the rest of R1 that changes a workspace — secrets made, edited, deleted and put back,
+moved, copied and renamed; grants; scopes — and R4, R5, R6. Not yet: the workspace picker
+and signing in by URL, `.env` in and out, the stale report, the lookup by principal. So the
+page is still behind `--page`.
+
+Decided while building, the builder's unless marked:
+
+- **A value is bytes, end to end.** The store port has a second pair of methods that carry
+  a value as it is stored; the page uses only those. The terminal version's text methods
+  are as they were — a secret that is no text still does not survive a move *there*
+  ([003, D3](003-secrets.md#to-decide)); on the page it does.
+- **The file dialog is the browser's own** (`<input type="file">`), and a file can be
+  dropped on the form. The page reads it and sends it to caland on the same machine; caland
+  says what it is (`application/files.py`) and, on save, sends it on. The owner took the
+  `cryptography` library for that (D4, 2026-10-06).
+- **A private key and a protected PKCS#12 bundle are named, never opened.** Nothing asks
+  for a password.
+- **Stricter than the terminal version, on purpose:** a new secret does not overwrite one
+  that is there (edit it instead), and a move does not land on another secret. Neither can
+  be taken back, and both happen by a slip.
+- **The server holds every refusal** — read-only, a Key Vault scope's secrets, a value that
+  is empty or too large (128 kB, Databricks' own limit). The page leaves the buttons out as
+  well, but nothing depends on that.
+- **What can be put back is one secret, held in memory** with the value it had, until
+  another is deleted, values are forgotten, or caland stops. The state says *which* secret
+  can be put back, never what it held.
+- **Where a secret can be put:** the scopes the page shows — those you can reach, or all
+  after `f` — but for Azure's.
+- **What goes wrong in a dialog is said in the dialog**, not behind it.
+
+Held by: `tests/test_values_as_bytes.py`, `test_files.py`, `test_web_changing.py` — every
+changing route refused when read-only, without the token, from another site and by a `GET`
+— and the browser tests, which type, press `y`, and hand real files to the file input.
 
 ## Not in this spec
 

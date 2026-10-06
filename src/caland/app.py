@@ -119,8 +119,7 @@ usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
   --read-only   browse, reveal, and copy — but disable every mutation
                 (safe for poking around production)
   --page        a preview: caland as a page in your browser, served from
-                this machine only. It browses, shows and copies; it does
-                not change anything yet
+                this machine only. --read-only holds there too
   --no-open     with --page: print the link instead of opening a browser
 
 Run with no arguments to launch the TUI. Inside: ? for help, ctrl+p for the

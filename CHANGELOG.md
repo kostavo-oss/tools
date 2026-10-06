@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The page changes things.** `caland --page` now does what the terminal version does to a
+  workspace: new and edited secrets (`n`, `e`), delete with a deliberate `y` and the last one
+  put back (`d`, `u`), move, copy and rename (`m`), grants (`p`), and scopes made and deleted
+  (`N`, `d`). `--read-only` holds on the page as it does in the terminal.
+- **A file picker, and files as they are.** On the page a value can be a file, chosen with
+  your system's own dialog or dropped on the form. Before it is saved the form says what it
+  is — for a certificate: who it is for, who issued it, when it expires. A file is stored
+  byte for byte, so a PKCS#12 bundle or a DER certificate goes in and comes out the same;
+  until now a value could only be text.
+
+### Changed
+
+- `cryptography` is a dependency now: it is what reads a certificate you pick.
+
 ## [0.5.0] - 2026-10-06
 
 ### Added

@@ -702,6 +702,8 @@ for (const [ids, work] of [[["form-key", "form-value"], saveForm], [["move-key"]
     });
   }
 }
+// a form that is closed keeps nothing that was typed into it or chosen for it
+$("form").addEventListener("close", () => { $("form-value").value = ""; clearPicked(); });
 // a file: chosen with the system's own dialog, or dropped on the form
 $("choose").onclick = () => $("file").click();
 $("file").onchange = carefully(() => take($("file").files[0]));

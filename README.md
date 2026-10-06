@@ -81,9 +81,9 @@ Caland is becoming a page in your browser, served from your own machine:
 caland --page prod
 ```
 
-It browses, filters, shows and copies today, and changes nothing yet — see
-[the page](https://kostavo-oss.github.io/caland/page/). Everything below is the terminal
-version, which is still the whole tool.
+It browses and changes secrets, grants and scopes, and takes a certificate from a file
+picker — see [the page](https://kostavo-oss.github.io/caland/page/). A few things are not on
+it yet; everything below is the terminal version, which has them all.
 
 ## Features
 
