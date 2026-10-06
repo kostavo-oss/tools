@@ -583,14 +583,15 @@ def test_a_form_that_is_closed_keeps_nothing_typed_or_chosen(prod, tmp_path):
     prod.press("Tab")
     prod.type("typed-and-abandoned")
     prod.press("Escape")
-    prod.wait(f"!{OPEN.format('form')}")
-    assert prod.js("document.getElementById('form-value').value") == ""
+    # the browser says a dialog is closed a moment after it is: wait for what that does
+    prod.wait(
+        f"!{OPEN.format('form')} && document.getElementById('form-value').value === ''"
+    )
     prod.press("n")
     prod.choose_files("#file", str(file))
     prod.wait("!document.getElementById('picked').hidden")
     prod.press("Escape")
-    prod.wait(f"!{OPEN.format('form')}")
-    assert prod.js("document.getElementById('picked').hidden") is True
+    prod.wait(f"!{OPEN.format('form')} && document.getElementById('picked').hidden")
     assert prod.js("document.getElementById('file').files.length") == 0
     assert wrote(prod.store) == []
 
