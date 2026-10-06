@@ -29,7 +29,17 @@ says what moved.
 
 ## Install
 
-Run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
+> **Not on PyPI under this name yet.** The first release as `caland` is being prepared.
+> Until this notice is gone, do not install a `caland` from PyPI — it is not ours. Install
+> from GitHub instead:
+>
+> ```sh
+> uv tool install git+https://github.com/kostavo-oss/caland
+> ```
+>
+> Or stay on `isolinear`, the same tool under the name it was last released with.
+
+Once it is released: run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
 
 ```sh
 uvx caland              # run once, ephemerally
