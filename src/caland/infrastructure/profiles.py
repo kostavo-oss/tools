@@ -54,7 +54,7 @@ class DatabricksCfgProfileStore:
         parser = configparser.ConfigParser()
         if path.exists():
             parser.read(path)
-        name = name.strip() or "maeslant"
+        name = name.strip() or "caland"
         if name != parser.default_section and not parser.has_section(name):
             parser.add_section(name)
         parser.set(name, "host", normalize_host(host))

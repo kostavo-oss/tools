@@ -1,9 +1,9 @@
 # Architecture
 
-Maeslant follows a **hexagonal / DDD** design. Dependencies point **inward**, and all I/O sits behind domain ports, so the domain is fully unit-testable with no network.
+Caland follows a **hexagonal / DDD** design. Dependencies point **inward**, and all I/O sits behind domain ports, so the domain is fully unit-testable with no network.
 
 ```
-src/maeslant/
+src/caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector,
                    ProfileStore, BundleStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model

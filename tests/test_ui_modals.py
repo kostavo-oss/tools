@@ -13,10 +13,9 @@ from __future__ import annotations
 
 from textual.widgets import Input
 
-from fakes import seeded_store, stub_onboarding
-from maeslant.app import MaeslantApp
-from maeslant.application import WorkspaceService
-from maeslant.interface.modals import (
+from caland.app import CalandApp
+from caland.application import WorkspaceService
+from caland.interface.modals import (
     AclFormModal,
     AuthScreen,
     ConfirmModal,
@@ -25,11 +24,12 @@ from maeslant.interface.modals import (
     ScopeFormModal,
     SecretFormModal,
 )
+from fakes import seeded_store, stub_onboarding
 
 
-def _app() -> tuple[MaeslantApp, WorkspaceService]:
+def _app() -> tuple[CalandApp, WorkspaceService]:
     session = WorkspaceService(seeded_store(), "test")
-    return MaeslantApp(onboarding=stub_onboarding(), session=session), session
+    return CalandApp(onboarding=stub_onboarding(), session=session), session
 
 
 async def test_every_modal_card_is_opaque():

@@ -1,18 +1,18 @@
 # The last release of `isolinear` on PyPI. It has no code of its own: it
-# installs maeslant, which is what isolinear is called now, and forwards to it.
+# installs caland, which is what isolinear is called now, and forwards to it.
 #
-# Nothing publishes this — no workflow builds it, and maeslant's own sdist
+# Nothing publishes this — no workflow builds it, and caland's own sdist
 # leaves the directory out. It goes out once, by hand, right after the first
-# maeslant release is on PyPI:
+# caland release is on PyPI:
 #
-#   1. set `version` here, and the `maeslant>=` beside it, to that maeslant version
+#   1. set `version` here, and the `caland>=` beside it, to that caland version
 #   2. uv build isolinear-shim --out-dir isolinear-shim/dist
 #   3. uv publish isolinear-shim/dist/*   (the `isolinear` project's own token
-#      or Trusted Publisher — not maeslant's)
+#      or Trusted Publisher — not caland's)
 [project]
 name = "isolinear"
 version = "0.5.0"
-description = "isolinear is now maeslant — this release installs it"
+description = "isolinear is now caland — this release installs it"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -22,17 +22,17 @@ classifiers = [
     "Environment :: Console",
     "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = ["maeslant>=0.5.0"]
+dependencies = ["caland>=0.5.0"]
 
 [project.urls]
-Homepage = "https://github.com/kostavo-oss/maeslant"
-Documentation = "https://kostavo-oss.github.io/maeslant/installation/#coming-from-isolinear"
+Homepage = "https://github.com/kostavo-oss/caland"
+Documentation = "https://kostavo-oss.github.io/caland/installation/#coming-from-isolinear"
 
 [project.scripts]
 # `uv tool install isolinear` only links commands this package declares itself,
-# so the old commands are declared here as well as in maeslant
-isolinear = "maeslant.formerly:main"
-iso = "maeslant.formerly:main"
+# so the old commands are declared here as well as in caland
+isolinear = "caland.formerly:main"
+iso = "caland.formerly:main"
 
 [build-system]
 requires = ["hatchling"]

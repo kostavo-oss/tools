@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from maeslant.application import format_dotenv, parse_dotenv
+from caland.application import format_dotenv, parse_dotenv
 
 
 def test_parse_ignores_noise_and_strips_quotes():

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import cast
 
+from caland.application import WorkspaceService
+from caland.domain import Scope
 from fakes import FakeSecretStore, seeded_store
-from maeslant.application import WorkspaceService
-from maeslant.domain import Scope
 
 
 def test_authenticate_and_load_scopes_populate_cache():

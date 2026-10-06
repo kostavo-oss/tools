@@ -11,7 +11,7 @@ name: release
 # doesn't change the version is a no-op.
 #
 # One-time setup — configure a PyPI Trusted Publisher (no API token needed) for
-#   repo: kostavo-oss/maeslant · workflow: release.yml · environment: pypi
+#   repo: kostavo-oss/caland · workflow: release.yml · environment: pypi
 # at https://pypi.org/manage/account/publishing/
 
 on:
@@ -49,9 +49,9 @@ jobs:
             echo "git tag v$version already exists"; released=true
           fi
           code=$(curl -fsS -o /dev/null -w "%{http_code}" \
-            "https://pypi.org/pypi/maeslant/$version/json" || echo 000)
+            "https://pypi.org/pypi/caland/$version/json" || echo 000)
           if [ "$code" = "200" ]; then
-            echo "maeslant $version is already on PyPI"; released=true
+            echo "caland $version is already on PyPI"; released=true
           fi
           if [ "$released" = "true" ]; then
             echo "Nothing to release for $version."

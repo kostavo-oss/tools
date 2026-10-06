@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from maeslant.interface.modals import HelpScreen
-from maeslant.interface.screens.main import MainScreen
+from caland.interface.modals import HelpScreen
+from caland.interface.screens.main import MainScreen
 
 # how a Textual key name reads in the hand-written help table
 DISPLAY = {

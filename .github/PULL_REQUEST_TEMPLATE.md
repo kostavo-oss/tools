@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to Maeslant! -->
+<!-- Thanks for contributing to Caland! -->
 
 ## What & why
 

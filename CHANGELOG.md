@@ -8,22 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Isolinear is now Maeslant.** The command is `maeslant`, the package on PyPI is
-  `maeslant`, and the repository and the docs are at `kostavo-oss/maeslant`. It is
-  named after the Maeslantkering — the storm surge barrier that closes when it
-  matters — and it is one of a family of tools now (stevin, lely, maeslant).
+- **Isolinear is now Caland.** The command is `caland`, the package on PyPI is
+  `caland`, and the repository and the docs are at `kostavo-oss/caland`. It is
+  named after Pieter Caland — the engineer of Rotterdam's waterway to the sea —
+  and it is one of a family of tools now (stevin, lely, caland), each with an
+  engineer's name.
 
   Nothing you had is lost, and nothing changes in a workspace:
 
   - `isolinear` and `iso` are still installed. They say the new name on stderr
     and then open the app, so a habit or a script keeps working.
   - Settings in `~/.config/isolinear/settings.json` are read until you change a
-    preference; that saves `~/.config/maeslant/settings.json`, and the old file
+    preference; that saves `~/.config/caland/settings.json`, and the old file
     is left where it is.
-  - The four built-in themes are `maeslant`, `maeslant-violet`, `maeslant-amber`
-    and `maeslant-phosphor`. A theme saved under its old name is still the theme
+  - The four built-in themes are `caland`, `caland-violet`, `caland-amber`
+    and `caland-phosphor`. A theme saved under its old name is still the theme
     you get.
-  - A profile saved without a name is now written as `[maeslant]` in
+  - A profile saved without a name is now written as `[caland]` in
     `~/.databrickscfg`; an existing `[isolinear]` section is found as before.
 
 - **The license is Apache-2.0**, the same as every other Kostavo tool. Releases

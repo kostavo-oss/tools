@@ -1,17 +1,17 @@
-# isolinear is now maeslant
+# isolinear is now caland
 
 `isolinear` — the terminal UI for Databricks secrets — was renamed
-[**Maeslant**](https://github.com/kostavo-oss/maeslant). This is the last release under
-the old name. It contains no code of its own: it installs maeslant, and forwards to it.
+[**Caland**](https://github.com/kostavo-oss/caland). This is the last release under
+the old name. It contains no code of its own: it installs caland, and forwards to it.
 
 ```sh
-uv tool install maeslant    # instead of: uv tool install isolinear
-maeslant                    # instead of: isolinear, or iso
+uv tool install caland    # instead of: uv tool install isolinear
+caland                    # instead of: isolinear, or iso
 ```
 
 Nothing you had is lost. Your settings and your theme are picked up from where isolinear
 kept them, and nothing in a workspace carries either name.
-[Coming from isolinear](https://kostavo-oss.github.io/maeslant/installation/#coming-from-isolinear)
+[Coming from isolinear](https://kostavo-oss.github.io/caland/installation/#coming-from-isolinear)
 has the short list of what moved.
 
 Until you switch, the `isolinear` and `iso` commands still run — they say the new name on

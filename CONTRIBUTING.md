@@ -1,10 +1,10 @@
-# Contributing to Maeslant
+# Contributing to Caland
 
 Thanks for your interest! Issues and pull requests are very welcome.
 
 ## Toolchain
 
-Maeslant uses [`mise`](https://mise.jdx.dev) to pin tools and the all-Astral
+Caland uses [`mise`](https://mise.jdx.dev) to pin tools and the all-Astral
 stack — [`uv`](https://docs.astral.sh/uv/) (env / deps / run),
 [`ruff`](https://docs.astral.sh/ruff/) (lint + format), and
 [`ty`](https://docs.astral.sh/ty/) (type check).
@@ -17,8 +17,8 @@ uv sync        # creates .venv and installs deps + dev tools
 ## Day-to-day
 
 ```sh
-uv run maeslant                  # run the app
-uv run textual run --dev maeslant.app:MaeslantApp   # with Textual devtools
+uv run caland                  # run the app
+uv run textual run --dev caland.app:CalandApp   # with Textual devtools
 
 uv run pytest                     # test suite
 uv run ruff check . && uv run ruff format .   # lint + format
@@ -88,4 +88,4 @@ tagged or already on PyPI is skipped — so the workflow is safe to re-run.
 > **One-time setup.** Releasing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
 > instead of a token. Add a publisher at
 > <https://pypi.org/manage/account/publishing/> for repository
-> `kostavo-oss/maeslant`, workflow `release.yml`, and environment `pypi`.
+> `kostavo-oss/caland`, workflow `release.yml`, and environment `pypi`.

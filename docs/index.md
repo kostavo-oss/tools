@@ -1,10 +1,10 @@
-# Maeslant
+# Caland
 
 A fast, keyboard-driven terminal UI for managing Databricks secrets — browse scopes, secrets, and permissions across three panes without ever leaving your terminal.
 
-![Maeslant browsing secrets](img/browse.svg)
+![Caland browsing secrets](img/browse.svg)
 
-Maeslant puts the full lifecycle of Databricks secret **scopes**, **secrets**, and **ACLs** behind a calm, three-pane browser. Drill from scopes into their secrets, reveal and copy values on demand, and review your effective access — all driven by the keyboard.
+Caland puts the full lifecycle of Databricks secret **scopes**, **secrets**, and **ACLs** behind a calm, three-pane browser. Drill from scopes into their secrets, reveal and copy values on demand, and review your effective access — all driven by the keyboard.
 
 ## Highlights
 
@@ -17,7 +17,7 @@ Maeslant puts the full lifecycle of Databricks secret **scopes**, **secrets**, a
 - **Copy as code** — ++shift+c++ copies a `dbutils.secrets.get(...)`, Spark-conf, or CLI reference for notebooks and job specs.
 - **Authorization overview & stale-secret audit** — one-key views of your effective permission on every scope, and of every secret overdue for rotation.
 - **Keyboard-first** — vim and arrow navigation, fuzzy filtering, sortable tables, and a command palette; preferences persist across sessions.
-- **Direct connect & read-only mode** — `maeslant prod --read-only` drops you into a workspace with every mutation disabled.
+- **Direct connect & read-only mode** — `caland prod --read-only` drops you into a workspace with every mutation disabled.
 - **No pre-configuration** — connect by Databricks Asset Bundle, `~/.databrickscfg` profile, or workspace URL (OAuth).
 
 ## Quick start
@@ -25,17 +25,17 @@ Maeslant puts the full lifecycle of Databricks secret **scopes**, **secrets**, a
 === "uvx"
 
     ```sh
-    uvx maeslant
+    uvx caland
     ```
 
 === "uv tool"
 
     ```sh
-    uv tool install maeslant
-    maeslant
+    uv tool install caland
+    caland
     ```
 
-On launch, Maeslant opens a workspace picker that discovers connection targets automatically. Pick one, press ++enter++, and you're in.
+On launch, Caland opens a workspace picker that discovers connection targets automatically. Pick one, press ++enter++, and you're in.
 
 ## Next steps
 
@@ -45,7 +45,7 @@ On launch, Maeslant opens a workspace picker that discovers connection targets a
 
 ---
 
-Maeslant is named after the Maeslantkering, the storm surge barrier that guards Rotterdam's
-waterway: one of the largest moving structures in the world, and it closes when it matters.
+Caland is named after Pieter Caland (1826–1902), the engineer who designed and built the
+Nieuwe Waterweg, the cut through the dunes that gave Rotterdam its way to the sea.
 
 Community project, not affiliated with or endorsed by Databricks.

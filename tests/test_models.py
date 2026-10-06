@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from maeslant.domain import (
+from caland.domain import (
     SOURCE_BUNDLE,
     SOURCE_PROFILE,
     Scope,

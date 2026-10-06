@@ -1,4 +1,4 @@
-"""Domain model — the ubiquitous language of Maeslant as plain value objects.
+"""Domain model — the ubiquitous language of Caland as plain value objects.
 
 No Textual, no Databricks SDK, no I/O. These are the nouns the whole app speaks:
 workspaces, scopes, secrets, ACLs, identity.
@@ -104,7 +104,7 @@ class Acl:
 class Settings:
     """Persisted UI preferences — display choices only, never secret material."""
 
-    theme: str = "maeslant"
+    theme: str = "caland"
     show_all_scopes: bool = False
     audit_threshold: int = STALE_AFTER_DAYS
 

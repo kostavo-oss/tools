@@ -6,15 +6,15 @@ from typing import cast
 
 from textual.widgets import DataTable
 
+from caland.app import CalandApp
+from caland.application import WorkspaceService
+from caland.domain import Acl, Scope, Secret
+from caland.interface.screens.main import MainScreen
+from caland.interface.widgets import ScopesPane
 from fakes import FakeSecretStore, stub_onboarding
-from maeslant.app import MaeslantApp
-from maeslant.application import WorkspaceService
-from maeslant.domain import Acl, Scope, Secret
-from maeslant.interface.screens.main import MainScreen
-from maeslant.interface.widgets import ScopesPane
 
 
-def _app() -> MaeslantApp:
+def _app() -> CalandApp:
     # 'mine' is readable; 'theirs' is visible to list_scopes but denies reads.
     store = FakeSecretStore(
         scopes=[Scope("mine"), Scope("theirs")],
@@ -22,10 +22,10 @@ def _app() -> MaeslantApp:
         acls={"mine": [Acl("me@corp.com", "MANAGE")]},
         no_read={"theirs"},
     )
-    return MaeslantApp(onboarding=stub_onboarding(), session=WorkspaceService(store, "t"))
+    return CalandApp(onboarding=stub_onboarding(), session=WorkspaceService(store, "t"))
 
 
-def _scope_names(app: MaeslantApp) -> set[str]:
+def _scope_names(app: CalandApp) -> set[str]:
     table = cast(MainScreen, app.screen).query_one(ScopesPane).query_one(DataTable)
     return {table.get_row_at(i)[0] for i in range(table.row_count)}
 
@@ -52,7 +52,7 @@ async def test_all_denied_shows_hint_not_a_blank_pane():
         scopes=[Scope("a"), Scope("b")],
         no_read={"a", "b"},  # you can't read any of them
     )
-    app = MaeslantApp(onboarding=stub_onboarding(), session=WorkspaceService(store, "t"))
+    app = CalandApp(onboarding=stub_onboarding(), session=WorkspaceService(store, "t"))
     async with app.run_test() as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()

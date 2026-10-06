@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import configparser
 
-from maeslant.infrastructure import DatabricksCfgProfileStore
+from caland.infrastructure import DatabricksCfgProfileStore
 
 
 def _store(tmp_path, monkeypatch, body: str = ""):

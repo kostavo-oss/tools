@@ -4,6 +4,12 @@ from typing import cast
 
 from textual.widgets import DataTable
 
+from caland.app import CalandApp
+from caland.application import WorkspaceService
+from caland.interface.modals import ConfirmModal
+from caland.interface.screens.login import LoginScreen
+from caland.interface.screens.main import MainScreen
+from caland.interface.widgets import ScopesPane
 from fakes import (
     ConnectingStubConnector,
     FakeSecretStore,
@@ -12,17 +18,11 @@ from fakes import (
     seeded_store,
     stub_onboarding,
 )
-from maeslant.app import MaeslantApp
-from maeslant.application import WorkspaceService
-from maeslant.interface.modals import ConfirmModal
-from maeslant.interface.screens.login import LoginScreen
-from maeslant.interface.screens.main import MainScreen
-from maeslant.interface.widgets import ScopesPane
 
 
-def _app_with_session() -> tuple[MaeslantApp, WorkspaceService]:
+def _app_with_session() -> tuple[CalandApp, WorkspaceService]:
     session = WorkspaceService(seeded_store(), "test")
-    return MaeslantApp(onboarding=stub_onboarding(), session=session), session
+    return CalandApp(onboarding=stub_onboarding(), session=session), session
 
 
 async def test_warm_populates_scopes_and_selects_first():
@@ -322,7 +322,7 @@ async def test_undo_restores_a_deleted_secret():
 
 async def test_read_only_mode_blocks_mutations():
     session = WorkspaceService(seeded_store(), "test")
-    app = MaeslantApp(onboarding=stub_onboarding(), session=session, read_only=True)
+    app = CalandApp(onboarding=stub_onboarding(), session=session, read_only=True)
     async with app.run_test() as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -358,15 +358,15 @@ async def test_forget_values_purges_the_cache():
 
 
 async def test_profile_flag_connects_directly():
-    from maeslant.application import OnboardingService
-    from maeslant.domain import Workspace
+    from caland.application import OnboardingService
+    from caland.domain import Workspace
 
     onboarding = OnboardingService(
         ConnectingStubConnector(),
         StubProfiles([Workspace(profile="prod", host="https://prod.example.com")]),
         StubBundle(),
     )
-    app = MaeslantApp(onboarding=onboarding, profile="prod")
+    app = CalandApp(onboarding=onboarding, profile="prod")
     async with app.run_test() as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -377,7 +377,7 @@ async def test_profile_flag_connects_directly():
 
 
 async def test_unknown_profile_falls_back_to_login():
-    app = MaeslantApp(onboarding=stub_onboarding(), profile="nope")
+    app = CalandApp(onboarding=stub_onboarding(), profile="nope")
     async with app.run_test() as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -409,7 +409,7 @@ async def test_audit_threshold_cycles_and_report_copies():
 
     now_ms = int(time.time() * 1000)
     day_ms = 86_400_000
-    from maeslant.domain import Acl, Scope, Secret
+    from caland.domain import Acl, Scope, Secret
 
     store = FakeSecretStore(
         scopes=[Scope("app")],
@@ -422,7 +422,7 @@ async def test_audit_threshold_cycles_and_report_copies():
         acls={"app": [Acl("me@corp.com", "MANAGE")]},
     )
     session = WorkspaceService(store, "t")
-    app = MaeslantApp(onboarding=stub_onboarding(), session=session)
+    app = CalandApp(onboarding=stub_onboarding(), session=session)
     async with app.run_test() as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()

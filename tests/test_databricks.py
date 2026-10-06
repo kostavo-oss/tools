@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from maeslant.domain import SecretStore
-from maeslant.domain.errors import StoreError
-from maeslant.infrastructure.databricks import DatabricksSecretStore
+from caland.domain import SecretStore
+from caland.domain.errors import StoreError
+from caland.infrastructure.databricks import DatabricksSecretStore
 
 
 def _client() -> MagicMock:

@@ -1,7 +1,7 @@
 """DatabricksBundleStore — the `BundleStore` port over a Databricks Asset Bundle.
 
 If a `databricks.yml` sits in the working directory, its target workspace becomes
-the *default* connection Maeslant offers — so running `maeslant` inside a bundle
+the *default* connection Caland offers — so running `caland` inside a bundle
 project just works. We pick the target flagged `default: true` (or the only one),
 fall back to the top-level `workspace.host`, and skip anything still templated
 with `${...}` variables we can't resolve.

@@ -1,4 +1,4 @@
-/* Maeslant — calm, minimal secret manager.
+/* Caland — calm, minimal secret manager.
    Hierarchy comes from spacing + weight, not loud colour blocks. One accent
    ($primary) marks focus + selection; $accent (green) marks a revealed value;
    $error (red) marks destructive actions. Everything else is neutral. */

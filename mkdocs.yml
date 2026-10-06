@@ -1,10 +1,10 @@
-site_name: Maeslant
+site_name: Caland
 site_description: A keyboard-driven terminal UI for managing Databricks secrets.
 site_author: Misja Pronk
-site_url: https://kostavo-oss.github.io/maeslant/
+site_url: https://kostavo-oss.github.io/caland/
 
-repo_name: kostavo-oss/maeslant
-repo_url: https://github.com/kostavo-oss/maeslant
+repo_name: kostavo-oss/caland
+repo_url: https://github.com/kostavo-oss/caland
 edit_uri: edit/main/docs/
 
 copyright: Apache-2.0 © Misja Pronk
@@ -73,9 +73,9 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kostavo-oss/maeslant
+      link: https://github.com/kostavo-oss/caland
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/maeslant/
+      link: https://pypi.org/project/caland/
 
 # docs/ also holds repo-only files and screenshot tooling — keep them out of the
 # site (the redesign/ folder holds capture.py + its scratch SVGs; the published

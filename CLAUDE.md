@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude / agents working in this repo. **Maeslant** is a
+Guidance for Claude / agents working in this repo. **Caland** is a
 keyboard-driven Textual TUI for managing Databricks secrets.
 
 ## Toolchain — use these, nothing else
@@ -38,7 +38,7 @@ This project is **all-[Astral](https://astral.sh)**, version-managed by
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock (incl. dev group)
 
-uv run maeslant        # run the app
+uv run caland        # run the app
 uv run pytest           # tests (core units + UI via Textual Pilot)
 uv run ruff check .     # lint
 uv run ruff format .    # format
@@ -53,7 +53,7 @@ Hexagonal / DDD — dependencies point **inward**, all I/O sits behind domain
 ports, so the domain is unit-testable with no network. Respect the layering:
 
 ```
-src/maeslant/
+src/caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the ONLY place the Databricks SDK is imported
@@ -76,14 +76,14 @@ src/maeslant/
 
 ## The rename
 
-Maeslant was `isolinear` up to 0.4.1 — renamed on its way into the Kostavo tools
-(`kostavo-oss`: stevin, lely, maeslant). `src/maeslant/formerly.py` is the one module
+Caland was `isolinear` up to 0.4.1 — renamed on its way into the Kostavo tools
+(`kostavo-oss`: stevin, lely, caland). `src/caland/formerly.py` is the one module
 that spells the old name, and `tests/test_formerly.py` keeps it that way. It holds what
 still answers to it: the old settings directory (read until a file exists under the new
 name, never written), the old theme names (a saved `isolinear-violet` is
-`maeslant-violet`), and the `isolinear` and `iso` commands (still installed; they say the
-new name on stderr and run maeslant). `isolinear-shim/` is the last `isolinear` release
-for PyPI — it installs maeslant — and no workflow publishes it.
+`caland-violet`), and the `isolinear` and `iso` commands (still installed; they say the
+new name on stderr and run caland). `isolinear-shim/` is the last `isolinear` release
+for PyPI — it installs caland — and no workflow publishes it.
 
 The TUI snapshots and `docs/img/*.svg` cannot be search-and-replaced: their element ids
 are hashed from the window title. Regenerate them (`--snapshot-update`, and

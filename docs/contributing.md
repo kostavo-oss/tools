@@ -1,6 +1,6 @@
 # Contributing
 
-Maeslant uses an all-[Astral](https://astral.sh) toolchain, version-managed by [mise](https://mise.jdx.dev). Reach for exactly these four tools.
+Caland uses an all-[Astral](https://astral.sh) toolchain, version-managed by [mise](https://mise.jdx.dev). Reach for exactly these four tools.
 
 | Tool | Role | Provided by |
 |------|------|-------------|
@@ -18,7 +18,7 @@ Maeslant uses an all-[Astral](https://astral.sh) toolchain, version-managed by [
 mise install            # one-time: install Python + uv per mise.toml
 uv sync                 # create/refresh .venv from pyproject + uv.lock
 
-uv run maeslant        # run the app
+uv run caland        # run the app
 uv run pytest           # run the tests
 uv run ruff check .     # lint
 uv run ruff format .    # format
@@ -60,6 +60,6 @@ heading, open a PR, and merge. The `release` workflow then publishes to PyPI
 A merge that doesn't change the version does nothing.
 
 For the full process and the one-time PyPI setup, see
-[CONTRIBUTING.md](https://github.com/kostavo-oss/maeslant/blob/main/CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/kostavo-oss/caland/blob/main/CONTRIBUTING.md).
 
-For pull-request mechanics, see [CONTRIBUTING.md](https://github.com/kostavo-oss/maeslant/blob/main/CONTRIBUTING.md) in the repository.
+For pull-request mechanics, see [CONTRIBUTING.md](https://github.com/kostavo-oss/caland/blob/main/CONTRIBUTING.md) in the repository.

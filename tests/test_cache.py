@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from maeslant.application import WorkspaceCache
-from maeslant.domain import Scope, Secret
+from caland.application import WorkspaceCache
+from caland.domain import Scope, Secret
 
 
 def test_upsert_secret_adds_updates_and_sorts():

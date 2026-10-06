@@ -1,10 +1,10 @@
-# Maeslant — Databricks Secret Manager · User Stories
+# Caland — Databricks Secret Manager · User Stories
 
 A keyboard-driven terminal app for managing Databricks secrets. A superfile-inspired
-three-pane layout with a calm, distinctly "Maeslant" look. Built with Python, Textual,
+three-pane layout with a calm, distinctly "Caland" look. Built with Python, Textual,
 and the Databricks SDK.
 
-> **Workspace** in this app = a connection target Maeslant can reach: a Databricks
+> **Workspace** in this app = a connection target Caland can reach: a Databricks
 > Asset Bundle workspace, a `~/.databrickscfg` profile, or a URL you sign in to.
 
 ---
@@ -55,7 +55,7 @@ and the Databricks SDK.
 ## Epic 6 — Look & feel
 | ID | Story | Acceptance |
 |----|-------|-----------|
-| US-17 | Calm, distinct "Maeslant" look. | Graphite base; each pane carries a section accent (scopes violet, secrets cyan, detail amber) on its border, title, and selection. |
+| US-17 | Calm, distinct "Caland" look. | Graphite base; each pane carries a section accent (scopes violet, secrets cyan, detail amber) on its border, title, and selection. |
 | US-17a | Switchable themes. | Graphite (default) plus violet / amber / phosphor skins, switched from the command palette. |
 | US-18 | Keyboard-driven with footer + help overlay. | Context-aware footer bindings; `?` help screen. |
 

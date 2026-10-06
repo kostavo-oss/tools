@@ -1,7 +1,7 @@
 """JSON-file settings adapter — persisted UI preferences, never secrets.
 
-Lives at `$XDG_CONFIG_HOME/maeslant/settings.json` (default
-`~/.config/maeslant/settings.json`). Deliberately forgiving: a missing,
+Lives at `$XDG_CONFIG_HOME/caland/settings.json` (default
+`~/.config/caland/settings.json`). Deliberately forgiving: a missing,
 corrupt, or partial file yields defaults instead of an error, so a bad write
 can never keep the app from starting.
 
@@ -26,7 +26,7 @@ def _config_home() -> Path:
 
 
 def settings_path() -> Path:
-    return _config_home() / "maeslant" / "settings.json"
+    return _config_home() / "caland" / "settings.json"
 
 
 def former_settings_path() -> Path:

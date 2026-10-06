@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from maeslant.interface.sorting import SortState
+from caland.interface.sorting import SortState
 
 KEYS = (lambda r: r[0], lambda r: r[1])
 ROWS = [("b", 2), ("a", 3), ("c", 1)]

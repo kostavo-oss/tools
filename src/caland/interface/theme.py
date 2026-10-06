@@ -1,4 +1,4 @@
-"""Maeslant themes.
+"""Caland themes.
 
 The default is **Graphite** — a calm, near-neutral base with a single restrained
 violet accent (focus + selection), green for a revealed value, red for
@@ -13,8 +13,8 @@ from __future__ import annotations
 from textual.theme import Theme
 
 # Graphite — the calm, enterprise default.
-MAESLANT_GRAPHITE = Theme(
-    name="maeslant",
+CALAND_GRAPHITE = Theme(
+    name="caland",
     primary="#8b7cff",  # violet — the one accent: focus + selection
     secondary="#9b8cff",  # lighter violet — focused titles, footer keys
     accent="#5fd39a",  # green — a revealed / live value
@@ -44,8 +44,8 @@ MAESLANT_GRAPHITE = Theme(
 )
 
 # Violet-cyber — the original electric LCARS-flavoured look.
-MAESLANT_VIOLET = Theme(
-    name="maeslant-violet",
+CALAND_VIOLET = Theme(
+    name="caland-violet",
     primary="#7c5cff",
     secondary="#29e0c4",
     accent="#ff9f1c",
@@ -74,8 +74,8 @@ MAESLANT_VIOLET = Theme(
 )
 
 # LCARS amber — the classic Okudagram orange/blue on black.
-MAESLANT_AMBER = Theme(
-    name="maeslant-amber",
+CALAND_AMBER = Theme(
+    name="caland-amber",
     primary="#ff9f43",  # LCARS amber
     secondary="#6bb6ff",  # LCARS blue
     accent="#ffd166",
@@ -102,8 +102,8 @@ MAESLANT_AMBER = Theme(
 )
 
 # Phosphor green — a spare retro-terminal look.
-MAESLANT_PHOSPHOR = Theme(
-    name="maeslant-phosphor",
+CALAND_PHOSPHOR = Theme(
+    name="caland-phosphor",
     primary="#5ad27a",
     secondary="#9ad29a",
     accent="#d7d77a",
@@ -129,9 +129,9 @@ MAESLANT_PHOSPHOR = Theme(
     },
 )
 
-MAESLANT_THEMES = [
-    MAESLANT_GRAPHITE,
-    MAESLANT_VIOLET,
-    MAESLANT_AMBER,
-    MAESLANT_PHOSPHOR,
+CALAND_THEMES = [
+    CALAND_GRAPHITE,
+    CALAND_VIOLET,
+    CALAND_AMBER,
+    CALAND_PHOSPHOR,
 ]

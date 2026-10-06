@@ -10,7 +10,7 @@ The browser is built from three panes. The header shows a breadcrumb — `scope:
 | **Middle — secrets** | The keys in the selected scope, with last-updated and a relative age (amber when overdue for rotation). |
 | **Right — detail** | Identity, your access, the scope's full ACL list, and the revealed value card. |
 
-On startup, Maeslant pre-loads and caches scopes, secrets, and ACLs — concurrently, so even workspaces with hundreds of scopes are ready in seconds.
+On startup, Caland pre-loads and caches scopes, secrets, and ACLs — concurrently, so even workspaces with hundreds of scopes are ready in seconds.
 
 ## Navigating
 

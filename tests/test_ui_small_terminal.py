@@ -7,25 +7,25 @@ the identity email where the secret name should be.
 
 from __future__ import annotations
 
+from caland.app import CalandApp
+from caland.application import WorkspaceService
+from caland.domain import Identity
+from caland.interface.modals import SearchModal
 from fakes import seeded_store, stub_onboarding
-from maeslant.app import MaeslantApp
-from maeslant.application import WorkspaceService
-from maeslant.domain import Identity
-from maeslant.interface.modals import SearchModal
 
 PANEL = (98, 12)  # a cramped VS Code panel
 
 
-def _rendered_text(app: MaeslantApp) -> str:
+def _rendered_text(app: CalandApp) -> str:
     """The visible screen as text (the SVG export encodes spaces as &#160;)."""
     return app.export_screenshot().replace("&#160;", " ")
 
 
-def _app() -> MaeslantApp:
+def _app() -> CalandApp:
     store = seeded_store()
     store._identity = Identity("misja@prorexconsultancy.nl", "Misja", authenticated=True)
     session = WorkspaceService(store, "acme-prod-workspace")
-    return MaeslantApp(onboarding=stub_onboarding(), session=session)
+    return CalandApp(onboarding=stub_onboarding(), session=session)
 
 
 async def test_breadcrumb_keeps_the_secret_segment_when_narrow():

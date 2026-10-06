@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import cast
 
+from caland.app import CalandApp
+from caland.application import WorkspaceService
+from caland.domain import Settings
+from caland.infrastructure import JsonSettingsStore
+from caland.interface.screens.main import MainScreen
 from fakes import seeded_store, stub_onboarding
-from maeslant.app import MaeslantApp
-from maeslant.application import WorkspaceService
-from maeslant.domain import Settings
-from maeslant.infrastructure import JsonSettingsStore
-from maeslant.interface.screens.main import MainScreen
 
 
 def test_json_store_round_trip(tmp_path):
@@ -29,11 +29,9 @@ def test_json_store_tolerates_missing_and_corrupt_files(tmp_path):
     assert JsonSettingsStore(wrong_types).load() == Settings()
 
 
-def _app(store: JsonSettingsStore) -> MaeslantApp:
+def _app(store: JsonSettingsStore) -> CalandApp:
     session = WorkspaceService(seeded_store(), "test")
-    return MaeslantApp(
-        onboarding=stub_onboarding(), session=session, settings_store=store
-    )
+    return CalandApp(onboarding=stub_onboarding(), session=session, settings_store=store)
 
 
 async def test_theme_choice_survives_restart(tmp_path):

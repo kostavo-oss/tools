@@ -1,30 +1,30 @@
-# Maeslant ▦
+# Caland ▦
 
 **A keyboard-driven terminal UI for managing Databricks secrets.**
 Browse scopes, secrets and ACLs; create / edit / delete; reveal & copy
 values — all from a fast, calm three-pane TUI.
 
-[![ci](https://github.com/kostavo-oss/maeslant/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/maeslant/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/maeslant.svg)](https://pypi.org/project/maeslant/)
-[![Python](https://img.shields.io/pypi/pyversions/maeslant.svg)](https://pypi.org/project/maeslant/)
-[![Docs](https://img.shields.io/badge/docs-maeslant-8b7cff.svg)](https://kostavo-oss.github.io/maeslant/)
+[![ci](https://github.com/kostavo-oss/caland/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/caland/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/caland.svg)](https://pypi.org/project/caland/)
+[![Python](https://img.shields.io/pypi/pyversions/caland.svg)](https://pypi.org/project/caland/)
+[![Docs](https://img.shields.io/badge/docs-caland-8b7cff.svg)](https://kostavo-oss.github.io/caland/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-![Maeslant browsing secrets](docs/img/browse.svg)
+![Caland browsing secrets](docs/img/browse.svg)
 
-**[Read the docs →](https://kostavo-oss.github.io/maeslant/)** — installation,
+**[Read the docs →](https://kostavo-oss.github.io/caland/)** — installation,
 connecting, the full keyboard reference, themes, and the security model.
 
 ## Named after
 
-The Maeslantkering, the storm surge barrier at the mouth of Rotterdam's waterway — one
-of the largest moving structures in the world. It stands open, and closes when it
-matters.
+Pieter Caland (1826–1902), the engineer who designed and built the Nieuwe Waterweg — the
+cut through the dunes that gave Rotterdam its way to the sea. Like the other Kostavo
+tools, Caland carries an engineer's name.
 
-Up to 0.4.1 Maeslant was called `isolinear`. That command, `iso`, your settings and your
+Up to 0.4.1 Caland was called `isolinear`. That command, `iso`, your settings and your
 theme all still work —
-[coming from isolinear](https://kostavo-oss.github.io/maeslant/installation/#coming-from-isolinear)
+[coming from isolinear](https://kostavo-oss.github.io/caland/installation/#coming-from-isolinear)
 says what moved.
 
 ## Install
@@ -32,11 +32,11 @@ says what moved.
 Run it with [uv](https://docs.astral.sh/uv/) — no clone, no virtualenv:
 
 ```sh
-uvx maeslant              # run once, ephemerally
-uv tool install maeslant  # install the `maeslant` command on PATH
+uvx caland              # run once, ephemerally
+uv tool install caland  # install the `caland` command on PATH
 ```
 
-Or with pipx: `pipx run maeslant` / `pipx install maeslant`.
+Or with pipx: `pipx run caland` / `pipx install caland`.
 
 > Requires Python ≥ 3.11. Built with [Textual](https://textual.textualize.io)
 > and the [Databricks SDK](https://github.com/databricks/databricks-sdk-py).
@@ -44,10 +44,10 @@ Or with pipx: `pipx run maeslant` / `pipx install maeslant`.
 ## Quickstart
 
 ```sh
-maeslant
+caland
 ```
 
-You **don't** need to pre-configure anything. Maeslant opens a **workspace
+You **don't** need to pre-configure anything. Caland opens a **workspace
 picker** that gathers connection targets from three places — each row labelled
 with its **Source**, so you always know where it came from:
 
@@ -117,14 +117,14 @@ for the fuzzy command palette.
 The command palette (`ctrl+p`) holds the rest: bulk **.env import/export**, a
 **who-has-access** principal lookup, and **forget revealed values**.
 
-Run `maeslant prod` (or `--profile prod`) to connect straight to a discovered
+Run `caland prod` (or `--profile prod`) to connect straight to a discovered
 workspace, and add `--read-only` to browse and reveal with every mutation
 disabled — handy when you're just poking around production. Preferences (theme,
-scope toggle, audit threshold) persist in `~/.config/maeslant/settings.json`.
+scope toggle, audit threshold) persist in `~/.config/caland/settings.json`.
 
 ## Security
 
-Maeslant talks to Databricks through the official SDK's unified auth. It does
+Caland talks to Databricks through the official SDK's unified auth. It does
 **not** store secret *values* — they're read on demand and kept only in memory.
 Saved profiles contain a host + `auth_type`, never a token. See
 [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
@@ -136,7 +136,7 @@ ports**, so the UI never touches the SDK and the whole domain is unit-testable
 without a network:
 
 ```
-maeslant/
+caland/
   domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore, BundleStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the only Databricks-SDK importers
@@ -155,7 +155,7 @@ uv sync
 uv run pytest        # tests (core units + UI via Textual Pilot)
 uv run ruff check .  # lint
 uv run ty check      # types
-uv run maeslant     # run it
+uv run caland     # run it
 
 uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 ```
@@ -164,7 +164,7 @@ uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
 
-Maeslant is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
+Caland is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
 Each does one job and none needs another: this one is for the secrets a deploy and a
 data model both end up depending on, and for the people who have to look after them.
 

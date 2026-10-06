@@ -1,10 +1,10 @@
-"""Maeslant — a terminal Databricks secret manager.
+"""Caland — a terminal Databricks secret manager.
 
 The App is the composition root: it builds the infrastructure adapters, wires
 them into the `OnboardingService`, installs the theme, and hands off to
-`MainScreen`. Domain logic lives in `maeslant.domain`, use-cases in
-`maeslant.application`, adapters in `maeslant.infrastructure`; UI in
-`maeslant.interface`.
+`MainScreen`. Domain logic lives in `caland.domain`, use-cases in
+`caland.application`, adapters in `caland.infrastructure`; UI in
+`caland.interface`.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from .infrastructure import (
     JsonSettingsStore,
 )
 from .interface.screens.main import MainScreen
-from .interface.theme import MAESLANT_THEMES
+from .interface.theme import CALAND_THEMES
 
 
 class EphemeralSettingsStore:
@@ -40,9 +40,9 @@ class EphemeralSettingsStore:
         self._settings = settings
 
 
-class MaeslantApp(App[None]):
+class CalandApp(App[None]):
     CSS_PATH = "styles.tcss"
-    TITLE = "Maeslant"
+    TITLE = "Caland"
     # `q` quits from the browse/login screens only (they bind it themselves) —
     # an app-level binding would bubble up from dialogs and quit mid-confirm.
 
@@ -65,7 +65,7 @@ class MaeslantApp(App[None]):
     def get_theme_variable_defaults(self) -> dict[str, str]:
         # The stylesheet is parsed under Textual's default theme before ours is
         # applied, so the per-section accents must resolve there too. Each
-        # Maeslant theme overrides these with its own values.
+        # Caland theme overrides these with its own values.
         return {
             **super().get_theme_variable_defaults(),
             "scopes-color": "#8b7cff",
@@ -82,12 +82,12 @@ class MaeslantApp(App[None]):
         self.save_settings()
 
     def on_mount(self) -> None:
-        for theme in MAESLANT_THEMES:
+        for theme in CALAND_THEMES:
             self.register_theme(theme)
         # apply the persisted theme (fall back if it no longer exists), then
         # remember every change the user makes via the palette
         wanted = self.settings.theme
-        self.theme = wanted if wanted in self.available_themes else "maeslant"
+        self.theme = wanted if wanted in self.available_themes else "caland"
         self.watch(self, "theme", self._remember_theme, init=False)
         onboarding = self._onboarding or OnboardingService(
             DatabricksConnector(),
@@ -107,9 +107,9 @@ class MaeslantApp(App[None]):
 
 
 _USAGE = """\
-maeslant — a keyboard-driven terminal UI for managing Databricks secrets.
+caland — a keyboard-driven terminal UI for managing Databricks secrets.
 
-usage: maeslant [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
+usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
 
   WORKSPACE / --profile NAME
                 connect straight to a discovered workspace (a
@@ -130,7 +130,7 @@ def main() -> None:
     if {"-V", "--version"} & set(args):
         from importlib.metadata import version
 
-        print(f"maeslant {version('maeslant')}")
+        print(f"caland {version('caland')}")
         return
     if {"-h", "--help"} & set(args):
         print(_USAGE, end="")
@@ -146,7 +146,7 @@ def main() -> None:
         positional = [a for a in args if not a.startswith("-")]
         if positional:
             profile = positional[0]
-    MaeslantApp(
+    CalandApp(
         read_only="--read-only" in args,
         settings_store=JsonSettingsStore(),
         profile=profile,

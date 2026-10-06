@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from textual.widgets import Button, DataTable
 
+from caland.app import CalandApp
+from caland.domain import SOURCE_BUNDLE, Workspace
+from caland.interface.screens.login import LoginScreen, WorkspaceUrlModal
 from fakes import stub_onboarding
-from maeslant.app import MaeslantApp
-from maeslant.domain import SOURCE_BUNDLE, Workspace
-from maeslant.interface.screens.login import LoginScreen, WorkspaceUrlModal
 
 
 async def test_no_workspaces_lands_on_login_hub():
-    app = MaeslantApp(onboarding=stub_onboarding())
+    app = CalandApp(onboarding=stub_onboarding())
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, LoginScreen)
@@ -17,7 +17,7 @@ async def test_no_workspaces_lands_on_login_hub():
 
 
 async def test_url_door_opens_and_closes():
-    app = MaeslantApp(onboarding=stub_onboarding())
+    app = CalandApp(onboarding=stub_onboarding())
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.click("#btn-url")
@@ -39,7 +39,7 @@ async def test_workspaces_listed_with_sources_and_bundle_default():
         profiles=[Workspace(profile="prod", host="https://prod.cloud.databricks.com")],
         bundle=bundle,
     )
-    app = MaeslantApp(onboarding=onboarding)
+    app = CalandApp(onboarding=onboarding)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, LoginScreen)

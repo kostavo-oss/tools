@@ -67,7 +67,7 @@ jobs:
         run: |
           uv venv /tmp/smoke -p 3.11
           uv pip install --python /tmp/smoke/bin/python dist/*.whl
-          /tmp/smoke/bin/python -c "import maeslant.app; print('import OK')"
+          /tmp/smoke/bin/python -c "import caland.app; print('import OK')"
       - uses: actions/upload-artifact@v4
         with:
           name: dist
