@@ -53,7 +53,9 @@
       <p class="none" id="secrets-none" hidden></p>
     </section>
 
-    <section aria-label="Detail" id="detail" data-pane="detail"></section>
+    <!-- tabindex -1: a browser makes what scrolls a stop for tab by itself, and a pane
+         is one stop — its first button -->
+    <section aria-label="Detail" id="detail" data-pane="detail" tabindex="-1"></section>
   </main>
 </div>
 

@@ -41,7 +41,7 @@ input[type=text] { background: none; border: 1px solid var(--edge); border-radiu
 dialog:focus-visible { outline: none; }
 /* a pane is one stop for tab; inside it the row shows where the keyboard is, not a ring.
    blue is the keyboard, wherever it is: the bar on a row, the ring on a button */
-#scopes:focus, #keys:focus { outline: none; }
+#scopes:focus, #keys:focus, #detail:focus { outline: none; }
 #scopes:focus [aria-selected=true], #keys:focus tr[aria-selected=true] td:first-child {
   box-shadow: inset 3px 0 0 var(--blue); }
 section:focus-within > h2:first-child { color: inherit; }
@@ -83,7 +83,7 @@ dl.facts dt { color: var(--dim); }
 dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 pre.value { background: var(--sunk); padding: .7rem .9rem; border-radius: .4rem;
   margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere;
-  border-left: .25rem solid var(--edge); max-height: 16rem; overflow-y: auto; }
+  border-left: .25rem solid var(--edge); }
 pre.value.shown { border-left-color: var(--green); }
 .acts { display: flex; flex-wrap: wrap; gap: .45rem; margin: .5rem 0 1.2rem; }
 #detail h2 { margin-top: .2rem; }

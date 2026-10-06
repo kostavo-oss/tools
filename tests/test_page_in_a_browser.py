@@ -232,6 +232,20 @@ def test_tab_goes_from_pane_to_pane(page):
     assert page.focus() == "scopes"
 
 
+def test_nothing_that_scrolls_is_a_stop_of_its_own(page):
+    """A browser makes a box that scrolls a stop for tab unless it is told not to;
+    which browsers do differs. The stops are these, whatever the browser."""
+    page.press("j")
+    page.wait(PROD)
+    stops = page.js(
+        """[...document.querySelectorAll('main *')].filter((node) => {
+          const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node).overflowY);
+          return node.tabIndex >= 0 || (scrolls && !node.hasAttribute('tabindex'));
+        }).map((node) => node.id || node.textContent.trim().split(/\\s+/)[0])"""
+    )
+    assert stops == ["scopes", "keys", "Show"]
+
+
 def test_tab_is_not_kept_by_the_page(page):
     """After the last stop it leaves for the browser's own bar, as on any page."""
     page.press("Tab", "Tab", "Tab")
