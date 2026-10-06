@@ -49,6 +49,10 @@ from lely.render.words import clean
 
 SYMBOLS = {"create": "+", "update": "~", "delete": "−", "replace": "±", "run": "▶"}
 
+#: How a page says what made it: `lely ui` writes over a page of its own, and
+#: over nothing else it wasn't told to.
+GENERATOR = "lely"
+
 #: What the page lets a browser do: show the one style sheet. No script, no
 #: image, no font, no frame, no form — whatever were to end up in it.
 POLICY = (
@@ -314,7 +318,7 @@ def result_html(result: Result) -> str:
         )
         if result.message:
             head.append(f'<pre class="said">{_t(words.said(result.message))}</pre>')
-    steps = [_step_result(step) for step in result.steps]
+    steps = [_step_result(step, result.workspace.host) for step in result.steps]
     about = (
         "This page only shows: it is a record of one run, made from the result that "
         f"run wrote, by lely {_t(__version__)}. Nothing was fetched to make it, and "
@@ -323,7 +327,7 @@ def result_html(result: Result) -> str:
     return _page(" · ".join((title, result.target)), head, steps, about)
 
 
-def _step_result(step: StepResult) -> str:
+def _step_result(step: StepResult, workspace: str) -> str:
     said = words.outcome(step)
     summary = [
         f'<span class="name">{_t(step.name)}</span>',
@@ -337,7 +341,8 @@ def _step_result(step: StepResult) -> str:
     if step.changes:
         body.append("<h2>Did</h2>" + _changes(step.changes))
     if step.overview is not None:
-        body.append("<h2>What exists now</h2>" + _exists(step.overview, step.happened))
+        exists = _exists(step.overview, step.happened, workspace)
+        body.append("<h2>What exists now</h2>" + exists)
     opened = " open" if body else ""
     return (
         f'<details class="step {_class(step.outcome)}"{opened}>'
@@ -346,7 +351,9 @@ def _step_result(step: StepResult) -> str:
     )
 
 
-def _exists(overview: Overview, happened: Mapping[str, str] | None) -> str:
+def _exists(
+    overview: Overview, happened: Mapping[str, str] | None, workspace: str
+) -> str:
     rows = words.rows(overview, happened)
     parts = []
     if rows:
@@ -356,7 +363,7 @@ def _exists(overview: Overview, happened: Mapping[str, str] | None) -> str:
         body = "".join(
             "<tr>"
             + "".join(f"<td>{_t(cell)}</td>" for cell in row[:5])
-            + f"<td>{_link(row.url)}</td></tr>"
+            + f"<td>{_link(row.url, workspace)}</td></tr>"
             for row in rows
         )
         parts.append(f'<table class="exists"><tr>{head}</tr>{body}</table>')
@@ -371,9 +378,19 @@ def _exists(overview: Overview, happened: Mapping[str, str] | None) -> str:
 
 #: The elements of a view that are kept. Everything else is left out and its
 #: text kept — but for `_DROPPED`, which go with all they hold.
+#:
+#: **None of them is an element the page around a view is built from** — no
+#: `div`, no `details`, no `summary`. A browser does not close elements where
+#: this file's own count says they close: a `<li>` ends the one before it
+#: through whatever stands between, a table throws out what doesn't belong in
+#: it. Written again "balanced", a view with a `div` in it still ended the
+#: frame, the step and the list of steps in a real browser (found in review,
+#: 2026-10-06). With no `</div>` and no `</details>` to write, nothing a view
+#: holds can end the `div` it is put in, however the browser reads it: every
+#: other end tag stops at that `div`. `tests/browser` asks a real browser.
 _KEPT = (
-    frozenset({"p", "div", "span", "pre", "code", "blockquote", "hr", "br"})
-    | {"ul", "ol", "li", "dl", "dt", "dd", "details", "summary", "h4", "h5", "h6"}
+    frozenset({"p", "span", "pre", "code", "blockquote", "hr", "br"})
+    | {"ul", "ol", "li", "dl", "dt", "dd", "h4", "h5", "h6"}
     | {"table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption"}
     | {"strong", "b", "em", "i", "small", "kbd", "samp", "sub", "sup", "del", "ins"}
     | {"mark", "abbr"}
@@ -400,8 +417,11 @@ _DEPTH = 40
 
 def framed(view: str) -> str:
     """A plugin's view, written again from the elements lely keeps: its
-    structure and its words, and nothing a browser would obey. What comes out
-    is balanced, so nothing in it ends the frame it is put in."""
+    structure and its words, and nothing a browser would obey. Nothing in what
+    comes out can end the frame it is put in — not because it is balanced,
+    which a browser doesn't go by, but because it holds no element that could
+    (see `_KEPT`). The frame is a `div` that stands in no list, no paragraph
+    and no table: that is the other half of it."""
     writer = _Frame()
     try:
         writer.feed(view)
@@ -421,6 +441,12 @@ class _Frame(HTMLParser):
     def written(self) -> str:
         while self._open:
             self._out.append(f"</{self._open.pop()}>")
+        if self._dropping:
+            # an element lely leaves out, never closed: all after it went too
+            self._out.append(
+                '<p class="dim">The rest of this view is left out: it stands in an '
+                "element lely doesn't show, which was never closed.</p>"
+            )
         return "".join(self._out)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -458,7 +484,7 @@ class _Frame(HTMLParser):
 
 def _attributes(tag: str, attrs: list[tuple[str, str | None]]) -> str:
     """The few attributes that are kept, written by lely: a class from its own
-    list, how many cells a cell spans, whether a fold is open."""
+    list, and how many cells a cell spans."""
     given = dict(attrs)
     kept = ""
     classes = [name for name in (given.get("class") or "").split() if name in CLASSES]
@@ -469,8 +495,6 @@ def _attributes(tag: str, attrs: list[tuple[str, str | None]]) -> str:
             value = given.get(span) or ""
             if re.fullmatch(r"[1-9][0-9]{0,2}", value):
                 kept += f' {span}="{value}"'
-    if tag == "details" and "open" in given:
-        kept += " open"
     return kept
 
 
@@ -494,9 +518,10 @@ def _list(kind: str, items: Iterable[str]) -> str:
     return f'<ul class="{kind}">{"".join(f"<li>{item}</li>" for item in items)}</ul>'
 
 
-def _link(url: str) -> str:
-    """A link, when `url` is an https address and nothing more; text otherwise."""
-    if re.fullmatch(r"https://[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+", url):
+def _link(url: str, workspace: str) -> str:
+    """A link, when `url` leads into the workspace the run was in; text
+    otherwise."""
+    if words.into(url, workspace):
         return f'<a href="{escape(url, quote=True)}" rel="noopener noreferrer">open</a>'
     return _t(url)
 
@@ -508,6 +533,7 @@ def _page(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         f'<meta http-equiv="Content-Security-Policy" content="{POLICY}">\n'
         '<meta name="referrer" content="no-referrer">\n'
+        f'<meta name="generator" content="{GENERATOR}">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{_t(title)}</title>\n<style>\n{_CSS}</style>\n</head>\n<body>\n"
         "<header>\n" + "\n".join(part for part in head if part) + "\n</header>\n"

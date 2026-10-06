@@ -25,11 +25,13 @@ Exit codes: 0 done, 1 something failed, 2 lely refused — plan again.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import json
 import os
 import shutil
 import sys
+import tempfile
 import webbrowser
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
@@ -343,7 +345,7 @@ def _holds_no_token(built: Plan, hub: github.Run) -> None:
             raise LelyError(
                 f"The plan of step `{step.name}` holds this run's GitHub token: "
                 "something it ran printed it — its environment, most likely. A plan "
-                "is shown and kept, so it may hold no credential. Nothing was written."
+                "is shown and kept, so it may hold no credential. lely goes no further."
             )
 
 
@@ -524,7 +526,7 @@ def schema(
         typer.echo(text, nl=False)
         return
     try:
-        output.write_text(text, encoding="utf-8")
+        _write(output, text)
     except OSError as error:
         problem = LelyError(
             f"Can't write the schema to {output}: {error.strerror or error}"
@@ -708,10 +710,16 @@ def ui(
             typer.echo(page, nl=False)
             return
         written = output if output is not None else file.with_suffix(".html")
-        if written.resolve() == file.resolve():
+        if _same_file(written, file):
             raise LelyError(f"{file} is the file to read: the page needs another name.")
+        if output is None and not _ours_to_write(written):
+            # a plan file can come from anywhere, and so can what lies beside it
+            raise LelyError(
+                f"{written} is there already, and it isn't a page lely made. Name "
+                "the page with -o."
+            )
         try:
-            written.write_text(page, encoding="utf-8")
+            _write(written, page)
         except OSError as error:
             raise LelyError(
                 f"Can't write the page to {written}: {error.strerror or error}"
@@ -721,6 +729,54 @@ def ui(
     out.print(Text.assemble(("Wrote", "green"), f" {written}"))
     if open_it if open_it is not None else _interactive():
         BROWSER(written.resolve().as_uri())
+
+
+def _same_file(one: Path, other: Path) -> bool:
+    """Whether two paths name one file, however they are spelled: in another
+    case, through a link, or as a second name of the same file."""
+    try:
+        return os.path.samefile(one, other)
+    except OSError:
+        return one.resolve() == other.resolve()
+
+
+def _ours_to_write(page: Path) -> bool:
+    """Whether the default place for a page is free, or holds a page lely made
+    before. Anything else — another file, a link to one — is not written over
+    on the strength of a name."""
+    if not os.path.lexists(page):
+        return True
+    if page.is_symlink() or not page.is_file():
+        return False
+    try:
+        with open(page, encoding="utf-8", errors="replace") as file:
+            head = file.read(2048)
+    except OSError:
+        return False
+    made = f'<meta name="generator" content="{html.GENERATOR}">'
+    return head.startswith("<!doctype html>") and made in head
+
+
+def _write(path: Path, text: str) -> None:
+    """Write `text` as the file at `path`: beside it first, then moved into
+    its place. So a file is whole or as it was, never half written — and a
+    link standing where the file goes is replaced, not followed: lely writes
+    the file it was told to, never through to whatever a link points at.
+    Raises `OSError`."""
+    handle, beside = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", errors="replace") as file:
+            file.write(text)
+        mask = os.umask(0)
+        os.umask(mask)
+        os.chmod(beside, 0o666 & ~mask)
+        os.replace(beside, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(beside)
+        raise
 
 
 def _page(file: Path) -> str:
@@ -884,6 +940,8 @@ def apply(
                 **run.edges,
             )
             at_waiting = _at_waiting(approved, run, yes)
+        if hub is not None:
+            _holds_no_token(approved, hub)
         render_plan(approved, err, saved=plan_file is not None)
         approval.destructive_allowed(approved.steps, allow_destructive)
         if not _nothing_in(approved):
@@ -946,6 +1004,8 @@ def destroy(
                 kind="destroy",
                 **run.edges,
             )
+        if hub is not None:
+            _holds_no_token(approved, hub)
         render_plan(approved, err, saved=plan_file is not None)
         if not _nothing_in(approved):
             _consent_to_destroy(approved, run, yes)
@@ -995,8 +1055,10 @@ def _stopped(
     stdout too, in the shape of a result, so whatever reads it reads something
     — and it is what the run's record holds, when one was asked for."""
     refused = isinstance(error, Refused)
+    # with `--github` the run's token is known, and is in nothing lely says
+    said = _without_token(str(error), hub)
+    error = Refused(said) if refused else LelyError(said)
     if hub is not None:
-        said = str(error)
         _post(
             hub, lambda: github.post_stopped(hub, known.kind, known.target, refused, said)
         )
@@ -1019,14 +1081,12 @@ def _stopped(
         "rolled_back": [],
         "steps": [],
     }
-    _keep(record, document)
+    _keep(record, document, hub)
     if output_format is Format.json:
-        _echo_json(document)
+        _echo_json(document, hub)
     elif output_format is Format.md:
-        typer.echo(
-            markdown.stopped_markdown(known.kind, known.target, refused, str(error)),
-            nl=False,
-        )
+        stopped = markdown.stopped_markdown(known.kind, known.target, refused, str(error))
+        typer.echo(_without_token(stopped, hub), nl=False)
     return _fail(error)
 
 
@@ -1036,6 +1096,7 @@ def _finish(
     hub: github.Run | None = None,
     record: Path | None = None,
 ) -> None:
+    result = _scrubbed(result, hub)
     _keep(record, planfile.result_to_json(result))
     if output_format is Format.json:
         _echo_json(planfile.result_to_json(result))
@@ -1072,7 +1133,7 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
     if output is not None:
         # first: a plan that can't be written is no use shown
         try:
-            output.write_text(planfile.dumps(built), encoding="utf-8")
+            _write(output, planfile.dumps(built))
         except OSError as error:
             raise LelyError(
                 f"Can't write the plan to {output}: {error.strerror or error}"
@@ -1091,23 +1152,51 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
         said.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 
-def _keep(record: Path | None, document: dict[str, Any]) -> None:
+def _keep(
+    record: Path | None, document: dict[str, Any], hub: github.Run | None = None
+) -> None:
     """Write a run's record, when one was asked for. The run has happened
     whether or not that works: a record that can't be written is said, and
-    changes nothing about how the run ended."""
+    changes nothing about how the run ended.
+
+    A record is kept and passed around, so with `--github` it is searched for
+    the run's token first, as what goes on the run's page is: a step that
+    failed may have printed it.
+    """
     if record is None:
         return
     try:
-        record.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-    except (OSError, ValueError) as error:
+        _write(record, _without_token(json.dumps(document, indent=2) + "\n", hub))
+    except (OSError, ValueError, TypeError, RecursionError) as error:
         why = getattr(error, "strerror", None) or error
         err.print(f"[red]Can't write the result to {escape(str(record))}: {why}[/]")
     else:
         err.print(Text.assemble(("Wrote", "green"), f" {record}"))
 
 
-def _echo_json(document: dict[str, Any]) -> None:
-    typer.echo(json.dumps(document, indent=2))
+def _without_token(text: str, hub: github.Run | None) -> str:
+    return text if hub is None else github.scrub(text, hub.token)
+
+
+def _scrubbed(result: Result, hub: github.Run | None) -> Result:
+    """`result` without the run's token, wherever a step that failed may have
+    printed it: what it says in a terminal, as JSON, as Markdown, in its
+    record and on the run's page is then the same, and none of it holds the
+    token. Only with `--github`: that is when lely knows of one."""
+    if hub is None or hub.token is None:
+        return result
+    try:
+        written = json.dumps(planfile.result_to_json(result))
+        cleaned = github.scrub(written, hub.token)
+        if cleaned == written:
+            return result
+        return planfile.result_from_json(json.loads(cleaned))
+    except (LelyError, TypeError, ValueError, RecursionError):
+        return result  # a result lely can't write down is shown as it is
+
+
+def _echo_json(document: dict[str, Any], hub: github.Run | None = None) -> None:
+    typer.echo(_without_token(json.dumps(document, indent=2), hub))
 
 
 def main() -> None:

@@ -32,6 +32,8 @@ one. Don't build past a "To decide" that is still open — those are the owner's
   is escaped — and a plugin's view is written again from a short list of elements.
 - Showing a plan runs none of the project's code: `show` and `ui` load no plugin.
 - No raw invisible character in any file: write its escape. A test holds the repository to it.
+- A file lely writes is written beside its place and moved there (`cli._write`): never
+  through a link, never half.
 - Every Databricks behaviour assumption gets a test and a link to the docs in its
   docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
 - Small PR-sized commits, conventional commit messages.
@@ -66,7 +68,9 @@ Not built, or not proven:
   pull request in a real repository has carried a plan yet, and the workflows in the docs
   have never run.
 - **The page is built (2026-10-06)**: `lely ui`, `StepPlan.view`, a run's record with
-  `apply -o` (`spec/007-ui.md`). Looked at in a browser; not reviewed by anyone else yet.
+  `apply -o` (`spec/007-ui.md`). Looked at in a browser and reviewed once. Whether a plugin's
+  view stays in its frame is asked of a real browser: `uv run pytest tests/browser` (needs
+  Chrome; not part of the gate). Run it after any change to `render/html.py`.
 
 There is no Databricks CLI or workspace in the unit suite:
 

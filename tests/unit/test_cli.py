@@ -7,6 +7,7 @@ the requirement of `spec/005-plan-apply-destroy.md` it holds.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1444,3 +1445,83 @@ def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely
         applied.stderr.split()
     )
     assert ready.fake.deployed()  # … and the run happened
+
+
+# -- found in the sixth review ---------------------------------------------------------
+
+
+def test_a_page_is_never_written_through_a_link_or_over_someone_elses_file(
+    ready: Lely, browser: list[str], tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """A plan file can come from anywhere, and so can what lies beside it: a
+    `plan.html` that is a link to a file of the reader's own was written
+    through, and an unrelated `plan.html` written over."""
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    theirs = tmp_path_factory.mktemp("home") / "authorized_keys"
+    theirs.write_text("ssh-ed25519 the owner's key\n")
+    (ready.root / "plan.html").symlink_to(theirs)
+    planted = ready("ui", "plan.json")
+    assert planted.exit_code == 1
+    assert "plan.html is there already, and it isn't a page lely made" in " ".join(
+        planted.stderr.split()
+    )
+    assert theirs.read_text() == "ssh-ed25519 the owner's key\n"
+    # named outright, the link is replaced by the page — still not followed
+    assert ready("ui", "plan.json", "-o", "plan.html").exit_code == 0
+    assert theirs.read_text() == "ssh-ed25519 the owner's key\n"
+    assert not (ready.root / "plan.html").is_symlink()
+    assert (ready.root / "plan.html").read_text().startswith("<!doctype html>")
+    # a page lely made is its own to write again; anything else is not
+    assert ready("ui", "plan.json").exit_code == 0
+    (ready.root / "plan.html").write_text("<h1>our team's own page</h1>")
+    assert ready("ui", "plan.json").exit_code == 1
+    assert (ready.root / "plan.html").read_text() == "<h1>our team's own page</h1>"
+
+
+def test_the_file_to_read_is_never_the_file_written_however_it_is_spelled(
+    ready: Lely, browser: list[str]
+) -> None:
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    plan = (ready.root / "plan.json").read_text()
+    os.link(ready.root / "plan.json", ready.root / "second-name.html")
+    (ready.root / "link.html").symlink_to("plan.json")
+    for spelled in ("plan.json", "./plan.json", "second-name.html", "link.html"):
+        refused = ready("ui", "plan.json", "-o", spelled)
+        assert refused.exit_code == 1, spelled
+        assert "is the file to read: the page needs another name" in refused.stderr
+        assert (ready.root / "plan.json").read_text() == plan
+
+
+def test_a_file_is_whole_or_as_it_was(
+    ready: Lely, browser: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Written beside its place first and then moved there, so a write that
+    fails leaves no half of a plan behind — and nothing lying about."""
+    ready("plan", "-t", "dev", "-o", "plan.json")
+    before = (ready.root / "plan.json").read_text()
+
+    def full(*args: Any, **kwargs: Any) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", full)
+    failed = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert failed.exit_code == 1 and "No space left on device" in failed.stderr
+    assert (ready.root / "plan.json").read_text() == before
+    assert sorted(path.name for path in ready.root.glob(".plan.json*")) == []
+
+
+def test_a_runs_record_never_holds_the_runs_token(ready: Lely, hub: FakeGitHub) -> None:
+    """007/R7. A step that fails may print it. What goes on the run's page is
+    searched for it; the record, which is kept and made into a page, was not."""
+    (ready.root / "ops" / "notify.sh").write_text(
+        '#!/bin/sh\necho "auth failed for $GITHUB_TOKEN" >&2; exit 1\n'
+    )
+    for extra in ((), ("-f", "json"), ("-f", "md")):
+        failed = ready(
+            "apply", "-t", "dev", "--yes", "--github", "-o", "result.json", *extra
+        )
+        assert failed.exit_code == 1
+        record = (ready.root / "result.json").read_text()
+        assert fake_github.TOKEN not in record and "auth failed for ***" in record
+        assert fake_github.TOKEN not in failed.stdout
+    assert fake_github.TOKEN not in ready("ui", "result.json", "-o", "-").stdout
