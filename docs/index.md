@@ -1,24 +1,33 @@
 # Caland
 
-A fast, keyboard-driven terminal UI for managing Databricks secrets — browse scopes, secrets, and permissions across three panes without ever leaving your terminal.
+Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own
+machine. Browse scopes, secrets and grants; create, edit, move and delete; show and copy
+values; put a certificate in from a file.
 
-![Caland browsing secrets](img/browse.svg)
+![Caland with a secret's value shown](img/page-browse.png)
 
-Caland puts the full lifecycle of Databricks secret **scopes**, **secrets**, and **ACLs** behind a calm, three-pane browser. Drill from scopes into their secrets, reveal and copy values on demand, and review your effective access — all driven by the keyboard.
+Databricks secrets have an API and a CLI, and no screen. Caland is the screen: everything
+about a workspace's secrets at once, a keystroke away, with a value read only when you ask
+for it and written nowhere.
 
 ## Highlights
 
-- **Three-pane browser** — scopes, secrets, and a rich detail pane (identity, your access, the full ACL list, and the revealed value).
-- **Global search** — ++ctrl+f++ fuzzy-matches `scope/key` across the whole workspace and jumps straight to the secret.
-- **Full CRUD with undo** — create, edit, move/copy/rename, and delete secrets and scopes, with confirmation on destructive actions and ++u++ to restore.
-- **Bulk .env import/export** — load a scope from a `.env` file; export keys (or values, clipboard-only) back out.
-- **Permissions / ACLs** — grant, change, or remove READ / WRITE / MANAGE, plus a **who-has-access** lookup for any principal.
-- **Lazy reveal, short-lived** — values are fetched only when you reveal or copy them, never bulk-loaded, and a revealed value hides itself after 30 seconds.
-- **Copy as code** — ++shift+c++ copies a `dbutils.secrets.get(...)`, Spark-conf, or CLI reference for notebooks and job specs.
-- **Authorization overview & stale-secret audit** — one-key views of your effective permission on every scope, and of every secret overdue for rotation.
-- **Keyboard-first** — vim and arrow navigation, fuzzy filtering, sortable tables, and a command palette; preferences persist across sessions.
-- **Direct connect & read-only mode** — `caland prod --read-only` drops you into a workspace with every mutation disabled.
-- **No pre-configuration** — connect by Databricks Asset Bundle, `~/.databrickscfg` profile, or workspace URL (OAuth).
+- **Three panes** — the scopes you can reach, the secrets of one with when each was last
+  changed, and the detail: your access, who else has a grant, and the value once you ask.
+- **Everything has a key**, and everything can be clicked. ++tab++ goes from pane to pane.
+- **Secrets, with a way back** — create, edit, move, copy, rename and delete; nothing is
+  deleted without a ++y++, and ++u++ puts the last one back.
+- **Files as they are** — choose a certificate with your system's own file dialog. Caland
+  says who it is for and when it expires before it is saved, and stores it byte for byte.
+- **Grants** — who has access to a scope, given, changed and removed; what you can reach;
+  what somebody else can.
+- **`.env` in and out**, and a report of the secrets nobody has changed in a while.
+- **A value is shown when asked, and hides itself after 30 seconds.** Nothing is kept: no
+  cache, no cookie, no file.
+- **Yours only** — the page is served from `127.0.0.1` to you, and answers to nothing else.
+- **Read-only when you want it** — `caland prod --read-only` changes nothing.
+- **Nothing to set up** — it finds the workspace of a bundle in the current folder and the
+  profiles in `~/.databrickscfg`, or signs in to an address through the browser.
 
 ## Quick start
 
@@ -35,13 +44,15 @@ Caland puts the full lifecycle of Databricks secret **scopes**, **secrets**, and
     caland
     ```
 
-On launch, Caland opens a workspace picker that discovers connection targets automatically. Pick one, press ++enter++, and you're in.
+Caland starts, opens a tab, and — when there is more than one workspace it could mean —
+asks which. ++ctrl+c++ in the terminal stops it and forgets every value it held.
 
 ## Next steps
 
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
-- [Connecting](connecting.md) — the workspace picker and its three sources.
-- [Browsing & managing](browsing.md) — navigate, reveal, and manage secrets and permissions.
+- [Connecting](connecting.md) — which workspace, and how it is found.
+- [Using the page](page.md) — what it does, its keys, and how it is kept yours.
+- [The terminal version](terminal.md) — `caland --tui`, as it was.
 
 ---
 

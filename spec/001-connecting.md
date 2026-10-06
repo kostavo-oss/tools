@@ -30,6 +30,12 @@ meant.
 - **R8 — Straight to a workspace by name.** `caland prod`, or `--profile prod`, skips the
   picker and connects to a workspace the picker would have listed. *(built, 0.4.0)*
 
+## On the page (2026-10-06)
+
+All of it is on the page ([008](008-the-page.md), "which workspace"), with two rules the
+terminal version does not have: a profile is kept only under a name that is not in use, and
+going to another workspace (R7) forgets every value held of the one that is left.
+
 ## Not in this spec
 
 - **Finding workspaces through an account** — a cloud and an account id. It was built and

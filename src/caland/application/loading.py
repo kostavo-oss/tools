@@ -108,6 +108,10 @@ class Loader:
         except (AuthError, StoreError) as exc:
             self._set(phase=FAILED, error=str(exc))
             return
+        except Exception as exc:  # noqa: BLE001
+            # whatever else goes wrong on the way in is said, not waited on for ever
+            self._set(phase=FAILED, error=str(exc) or type(exc).__name__)
+            return
         if not identity.authenticated:
             self._set(phase=FAILED, error=identity.error or "Access denied.")
             return

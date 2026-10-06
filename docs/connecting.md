@@ -1,16 +1,27 @@
 # Connecting
 
-On launch, Caland opens a **workspace picker**. It gathers connection targets from three sources and labels every row with its **Source**, so you always know where a target came from.
+You don't set anything up. Caland finds the workspaces it can reach, and when there is no
+doubt which one you mean it goes straight there: the workspace of a bundle in the current
+folder, or your only profile. Otherwise the page asks.
 
-![Workspace picker with a bundle default and two profiles](img/login.svg)
+![The choice of a workspace: a bundle's, three profiles, and a field for an address](img/page-picker.png)
 
-Pick a row and press ++enter++. Saved profiles connect instantly; a bundle target or a URL opens your browser to authenticate.
+Every row says where it was found. ++up++ ++down++ or ++j++ ++k++ pick, ++enter++ goes
+there. A profile connects at once; a bundle's workspace, or an address, signs you in through
+the browser, as `databricks auth login` does. No token is asked for.
 
-!!! tip "Skip the picker entirely"
-    `caland prod` (or `caland --profile prod`) connects straight to a discovered workspace — a `~/.databrickscfg` profile or bundle target — by name. Pairs well with `--read-only` for a quick, safe look at production.
+To go straight to one, name it:
 
-!!! note "Account-level discovery was removed"
-    There is no cloud + Account ID step. You connect by **profile**, **bundle**, or **URL** — nothing else.
+```sh
+caland prod               # a profile, or a bundle's target
+caland --profile prod     # the same
+caland prod --read-only   # and change nothing there
+```
+
+A name that is not there is said, with the names that are, and nothing starts.
+
+On the page, ++w++ opens the choice again. Going to another workspace leaves nothing of the
+one you were in: not on the page, and not in Caland's memory.
 
 ## The three sources
 
@@ -48,17 +59,22 @@ targets:
 
 Every saved profile in `~/.databrickscfg` is listed automatically. Saved profiles connect instantly, because authentication is already configured.
 
-### 3. Workspace URL
+### 3. An address
 
-Choose **Add by URL**, enter a workspace host, and sign in through the browser (OAuth U2M / SSO) — exactly like `databricks auth login`. This stores the `host` and `auth_type = external-browser`; it **never stores a token**.
+Type a workspace's address into the field under the list and press ++enter++: you are
+signed in through the browser. An address is `https`, a host, and nothing after it.
 
-Optionally tick **save as profile** to persist the target in `~/.databrickscfg` for next time.
+Tick *keep it as a profile* and give it a name to come back to it by. What is written to
+`~/.databrickscfg` is the address and that you sign in through the browser — no token. The
+name has to be a new one: a profile that is there keeps its own way of signing in, and
+Caland will not point it at another address.
 
-!!! note "What gets written"
-    Saving a URL as a profile writes only the **host** and `auth_type = external-browser`. No secret and no token is ever written to your config.
+## When nothing is found
 
-## When nothing is discovered
+With no bundle here and no profile, the list is empty and the field for an address is all
+there is. Sign in to one, keep it as a profile, and the next time it is on the list.
 
-If there is no bundle in the current directory and no saved profiles, the picker still opens — empty — so you can add a workspace by URL.
+## In the terminal version
 
-![Workspace picker with nothing discovered](img/login-empty.svg)
+`caland --tui` has the same three sources in a picker of its own; see
+[the terminal version](terminal.md).

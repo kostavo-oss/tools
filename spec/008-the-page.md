@@ -1,7 +1,7 @@
 # 008 — the page
 
-**Status:** built but for choosing a workspace from a list (see the *As built* sections);
-that, and making the page what `caland` opens, is what is left. Its shape is decided ([Decided](#decided)). Written
+**Status:** built (see the *As built* sections), and what `caland` opens. The terminal
+version is frozen behind `--tui`; whether and when it goes is open. Its shape is decided ([Decided](#decided)). Written
 2026-10-06 from the owner's direction of that day; what is the owner's and what is the
 writer's is marked.
 
@@ -319,6 +319,65 @@ fixed, each with a test:
 
 Not tried: Firefox, Safari, a real workspace for this part.
 
+## As built — the third part, second half: which workspace, and the switch (2026-10-06)
+
+Built: the last of R1 — choosing a workspace ([001](001-connecting.md)) — and with it D2's
+switch: **`caland` opens the page, `caland --tui` the terminal version.** `--page` still
+says the page.
+
+- **With no doubt which workspace is meant, there is no question**: the one named, the
+  bundle's default, or the only one found. A name that is not there ends it before it
+  starts, as before. Otherwise the server starts with no workspace and the page asks.
+- **The choice is the page's first dialog**, and with no workspace to go back to it cannot
+  be left: a browser that closes it on `esc` all the same is asked again.
+- **An address is https, a host, and nothing after it.** Signing in is the SDK's, through
+  the browser, in a tab of its own.
+- **A profile is kept under a new name only**: letters, digits, dots and dashes; never
+  `DEFAULT`; never a name that is in use, whatever its case. A profile keeps its own way of
+  signing in — a token, often — and pointing it at another address would send that there.
+  It is written once the sign-in has worked, and holds the address and how to sign in.
+- **Going to another workspace leaves nothing of the one that is left** — on the server the
+  values and what could be put back, on the page everything. The state's version never
+  comes round again across workspaces, so what the page holds of one is never taken for
+  another's.
+- **Choosing changes no workspace**, so read-only does not mind it.
+- **A request about a workspace says which one**, and the page asks nothing of one
+  workspace that it then does to, or shows under, another (see Reviewed, below).
+- **The terminal version is not removed.** The owner chose "freeze, then drop"; it is
+  frozen. Dropping it deletes the Textual app, its tests, its pictures and their pipeline,
+  and takes from people who work where there is no browser the one way they have — so it
+  is a step of its own, to be taken when the owner says ([To decide](#to-decide)).
+
+**Reviewed, by someone who did not build it (2026-10-06).** Choosing, and keeping a
+profile, held against another site and without the token; names that are no names were
+refused; other profiles' values were rewritten exactly. But three things were wrong that
+matter, and eight smaller — found and fixed, each with a test:
+
+- **A change meant for one workspace could land in another**: a delete queued behind a
+  slow one and done after going elsewhere, or asked from a second tab still showing the
+  old one. A request about a workspace now says which it means (`X-Caland-Workspace`, the
+  number the state gave), and is refused for any other; the server acts on the workspace it
+  found when the request came in; the page drops what was queued, and answers that come
+  late, when it has moved on.
+- **Keeping a profile could re-point one that was on no list** — at the bundle's address,
+  or with none — with its token. A name is asked of every heading in the file, and the
+  store itself (`add`) never writes over a profile that is there.
+- **Two saves at once could leave the file with one profile in it.** It is written one
+  writer at a time, whole or not at all, and a new file is its owner's alone. A profile is
+  added to the end of what is there, which is not rewritten.
+- A value that came late was shown under the other workspace. A save that failed left
+  "Connecting…" for ever. The choice did not come back when the keys' list was open.
+  Two that were found under one name could not be told apart. An address could be a number,
+  or have letters in it that only look like the ones meant. `--readonly`, mistyped, opened
+  a workspace to change: an option caland does not know is refused now.
+
+Not tried: a real sign-in by address, other browsers, Windows.
+
+**Run on a real workspace (2026-10-06):** plain `caland` opened the page on the test
+workspace; `w` listed the one profile the machine has, found in `~/.databrickscfg`; chosen
+again, it connected again. Not run for real: the choice between several, and signing in by
+an address — that opens a browser to sign in with, which nothing here can drive.
+
 ## Not in this spec
 
 - **A hosted caland**, or one that serves more than the person who started it.
@@ -347,6 +406,10 @@ Not tried: Firefox, Safari, a real workspace for this part.
 
 ## To decide
 
+- **D5 — When does the terminal version go?** It is frozen; `caland --tui` runs it. The
+  owner chose to drop it once the page does everything it does, and it does. *The writer's
+  view:* not in the same release as the switch — let one release go out with both, so that
+  whoever the page does not work for (no browser, a remote shell) can say so first.
 - **D3 — What the server is made of.** *The writer's choice unless the owner minds:* Python's
   own HTTP server — one person, one machine, no new dependency — and a small script of
   caland's own in the page.

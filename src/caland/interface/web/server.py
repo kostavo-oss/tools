@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import re
 import secrets
 import socketserver
 import threading
@@ -27,12 +28,21 @@ from urllib.parse import parse_qs, urlsplit
 from ...application import (
     DotenvError,
     Loader,
+    OnboardingService,
     WorkspaceService,
     files,
     format_dotenv,
     parse_dotenv,
 )
-from ...domain import Exists, Settings, StoreError, Workspace, same_name
+from ...domain import (
+    SOURCE_URL,
+    AuthError,
+    Exists,
+    Settings,
+    StoreError,
+    Workspace,
+    same_name,
+)
 from . import gate, views
 
 #: The most a request may say: the largest value a secret may hold, as the page
@@ -87,13 +97,15 @@ HEADERS = {
 
 
 class Page:
-    """One run of caland's page: a workspace, and who may ask about it."""
+    """One run of caland's page: a workspace — or none yet, and the choice of one
+    — and who may ask about it."""
 
     def __init__(
         self,
-        loader: Loader,
+        loader: Loader | None = None,
         *,
-        workspace: Workspace,
+        workspace: Workspace | None = None,
+        onboarding: OnboardingService | None = None,
         read_only: bool = False,
         show_all: bool = False,
         version: str = "",
@@ -101,8 +113,18 @@ class Page:
         settings: Settings | None = None,
         keep: Callable[[Settings], None] = lambda settings: None,
     ) -> None:
+        #: The workspace that is shown, being read in the background. None
+        #: while the person has yet to say which.
         self.loader = loader
         self.workspace = workspace
+        #: What there is to choose from, and how one is connected to.
+        self.onboarding = onboarding
+        #: Which workspace this is, counted from the first: so that what the page
+        #: holds of one workspace is never taken for another's.
+        self.turn = 0
+        #: Something the person should be told once, about the workspace they
+        #: are in: that it was reached, but its address could not be kept.
+        self.notice = ""
         self.read_only = read_only
         #: What the person prefers — how things are shown, never a secret — and
         #: what keeps it for the next run.
@@ -135,6 +157,44 @@ class Page:
             self._key = None
         self.entered()
         return self.token
+
+    def current(self) -> tuple[int, Workspace | None, Loader | None]:
+        """Which workspace caland is in, as one answer: its number, what it is,
+        and what reads it. Asked once per request — never piece by piece, or a
+        request could name one workspace and act on another."""
+        with self._lock:
+            return self.turn, self.workspace, self.loader
+
+    def connect(self, workspace: Workspace, save_as: str = "") -> None:
+        """Leave the workspace that is shown, if any, and start on another.
+        Returns at once: connecting, and signing in, happen in the background.
+        With `save_as`, the address is kept as a profile of that name once the
+        sign-in has worked — the address and how to sign in, never a token."""
+        onboarding = self.onboarding
+        if onboarding is None:
+            raise AuthError("There is nothing to choose a workspace from.")
+
+        def connected() -> WorkspaceService:
+            connection = onboarding.connect(workspace)
+            # kept only if this is still where caland is going: a sign-in that
+            # was given up for another keeps nothing
+            if save_as and connection.host and self.loader is loader:
+                try:
+                    onboarding.add_profile(save_as, connection.host)
+                except (Exists, OSError) as exc:
+                    # signed in all the same: said, and not held against it
+                    self.notice = f"Signed in, but the profile was not kept: {exc}"
+            return connection.service
+
+        loader = Loader(connected)
+        with self._lock:
+            left = self.loader
+            self.turn += 1
+            self.notice = ""
+            self.workspace, self.loader = workspace, loader
+        if left is not None and left.service is not None:
+            left.service.forget_values()  # nothing of the one that is left is kept
+        loader.start()
 
     def touch(self) -> None:
         self._used = self._clock()
@@ -192,6 +252,8 @@ class Handler(BaseHTTPRequestHandler):
     sys_version = ""
     timeout = QUIET
     server: Server
+    #: What reads the workspace the request in hand is about.
+    _reading: Loader | None = None
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         """Nothing a request says is written anywhere."""
@@ -254,19 +316,27 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"token": token})
 
         page.touch()
-        service = page.loader.service
+        turn, workspace, loader = page.current()
+        self._reading = loader
+        service = loader.service if loader else None
 
         if (method, path) == ("GET", "/api/state"):
             return self._json(
                 views.state(
-                    page.loader.progress(),
+                    loader.progress() if loader else None,
                     service,
-                    workspace=page.workspace,
+                    workspace=workspace,
                     read_only=page.read_only,
                     settings=page.settings,
                     version=page.version,
+                    turn=turn,
+                    notice=page.notice,
                 )
             )
+        if (method, path) == ("GET", "/api/workspaces"):
+            return self._json(self._workspaces())
+        if (method, path) == ("POST", "/api/connect"):
+            return self._json(self._connect(body), status=202)
         if (method, path) == ("POST", "/api/describe"):
             # what a file is: asked before there is a workspace to put it in, too
             return self._json(files.describe(_bytes(body, "base64")).told())
@@ -278,6 +348,10 @@ class Handler(BaseHTTPRequestHandler):
         route = _ROUTES.get((method, path))
         if route is None:
             raise _Refused(404, "nothing here")
+        # asked about a workspace, it says which one it means: a page that was left
+        # showing another — a second tab, a key pressed before a switch — is refused
+        if self.headers.get(gate.WORKSPACE_HEADER) != str(turn):
+            raise _Refused(412, "this page shows another workspace than caland is in")
         try:
             told, status = route(self, service, body, query)
         except Exists as exc:
@@ -286,6 +360,14 @@ class Handler(BaseHTTPRequestHandler):
             # what the workspace said, shortly: it is the person's own to read
             raise _Refused(502, str(exc)) from exc
         return self._json(told, status=status)
+
+    def _loader(self) -> Loader:
+        """What reads the workspace this request is about — the one it found when
+        it came in, also when caland has gone to another since."""
+        loader = self._reading
+        if loader is None:
+            raise _Refused(409, "not connected yet")
+        return loader
 
     # -- reading --------------------------------------------------------
     def _scope(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
@@ -305,15 +387,47 @@ class Handler(BaseHTTPRequestHandler):
 
     def _forget(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         service.forget_values()
-        self.server.page.loader.changed()
+        self._loader().changed()
         return {}, 200
 
     def _refresh(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         scope = body.get("scope")
         if scope is not None and not isinstance(scope, str):
             raise _Refused(400, "a scope is a name")
-        self.server.page.loader.refresh(scope)
+        self._loader().refresh(scope)
         return {}, 202
+
+    # -- which workspace -------------------------------------------------
+    def _workspaces(self) -> dict[str, Any]:
+        """What there is to choose from, and where each was found."""
+        onboarding = self.server.page.onboarding
+        return views.workspaces(
+            onboarding.available_workspaces() if onboarding else [],
+            self.server.page.workspace,
+        )
+
+    def _connect(self, body: _Said) -> dict[str, Any]:
+        """Go to another workspace: one that was found, by its name — or one at
+        an address, signed in to through the browser. It changes no workspace;
+        read-only does not mind."""
+        page = self.server.page
+        onboarding = page.onboarding
+        if onboarding is None:
+            raise _Refused(409, "there is nothing to choose a workspace from")
+        if ("name" in body) == ("url" in body):
+            raise _Refused(400, "say which workspace: its name, or its address")
+        try:
+            if "name" in body:
+                page.connect(_found(onboarding, _text(body, "name"), body.get("host")))
+                return {}
+            host = _address(body)
+            save_as = body.get("save_as", "")
+            if save_as:
+                save_as = _profile(save_as, onboarding.profile_names())
+            page.connect(Workspace(host=host, source=SOURCE_URL), save_as)
+        except AuthError as exc:
+            raise _Refused(404, str(exc)) from exc
+        return {}
 
     def _grants(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         return views.grants(service), 200
@@ -392,7 +506,7 @@ class Handler(BaseHTTPRequestHandler):
             )
 
     def _changed(self) -> None:
-        self.server.page.loader.changed()
+        self._loader().changed()
 
     def _put(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         scope, key = _text(body, "scope"), _name(body, "key")
@@ -585,6 +699,68 @@ def _bytes(body: dict[str, Any], name: str) -> bytes:
     if len(data) > files.LIMIT:
         raise _Refused(413, _TOO_BIG)
     return data
+
+
+_PROFILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+# a host as a workspace has one: plain letters, digits and dashes, in parts
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOST = re.compile(rf"(?:{_LABEL}\.)+(?!\d+$){_LABEL}")
+
+
+def _found(onboarding: OnboardingService, name: str, host: object) -> Workspace:
+    """The workspace of this name — and of this address, where two that were
+    found have one name: a bundle's target and a profile, say."""
+    named = [w for w in onboarding.available_workspaces() if w.name == name]
+    if not named:
+        return onboarding.choose(name)  # says what there is, in its own words
+    if isinstance(host, str):
+        named = [w for w in named if w.host_label == host]
+        if not named:
+            raise AuthError(f"No workspace “{name}” at {host} was found.")
+    if len(named) > 1:
+        raise _Refused(409, f"there are {len(named)} called “{name}”: say which address")
+    return named[0]
+
+
+def _address(body: dict[str, Any]) -> str:
+    """A workspace's address as it was typed: https, a host, and nothing more.
+    A name alone is taken to be https. The host is one as workspaces have them —
+    plain letters, digits, dashes and dots — and no number in the place of a name:
+    what is kept in the profile file is what was read here, letter for letter."""
+    typed = _text(body, "url").strip()
+    if "://" not in typed:
+        typed = "https://" + typed
+    try:
+        url = urlsplit(typed)
+        host, port = (url.hostname or "").lower(), url.port
+    except ValueError as exc:
+        raise _Refused(400, "that is no address") from exc
+    if (
+        url.scheme != "https"
+        or not _HOST.fullmatch(host)
+        or url.username is not None
+        or url.path not in ("", "/")
+        or url.query
+        or url.fragment
+        or len(typed) > 255
+    ):
+        raise _Refused(
+            400, "a workspace's address is https, its host, and nothing after it"
+        )
+    return f"https://{host}" + (f":{port}" if port else "")
+
+
+def _profile(name: object, there: list[str]) -> str:
+    """A name a workspace's address can be kept under. Letters, digits, dots,
+    dashes — it becomes a heading in ~/.databrickscfg, and nothing but a name
+    may be written there. Not a name that is in use — by any profile the file
+    has, on the list or not: a profile keeps its way of signing in, and must not
+    be pointed at another address under it. (Asked again when it is written.)"""
+    if not isinstance(name, str) or not _PROFILE.fullmatch(name):
+        raise _Refused(400, "a profile's name is letters, digits, dots and dashes")
+    if name.casefold() == "default" or any(same_name(name, other) for other in there):
+        raise _Refused(409, f"there is a profile “{name}” already: give it another name")
+    return name
 
 
 def _pairs(body: dict[str, Any]) -> tuple[dict[str, str], list[str]]:

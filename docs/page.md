@@ -1,15 +1,11 @@
-# The page (preview)
+# Using the page
 
-Caland is becoming a page in your browser, served from your own machine. It does what the
-terminal version does — browse, show and copy, change secrets, grants and scopes, `.env` in
-and out, the report of stale secrets — and takes files besides. One thing is not on it yet:
-choosing a workspace from a list. Until it is, `caland` without `--page` opens the terminal
-version.
+Caland is a page in your browser, served from your own machine.
 
 ```sh
-caland --page            # the bundle's workspace here, or your only profile
-caland --page prod       # a profile from ~/.databrickscfg, or a bundle target, by name
-caland --page --no-open  # print the link instead of opening a browser
+caland            # the workspace there is no doubt about, or the page asks which
+caland prod       # a profile from ~/.databrickscfg, or a bundle's target, by name
+caland --no-open  # print the link instead of opening a browser
 ```
 
 It starts a small server on this machine, opens a tab, and says so:
@@ -76,7 +72,7 @@ someone who has left. None of the three reads a value.
 **Sorting.** ++s++ sorts the pane the keyboard is in by its next column, ++shift+s++ the
 other way round; a click on a heading does the same.
 
-**Read-only.** `caland --page prod --read-only` offers no change at all — and the server
+**Read-only.** `caland prod --read-only` offers no change at all — and the server
 refuses one whatever the page shows.
 
 A Key Vault-backed scope's secrets are Azure's: they can be shown, copied, and copied out to
@@ -104,6 +100,7 @@ Everything has a key, and everything can be clicked.
 | ++shift+a++ · ++a++ · ++shift+p++ | Secrets gone stale · what you can reach · what somebody else can |
 | ++s++ / ++shift+s++ | Sort the pane by its next column / the other way round |
 | ++f++ | Only the scopes you can reach, or all of them (kept) |
+| ++w++ | [Another workspace](connecting.md) |
 | ++r++ / ++shift+r++ | Read the scope again / the whole workspace |
 | ++question++ | The keys |
 
@@ -138,8 +135,7 @@ asking.
     shown, as anyone who can see your screen can. If that worries you for a workspace, use a
     browser profile without extensions — or the terminal version.
 
-## Not yet
+## The terminal version
 
-Choosing a workspace from a list, signing in by URL, and switching workspace without
-starting again. Until then `caland --page` takes the workspace by name, and the terminal
-version has the list.
+`caland --tui` is Caland as it was: the same tool in a terminal. It is still there and gets
+nothing new; see [the terminal version](terminal.md).

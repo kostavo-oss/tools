@@ -3,7 +3,7 @@
 ## Requirements
 
 - **Python ≥ 3.11**
-- A modern terminal on **macOS**, **Linux**, or **Windows**
+- A browser, on **macOS**, **Linux**, or **Windows**
 
 Caland is distributed on PyPI. No configuration is required before you install or run it — connection details are gathered interactively on launch.
 
@@ -39,13 +39,23 @@ Caland is distributed on PyPI. No configuration is required before you install o
 
 ## Running
 
-Once installed, launch the app:
+Once installed:
 
 ```sh
 caland
 ```
 
-It opens the workspace picker. See [Connecting](connecting.md) for what happens next.
+It starts a small server on your machine, opens a tab in your browser, and says so:
+
+```
+caland is at http://127.0.0.1:53124/ — opened in your browser.
+enter: a new link · ctrl+c: stop
+```
+
+See [Connecting](connecting.md) for which workspace it shows, and [Using the page](page.md)
+for the rest. If no tab opens, `caland --no-open` prints the link instead; it works once.
+
+`caland --tui` is [the terminal version](terminal.md), as it was.
 
 ## Upgrading
 

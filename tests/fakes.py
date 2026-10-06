@@ -160,12 +160,27 @@ class StubProfiles:
     def __init__(self, workspaces=None) -> None:
         self._workspaces = list(workspaces or [])
         self.saved: list[tuple] = []
+        #: Profiles the file has that are no workspace to offer.
+        self.others: list[str] = []
 
     def discover(self):
         return list(self._workspaces)
 
     def save(self, name, host, account_id=None) -> None:
         self.saved.append((name, host, account_id))
+
+    def names(self):
+        """Every profile there is: those offered, those kept since, and — as the
+        real file has — any that are no workspace to offer (`self.others`)."""
+        offered = [w.profile for w in self._workspaces if w.profile]
+        return ["DEFAULT", *offered, *self.others, *[name for name, _, _ in self.saved]]
+
+    def add(self, name, host) -> None:
+        from caland.domain import Exists
+
+        if any(name.casefold() == other.casefold() for other in self.names()):
+            raise Exists(f"There is a profile “{name}” already.")
+        self.saved.append((name, host, None))
 
 
 class StubConnector:

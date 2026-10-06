@@ -1,5 +1,9 @@
 # Browsing & managing
 
+!!! note "This is about the terminal version"
+    `caland --tui` — Caland as it was. It gets nothing new; what `caland` opens now is
+    [the page](page.md), and [its keys](page.md#keys) differ in places.
+
 The browser is built from three panes. The header shows a breadcrumb — `scope: X / secret: Y` — so you always know where you are.
 
 ![The three-pane browser with a secret revealed](img/browse.svg)

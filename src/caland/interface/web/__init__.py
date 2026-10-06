@@ -15,7 +15,7 @@ import webbrowser
 from collections.abc import Callable
 from typing import TextIO
 
-from ...application import Loader, OnboardingService
+from ...application import OnboardingService
 from ...domain import AuthError, Settings, SettingsStore
 from .opening import Opener
 from .server import Page, Server
@@ -45,13 +45,13 @@ def run(
     try:
         workspace = onboarding.choose(name)
     except AuthError as exc:
-        print(f"caland: {exc}", file=out)
-        return 2
+        if name:  # asked for by name, and not there: said, and nothing started
+            print(f"caland: {exc}", file=out)
+            return 2
+        workspace = None  # several, or none: the page asks which
 
-    loader = Loader(lambda: onboarding.connect(workspace).service)
     page = Page(
-        loader,
-        workspace=workspace,
+        onboarding=onboarding,
         read_only=read_only,
         settings=settings_store.load() if settings_store else Settings(),
         keep=settings_store.save if settings_store else lambda settings: None,
@@ -60,7 +60,8 @@ def run(
     server = Server(page)
     opener = Opener(browser)
     page.entered = opener.clean
-    loader.start()
+    if workspace is not None:
+        page.connect(workspace)
 
     def show() -> None:
         link = f"{server.address}#{page.new_key()}"
@@ -86,8 +87,8 @@ def run(
         told_to_stop()
         server.server_close()
         opener.clean()
-        if loader.service is not None:
-            loader.service.forget_values()
+        if page.loader is not None and page.loader.service is not None:
+            page.loader.service.forget_values()
     reason = f" {why[0]}" if why else ""
     print(f"\ncaland stopped.{reason} Every value it held is forgotten.", file=out)
     return 0

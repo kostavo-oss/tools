@@ -5,12 +5,12 @@ day ([Decided](#decided)); what follows from it is in [008](008-the-page.md).
 
 ## The line
 
-**A keyboard-driven terminal UI for managing Databricks secrets.** Browse scopes, secrets and
-permissions; create, edit and delete; reveal and copy values — from a fast, calm three-pane
-screen.
+**Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own
+machine.** Browse scopes, secrets and grants; create, edit, move and delete; show and copy
+values; put a certificate in from a file.
 
-That is the line today. With [008](008-the-page.md) the screen becomes a page, and the line
-changes with it.
+Until 0.6 the line said "terminal UI". The terminal version is still there, as
+`caland --tui`, and gets nothing new ([008](008-the-page.md)).
 
 ## Why
 

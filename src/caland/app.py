@@ -1,10 +1,12 @@
-"""Caland — a terminal Databricks secret manager.
+"""Caland — Databricks secrets, by hand.
 
-The App is the composition root: it builds the infrastructure adapters, wires
-them into the `OnboardingService`, installs the theme, and hands off to
-`MainScreen`. Domain logic lives in `caland.domain`, use-cases in
-`caland.application`, adapters in `caland.infrastructure`; UI in
-`caland.interface`.
+`main` is the command: it starts the page (`interface/web`), or with `--tui`
+the terminal version, which is frozen. The App below is that terminal version's
+composition root: it builds the infrastructure adapters, wires them into the
+`OnboardingService`, installs the theme, and hands off to `MainScreen`.
+
+Domain logic lives in `caland.domain`, use-cases in `caland.application`,
+adapters in `caland.infrastructure`; both faces in `caland.interface`.
 """
 
 from __future__ import annotations
@@ -107,24 +109,61 @@ class CalandApp(App[None]):
 
 
 _USAGE = """\
-caland — a keyboard-driven terminal UI for managing Databricks secrets.
+caland — Databricks secrets, from a page in your browser.
 
-usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--version] [--help]
-       caland --page [WORKSPACE] [--no-open]
+usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--no-open]
+       caland --tui [WORKSPACE] [--read-only]
 
   WORKSPACE / --profile NAME
-                connect straight to a discovered workspace (a
-                ~/.databrickscfg profile or bundle target) and skip
-                the picker
-  --read-only   browse, reveal, and copy — but disable every mutation
-                (safe for poking around production)
-  --page        a preview: caland as a page in your browser, served from
-                this machine only. --read-only holds there too
-  --no-open     with --page: print the link instead of opening a browser
+                go straight to a workspace that was found — a profile in
+                ~/.databrickscfg, or the target of a bundle here. Without it
+                the page asks which, when there is more than one
+  --read-only   look, show and copy, and change nothing
+  --no-open     print the link instead of opening a browser
+  --tui         the terminal version, as it was. It gets nothing new
+  --version     which caland this is
+  --help        this
 
-Run with no arguments to launch the TUI. Inside: ? for help, ctrl+p for the
-command palette, q to quit.
+The page is served from this machine only, to you only. ctrl+c stops it and
+forgets every value it held. On the page: ? for the keys.
 """
+
+
+#: The options that take no value. Anything else that starts with a dash is not
+#: caland's — and is refused: `--readonly` taken for nothing would open a
+#: workspace to change, when what was meant was that it should not be.
+_FLAGS = ("--tui", "--page", "--read-only", "--no-open")
+
+
+def _asked(args: list[str]) -> tuple[str | None, set[str]]:
+    """Which workspace was named, and which options were given. Raises
+    `SystemExit(2)`, having said why, for what cannot be understood."""
+    import sys
+
+    def refuse(why: str) -> SystemExit:
+        print(f"caland: {why} (caland --help says what there is)", file=sys.stderr)
+        return SystemExit(2)
+
+    profile: str | None = None
+    flags: set[str] = set()
+    rest = iter(args)
+    for arg in rest:
+        if arg == "--profile" or arg.startswith("--profile="):
+            name = arg.partition("=")[2] if "=" in arg else next(rest, "")
+            if not name or name.startswith("-"):
+                raise refuse("--profile needs a workspace name")
+            if profile is not None:
+                raise refuse("one workspace at a time")
+            profile = name
+        elif arg in _FLAGS:
+            flags.add(arg)
+        elif arg.startswith("-"):
+            raise refuse(f"there is no option {arg}")
+        elif profile is not None:
+            raise refuse("one workspace at a time")
+        else:
+            profile = arg  # a bare word is the workspace's name
+    return profile, flags
 
 
 def main() -> None:
@@ -139,28 +178,20 @@ def main() -> None:
     if {"-h", "--help"} & set(args):
         print(_USAGE, end="")
         return
-    profile: str | None = None
-    if "--profile" in args:
-        i = args.index("--profile")
-        if i + 1 >= len(args):
-            print("error: --profile needs a workspace name", file=sys.stderr)
-            raise SystemExit(2)
-        profile = args[i + 1]
-    else:  # a bare positional is the workspace name
-        positional = [a for a in args if not a.startswith("-")]
-        if positional:
-            profile = positional[0]
-    if "--page" in args:
-        raise SystemExit(_page(profile, args))
-    CalandApp(
-        read_only="--read-only" in args,
-        settings_store=JsonSettingsStore(),
-        profile=profile,
-    ).run()
+    profile, flags = _asked(args)
+    if "--tui" in flags:
+        CalandApp(
+            read_only="--read-only" in flags,
+            settings_store=JsonSettingsStore(),
+            profile=profile,
+        ).run()
+        return
+    # the page is what caland is; `--page`, from when it was not, still says so
+    raise SystemExit(_page(profile, sorted(flags)))
 
 
 def _page(profile: str | None, args: list[str]) -> int:
-    """`caland --page`: the same workspace, as a page in the browser."""
+    """caland: a workspace's secrets, as a page in the browser."""
     from importlib.metadata import version
 
     from .interface import web

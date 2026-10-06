@@ -1,5 +1,9 @@
 # Keyboard
 
+!!! note "This is about the terminal version"
+    `caland --tui` — Caland as it was. It gets nothing new; what `caland` opens now is
+    [the page](page.md), and [its keys](page.md#keys) differ in places.
+
 Everything in Caland is keyboard-driven. Press ++question++ at any time for the in-app cheat-sheet, or ++ctrl+p++ to open the command palette.
 
 | Keys | Action |
