@@ -39,6 +39,7 @@ from lely import step as contract
 from lely.model import Json, Output, Outputs, Overview, Skip, StepPlan
 from lely.planfile import normalised, step_plan_from_json, step_plan_to_json
 from lely.refs import match
+from lely.render.html import framed
 from lely.step import Cli, Context, NullLog, Purpose
 
 OptionsT = TypeVar("OptionsT")
@@ -146,6 +147,11 @@ def check_plan(
     # as lely itself takes a plan: made plain first — a tuple is a list, a
     # change with no summary is named by its key — and refused if it holds a
     # secret or something JSON has no word for
+    if result.view is not None:
+        # what the page shows of it: its structure and its words, in a frame
+        assert "could not be read" not in framed(result.view), (
+            "the plan's view isn't HTML lely can read"
+        )
     plain = normalised(result)
     written_out = json.dumps(step_plan_to_json(plain))
     back = step_plan_from_json(json.loads(written_out))

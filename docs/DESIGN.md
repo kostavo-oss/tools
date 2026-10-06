@@ -220,6 +220,7 @@ class StepPlan:
     waiting: str | None = None  # why part of this plan can't be made yet
     notes: tuple[str, ...] = ()  # lines shown with the plan that are not changes
     payload: Json = None  # the plugin's own data, carried in the plan file
+    view: str | None = None  # its own picture of the plan, as HTML, for the page
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,6 +423,7 @@ lely show plan.json [-f rich|json|md] [--github]
 lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
 lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
 lely status -t <target> [-f rich|json|md]
+lely ui <plan.json | result.json> [-o page.html] [--no-open]
 lely doctor                            # tools, workspace, identity
 ```
 
@@ -517,7 +519,8 @@ What is still assumed is marked `TODO(verify)` where the code depends on it.
    Called usable only when all of it is there.
 2. **Around it**: GitHub — the plan as one comment on the pull request, the result on the run's
    page ([spec 008](../spec/008-github-actions.md)), built on 2026-10-06 and described in
-   [GITHUB.md](GITHUB.md) — and a page to look at a plan in ([spec 007](../spec/007-ui.md)).
+   [GITHUB.md](GITHUB.md) — and a page to look at a plan in ([spec 007](../spec/007-ui.md)),
+   built the same day.
 
 ## Later
 
@@ -639,6 +642,22 @@ The builder's calls again; none is the owner's yet.
 - **A plugin can't end lely or take its streams.** `sys.exit` in a plugin is that step's
   error. What a plugin prints, however it prints it, goes to stderr through a stream of its
   own.
+
+## The page, as built 2026-10-06
+
+`src/lely/render/html.py` is pure: a plan or a result in, one HTML document out, with no
+script and nothing to fetch. `lely ui` reads a plan file or a run's record, writes the page
+and opens it; it loads no plugin and reaches no workspace.
+
+A plugin's own view travels in the plan: `StepPlan.view`, HTML as text, made when the step is
+planned. The page does not trust it — a plan file can be written by hand — and writes it
+again from a short list of elements, every word escaped (`framed`). lely's own list of a
+step's changes is always shown; the view stands under it.
+
+A run's record is what `apply -o` and `destroy -o` write: the result as JSON. It is read back
+only to be shown.
+
+What it decided where [spec 007](../spec/007-ui.md) left room is in that spec's "As built".
 
 ## GitHub, as built 2026-10-06
 

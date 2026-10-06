@@ -138,6 +138,20 @@ what each step did and what exists now, with links. `-f md` prints the same Mark
 [docs/GITHUB.md](docs/GITHUB.md) has the workflows to copy: plan on a pull request, apply the
 reviewed plan on merge, destroy only by hand.
 
+## As a page
+
+```sh
+lely plan -t dev -o plan.json
+lely ui plan.json
+```
+
+One HTML file with nothing to fetch and nothing that runs: every step in a section of its
+own, the destructive changes counted and named where the page opens, and each plugin's own
+picture of its step — the bundle shows every resource by type, the ones the plan leaves
+alone too. It only shows: there is no button, no server and no credentials, and making it
+runs none of the project's code. `lely apply -o result.json` keeps a record of a run, and
+`lely ui result.json` is the page of that.
+
 ## What may run
 
 - **Nothing runs unasked.** `apply` and `destroy` ask, or were given `--yes`. With no terminal

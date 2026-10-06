@@ -494,6 +494,10 @@ class Session:
             ) from error
 
 
+#: The longest view a plan keeps, in characters.
+_VIEW = 1_000_000
+
+
 def _checked_plan(result: object, where: str, method: str = "plan") -> StepPlan:
     """A plugin's plan, held to its shape and made plain: as it would read back
     from a plan file, so the plan that is approved and the plan that is made
@@ -515,6 +519,11 @@ def _checked_plan(result: object, where: str, method: str = "plan") -> StepPlan:
         raise LelyError(f"{where}: a plan's `notes` and `later` are text")
     if result.waiting is not None and not isinstance(result.waiting, str):
         raise LelyError(f"{where}: a plan's `waiting` is text")
+    if result.view is not None and len(result.view) > _VIEW:
+        raise LelyError(
+            f"{where}: its view is {len(result.view)} characters, and a plan keeps "
+            f"at most {_VIEW}: a view is a picture of the plan, not a copy of the data"
+        )
     return planfile.normalised(result, where)  # refuses a secret in the payload
 
 

@@ -391,3 +391,15 @@ def test_the_spaces_round_a_written_value_are_not_part_of_it(tmp_path: Path) -> 
     )
     ctx = context(options, root=tmp_path)
     assert Command().apply(ctx, Command().plan(ctx)) == {"count": "3"}
+
+
+def test_a_plan_command_can_print_its_own_view(tmp_path: Path) -> None:
+    """007/R2: any plugin can give the page its own picture of the plan; for a
+    command that is one more key of what its plan command prints."""
+    printed = {
+        "changes": [{"key": "users", "action": "create", "summary": "seed 3 users"}],
+        "view": "<ul><li>ada</li><li>grace</li><li>linus</li></ul>",
+    }
+    options = Command.Options(apply=("true",), plan=printing(printed))
+    plan = check_plan(Command(), context(options, root=tmp_path))
+    assert plan.view == "<ul><li>ada</li><li>grace</li><li>linus</li></ul>"

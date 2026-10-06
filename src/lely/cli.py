@@ -7,7 +7,9 @@
     lely show plan.json [-f rich|json|md] [--github]
     lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
     lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
+                                  (both: [-o result.json] [-f rich|json|md] [--github])
     lely status -t <target> [-f rich|json|md]
+    lely ui <plan.json | result.json> [-o page.html] [--no-open]
     lely doctor
 
 `-t` is always given to a command that touches a workspace: there is no default
@@ -24,9 +26,11 @@ Exit codes: 0 done, 1 something failed, 2 lely refused — plan again.
 from __future__ import annotations
 
 import functools
+import json
 import os
 import shutil
 import sys
+import webbrowser
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -55,7 +59,7 @@ from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
 from lely.model import KNOWN, Plan, PlanKind, PlannedStep, Result, Source, Workspace
-from lely.render import markdown
+from lely.render import html, markdown
 from lely.render.rich import (
     clean,
     render_plan,
@@ -127,6 +131,14 @@ GithubOption = Annotated[
         "--github",
         help="In a GitHub Actions run: keep the pull request's comment and the "
         "run's page up to date.",
+    ),
+]
+RecordOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--output",
+        "-o",
+        help="Write the run's result to a file, to keep or to open with `lely ui`.",
     ),
 ]
 FromOption = Annotated[
@@ -216,6 +228,7 @@ def _interactive() -> bool:
 
 
 #: Tests put fakes here.
+BROWSER: Callable[[str], bool] = webbrowser.open
 GITHUB: github.Connect = github.connect
 WHOAMI: Callable[[str | None], Workspace] = _whoami
 CONNECT: Callable[[str | None], Any] = _connect
@@ -661,6 +674,71 @@ def status(
 
 
 @app.command()
+def ui(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="A plan from `lely plan -o`, or a result from `lely apply -o`."
+        ),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Where to write the page; `-` for stdout. Beside the file by default.",
+        ),
+    ] = None,
+    open_it: Annotated[
+        bool | None,
+        typer.Option(
+            "--open/--no-open", help="Open it in a browser. At a terminal by default."
+        ),
+    ] = None,
+) -> None:
+    """Make a page of a plan, or of a run's result, and open it. Changes nothing.
+
+    One HTML file with nothing to fetch and nothing that runs: it opens from
+    disk, and reads the same on any machine. It needs no workspace and no
+    credentials, and runs none of the project's code.
+    """
+    try:
+        page = _page(file)
+        if output is not None and str(output) == "-":
+            typer.echo(page, nl=False)
+            return
+        written = output if output is not None else file.with_suffix(".html")
+        if written.resolve() == file.resolve():
+            raise LelyError(f"{file} is the file to read: the page needs another name.")
+        try:
+            written.write_text(page, encoding="utf-8")
+        except OSError as error:
+            raise LelyError(
+                f"Can't write the page to {written}: {error.strerror or error}"
+            ) from None
+    except LelyError as error:
+        raise _fail(error, refusals=False) from None
+    out.print(Text.assemble(("Wrote", "green"), f" {written}"))
+    if open_it if open_it is not None else _interactive():
+        BROWSER(written.resolve().as_uri())
+
+
+def _page(file: Path) -> str:
+    """The page for a plan file or a run's record, whichever `file` is."""
+    try:
+        document = json.loads(file.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise LelyError(f"{file}: {error.strerror or error}") from None
+    except UnicodeDecodeError:
+        raise LelyError(f"{file}: not a plan or a result: it isn't text.") from None
+    except (ValueError, RecursionError) as error:
+        raise LelyError(f"{file}: not a plan or a result: {error}") from None
+    if planfile.is_result(document):
+        return html.result_html(planfile.result_from_json(document))
+    return html.plan_html(planfile.plan_from_json(document))
+
+
+@app.command()
 def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
     """Report whether the tools are there, and which workspace lely reaches."""
     failed = False
@@ -767,6 +845,7 @@ def apply(
     output_format: FormatOption = Format.rich,
     profile: ProfileOption = None,
     on_github: GithubOption = False,
+    record: RecordOption = None,
 ) -> None:
     """Run a reviewed plan — or, with -t, plan, show, ask and run."""
     _a_target(target)
@@ -818,8 +897,8 @@ def apply(
             **run.edges,
         )
     except LelyError as error:
-        raise _stopped(known, error, output_format, hub) from None
-    _finish(result, output_format, hub)
+        raise _stopped(known, error, output_format, hub, record) from None
+    _finish(result, output_format, hub, record)
 
 
 @app.command()
@@ -835,6 +914,7 @@ def destroy(
     output_format: FormatOption = Format.rich,
     profile: ProfileOption = None,
     on_github: GithubOption = False,
+    record: RecordOption = None,
 ) -> None:
     """Take a target down again: plan the destroy, show it, ask, and run."""
     known = _Known("destroy", target)
@@ -871,8 +951,8 @@ def destroy(
             _consent_to_destroy(approved, run, yes)
         result = running.destroy(run.config, approved, from_step=from_step, **run.edges)
     except LelyError as error:
-        raise _stopped(known, error, output_format, hub) from None
-    _finish(result, output_format, hub)
+        raise _stopped(known, error, output_format, hub, record) from None
+    _finish(result, output_format, hub, record)
 
 
 def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
@@ -909,9 +989,11 @@ def _stopped(
     error: LelyError,
     output_format: Format,
     hub: github.Run | None = None,
+    record: Path | None = None,
 ) -> typer.Exit:
     """A run that ended before its first step. With `-f json` that is said on
-    stdout too, in the shape of a result, so whatever reads it reads something."""
+    stdout too, in the shape of a result, so whatever reads it reads something
+    — and it is what the run's record holds, when one was asked for."""
     refused = isinstance(error, Refused)
     if hub is not None:
         said = str(error)
@@ -919,26 +1001,27 @@ def _stopped(
             hub, lambda: github.post_stopped(hub, known.kind, known.target, refused, said)
         )
     workspace = known.workspace
+    document = {
+        "result_format": planfile.RESULT_FORMAT,
+        "kind": known.kind,
+        "target": known.target,
+        "workspace": (
+            None
+            if workspace is None
+            else {"host": workspace.host, "identity": workspace.identity}
+        ),
+        "outcome": "refused" if refused else "failed",
+        "message": str(error),
+        "ran": [],
+        "failed": [],
+        "refused": [],
+        "not_started": [],
+        "rolled_back": [],
+        "steps": [],
+    }
+    _keep(record, document)
     if output_format is Format.json:
-        _echo_json(
-            {
-                "kind": known.kind,
-                "target": known.target,
-                "workspace": (
-                    None
-                    if workspace is None
-                    else {"host": workspace.host, "identity": workspace.identity}
-                ),
-                "outcome": "refused" if refused else "failed",
-                "message": str(error),
-                "ran": [],
-                "failed": [],
-                "refused": [],
-                "not_started": [],
-                "rolled_back": [],
-                "steps": [],
-            }
-        )
+        _echo_json(document)
     elif output_format is Format.md:
         typer.echo(
             markdown.stopped_markdown(known.kind, known.target, refused, str(error)),
@@ -947,7 +1030,13 @@ def _stopped(
     return _fail(error)
 
 
-def _finish(result: Result, output_format: Format, hub: github.Run | None = None) -> None:
+def _finish(
+    result: Result,
+    output_format: Format,
+    hub: github.Run | None = None,
+    record: Path | None = None,
+) -> None:
+    _keep(record, planfile.result_to_json(result))
     if output_format is Format.json:
         _echo_json(planfile.result_to_json(result))
     elif output_format is Format.md:
@@ -1002,9 +1091,22 @@ def _show_plan(built: Plan, output_format: Format, output: Path | None) -> None:
         said.print(Text.assemble("\n", ("Wrote", "green"), f" {output}"))
 
 
-def _echo_json(document: dict[str, Any]) -> None:
-    import json
+def _keep(record: Path | None, document: dict[str, Any]) -> None:
+    """Write a run's record, when one was asked for. The run has happened
+    whether or not that works: a record that can't be written is said, and
+    changes nothing about how the run ended."""
+    if record is None:
+        return
+    try:
+        record.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    except (OSError, ValueError) as error:
+        why = getattr(error, "strerror", None) or error
+        err.print(f"[red]Can't write the result to {escape(str(record))}: {why}[/]")
+    else:
+        err.print(Text.assemble(("Wrote", "green"), f" {record}"))
 
+
+def _echo_json(document: dict[str, Any]) -> None:
     typer.echo(json.dumps(document, indent=2))
 
 

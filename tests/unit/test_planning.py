@@ -840,3 +840,26 @@ def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
         connect=no_workspace,
     )
     assert status.steps[1].note == "runs a command; nothing to list"
+
+
+def test_a_view_has_a_size(tmp_path: Path) -> None:
+    """A view is a picture of the plan, kept in every plan file: not a copy
+    of the data."""
+    (tmp_path / "wide.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import StepPlan\n"
+        "class Wide:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        size: int\n"
+        "    def plan(self, ctx):\n"
+        "        return StepPlan(view='<p>' + 'x' * ctx.options.size)\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+    )
+    text = "steps:\n  - name: x\n    uses: ./wide.py:Wide\n    with: {size: %d}\n"
+    project.write(tmp_path, text % 2_000_000)
+    with pytest.raises(LelyError, match="its view is 2000003 characters"):
+        plan(tmp_path)
+    project.write(tmp_path, text % 100)
+    assert plan(tmp_path).steps[0].plan.view == "<p>" + "x" * 100

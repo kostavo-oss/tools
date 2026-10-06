@@ -1,0 +1,81 @@
+# serializer version: 1
+# name: test_a_destroy_plan_runs_from_the_bottom_up
+  '''
+  <body>
+  <header>
+  <h1>lely destroy plan <span class="dim">·</span> target <b>dev</b></h1>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc6</code> <span class="dim">·</span> lely 0.0.1</p>
+  <p class="counts">1 change <span class="dim">·</span> 0 runs <span class="dim">·</span> <span class="destructive">1 destructive</span></p>
+  </header>
+  <main>
+  <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: not for target `dev`</p></div></details>
+  <details class="step skipped"><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: `bundle.run` has nothing to destroy</p></div></details>
+  <details class="step skipped"><summary><span class="name">notify</span><span class="uses">command</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: it needs app.resources.jobs.bar.id, which isn&#x27;t there</p></div></details>
+  <details class="step ready" open><summary><span class="name">app</span><span class="uses">bundle</span><span class="state ready">ready</span><span class="tally">1 change · 0 runs · <span class="destructive">1 destructive</span></span></summary><div class="body"><h2>Takes</h2><ul class="takes"><li>model_version = 14  <span class="dim">← model.version</span></li></ul><h2>Would do</h2><table class="changes"><tr class="delete"><td class="sym">−</td><td class="action">delete</td><td class="what">jobs.backfill <strong class="destructive">destructive</strong><div class="detail">backfill · id 771</div></td></tr></table><ul class="notes"><li>the bundle&#x27;s uploaded files go with them</li><li>and whatever else `bundle destroy` removes</li><li>as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev</li></ul><h2>From the plugin, <code>bundle</code></h2><div class="frame"><h4>jobs <small>(2)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">jobs.backfill</td><td>backfill</td><td class="delete">delete <strong class="destructive">destructive</strong></td><td class="dim">771</td></tr><tr><td class="key">jobs.bar</td><td>job bar</td><td class="unchanged">unchanged</td><td class="dim">not deployed</td></tr></table><h4>pipelines <small>(1)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">pipelines.foo</td><td>pipeline foo</td><td class="unchanged">unchanged</td><td class="dim">not deployed</td></tr></table></div></div></details>
+  <details class="step skipped"><summary><span class="name">model</span><span class="uses">./ops/steps.py:LatestModel</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: `./ops/steps.py:LatestModel` has nothing to destroy</p></div></details>
+  </main>
+  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely 0.0.1; what <code>lely apply</code> runs is the changes listed for each step.</footer>
+  
+  '''
+# ---
+# name: test_a_plan_with_a_destructive_change
+  '''
+  <body>
+  <header>
+  <h1>lely plan <span class="dim">·</span> project <b>team-a</b> <span class="dim">·</span> target <b>dev</b></h1>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc642cb</code> <span class="dim">·</span> lely 0.0.1</p>
+  <p class="counts">2 changes <span class="dim">·</span> 2 runs <span class="dim">·</span> <span class="destructive">1 destructive</span> <span class="dim">·</span> 1 waiting</p>
+  <div class="alert"><strong class="destructive">Destructive</strong> — 1 change that can't be taken back:<ul><li><code>app</code>: replace <code>pipelines.foo</code></li></ul></div>
+  <p class="warning">Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.</p>
+  </header>
+  <main>
+  <details class="step ready" open><summary><span class="name">model</span><span class="uses">./ops/steps.py:LatestModel</span><span class="state ready">ready</span><span class="tally">0 changes · 0 runs</span></summary><div class="body"><h2>Gives</h2><ul class="gives"><li>→ version = 14</li></ul></div></details>
+  <details class="step ready" open><summary><span class="name">app</span><span class="uses">bundle</span><span class="state ready">ready</span><span class="tally">2 changes · 1 run · <span class="destructive">1 destructive</span></span></summary><div class="body"><h2>Takes</h2><ul class="takes"><li>model_version = 14  <span class="dim">← model.version</span></li></ul><h2>Would do</h2><table class="changes"><tr class="create"><td class="sym">+</td><td class="action">create</td><td class="what">jobs.bar</td></tr><tr class="replace"><td class="sym">±</td><td class="action">replace</td><td class="what">pipelines.foo <strong class="destructive">destructive</strong><div class="detail">replaced: storage (immutable)</div></td></tr><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">uploads the bundle&#x27;s files</td></tr></table><h2>From the plugin, <code>bundle</code></h2><div class="frame"><h4>jobs <small>(2)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">jobs.backfill</td><td>backfill</td><td class="unchanged">unchanged</td><td class="dim">771</td></tr><tr><td class="key">jobs.bar</td><td>job bar</td><td class="create">create</td><td class="dim">not deployed</td></tr></table><h4>pipelines <small>(1)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">pipelines.foo</td><td>pipeline foo</td><td class="replace">replace <strong class="destructive">destructive</strong></td><td class="dim">42</td></tr></table></div></div></details>
+  <details class="step waiting" open><summary><span class="name">notify</span><span class="uses">command</span><span class="state waiting">waiting</span></summary><div class="body"><p class="warning">waiting for app.resources.jobs.bar.id</p></div></details>
+  <details class="step ready" open><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state ready">ready</span><span class="tally">0 changes · 1 run</span></summary><div class="body"><h2>Takes</h2><ul class="takes"><li>bundle  <span class="dim">← app</span></li></ul><h2>Would do</h2><table class="changes"><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">runs jobs.backfill</td></tr></table></div></details>
+  <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: not for target `dev`</p></div></details>
+  </main>
+  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely 0.0.1; what <code>lely apply</code> runs is the changes listed for each step.</footer>
+  
+  '''
+# ---
+# name: test_a_run_and_what_exists_after_it
+  '''
+  <body>
+  <header>
+  <h1>lely apply <span class="dim">·</span> target <b>dev</b></h1>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code></p>
+  <p class="outcome done">Applied: 3 steps.</p>
+  </header>
+  <main>
+  <details class="step nothing"><summary><span class="name">model</span><span class="uses">./ops/steps.py:LatestModel</span><span class="state nothing">· nothing</span><span class="tally">nothing to do</span></summary><div class="body"></div></details>
+  <details class="step done" open><summary><span class="name">app</span><span class="uses">bundle</span><span class="state done">✓ done</span></summary><div class="body"><h2>Did</h2><table class="changes"><tr class="create"><td class="sym">+</td><td class="action">create</td><td class="what">jobs.bar</td></tr><tr class="create"><td class="sym">+</td><td class="action">create</td><td class="what">pipelines.foo</td></tr><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">uploads the bundle&#x27;s files</td></tr></table><h2>What exists now</h2><table class="exists"><tr><th>kind</th><th>key</th><th>name</th><th>id</th><th>this run</th><th></th></tr><tr><td>job</td><td>jobs.backfill</td><td>backfill</td><td>771</td><td>unchanged</td><td><a href="https://dbc-example.cloud.databricks.com/jobs/771" rel="noopener noreferrer">open</a></td></tr><tr><td>job</td><td>jobs.bar</td><td>job bar</td><td>1001</td><td>created</td><td><a href="https://dbc-example.cloud.databricks.com/jobs/1001" rel="noopener noreferrer">open</a></td></tr><tr><td>pipeline</td><td>pipelines.foo</td><td>pipeline foo</td><td>1002</td><td>created</td><td><a href="https://dbc-example.cloud.databricks.com/pipelines/1002" rel="noopener noreferrer">open</a></td></tr></table><ul class="notes"><li>as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev</li></ul></div></details>
+  <details class="step done" open><summary><span class="name">notify</span><span class="uses">command</span><span class="state done">✓ done</span></summary><div class="body"><h2>Did</h2><table class="changes"><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">runs ./ops/notify.sh 1001</td></tr></table></div></details>
+  <details class="step done" open><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state done">✓ done</span></summary><div class="body"><h2>Did</h2><table class="changes"><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">runs jobs.backfill</td></tr></table></div></details>
+  <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">– skipped</span><span class="tally">not for target `dev`</span></summary><div class="body"></div></details>
+  </main>
+  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely 0.0.1. Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
+  
+  '''
+# ---
+# name: test_a_run_that_failed
+  '''
+  <body>
+  <header>
+  <h1>lely apply <span class="dim">·</span> target <b>dev</b></h1>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code></p>
+  <div class="alert"><strong class="failed">Failed.</strong> Nothing was rolled back.<ul><li>ran: <code>app</code></li><li>failed: <code>notify</code></li><li>never started: <code>backfill</code></li></ul></div>
+  <pre class="said">step `notify` (command): step `notify`&#x27;s apply command failed (exit 7):
+  no route</pre>
+  </header>
+  <main>
+  <details class="step nothing"><summary><span class="name">model</span><span class="uses">./ops/steps.py:LatestModel</span><span class="state nothing">· nothing</span><span class="tally">nothing to do</span></summary><div class="body"></div></details>
+  <details class="step done" open><summary><span class="name">app</span><span class="uses">bundle</span><span class="state done">✓ done</span></summary><div class="body"><h2>Did</h2><table class="changes"><tr class="create"><td class="sym">+</td><td class="action">create</td><td class="what">jobs.bar</td></tr><tr class="create"><td class="sym">+</td><td class="action">create</td><td class="what">pipelines.foo</td></tr><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">uploads the bundle&#x27;s files</td></tr></table></div></details>
+  <details class="step failed"><summary><span class="name">notify</span><span class="uses">command</span><span class="state failed">✗ failed</span></summary><div class="body"></div></details>
+  <details class="step not-started"><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state not-started">· not started</span></summary><div class="body"></div></details>
+  <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">– skipped</span><span class="tally">not for target `dev`</span></summary><div class="body"></div></details>
+  </main>
+  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely 0.0.1. Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
+  
+  '''
+# ---

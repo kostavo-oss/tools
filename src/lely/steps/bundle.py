@@ -67,6 +67,7 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 
 from lely.databricks import CliError, answer
@@ -154,7 +155,11 @@ class Bundle:
         moving = _moving(found) if ctx.purpose == "apply" else frozenset()
         outputs, later = gives(summary, moving)
         return StepPlan(
-            changes=(*found, UPLOAD), outputs=outputs, later=later, payload=document
+            changes=(*found, UPLOAD),
+            outputs=outputs,
+            later=later,
+            payload=document,
+            view=picture(_items(summary), found),
         )
 
     def apply(self, ctx: Context[Bundle.Options], plan: StepPlan) -> Outputs:
@@ -202,24 +207,27 @@ class Bundle:
         bundle = open_bundle(ctx.databricks, ctx.root, ctx.target, ctx.options)
         summary = bundle.answer("summary")
         _same_workspace(summary, ctx)
-        deployed = [item for item in _items(summary) if item.deployed]
+        items = _items(summary)
+        deployed = [item for item in items if item.deployed]
         if not deployed:
             return StepPlan(notes=(_not_deployed(summary),))
+        removed = tuple(
+            Change(
+                key=item.key,
+                action="delete",
+                summary=item.key,
+                detail=(f"{item.name} · id {item.id}",),
+            )
+            for item in deployed
+        )
         return StepPlan(
-            changes=tuple(
-                Change(
-                    key=item.key,
-                    action="delete",
-                    summary=item.key,
-                    detail=(f"{item.name} · id {item.id}",),
-                )
-                for item in deployed
-            ),
+            changes=removed,
             notes=(
                 "the bundle's uploaded files go with them",
                 "and whatever else `bundle destroy` removes",
                 f"as seen by {_view(summary)}",
             ),
+            view=picture(items, removed),
         )
 
     def destroy(self, ctx: Context[Bundle.Options], plan: StepPlan) -> None:
@@ -470,6 +478,37 @@ def _items(summary: Mapping[str, Json]) -> tuple[Item, ...]:
             )
         )
     return tuple(items)
+
+
+def picture(items: tuple[Item, ...], found: tuple[Change, ...]) -> str | None:
+    """The bundle as the page shows it (`StepPlan.view`): every resource it
+    declares, by type, with what this plan does to each — the ones it leaves
+    alone too, which no list of changes names.
+
+    Keys, names and ids, and nothing of a resource's config: that can hold
+    whatever the bundle holds, and a page is passed around.
+    """
+    happening = {change.key: change for change in found}
+    by_type: dict[str, list[str]] = {}
+    for item in items:
+        change = happening.get(item.key)
+        word = change.action if change is not None else "unchanged"
+        said = word
+        if change is not None and change.destructive:
+            said += ' <strong class="destructive">destructive</strong>'
+        now = (item.id or "") if item.deployed else "not deployed"
+        by_type.setdefault(item.key.split(".")[0], []).append(
+            f'<tr><td class="key">{escape(item.key)}</td><td>{escape(item.name)}</td>'
+            f'<td class="{word}">{said}</td><td class="dim">{escape(now)}</td></tr>'
+        )
+    if not by_type:
+        return None
+    head = "<tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr>"
+    return "".join(
+        f"<h4>{escape(kind)} <small>({len(rows)})</small></h4>"
+        f"<table>{head}{''.join(rows)}</table>"
+        for kind, rows in sorted(by_type.items())
+    )
 
 
 def _view(summary: Mapping[str, Json]) -> str:

@@ -29,17 +29,21 @@ from lely.model import (
     Action,
     Change,
     Input,
+    Item,
     Json,
+    Outcome,
     Outputs,
     Overview,
     Plan,
     PlanKind,
     PlannedStep,
     Result,
+    RunOutcome,
     Secret,
     Source,
     Status,
     StepPlan,
+    StepResult,
     Value,
     Workspace,
 )
@@ -47,10 +51,10 @@ from lely.model import (
 #: Bumped when the shape changes in a way a reader has to know about.
 #: 2: one list of steps, the bundle among them; the workspace; the git tree.
 #: 3: which project of the repository; read strictly.
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 
 _SECRET = "$secret"
-_STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload"}
+_STEP_PLAN_KEYS = {"changes", "outputs", "later", "waiting", "notes", "payload", "view"}
 _PLAN_KEYS = frozenset(
     {"format_version", "tool_version", "kind", "target", "workspace", "source", "steps"}
 )
@@ -163,6 +167,7 @@ def step_plan_to_json(plan: StepPlan, where: str = "a step's plan") -> dict[str,
         "waiting": plan.waiting,
         "notes": list(plan.notes),
         "payload": plain(plan.payload, f"{where}: its payload"),
+        "view": plan.view,
     }
 
 
@@ -265,15 +270,33 @@ def step_plan_from_json(document: Json, where: str = "a step's plan") -> StepPla
         waiting=_optional_str(doc, "waiting", where),
         notes=_strings(doc.get("notes", []), f"{where}: `notes`"),
         payload=doc.get("payload"),
+        view=_optional_str(doc, "view", where),
     )
 
 
 # -- what a run leaves behind ---------------------------------------------------
 
 
+#: The format of a run's record. A record is for reading: lely never takes
+#: one back to decide anything.
+RESULT_FORMAT = 1
+
+_RESULT_KEYS = frozenset(
+    {"result_format", "kind", "target", "workspace", "outcome", "message", "steps"}
+    | {"ran", "failed", "refused", "not_started", "rolled_back"}
+)
+_RESULT_STEP_KEYS = frozenset(
+    {"name", "uses", "outcome", "detail", "changes", "overview"}
+)
+_OVERVIEW_KEYS = frozenset({"items", "notes"})
+_ITEM_KEYS = frozenset({"kind", "key", "name", "deployed", "id", "url", "happened"})
+_OUTCOMES = ("done", "nothing", "skipped", "passed", "failed", "refused", "not started")
+
+
 def result_to_json(result: Result) -> dict[str, Any]:
     """A run, with its three lists: what ran, what failed, what never started."""
     return {
+        "result_format": RESULT_FORMAT,
         "kind": result.kind,
         "target": result.target,
         "workspace": _workspace_to_json(result.workspace),
@@ -296,6 +319,107 @@ def result_to_json(result: Result) -> dict[str, Any]:
             for step in result.steps
         ],
     }
+
+
+def is_result(document: Json) -> bool:
+    """Whether a JSON document says it is a run's record, and not a plan."""
+    return isinstance(document, dict) and "result_format" in document
+
+
+def result_from_json(document: Json) -> Result:
+    """A run's record, read back to be shown — as strictly as a plan is read.
+
+    A run that ended before its first step named no steps, and may not have
+    known its target or its workspace: those read back as `?`.
+    """
+    where = "the result file"
+    doc = _object(document, where)
+    version = doc.get("result_format")
+    if version != RESULT_FORMAT:
+        raise PlanFileError(
+            f"This result file is format {version}; this lely reads format "
+            f"{RESULT_FORMAT}."
+        )
+    _only(doc, _RESULT_KEYS, where)
+    kind, outcome = doc.get("kind"), doc.get("outcome")
+    if kind not in ("apply", "destroy"):
+        raise PlanFileError(f"{where}: `kind` must be apply or destroy, not {kind!r}")
+    if outcome not in ("done", "failed", "refused"):
+        raise PlanFileError(f"{where}: `outcome` must be done, failed or refused")
+    host = identity = "?"
+    if doc.get("workspace") is not None:
+        workspace = _object(doc.get("workspace"), f"{where}'s `workspace`")
+        _only(workspace, _WORKSPACE_KEYS, f"{where}'s `workspace`")
+        host = _str(workspace, "host", f"{where}'s `workspace`")
+        identity = _str(workspace, "identity", f"{where}'s `workspace`")
+    return Result(
+        kind=cast(PlanKind, kind),
+        target=_optional_str(doc, "target", where) or "?",
+        workspace=Workspace(host, identity),
+        steps=tuple(
+            _step_result_from_json(step)
+            for step in _array(doc.get("steps", []), f"{where}: `steps`")
+        ),
+        outcome=cast(RunOutcome, outcome),
+        message=_optional_str(doc, "message", where) or "",
+    )
+
+
+def _step_result_from_json(document: Json) -> StepResult:
+    doc = _object(document, "a step of the result")
+    name = _str(doc, "name", "a step of the result")
+    where = f"step `{name}`"
+    _only(doc, _RESULT_STEP_KEYS, where)
+    outcome = doc.get("outcome")
+    if outcome not in _OUTCOMES:
+        raise PlanFileError(f"{where}: `outcome` must be one of {', '.join(_OUTCOMES)}")
+    overview, happened = None, {}
+    if doc.get("overview") is not None:
+        overview, happened = _overview_from_json(doc.get("overview"), where)
+    return StepResult(
+        name=name,
+        uses=_str(doc, "uses", where),
+        outcome=cast(Outcome, outcome),
+        detail=_optional_str(doc, "detail", where) or "",
+        changes=tuple(
+            _change_from_json(change, where)
+            for change in _array(doc.get("changes", []), f"{where}: `changes`")
+        ),
+        overview=overview,
+        happened=happened,
+    )
+
+
+def _overview_from_json(document: Json, where: str) -> tuple[Overview, dict[str, str]]:
+    """What exists, and what the run did to each thing. What the run removed
+    is listed by its key alone: it is no longer a thing that exists."""
+    doc = _object(document, f"{where}: its overview")
+    _only(doc, _OVERVIEW_KEYS, f"{where}: its overview")
+    items: list[Item] = []
+    happened: dict[str, str] = {}
+    for raw in _array(doc.get("items", []), f"{where}: its overview's `items`"):
+        entry = _object(raw, f"{where}: a line of its overview")
+        _only(entry, _ITEM_KEYS, f"{where}: a line of its overview")
+        key = _str(entry, "key", f"{where}: a line of its overview")
+        line = f"{where}: `{key}` of its overview"
+        did = _optional_str(entry, "happened", line)
+        if did is not None and did != "unchanged":
+            happened[key] = did
+        kind = _str(entry, "kind", line)
+        if not kind:
+            continue  # removed by the run: there is nothing left to list
+        items.append(
+            Item(
+                kind=kind,
+                key=key,
+                name=_str(entry, "name", line),
+                deployed=_bool(entry, "deployed", line),
+                id=_optional_str(entry, "id", line),
+                url=_optional_str(entry, "url", line),
+            )
+        )
+    notes = _strings(doc.get("notes", []), f"{where}: its overview's `notes`")
+    return Overview(tuple(items), notes), happened
 
 
 def status_to_json(status: Status) -> dict[str, Any]:

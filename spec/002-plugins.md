@@ -275,7 +275,10 @@ requirement:
   schema — and a `print` left in a plugin would land in the middle of it.
 - **Only what a config can set is an option**: a field the `Options` class fills in itself is
   not one. A `Literal` option takes one of its members and of its kind — `true` is not `1`.
-- **Not built:** R8, a plugin's own view — it arrives with the UI.
+- **A plugin's own view (R8)** is `StepPlan.view`: HTML, as text, made by `plan` (and by
+  `plan_destroy`) and kept with the plan. The page shows it under the step's changes, in a
+  frame: its structure and its words, nothing a browser would obey. A plugin escapes what it
+  writes into it, and puts nothing secret there. → [007, As built](007-ui.md#as-built)
 
 ## Done when
 
