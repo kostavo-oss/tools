@@ -54,7 +54,7 @@ the shared scenario; remake them when the page changes how it looks.
 
 ## Commands
 
-Tooling is mise + the Astral stack (uv, ruff, ty) — same as `stevin` and `maeslant`.
+Tooling is mise + the Astral stack (uv, ruff, ty) — same as `stevin` and `caland`.
 Never use pip/virtualenv, black/flake8/isort, or mypy.
 
 `mise run check` is the gate (lint, format check, types, unit tests). `ruff format` also
@@ -99,7 +99,7 @@ There is no Databricks CLI or workspace in the unit suite:
   warehouse; `tests/fake_stevin.py` answers from them.
 - `tests/project.py` is the scenario most tests share.
 
-**lely was sluis** until 2026-10-05, when the suite took its names from Dutch engineers and
-works (stevin, lely, maeslant). It had never been published, so nothing answers to the old
-name. The recorded plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` —
+**lely was sluis** until 2026-10-05, when the suite took its names from Dutch engineers
+(stevin, lely, and caland — which was maeslant for a day, until the owner wanted a person's
+name there too). It had never been published, so nothing answers to the old name. The recorded plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` —
 that is the property stevin really writes onto tables, and it kept its name on purpose.
