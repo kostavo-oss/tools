@@ -1,6 +1,8 @@
 # 009 — first release
 
-**Status:** not started. Independent of the phases; it happens when the owner says.
+**Status:** prepared, 2026-10-06: the questions are answered ([Decided](#decided)) and R1–R4
+are done. Nothing is published, tagged or registered: the release is one pull request, opened
+when the owner says.
 
 ## Why
 
@@ -29,24 +31,48 @@ between the repository and `uvx lely`.
 - Protect `main`, if lely should work the way stevin does (every change a pull request, the
   checks required).
 
+## Decided
+
+By the owner, on 2026-10-06, to the builder's proposals:
+
+- **How a release is made** (was D1): the same way for all three tools — merging a version
+  bump to `main` is the release, as stevin and maeslant do it. *(owner: "i want them all to
+  use the same")* `.github/workflows/release.yml` is that workflow: it notices a version on
+  `main` that isn't out, checks that `CHANGELOG.md` has a section for it, runs the gate,
+  publishes with Trusted Publishing and makes the GitHub release and its tag. A change to
+  `pyproject.toml` that isn't a new version releases nothing.
+- **A docs site** (was D2): yes. *(owner: "make a nice docs site")* → R6.
+- **The recorded CLI outputs** (was D3): they stay as they are. *(owner: "i dont think i
+  care")* `tests/fixtures/cli/README.md` says where each came from.
+- **The author's email in the package** (was D4): name only. *(owner: "sounds good")*
+- **The first version** (was D5): `0.1.0`, as alpha. *(owner: "sounds good")* The name was
+  free on PyPI on 2026-10-06.
+
 ## To decide
 
-- **D1 — How a release is made.** The setup plan for the Kostavo tools says: push a `vX.Y.Z` tag.
-  stevin and maeslant do it differently today: merging a version bump to `main` is the release.
-  One way for all three, or each its own?
-- **D2 — A docs site?** stevin and maeslant have one (MkDocs Material, on Pages). For lely the
-  README and `docs/DESIGN.md` may be enough until `apply` exists.
-- **D3 — The recorded CLI outputs.** `tests/fixtures/cli/*.json` are derived from the Databricks
-  CLI's own acceptance tests, and that repository is under the Databricks License, not an
-  open-source one. They are what the CLI prints, edited by hand, and the folder's README says
-  where each came from. Keep them as they are, replace them with outputs recorded from lely's own
-  runs against a workspace, or write them by hand from the CLI's documented output?
-- **D4 — The author's email in the package.** `pyproject.toml` lists a ProRex address under
-  `authors`, as stevin and maeslant do. It becomes public metadata on PyPI with the first
-  release. Keep, or name only?
-- **D5 — What the first version is.** `0.0.1` today, classified pre-alpha. Does a first release
-  wait for `apply` ([005](005-plan-apply-destroy.md)), or go out read-only so the name is taken and
-  `plan` can be tried?
+Nothing. What is left is the owner's to do — register the publisher on PyPI — and then to
+say: the release is one pull request that bumps the version, and merging it publishes.
+
+## As prepared, 2026-10-06
+
+- **R1** — `CHANGELOG.md`, with what is built under *Unreleased*.
+- **R2** — `CONTRIBUTING.md`: the gate, how a change lands, how a release is made, and that
+  the parts that decide what may run are reviewed before a pull request is opened.
+- **R3** — `.github/workflows/release.yml`, on stevin's pattern. It has never run: it has
+  nothing to release until the version is bumped, and can't publish until PyPI knows the
+  publisher (owner `kostavo-oss`, repository `lely`, workflow `release.yml`, environment
+  `pypi`).
+- **R4** — lely's CI runs `ty` in a job of its own, beside the shared workflow.
+- **R5** — waits for the release: until then the README's "isn't on PyPI yet" is true.
+- **R6** — the docs site: MkDocs Material, as stevin's, built in strict mode on every pull
+  request that touches it and deployed to Pages from `main`
+  (<https://kostavo-oss.github.io/lely/>). The contributing guide and the changelog are
+  quoted from the top of the repository, where GitHub looks for them.
+
+The release itself will be one pull request: `version = "0.1.0"`, the classifier *Alpha*,
+the name alone under `authors`, the changelog's notes moved under `## [0.1.0]`, and the
+README's install line. Nothing in it is done yet, so that merging anything else releases
+nothing.
 
 ## Done when
 

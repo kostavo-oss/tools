@@ -30,6 +30,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/kostavo-oss/lely"
+Documentation = "https://kostavo-oss.github.io/lely/"
 Repository = "https://github.com/kostavo-oss/lely"
 Issues = "https://github.com/kostavo-oss/lely/issues"
 
@@ -58,6 +59,10 @@ dev = [
     "syrupy>=4.8",
     "ty>=0.0.1a1",
     "types-pyyaml>=6.0.12",
+]
+# the docs site: `uv run --group docs mkdocs serve`
+docs = [
+    "mkdocs-material>=9.7.5",
 ]
 
 [tool.pytest.ini_options]

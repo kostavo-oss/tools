@@ -297,17 +297,22 @@ its bundle and a `command` step above it:
 - **A destroy started by hand** planned, then removed the job; it was asked for afterwards and
   was not there.
 
+- **A destructive change was refused on merge.** A pull request that removed a deployed job
+  carried a comment that opened with it — "Destructive: `app: jobs.second`". Its merge was
+  not applied: lely ended with 2 and said to pass `--allow-destructive`, and the job was
+  still there. Started by hand with that box ticked, the same change was planned and applied.
+
 Not tried in that run: signing in with GitHub's own identity (a token secret was used);
 environments, and the pause for a reviewer in the by-hand workflow (a private repository on a
-free plan has none); a pull request from a fork; a plan that holds a destructive change; a
-merge after `main` moved; a first deploy with a waiting step.
+free plan has none); a pull request from a fork; a merge after `main` moved; a first deploy
+with a waiting step.
 
 ## What is not known yet
 
 - **A plan made by one identity and applied by another.** The plan job and the job that
   applies sign in as different service principals. lely holds a plan to the workspace's host,
   not to who made it. Whether the Databricks CLI plans the same changes for both has not been
-  tried on a real workspace ([004](../spec/004-asset-bundle.md), V7); a development target,
+  tried on a real workspace ([004](https://github.com/kostavo-oss/lely/blob/main/spec/004-asset-bundle.md), V7); a development target,
   whose bundle lives under the deploying user's own folder, will not. Use a target whose
   `root_path` doesn't depend on who runs.
 - **Whether credentials are read-only** is nothing lely can check; `lely doctor` says what it
