@@ -417,11 +417,11 @@ Nothing here is transactional, and there is no rollback.
 lely validate                          # config, options, references: offline; prints the wiring
 lely steps                             # plugins: options, outputs, what each can do
 lely schema [-o lely.schema.json]      # a JSON Schema of the config, for editors
-lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json]
-lely show plan.json [-f rich|json]
+lely plan -t <target> [--destroy] [-o plan.json] [-f rich|json|md] [--github]
+lely show plan.json [-f rich|json|md] [--github]
 lely apply [plan.json] [-t <target>] [--yes] [--allow-destructive] [--from <step>]
 lely destroy [destroy.json] -t <target> [--yes] [--from <step>]
-lely status -t <target> [-f rich|json]
+lely status -t <target> [-f rich|json|md]
 lely doctor                            # tools, workspace, identity
 ```
 
@@ -515,9 +515,9 @@ What is still assumed is marked `TODO(verify)` where the code depends on it.
 1. **The Asset Bundle, as a plugin, with steps around it**: the contract, the config as one list,
    the `bundle` plugin, `command` and `bundle.run`, and `apply`, `status`, `destroy`, `doctor`.
    Called usable only when all of it is there.
-2. **Around it**: a page to look at a plan in ([spec 007](../spec/007-ui.md)), and GitHub — the plan
-   as one comment on the pull request, the result on the run's page
-   ([spec 008](../spec/008-github-actions.md)).
+2. **Around it**: GitHub — the plan as one comment on the pull request, the result on the run's
+   page ([spec 008](../spec/008-github-actions.md)), built on 2026-10-06 and described in
+   [GITHUB.md](GITHUB.md) — and a page to look at a plan in ([spec 007](../spec/007-ui.md)).
 
 ## Later
 
@@ -639,6 +639,18 @@ The builder's calls again; none is the owner's yet.
 - **A plugin can't end lely or take its streams.** `sys.exit` in a plugin is that step's
   error. What a plugin prints, however it prints it, goes to stderr through a stream of its
   own.
+
+## GitHub, as built 2026-10-06
+
+`src/lely/render/markdown.py` is pure: a plan, a result or a status in, text out.
+`src/lely/render/words.py` holds what the terminal and Markdown say the same way — the counts,
+the warnings, which outputs a plan shows. `src/lely/github.py` is the edge: it reads a run's
+environment and its event, writes the summary file, and talks to GitHub's API through one
+function that tests replace. The command line asks for it with `--github` and prints what it
+did or couldn't do; nothing in it decides how a command ends.
+
+What it decided where [spec 008](../spec/008-github-actions.md) left room is in that spec's
+"As built".
 
 ## Stack
 

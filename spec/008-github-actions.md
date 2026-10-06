@@ -1,6 +1,7 @@
 # 008 — GitHub
 
-**Status:** agreed, 2026-10-05, except one question ([D2](#to-decide)); not started. Phase two.
+**Status:** built, 2026-10-06, against a fake GitHub; not yet run on a real repository
+([Done when](#done-when)). Phase two.
 
 ## Why
 
@@ -61,18 +62,59 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
 - **A pull request from a fork** (was D3): no plan, and the job summary says so — R4a.
   *(owner, 2026-10-05: go with the proposals)*
 
+- **Which plan `apply` runs on merge** (was D2): the file the pull request produced, kept as
+  an artifact — what runs is exactly what was reviewed, and a stale one is refused. A first
+  deploy with a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)).
+  *(owner, 2026-10-06: "okay do it", to the builder's proposal of the reviewed file)*
+
 ## To decide
 
-- **D2 — Which plan does `apply` run on merge,** in the workflow the docs show? The file the pull
-  request produced, kept as an artifact — so what runs is exactly what was reviewed, and a stale
-  one is refused — or a new plan made on `main` with `--yes`? With the file, a first deploy that
-  has a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)); with `--yes`, one
-  ([005/R28](005-plan-apply-destroy.md)).
+Nothing.
+
+## As built
+
+Built on 2026-10-06. `docs/GITHUB.md` is what a project reads. The builder's calls where the
+spec left room — none is the owner's yet:
+
+- **`--github` is on `plan`, `show`, `apply` and `destroy`.** `show plan.json --github` posts
+  a plan made earlier. `plan` and `show` write the comment and the run's page; `apply` and
+  `destroy` write the run's page only: the comment is the plan's.
+- **`-f md` is on `status`, `apply` and `destroy` as well** as on `plan` and `show` (R1).
+- **Nothing a plan says is Markdown.** A plan is made from the pull request's own files, so a
+  resource named `@everyone` or `![](https://…)` must not notify anyone or load anything.
+  Every word that isn't lely's own stands in a fenced block or a code span, each longer than
+  any run of backticks inside it. Checked against GitHub's own renderer.
+- **The marker names the kind, the target and the project** (`<!-- lely:plan:dev:team-a -->`):
+  one comment per target (R2), and also one for a destroy plan and one per project of a
+  repository with several.
+- **Only a comment lely could have written is updated**: by whoever the token is, or by a bot
+  when the token is a run's own. Anyone can write a comment that starts with the marker, and
+  could change the plan in it afterwards. *This is more than stevin does.*
+- **A plan that could not be made takes the last plan's place** in the comment, with a link
+  to the run and none of the error: what a failing program printed is on the run's page,
+  where GitHub hides a run's secrets, and not in a comment, where nothing does.
+- **A fork (R4a) is told before anything of the project is loaded,** and `lely plan` ends
+  with 0. A pull request whose origin lely can't read is treated as a fork. `apply` and
+  `destroy` with `--github` refuse one (exit 2) — the spec spoke only of the plan.
+- **The token (R6)** is read from `GITHUB_TOKEN`, or `GH_TOKEN`; sent only over https and not
+  along with a redirect; and whatever is posted is searched for it first.
+- **A comment has a size.** One too long for GitHub is told shorter — without each change's
+  details, then as counts per step — and says so; the counts and the destructive changes are
+  always there. The run's page takes the whole plan.
+- **The workflows (R7) are three**: plan on a pull request, apply on merge, and one started
+  by hand for a destroy and for whatever a merge doesn't cover — which plans, waits for an
+  approval on the environment, and runs that plan.
+
+Not known, and said in `docs/GITHUB.md`: a plan made by one identity and applied by another
+([004](004-asset-bundle.md), V7), which is what the workflows do; and that a run's own token
+can't ask who it is, which decides how lely finds its comment.
 
 ## Done when
 
 - R1–R7 each have a test; posting and updating a comment is tested against a fake GitHub, the way
-  stevin tests its own.
+  stevin tests its own. **Done** — R7 is a document: its workflows are read, not run.
 - A pull request in a real repository has carried a plan comment that changed in place, and a
-  merge has left a summary of what was created.
-- D2 is answered here.
+  merge has left a summary of what was created. **Not done.** It needs a repository with a
+  workspace's credentials in its settings, which is the owner's to set up. lely's own requests
+  were checked against GitHub's API for reading only.
+- D2 is answered here. **Done.**

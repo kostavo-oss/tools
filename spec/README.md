@@ -26,7 +26,7 @@ The numbers are names, not an order; the order of work is in
 | [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
 | [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | agreed |
-| [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | agreed, one question open |
+| [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; not yet run on a real repository |
 | [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | not started; questions open |
 
 ## How a spec is written
@@ -143,7 +143,7 @@ The ones worth remembering:
    variable's lookup answering something else, changes what is deployed without changing a line
    of the plan. Whether to fingerprint the resolved variables is the owner's to decide.
    → [004, As built](004-asset-bundle.md#as-built)
-4. **Which plan a merge applies** in the workflow the docs will show: the reviewed file, or a new
-   plan with `--yes`. → [008/D2](008-github-actions.md#to-decide)
-5. **After phase one: the UI first, or GitHub first — and which plugins come after.**
-   → [000](000-what-lely-is.md#to-decide)
+4. **GitHub was built before the UI.** The order was the owner's to decide; the builder took
+   GitHub first, said so, and was told to continue. What the builder decided there is in
+   [008, As built](008-github-actions.md#as-built), and its workflows have not run on a real
+   repository. Which plugins come after is still open. → [000](000-what-lely-is.md#to-decide)

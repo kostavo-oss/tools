@@ -1,0 +1,268 @@
+# lely on GitHub
+
+A plan is reviewed where code is reviewed. With `--github`, a command that runs in GitHub
+Actions keeps two things current:
+
+- **the pull request**: the plan as one comment, updated in place on every push;
+- **the run's page**: the plan, and after an apply what each step did and what exists now,
+  with links into the workspace.
+
+```sh
+lely plan -t dev --github             # the comment, and the run's page
+lely show plan.json --github          # the same, for a plan made earlier
+lely apply plan.json --yes --github   # what was done and what exists, on the run's page
+```
+
+It is never on because of where a command runs: without `--github`, a run on GitHub posts
+nothing. Outside a run, or without permission to comment, lely says what it couldn't do and
+why, and the command ends as it would have without the flag.
+
+`-f md` prints the same Markdown, for anywhere else it is wanted.
+
+> **These workflows have not been run on a real repository yet.** The comment and the summary
+> are tested against a fake GitHub, and lely's own requests were checked against GitHub's API
+> for reading. A pull request that carried a plan, and a merge that applied it, is still to
+> come. Read them before you copy them.
+
+## What lely needs from the workflow
+
+| For | Give the job |
+| --- | --- |
+| the comment | `permissions: pull-requests: write`, and the step `env: GITHUB_TOKEN: ${{ github.token }}` |
+| the run's page | nothing |
+| the workspace | the variables the Databricks CLI reads — below, signing in with GitHub's own identity, so no secret is stored |
+
+Signing in to Databricks from GitHub Actions without a stored secret:
+<https://docs.databricks.com/aws/en/dev-tools/auth/provider-github>
+
+lely isn't on PyPI yet, so the workflows below assume it is a dependency of the project
+(`uv add --dev git+https://github.com/kostavo-oss/lely`) and run it with `uv run`.
+
+## Three rules these workflows keep
+
+1. **The plan job can only read.** Planning runs the pull request's own code — a plugin in
+   the repo, a `command` step — so it gets credentials that can't change the workspace: a
+   service principal of its own, in a GitHub environment of its own (`dev-plan`).
+2. **What is applied is what was reviewed.** The merge applies the plan file the pull request
+   made. lely refuses it if the project, the workspace or the git tree is not what it was
+   made on.
+3. **One run at a time for a target**, and no input pasted into a script: what a person types
+   reaches a script as an environment variable, never as text of the script.
+
+## Plan on a pull request
+
+```yaml
+# .github/workflows/plan.yml
+name: plan
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # the plan's comment
+  id-token: write # to sign in to Databricks
+
+concurrency:
+  group: plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true # a new push makes the last plan stale
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    environment: dev-plan # credentials that can only read
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: databricks/setup-cli@main
+      - run: uv sync
+      - run: uv run lely plan -t dev -o plan.json --github
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('plan.json') != ''
+        with:
+          name: lely-plan-dev
+          path: plan.json
+```
+
+The checkout is GitHub's default for a pull request: the branch merged into `main`. That is
+the tree the plan records, and the tree `main` has after the merge — as long as `main` didn't
+move in between.
+
+**A pull request from a fork gets no plan.** It has no credentials and must not be given any:
+its code would run with them. `lely plan --github` sees where the pull request comes from,
+makes no plan, loads nothing of the project, says so on the run's page and ends with 0. Don't
+use `pull_request_target` to get a fork's plan.
+
+## Apply on merge
+
+```yaml
+# .github/workflows/apply.yml
+name: apply
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read # to fetch the plan the pull request made
+  pull-requests: read # to find that pull request
+  id-token: write
+
+concurrency:
+  group: lely-dev # one run at a time for the target, apply or destroy
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: databricks/setup-cli@main
+      - run: uv sync
+      - name: Fetch the plan that was reviewed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          head=$(gh api "repos/$REPO/commits/$COMMIT/pulls" --jq '.[0].head.sha')
+          run=$(gh run list --repo "$REPO" --workflow plan.yml --commit "$head" \
+            --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run download "$run" --repo "$REPO" --name lely-plan-dev
+      - run: uv run lely apply plan.json --yes --github
+```
+
+`--yes` is the consent: the merge is the approval, and the file is what was approved.
+
+What this does not do, and what to do then:
+
+- **`main` moved between the plan and the merge.** The tree is another one and lely refuses
+  the plan (exit 2). Require branches to be up to date before merging, or use a merge queue,
+  and it doesn't happen.
+- **A push that came from no pull request** has no reviewed plan: the fetch fails, and nothing
+  is applied.
+- **A plan with a destructive change** is refused without `--allow-destructive`. Apply it by
+  hand, below, where someone says so.
+- **A first deploy with a waiting step** stops before that step, as the plan said it would.
+  The next plan shows the step ready. A step that waits on *every* deploy — it takes what only
+  a run produces — can never be applied from a file: for such a project, apply by hand.
+
+## Apply or destroy by hand
+
+For what a merge doesn't cover, and for every destroy. The run plans, stops, and applies that
+plan once someone has read it and approved: give the environment **required reviewers** in
+the repository's settings, and the second job waits for one of them.
+
+```yaml
+# .github/workflows/by-hand.yml
+name: by hand
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [apply, destroy]
+      target:
+        description: The target, typed out
+        type: string
+        required: true
+      allow_destructive:
+        description: Apply changes the plan marks destructive
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: lely-${{ inputs.target }}
+  cancel-in-progress: false
+
+env:
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_AUTH_TYPE: github-oidc
+  DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+  # what was typed and ticked reaches a script as a variable, never as its text
+  TARGET: ${{ inputs.target }}
+  ACTION: ${{ inputs.action }}
+  DESTROY: ${{ inputs.action == 'destroy' && '--destroy' || '' }}
+  ALLOW: ${{ inputs.allow_destructive && '--allow-destructive' || '' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}-plan # credentials that can only read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: databricks/setup-cli@main
+      - run: uv sync
+      - run: uv run lely plan -t "$TARGET" $DESTROY -o plan.json --github
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lely-plan
+          path: plan.json
+
+  run:
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }} # required reviewers: the plan is read first
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: databricks/setup-cli@main
+      - run: uv sync
+      - uses: actions/download-artifact@v4
+        with:
+          name: lely-plan
+      - run: |
+          if [ "$ACTION" = destroy ]; then
+            uv run lely destroy plan.json -t "$TARGET" --yes --github
+          else
+            uv run lely apply plan.json --yes --github $ALLOW
+          fi
+```
+
+A target that was mistyped names an environment with no credentials: nothing can sign in,
+and nothing runs.
+
+## What is not known yet
+
+- **A plan made by one identity and applied by another.** The plan job and the job that
+  applies sign in as different service principals. lely holds a plan to the workspace's host,
+  not to who made it. Whether the Databricks CLI plans the same changes for both has not been
+  tried on a real workspace ([004](../spec/004-asset-bundle.md), V7); a development target,
+  whose bundle lives under the deploying user's own folder, will not. Use a target whose
+  `root_path` doesn't depend on who runs.
+- **Whether credentials are read-only** is nothing lely can check; `lely doctor` says what it
+  can see.
+- **The comment with a run's own token.** lely only updates a comment it could have written:
+  one by whoever the token is, or — for a run's own token, which is nobody's — one by a bot.
+  That a run's token can't ask who it is was read in GitHub's forum, not seen.
+
+## What is posted, and what never is
+
+- Nothing a plan says is Markdown where it is shown: a resource named `@everyone`, or a link,
+  or an image, is text in a block, and can't end the block it is in.
+- A plan that couldn't be made takes the place of the last plan's comment, so an old plan
+  doesn't stand there as the new one. What went wrong is on the run's page, which hides a
+  run's secrets; the comment links there and repeats none of it.
+- The token is sent to GitHub's API over https and nowhere else, not along with a redirect,
+  and whatever is posted is searched for it first.
+- A comment too long for GitHub is told shorter — without each change's details, then as
+  counts — and says so. The counts and the destructive changes are always there.
