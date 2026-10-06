@@ -5,6 +5,16 @@
 - **Python ≥ 3.11**
 - A modern terminal on **macOS**, **Linux**, or **Windows**
 
+!!! warning "Not on PyPI under this name yet"
+    The first release as `caland` is being prepared. Until this notice is gone, do not
+    install a `caland` from PyPI — it is not ours. Install from GitHub instead:
+
+    ```sh
+    uv tool install git+https://github.com/kostavo-oss/caland
+    ```
+
+    Or stay on `isolinear`, the same tool under the name it was last released with.
+
 Caland is distributed on PyPI. No configuration is required before you install or run it — connection details are gathered interactively on launch.
 
 ## Install

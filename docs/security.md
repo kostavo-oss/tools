@@ -12,6 +12,8 @@ Caland is designed so that secret material is exposed as little as possible and 
 - **Saved profiles store no secrets.** A saved profile writes only the `host` and `auth_type = external-browser` to `~/.databrickscfg`. Authentication is delegated to the Databricks SDK's unified auth / OAuth token cache — Caland never handles or stores a token itself.
 - **The SDK boundary is isolated.** Only the `infrastructure/` layer touches the Databricks SDK or the network. The rest of the application — including the entire UI — has no path to the network.
 
+The [page](page.md) — the preview of Caland in the browser — keeps to all of this, and has rules of its own for the server it runs on your machine: see [how it is kept yours](page.md#how-it-is-kept-yours).
+
 !!! warning "Clipboard"
     Copying a value places it on your system clipboard. If you share your machine, clear the clipboard after you're done. (Caland deliberately does not auto-clear the clipboard: it cannot read the clipboard back, so a timed clear could clobber something else you copied in the meantime.)
 

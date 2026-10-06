@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from ..domain import (
     SOURCE_PROFILE,
+    AuthError,
     BundleStore,
     ProfileStore,
     Workspace,
@@ -26,6 +27,11 @@ class Connection:
 
     service: WorkspaceService
     host: str = ""
+
+
+def _on_offer(workspaces: list[Workspace]) -> str:
+    names = ", ".join(workspace.name for workspace in workspaces)
+    return f"There is: {names}." if names else "There is none to choose from."
 
 
 class OnboardingService:
@@ -55,6 +61,30 @@ class OnboardingService:
             seen.add(ws.host_label)
             workspaces.append(ws)
         return workspaces
+
+    def choose(self, name: str | None = None) -> Workspace:
+        """The workspace that was asked for by name — or, with no name, the one
+        there is no doubt about: the bundle's default, or the only one there is.
+
+        Raises `AuthError` saying what there is to choose from otherwise.
+        """
+        workspaces = self.available_workspaces()
+        if name:
+            for workspace in workspaces:
+                if workspace.name == name:
+                    return workspace
+            raise AuthError(f"No workspace “{name}” found. {_on_offer(workspaces)}")
+        default = next((w for w in workspaces if w.default), None)
+        if default:
+            return default
+        if len(workspaces) == 1:
+            return workspaces[0]
+        if not workspaces:
+            raise AuthError(
+                "No workspace found: there is no databricks.yml here and no profile "
+                "in ~/.databrickscfg."
+            )
+        raise AuthError(f"Which workspace? {_on_offer(workspaces)}")
 
     def save_profile(self, name: str, host: str) -> None:
         self._profiles.save(name, host)
