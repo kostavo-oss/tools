@@ -64,9 +64,11 @@ code of `tail`.
 
 ## Status
 
-**Phases one and two are built, and lely was run on a real workspace twice (2026-10-06).** `validate`, `steps`, `schema`, `plan`,
-`show`, `apply`, `destroy`, `status` and `doctor`; the `bundle`, `command` and `bundle.run`
-plugins and plugins from a repo file; the config in `lely.yml` or `pyproject.toml`.
+**Phases one and two are built, and 0.1.0 is released (2026-10-07, on PyPI).** lely was run
+on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
+`validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
+`bundle`, `command` and `bundle.run` plugins and plugins from a repo file; the config in
+`lely.yml` or `pyproject.toml`.
 
 Not built, or not proven:
 

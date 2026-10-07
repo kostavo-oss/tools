@@ -1,6 +1,6 @@
 # 005 — plan, apply, destroy
 
-**Status:** built, 2026-10-05; run on a real workspace once, 2026-10-06 — see
+**Status:** built, 2026-10-05; run on a real workspace twice, 2026-10-06 — see
 [As built](#as-built). Phase one.
 
 ## Why
@@ -320,4 +320,6 @@ All by the owner, on 2026-10-05.
 
 - Each requirement here has a test, against fake tools.
 - The README no longer says lely "shows you a whole deploy and runs none of it" — and says
-  instead that apply and destroy have not yet been run against a real workspace.
+  instead what apply and destroy have been run against. **Done**: when this was written that
+  was nothing real; since 2026-10-06 it is a workspace, twice, and the README's "What has
+  been tried" says what those runs showed and what they couldn't.

@@ -491,7 +491,7 @@ Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8
   `ValidatePlanAgainstState`).
 - A failed `bundle validate` still prints JSON and exits 1. The exit code decides.
 
-**Run on a real workspace once**, on 2026-10-06, with CLI v1.19.0 and one small bundle. Before
+**Run on a real workspace twice**, on 2026-10-06, with CLI v1.19.0 and small bundles. Before
 that, apply and destroy were built against the fake only, on eight assumptions; the table says
 what became of each. [Spec 004](https://github.com/kostavo-oss/lely/blob/main/spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
 the detail.

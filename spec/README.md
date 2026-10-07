@@ -7,8 +7,10 @@ deliver and when it counts as done. Where the two disagree, one of them is wrong
 don't pick one quietly. The owner set a new direction on 2026-10-05,
 [000](000-what-lely-is.md) records it, and the design was rewritten to it the same day.
 
-**Phase one is built**, tested against fake tools, and was run on a real workspace once. Each spec that was built has an "As built"
-section: what the code does where the spec left room, and where it stops short.
+**Phases one and two are built**, tested against fake tools, and run for real on 2026-10-06:
+twice on a workspace, and once through the three GitHub workflows. 0.1.0 was released on
+2026-10-07. Each spec that was built has an "As built" section: what the code does where the
+spec left room, and where it stops short.
 
 ## The specs
 
@@ -21,12 +23,12 @@ The numbers are names, not an order; the order of work is in
 | [001 — what is built](001-what-is-built.md) | The read-only half as it stood before phase one | — | superseded |
 | [002 — plugins](002-plugins.md) | The one contract; what flows between steps | 1 | built |
 | [003 — config](003-config.md) | One list of steps, in `lely.yml` or `pyproject.toml` | 1 | built |
-| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built; run on a workspace once |
+| [004 — the Asset Bundle plugin](004-asset-bundle.md) | The first plugin: plan, apply, overview, destroy | 1 | built; run on a workspace twice |
 | [010 — `command` and `bundle.run`](010-command-and-bundle-run.md) | The steps around the bundle | 1 | built |
-| [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built |
+| [005 — plan, apply, destroy](005-plan-apply-destroy.md) | The commands, consent, and what happens on failure | 1 | built; run on a workspace twice |
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
 | [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | built |
-| [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; not yet run on a real repository |
+| [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; run once through the three workflows |
 | [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | released: 0.1.0, 2026-10-07 |
 
 ## How a spec is written
@@ -98,9 +100,10 @@ All on 2026-10-05, by the owner.
 
 **Scope**
 
-- **Fake tools only, for now.** Nothing is run against a real workspace yet; what is assumed
-  about the Databricks CLI stays marked as unverified.
-  → [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace)
+- **Fake tools only, at first.** That was the decision on 2026-10-05, and phase one was built
+  to it. lely has since run on a real workspace twice and once through the three GitHub
+  workflows (2026-10-06); what is still assumed about the Databricks CLI stays marked as
+  unverified. → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
 - **stevin is out of this for now.** → [006](006-stevin.md)
 
 **Agreed as proposed** — "go with the proposals", in one go
@@ -147,8 +150,8 @@ The ones worth remembering:
 4. **Phase two is built: GitHub, then the page.** The order was the owner's to decide; the
    builder took GitHub first, said so, and was told to continue. What the builder decided is
    in [008, As built](008-github-actions.md#as-built) and
-   [007, As built](007-ui.md#as-built). The workflows in `docs/GITHUB.md` have run once on a
-   real repository; what that didn't try is listed there. Which plugins come after is still
+   [007, As built](007-ui.md#as-built). The three workflows in `docs/GITHUB.md` have run once
+   on a real repository; what that didn't try is listed there. Which plugins come after is still
    open. → [000](000-what-lely-is.md#to-decide)
 5. **The first release is out**: 0.1.0, on 2026-10-07, when the owner said.
    → [009](009-first-release.md#as-released-2026-10-07)

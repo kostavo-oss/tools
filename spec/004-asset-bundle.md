@@ -1,6 +1,6 @@
 # 004 — the Asset Bundle plugin
 
-**Status:** built, 2026-10-05, and run on a real workspace once, on 2026-10-06 — see
+**Status:** built, 2026-10-05, and run on a real workspace twice, on 2026-10-06 — see
 [Run on a workspace](#run-on-a-workspace-2026-10-06) for what that settled and what it didn't.
 
 ## Why
@@ -135,7 +135,7 @@ listed below can use what it gives.
 
 ## To verify on a workspace
 
-*Written before any real run. One was done on 2026-10-06:
+*Written before any real run. Two were done on 2026-10-06:
 [Run on a workspace](#run-on-a-workspace-2026-10-06) says what became of each point below.*
 
 lely's rule is that nothing about Databricks is assumed without a test and a link. The owner
@@ -241,7 +241,8 @@ read; a second bundle in one project; a pull request in a real repository.
 - **The overview when nothing is deployed yet** (was D2): what would exist, marked as not
   deployed — R9a. *(owner, 2026-10-05)*
 - **No run on a real workspace for now:** see [To verify](#to-verify-on-a-workspace).
-  *(owner, 2026-10-05)*
+  *(owner, 2026-10-05. Two runs followed on 2026-10-06:
+  [Run on a workspace](#run-on-a-workspace-2026-10-06).)*
 
 ## As built
 
@@ -301,4 +302,5 @@ read; a second bundle in one project; a pull request in a real repository.
   as what has not been tried on a real workspace.
 
 Not part of done, by the owner's decision, and the first thing to do afterwards: a bundle
-planned, applied, listed and destroyed on a real target, end to end, settling V1–V7.
+planned, applied, listed and destroyed on a real target, end to end, settling V1–V7. *(Done
+twice on 2026-10-06; V7 is still open.)*

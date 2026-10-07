@@ -1,6 +1,7 @@
 # 008 — GitHub
 
-**Status:** built, and run once on a real repository, 2026-10-06 ([Done when](#done-when)).
+**Status:** built, and run once through the three workflows on a real repository, 2026-10-06
+([Done when](#done-when)).
 Phase two.
 
 ## Why

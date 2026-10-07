@@ -1,6 +1,7 @@
 # 000 — what lely is
 
-**Status:** agreed, 2026-10-05; phase one is built, and was run on a real workspace once. The direction is the
+**Status:** agreed, 2026-10-05; phases one and two are built, and lely has run on a real
+workspace twice and once through the three GitHub workflows (2026-10-06). The direction is the
 owner's. Two questions about what comes *after* phase one are still open, under
 [To decide](#to-decide).
 
