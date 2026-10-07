@@ -72,6 +72,19 @@ formats the Python in Markdown code blocks, so the gate covers `docs/` and `spec
 chaining the gate in a shell, a pipe hides a failing test: check the test count, not the exit
 code of `tail`.
 
+The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks` lists
+them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
+`test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
+assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
+`dev` and `docs` keep running until they are stopped, so they are not for an assistant to
+start and wait on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
+an assistant that asks mise for it.
+
+`mise.toml`, `.mcp.json`, the workflows and the packaging come from
+[the template](https://github.com/kostavo-oss/template-python); `.copier-answers.yml` says
+which version this tool has taken, and `uvx copier update` brings the next. What every
+tool shares is changed there, not here.
+
 ## Status
 
 **Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07).** lely was run
