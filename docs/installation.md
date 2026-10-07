@@ -2,6 +2,16 @@
 
 stevin is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/stevin/).
 
+!!! warning "Not on PyPI under this name yet"
+    The first release as `stevin` is being prepared. Until this notice is gone, do not
+    install a `stevin` from PyPI — it is not ours. Install it from GitHub, or under the
+    name its releases have so far, `deltaplan`:
+
+    ```sh
+    uv tool install git+https://github.com/kostavo-oss/stevin   # stevin, as it is on main
+    uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
+    ```
+
 !!! warning "Alpha"
     Every release so far is a pre-release (`0.1.0a1`, …), which installers skip unless
     asked — hence the flags below. Try it on a dev catalog before a production one.
