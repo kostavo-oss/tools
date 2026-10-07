@@ -91,7 +91,7 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
   for, who issued it, and when it expires. *(built, 0.5.1)*
 - **R6 — A binary file goes in as it is.** A `.p12`, a `.pfx`, a `.der` is stored byte for
   byte, and comes out the same: a value is carried as bytes from end to end. *(built,
-  0.5.1; it closed [003, D3](003-secrets.md#to-decide))*
+  0.5.1; it closed [003, D3](003-secrets.md#decided))*
 - **R7 — Fast, and held to it.** *(owner asked; the numbers are the writer's; built,
   0.5.0)*
     - The page is there before the workspace is: it draws at once and fills as scopes
@@ -210,7 +210,7 @@ Decided while building, the builder's unless marked:
 - **A value is bytes, end to end.** The store port has a second pair of methods that carry
   a value as it is stored; the page uses only those. The terminal version's text methods
   are as they were — a secret that is no text still does not survive a move *there*
-  ([003, D3](003-secrets.md#to-decide)); on the page it does.
+  ([003, D3](003-secrets.md#decided)); on the page it does.
 - **The file dialog is the browser's own** (`<input type="file">`), and a file can be
   dropped on the form. The page reads it and sends it to caland on the same machine; caland
   says what it is (`application/files.py`) and, on save, sends it on. The owner took the
@@ -298,7 +298,7 @@ Decided while building, the builder's:
   that are there are overwritten — asked of the workspace then, and whatever the case of a
   name. The file is sent twice, once to be shown and once to be done; nothing of it is kept
   in between, and no value is said back either time.
-- **An import that stops says at which key** ([005, D1](005-bulk-and-audit.md#to-decide)),
+- **An import that stops says at which key** ([005, D1](005-bulk-and-audit.md#decided)),
   and that what went in before it stays. A pair with no value is left out and named: an
   empty value is a slip.
 - **An export with values is the one request that reads every value of a scope.** It is a

@@ -50,15 +50,16 @@ one a person opens. It shares their toolchain, licence and release method, not t
   is read when asked for and held in memory. → [006](006-safety.md)
 - **Nothing is done to a workspace without being asked**, and nothing destructive without a
   deliberate `y`. → [006](006-safety.md)
-- **Everything has a key.** No action needs a mouse; the footer and `?` say which key.
-  → [002](002-browsing.md)
-- **No credentials of its own.** It signs in the way the Databricks CLI does and stores no
-  token. → [001](001-connecting.md)
+- **Everything has a key.** No action needs a mouse; every button shows its key, and `?`
+  lists them all. → [002](002-browsing.md)
+- **No credentials of its own.** It signs in through the Databricks SDK and stores no
+  token itself. → [001](001-connecting.md)
 - **Only the SDK.** It reaches a workspace through the Databricks SDK's own calls — secrets,
   grants, who you are. It runs no query, starts no warehouse and reads no system table.
   *(owner, 2026-10-06)*
-- **The Databricks SDK is behind one door.** Only `infrastructure/` imports it; the screens
-  and the rules have no way to the network, and are tested without one.
+- **The Databricks SDK is behind one door.** Only `infrastructure/` imports it; the page,
+  its server and the rules have no way to a workspace but through it, and are tested
+  without one.
 
 ## The name
 

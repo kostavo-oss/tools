@@ -97,7 +97,7 @@ proposals for D1–D3:
 
 Released the same day as 0.5.0, on the owner's word, for one fix above all: a rename that
 only changes the case of a secret's name deleted the secret, in the terminal version as
-released in 0.4.1 and 0.5.0 ([003, D4](003-secrets.md#to-decide)). It also carries the
+released in 0.4.1 and 0.5.0 ([003, Decided](003-secrets.md#decided)). It also carries the
 second part of the page — changing things, and the file picker — still behind `--page`, and
 with it one new dependency, `cryptography`.
 

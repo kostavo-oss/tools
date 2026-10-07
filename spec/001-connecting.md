@@ -1,8 +1,10 @@
 # 001 — connecting
 
 **Status:** built, on the page. Written 2026-10-06 from the terminal app at 0.4.1, which
-met these first and is not in caland any more ([008](008-the-page.md)); where the page does
-a thing differently, [what changed with the page](#what-changed-with-the-page) says so.
+met these first and is not in caland any more ([008](008-the-page.md)), and rewritten on
+2026-10-07 to say what the page does. A requirement names the release it first arrived in,
+and the one it came to the page in. What only the terminal app had is under
+[Gone with the terminal app](#gone-with-the-terminal-app).
 
 ## Why
 
@@ -12,46 +14,50 @@ meant.
 
 ## Requirements
 
-- **R1 — One picker for every way in.** On launch, caland lists the workspaces it can reach
-  from three places, and every row says where it came from: an Asset Bundle in the current
-  directory, the profiles in `~/.databrickscfg`, and a URL typed in. Every profile that
-  has an address is listed, also one at the bundle's address or at another profile's: it
-  has its own way of signing in. With no profile that has an address, `DATABRICKS_HOST`
-  from the environment is offered as the profile `DEFAULT`. *(built, 0.1.0)*
+- **R1 — One choice for every way in.** The page's choice of a workspace lists what was
+  found, and every row says where: the target of an Asset Bundle in the current folder,
+  and every profile in `~/.databrickscfg` that has an address — also one at the bundle's
+  address or at another profile's, which has its own way of signing in. With no such
+  profile, `DATABRICKS_HOST` from the environment is offered as the profile `DEFAULT`.
+  Under the list is a field for an address (R3). A bundle's target and a profile of one
+  name at one address are two rows, told apart by where each was found.
+  *(built, 0.1.0; on the page since 0.6.0; every profile since the fix of 2026-10-07)*
 - **R2 — A bundle's workspace is the default.** With a `databricks.yml` in the current
-  directory, its workspace is listed first and selected: the target marked `default: true`,
-  or the only target, or the top-level `workspace.host`. A host that still holds a `${…}`
-  variable is not a host, and is passed over. *(built, 0.2.0)*
-- **R3 — Sign in with a URL, in the browser.** *Add by URL* signs in through the browser
-  (OAuth, done by the Databricks SDK). No token is asked for. *(built, 0.2.0)*
-- **R4 — Keep a sign-in as a profile.** Ticking *save as profile* writes the host and
-  `auth_type = external-browser` to `~/.databrickscfg`, and nothing else. *(built, 0.2.0)*
-- **R5 — The picker opens with nothing to show.** With no bundle and no profiles it is empty
-  and offers the URL. *(built)*
-- **R6 — Say who is connected.** Once connected, the header shows the identity and the
-  workspace. *(built, 0.1.0)*
-- **R7 — Switch without restarting.** `w` reopens the picker; the new workspace's data
-  replaces the old. *(built)*
-- **R8 — Straight to a workspace by name.** `caland prod`, or `--profile prod`, skips the
-  picker and connects to a workspace the picker would have listed. Every profile can be
-  asked for by its name; where a bundle's target has that name too, the name means the
-  profile — the target is where caland goes with no name at all. *(built, 0.4.0)*
-
-## What changed with the page
-
-- R1, R5: the picker is the page's first dialog, and is not shown at all when there is no
-  doubt which workspace is meant.
-- R1, R8: up to 0.6.0 a profile at an address that was already listed — the bundle's, or
-  an earlier profile's — was left out, and could not be asked for by name. A bundle's
-  target and a profile of one name at one address are two rows, told apart by where each
-  was found.
-- R4: a sign-in is kept as a profile under a **new** name only — never over a profile that
+  folder, its workspace is listed first and selected, and is where caland goes when no
+  workspace is named: the target marked `default: true`, or the only target, or the
+  top-level `workspace.host`. A host that still holds a `${…}` variable is not a host, and
+  is passed over. *(built, 0.2.0; on the page since 0.6.0)*
+- **R3 — Sign in to an address, in the browser.** An address typed into the field signs in
+  through the browser (OAuth, done by the Databricks SDK), in a tab of its own. An address
+  is `https`, a host, and nothing after it. No token is asked for.
+  *(built, 0.2.0; on the page since 0.6.0)*
+- **R4 — Keep a sign-in as a profile.** Ticking *keep it as a profile* and giving it a name
+  writes the host and `auth_type = external-browser` to `~/.databrickscfg`, and nothing
+  else, once the sign-in has worked. The name is a **new** one: never over a profile that
   is there, which keeps its own way of signing in. The file is written whole or not at
   all. A new file is its owner's alone; one that is there keeps who may read it, which is
   the person's to say; one that is a link stays a link, and the file it points to is what
-  is written.
-- R7: `w`. Going to another workspace forgets every value held of the one that is left.
-- R8: a name that is not there ends it before it starts, with the names that are.
+  is written. *(built, 0.2.0; on the page since 0.6.0)*
+- **R5 — The choice opens with nothing to show.** With no bundle and no profile the list is
+  empty, says so, and the field for an address is what there is. *(built; on the page
+  since 0.6.0)*
+- **R6 — Say who is connected.** Once connected, the header shows the identity and the
+  workspace. *(built, 0.1.0; on the page since 0.5.0)*
+- **R7 — Switch without restarting.** `w` opens the choice again. Going to another
+  workspace leaves nothing of the one that is left: not on the page, and no value held of
+  it. *(built; on the page since 0.6.0)*
+- **R8 — Straight to a workspace, without the choice.** `caland prod`, or `--profile prod`,
+  goes to a workspace the choice would have listed. Every profile can be asked for by its
+  name; where a bundle's target has that name too, the name means the profile — the
+  target is where caland goes with no name at all. With no name, caland goes straight to
+  the one there is no doubt about — the bundle's default, or the only one found — and
+  the page asks only otherwise. A name that is not there ends it before it starts, with
+  the names that are. *(built, 0.4.0; on the page since 0.6.0)*
+
+## Gone with the terminal app
+
+- **The picker on every launch.** The page asks only when there is doubt (R8).
+- **Keeping a sign-in over a profile that is there.** A new name only (R4).
 
 ## Not in this spec
 
