@@ -349,18 +349,18 @@ def test_the_state_says_which_workspace_it_is_counted_from_the_first(served):
 
 
 def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspace(served):
-    import time
-
     connect(served, name="dev")
     ready(served)
     dev = served.connector.stores["dev"]
-    slow = dev.delete_secret
+    real = dev.delete_secret
+    under_way, go_on = threading.Event(), threading.Event()
 
-    def slowly(scope, key):
-        time.sleep(0.3)
-        slow(scope, key)
+    def held(scope, key):
+        under_way.set()
+        go_on.wait(30)
+        real(scope, key)
 
-    dev.delete_secret = slowly
+    dev.delete_secret = held
     done = []
     asking = threading.Thread(
         target=lambda: done.append(
@@ -368,10 +368,13 @@ def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspac
         )
     )
     asking.start()
-    time.sleep(0.1)
-    connect(served, name="prod")
-    ready(served)
-    asking.join(timeout=5)
+    try:
+        assert under_way.wait(10)  # the delete is with dev, and stays there
+        connect(served, name="prod")
+        ready(served)
+    finally:
+        go_on.set()
+    asking.join(timeout=10)
     assert done[0][0] == 200
     assert "delete_secret" in [call[0] for call in dev.calls]
     assert wrote(served.connector.stores["prod"]) == []
@@ -380,9 +383,39 @@ def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspac
     )
 
 
+def test_the_choice_says_where_caland_was_when_it_was_asked(served):
+    """Which workspace caland is in is read once for a request. Read a second
+    time, later, it may be another: here caland goes elsewhere while the list
+    is being drawn up."""
+    connect(served, name="dev")
+    ready(served)
+    real = served.profiles.discover
+
+    def meanwhile():
+        served.profiles.discover = real
+        served.page.connect(PROD)  # another tab goes to prod
+        return real()
+
+    served.profiles.discover = meanwhile
+    assert served.json("GET", "/api/workspaces")[1]["current"] == "dev"
+    assert served.json("GET", "/api/workspaces")[1]["current"] == "prod"
+
+
+def test_what_a_request_says_of_the_workspace_is_from_the_one_reading():
+    """`Page.current()` once per request, and nothing of it read beside that:
+    not which workspace, not what reads it, not what there is to say of it."""
+    import inspect
+
+    from caland.interface.web.server import Handler
+
+    source = inspect.getsource(Handler)
+    assert source.count("page.current()") == 1
+    for beside in ("page.workspace", "page.loader", "page.turn", "page.notice"):
+        assert beside not in source, beside
+
+
 def test_a_profile_that_is_on_no_list_is_in_use_all_the_same(served):
-    """One at the bundle's address, or with none: not offered, and still there —
-    with its token."""
+    """One with no address: not offered, and still there — with its token."""
     served.profiles.others = ["prod-sp"]
     for name in ("prod-sp", "PROD-SP"):
         status, told = connect(served, url="https://evil.example.com", save_as=name)
@@ -405,21 +438,25 @@ def test_a_name_taken_while_signing_in_is_said_and_the_sign_in_stands(served):
 
 
 def test_a_sign_in_given_up_for_another_keeps_nothing(served):
-    import time
-
     held = threading.Event()
     real = served.connector.connect_url
 
     def slowly(host):
-        held.wait(5)
+        held.wait(30)
         return real(host)
 
     served.connector.connect_url = slowly
     connect(served, url="https://new.example.com", save_as="given-up")
+    given_up = served.page.loader
     connect(served, name="dev")
     assert ready(served)["workspace"]["name"] == "dev"
     held.set()
-    time.sleep(0.3)
+    # the sign-in that was given up runs to its end: by then it has kept what it would
+    for _ in range(1000):
+        if given_up.progress().phase in ("ready", "failed"):
+            break
+        threading.Event().wait(0.01)
+    assert given_up.progress().phase == "ready"
     assert served.profiles.saved == []
     assert state(served)["workspace"]["name"] == "dev" and state(served)["notice"] == ""
 
@@ -494,3 +531,46 @@ def test_an_address_is_kept_as_it_was_read_in_small_letters(served):
     assert served.profiles.saved == [
         ("azure", "https://adb-123.azuredatabricks.net:443", None)
     ]
+
+
+def test_a_bundles_target_and_a_profile_at_one_address_are_both_there_to_go_to():
+    """One name, one address: told apart by where each was found. The profile
+    signs in as profiles do — with its token, say — and the target through the
+    browser."""
+    from caland.domain import SOURCE_BUNDLE
+
+    bundle = Workspace(
+        host="https://prod.example.com", source=SOURCE_BUNDLE, target="prod", default=True
+    )
+    connector = Connector()
+    page = Page(
+        onboarding=OnboardingService(connector, StubProfiles([PROD]), StubBundle(bundle))
+    )
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        served = Served(server, None)
+        served.enter()
+        rows = served.json("GET", "/api/workspaces")[1]["workspaces"]
+        assert [(row["name"], row["host"], row["default"]) for row in rows] == [
+            ("prod", "prod.example.com", True),
+            ("prod", "prod.example.com", False),
+        ]
+        status, told = connect(served, name="prod", host="prod.example.com")
+        assert status == 409 and "where it was found" in told["error"]
+        profile = {key: rows[1][key] for key in ("name", "host", "from")}
+        assert connect(served, **profile)[0] == 202
+        assert ready(served)["phase"] == "ready"
+        assert list(connector.stores) == ["prod"]  # the profile: no sign-in by address
+        target = {key: rows[0][key] for key in ("name", "host", "from")}
+        assert connect(served, **target)[0] == 202
+        assert ready(served)["phase"] == "ready"
+        assert list(connector.stores) == ["prod", "https://prod.example.com"]
+        assert connect(served, name="prod", **{"from": "nowhere"})[0] == 404
+        # said badly, it picks none of the two
+        assert connect(served, name="prod", **{"from": 7})[0] == 409
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

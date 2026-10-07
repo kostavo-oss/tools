@@ -1,15 +1,15 @@
 .venv/
 __pycache__/
 *.pyc
-.textual/
 dist/
 build/
 *.egg-info/
 .DS_Store
-docs/redesign/*.svg.png
-
-# generated reference renders (regenerate with docs/redesign/capture.py)
-docs/redesign/*.svg
 
 # mkdocs build output
 site/
+
+# what a tool writes while it runs: a report can hold the environment of the
+# machine it was written on
+*_report.html
+.claude/

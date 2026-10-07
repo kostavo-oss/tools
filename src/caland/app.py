@@ -25,13 +25,13 @@ caland — Databricks secrets, from a page in your browser.
 usage: caland [WORKSPACE] [--profile NAME] [--read-only] [--no-open]
 
   WORKSPACE / --profile NAME
-                go straight to a workspace that was found — a profile in
-                ~/.databrickscfg, or the target of a bundle here. Without it
-                the page asks which, when there is more than one
-  --read-only   look, show and copy, and change nothing
-  --no-open     print the link instead of opening a browser
-  --version     which caland this is
-  --help        this
+                 go straight to a workspace that was found — a profile in
+                 ~/.databrickscfg, or the target of a bundle here. Without it
+                 the page asks which, when there is more than one
+  --read-only    look, show and copy, and change nothing in the workspace
+  --no-open      print the link instead of opening a browser
+  -V, --version  which caland this is
+  -h, --help     this
 
 The page is served from this machine only, to you only. ctrl+c stops it and
 forgets every value it held. On the page: ? for the keys.
@@ -40,7 +40,9 @@ forgets every value it held. On the page: ? for the keys.
 #: The options that take no value. Anything else that starts with a dash is not
 #: caland's — and is refused: `--readonly` taken for nothing would open a
 #: workspace to change, when what was meant was that it should not be.
-#: `--page` is from when the page was not yet all there was.
+#: `--page` is from when the page was not yet all there was. It is taken, and
+#: does nothing, so that an old command line still works — and is left out of
+#: `--help` on purpose: there is nothing to say it for.
 _FLAGS = ("--page", "--read-only", "--no-open")
 
 #: Until 0.6 caland had a terminal version, and `--tui` was how to ask for it.

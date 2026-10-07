@@ -1,9 +1,11 @@
 # 008 — the page
 
-**Status:** built (see the *As built* sections). It is what caland is: the terminal version
-was removed on 2026-10-07. Its shape is decided ([Decided](#decided)). Written
-2026-10-06 from the owner's direction of that day; what is the owner's and what is the
-writer's is marked.
+**Status:** built, merged and released (see the *As built* sections): the reading half in
+0.5.0, changing things and files in 0.5.1, the tools in 0.5.2 — all three behind `--page`,
+on 2026-10-06 — and in 0.6.0, on 2026-10-07, the choice of a workspace and the switch. It
+is what caland is: the terminal version was removed in 0.6.0. Its shape is decided
+([Decided](#decided)), and nothing is left to decide. Written 2026-10-06 from the owner's
+direction of that day; what is the owner's and what is the writer's is marked.
 
 ## Why
 
@@ -12,10 +14,10 @@ working with secrets needs to *see*: who reaches a secret and through which grou
 was last read, what a certificate is before it goes in. It has no file dialog, so a
 certificate goes in by typing a path. And it looks like nothing else in the family.
 
-The owner's direction *(2026-10-06)*: caland becomes "a local tool with a html", so that it
-can be better to use; it is "only for people working with secrets in Databricks"; it has a
-file picker "so that people can navigate to certificates"; it follows the design language
-lely has; and it stays fast — "we need to keep it performant and working".
+The direction *(decided by the owner, 2026-10-06)*: caland becomes a local tool with an
+HTML face, so that it can be better to use; it is only for people working with secrets in
+Databricks; it has a file picker, so that people can find their way to a certificate; it
+follows the design language lely has; and it stays fast.
 
 ## The shape
 
@@ -23,8 +25,8 @@ lely has; and it stays fast — "we need to keep it performant and working".
 page is caland: the scopes, the secrets, the grants, every action. Stopping caland stops the
 server and forgets everything it held.
 
-Nothing leaves the machine but the calls to Databricks that the terminal version makes
-today. There is no hosted caland, no account, no telemetry.
+Nothing leaves the machine but the calls to Databricks that the terminal version made.
+There is no hosted caland, no account, no telemetry.
 
 Two other shapes were looked at *(the writer's comparison)*:
 
@@ -37,28 +39,31 @@ Two other shapes were looked at *(the writer's comparison)*:
 | Over SSH, in a dev container | yes, with a forwarded port | no | yes |
 | What it costs | a local port to defend (R9) | a heavier package, a second thing to trust | delivers none of the above |
 
-**The first.** *(owner, 2026-10-06)* Nothing in it should stand in the way of the second
+**The first.** *(Decided by the owner, 2026-10-06: a page in the browser, not a native
+window.)* Nothing in it should stand in the way of the second
 wrapping the same page later, if the browser turns out to be the wrong home for it.
 
 ## Requirements
 
 - **R1 — Everything the terminal version does, and that first.** Specs 001–006 hold for the
   page: the same actions, the same confirmations, the same refusals. The first page does
-  that, with R4–R6 for files — nothing else new before it. *(the order is the owner's)* The page is a second way in to the
-  same core — only `interface/` is new; `domain/`, `application/` and `infrastructure/` are
-  what they are today. *(proposal)*
+  that, with R4–R6 for files — nothing else new before it. *(the order is the owner's)*
+  The page was built as a second way in to the same core — only `interface/web/` was new;
+  `domain/`, `application/` and `infrastructure/` stayed what they were — and is the only
+  way in since 0.6.0. *(built: reading in 0.5.0, changing in 0.5.1, the tools in 0.5.2,
+  choosing a workspace in 0.6.0)*
 - **R2 — It looks like lely's page.** The same colours and what they mean (green for made,
   amber for changed or waiting, red for destructive, blue for run), the same type, the same
   small capital headings, hairlines and pills, light or dark by the system. READ, WRITE and
   MANAGE are pills. Someone who has read a lely plan knows where to look. *(owner asked;
-  the detail is the writer's)*
+  the detail is the writer's; built, 0.5.0)*
 - **R3 — Still by keyboard.** Every action keeps its key — `/` to filter, `j` `k` to move,
   `n` `e` `d` `m`, `space` to show, `c` to copy — and `?` lists them. What the page adds is
-  that everything can also be clicked. *(proposal)*
+  that everything can also be clicked. *(built, 0.5.0)*
 - **R3a — Tab goes from pane to pane, not from button to button.** A browser's own rule —
   tab stops at every button — makes a page of buttons a long walk, and never reaches a list
   at all. So: *(owner found the first mock-up wanting here, 2026-10-06; the rules are the
-  writer's, and are what the mock-up now does)*
+  writer's, and are what the mock-up and the page do; built, 0.5.0)*
     - **Each pane is one stop.** `tab` goes scopes → secrets → detail, `shift` `tab` back,
       as it did in the terminal. The filter and the buttons above are stops before them.
     - **Arrows move inside a pane, and across.** `↑` `↓` or `j` `k` within; `←` `→` or `h`
@@ -79,15 +84,17 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
 - **R4 — Pick a file with the system's own dialog.** Where a value is asked for there is
   *choose a file*, which opens the file dialog the person's system has, and a file can be
   dropped onto the form. The file's content goes from the browser to caland on the same
-  machine, and from there to Databricks; it is written nowhere. *(owner asked; proposal)*
+  machine, and from there to Databricks; it is written nowhere. *(owner asked; built,
+  0.5.1)*
 - **R5 — Say what a file is before it goes in.** After choosing, and before saving, the form
   says what was picked: its name and size, and for the kinds it can tell — a PEM
   certificate, a private key, a PKCS#12 bundle — which kind. For a certificate: who it is
-  for, who issued it, and when it expires. *(proposal)*
+  for, who issued it, and when it expires. *(built, 0.5.1)*
 - **R6 — A binary file goes in as it is.** A `.p12`, a `.pfx`, a `.der` is stored byte for
-  byte, and comes out the same. Today a value is text only. *(proposal; see
-  [003, D3](003-secrets.md#to-decide))*
-- **R7 — Fast, and held to it.** *(owner asked; the numbers are the writer's)*
+  byte, and comes out the same: a value is carried as bytes from end to end. *(built,
+  0.5.1; it closed [003, D3](003-secrets.md#decided))*
+- **R7 — Fast, and held to it.** *(owner asked; the numbers are the writer's; built,
+  0.5.0)*
     - The page is there before the workspace is: it draws at once and fills as scopes
       arrive, eight at a time as today.
     - Filtering and searching happen in the page, over names it already has. No round-trip.
@@ -95,15 +102,19 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
       script, both inside the package. It works with no network but the workspace.
     - Anything slow is asked for, never waited on, and kept for the session.
     - It asks a workspace only what the terminal version asks: no query, no warehouse.
-    - Numbers a test holds: first paint within 300 ms of the server being up; a workspace
-      of 500 scopes and 5,000 secrets filters within 50 ms a keystroke.
+    - The numbers: first paint within 300 ms of the server being up; a workspace of 500
+      scopes and 5,000 secrets filters within 50 ms a keystroke. A test holds both, with
+      room — three times as long, since the machine that runs it may be a shared one —
+      and holds without a number that the page is painted before the workspace has
+      answered.
 - **R8 — A value is in the page only while it is shown.** Not in the page's source, not in a
   URL, not in anything the browser keeps: it arrives when asked for and is taken out again
   when hidden or after 30 seconds. *Copy* never writes it into the page. *(built; how copy
   is done changed while building — see As built)*
 - **R9 — The local port is defended.** A server that can read secrets, on a machine with a
-  browser full of other sites, is the new risk this shape brings. *(proposal — and the part
-  to have reviewed by someone who did not write it, before any release)*
+  browser full of other sites, is the new risk this shape brings. *(built, 0.5.0 — and
+  reviewed by someone who did not write it, for each part that was added: see the
+  "Reviewed" paragraphs under As built)*
     - It listens on `127.0.0.1` only, on a port chosen at start. There is no option to
       listen wider.
     - The address caland opens carries a one-time key. Without the session it starts, every
@@ -122,7 +133,8 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
       while, does — and forgets every value.
 - **R10 — It says what it cannot defend.** A browser extension allowed to read every page
   can read a value while it is shown, as anyone who can see the screen can. The docs say
-  so, beside the clipboard warning that is there today. *(proposal)*
+  so, beside the clipboard warning. *(built, 0.5.0: `docs/page.md`, "What it cannot
+  defend")*
 
 ## As built — the first part: reading (2026-10-06)
 
@@ -159,6 +171,11 @@ Decided while building, the builder's unless marked:
   the script hold no name and no value, and are given to anyone who asks. Everything under
   `/api/` needs the token.
 - **Python's own HTTP server** (D3), and no new dependency.
+- **A failure inside is one line in the terminal** (2026-10-07; until then it left no
+  trace at all): which request, the kind of failure, and the file and line it came from.
+  Never the failure's own words, which can quote a value, and no traceback; only for a
+  request the gate let through, each line once and twenty at most, so that nobody who can
+  reach the port can fill a terminal. The page is told "caland failed" and no more.
 
 Held by: `tests/test_web_gate.py` (the rules of R9, as a pure function),
 `test_web_server.py` (the server asked over real HTTP), `test_web_opening.py`,
@@ -194,7 +211,7 @@ Decided while building, the builder's unless marked:
 - **A value is bytes, end to end.** The store port has a second pair of methods that carry
   a value as it is stored; the page uses only those. The terminal version's text methods
   are as they were — a secret that is no text still does not survive a move *there*
-  ([003, D3](003-secrets.md#to-decide)); on the page it does.
+  ([003, D3](003-secrets.md#decided)); on the page it does.
 - **The file dialog is the browser's own** (`<input type="file">`), and a file can be
   dropped on the form. The page reads it and sends it to caland on the same machine; caland
   says what it is (`application/files.py`) and, on save, sends it on. The owner took the
@@ -282,7 +299,7 @@ Decided while building, the builder's:
   that are there are overwritten — asked of the workspace then, and whatever the case of a
   name. The file is sent twice, once to be shown and once to be done; nothing of it is kept
   in between, and no value is said back either time.
-- **An import that stops says at which key** ([005, D1](005-bulk-and-audit.md#to-decide)),
+- **An import that stops says at which key** ([005, D1](005-bulk-and-audit.md#decided)),
   and that what went in before it stays. A pair with no value is left out and named: an
   empty value is a slip.
 - **An export with values is the one request that reads every value of a scope.** It is a
@@ -391,39 +408,45 @@ an address — that opens a browser to sign in with, which nothing here can driv
 ## Decided
 
 - **caland is for people working with secrets in Databricks, and only that.** No side that
-  runs unattended, no lely step for grants. *(owner, 2026-10-06)*
+  runs unattended, no lely step for grants. *(Decided by the owner, 2026-10-06.)*
 - **It becomes a local tool with an HTML face, in lely's design language, with a file
-  picker for certificates.** *(owner, 2026-10-06)*
+  picker for certificates.** *(Decided by the owner, 2026-10-06.)*
 - **A browser tab, from a server on the person's own machine** — not a window of its own.
-  *(owner, 2026-10-06; was D1)*
+  *(Decided by the owner, 2026-10-06; was D1.)*
 - **The terminal version is frozen, then dropped.** It stays as it is and gets nothing new;
   `caland` opens the page and `caland --tui` the terminal; it goes in the release where the
-  page does everything it does. *(owner, 2026-10-06; was D2)*
-- **caland has no terminal version.** *(owner, 2026-10-07; was D5)* The terminal app is
-  `isolinear`, which is left as it is.
-- **The page first, with what the terminal version does today.** Who reads a secret
-  ([009](009-who-reads-a-secret.md)) is not part of it. *(owner, 2026-10-06)*
+  page does everything it does. *(Decided by the owner, 2026-10-06; was D2.)*
+- **caland has no terminal version.** The terminal app is `isolinear`, which is left as it
+  is. *(Decided by the owner, 2026-10-07; was D5.)*
+- **The page first, with what the terminal version did.** Who reads a secret
+  ([009](009-who-reads-a-secret.md)) is not part of it.
+  *(Decided by the owner, 2026-10-06.)*
 - **Only the SDK.** No audit table, no warehouse — caland reaches a workspace the way the
-  original did. *(owner, 2026-10-06)* → [000](000-what-caland-is.md#the-rules-it-keeps)
+  original did. *(Decided by the owner, 2026-10-06.)*
+  → [000](000-what-caland-is.md#the-rules-it-keeps)
+- **The server is Python's own HTTP server, and the page a small script of caland's own**:
+  one person, one machine, no new dependency. *(The writer's choice, built that way on
+  2026-10-06 and released in 0.5.0; the owner let it stand. Was D3.)*
+- **A certificate is read with `cryptography`** (R5): the kind of a file can be told
+  without a library; who it is for and when it expires cannot. *(Decided by the owner,
+  2026-10-06; was D4.)*
 
 ## To decide
 
-- **D3 — What the server is made of.** *The writer's choice unless the owner minds:* Python's
-  own HTTP server — one person, one machine, no new dependency — and a small script of
-  caland's own in the page.
-- **D4 — Reading a certificate (R5) needs a library** (`cryptography`). The kind of a file
-  can be told without one; who it is for and when it expires cannot. *Proposal:* take the
-  dependency — an expiry date before saving is the most useful line on that form.
+Nothing.
 
 ## Done when
 
+Done, as of 0.6.0:
+
 - A mock-up of the three main views — browse, a secret with its file form, a scope's grants
-  — in lely's look, with made-up data, has been seen by the owner **before** any of it is
+  — in lely's look, with made-up data, was seen by the owner **before** any of it was
   wired to a workspace.
   *Made 2026-10-06: [`mock/page.html`](mock/page.html) — one file, open it in a browser.
   It answers to the keys, and its file form reads a real file's name, size and kind without
-  sending it anywhere. Not yet seen by the owner.*
-- The page passes the tests the terminal version's screens pass, against the same fake
+  sending it anywhere. Seen by the owner that day: R3a is what came of it.*
+- The page passes the tests the terminal version's screens passed, against the same fake
   workspace, and a browser test in CI drives the real page.
 - R7's numbers are tests.
-- R9 has been attacked by a reviewer who did not build it, and what they found is fixed.
+- R9 has been attacked by a reviewer who did not build it, and what they found is fixed —
+  four times, once for each part.

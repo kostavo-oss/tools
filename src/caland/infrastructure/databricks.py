@@ -1,8 +1,8 @@
 """DatabricksSecretStore — the infrastructure adapter implementing SecretStore.
 
 The only place that imports the Databricks SDK. Converts SDK types into our
-domain value objects and SDK exceptions into `StoreError`. All methods block;
-the UI calls them from worker threads.
+domain value objects and SDK exceptions into `StoreError`. All methods block:
+they are called on the thread of the request that asked, or on the loader's.
 """
 
 from __future__ import annotations
@@ -98,24 +98,6 @@ class DatabricksSecretStore:
                     )
                 )
             return sorted(out, key=lambda s: s.key.lower())
-        except Exception as exc:  # noqa: BLE001
-            raise StoreError(_short(exc)) from exc
-
-    def get_secret_value(self, scope: str, key: str) -> str:
-        try:
-            resp = self.client.secrets.get_secret(scope=scope, key=key)
-            raw = resp.value or ""
-            try:
-                return base64.b64decode(raw).decode("utf-8")
-            except (ValueError, UnicodeDecodeError):
-                # Binary or non-utf8 secret — show the base64 form.
-                return raw
-        except Exception as exc:  # noqa: BLE001
-            raise StoreError(_short(exc)) from exc
-
-    def put_secret(self, scope: str, key: str, value: str) -> None:
-        try:
-            self.client.secrets.put_secret(scope=scope, key=key, string_value=value)
         except Exception as exc:  # noqa: BLE001
             raise StoreError(_short(exc)) from exc
 

@@ -125,3 +125,26 @@ def test_help_says_what_caland_is_now(started, capsys):
     out = capsys.readouterr().out
     assert "usage: caland [WORKSPACE]" in out and "page" in out
     assert "TUI" not in out and "--tui" not in out
+
+
+def test_help_lists_every_option_there_is_but_the_one_kept_for_old_command_lines(
+    started, capsys
+):
+    assert started("-h") == []
+    out = capsys.readouterr().out
+    for option in ("--profile NAME", "--read-only", "--no-open"):
+        assert option in out
+    assert "  -V, --version  " in out and "  -h, --help  " in out
+    # `--page` is taken, and does nothing: it is from before the page was all there is
+    assert "--page" not in out
+    # read-only is about the workspace: settings and a profile may still be written here
+    assert "change nothing in the workspace" in out
+
+
+def test_the_short_options_do_what_the_long_ones_do(started, capsys):
+    from importlib.metadata import version
+
+    assert started("-V") == []
+    assert capsys.readouterr().out == f"caland {version('caland')}\n"
+    assert started("--version") == []
+    assert capsys.readouterr().out == f"caland {version('caland')}\n"

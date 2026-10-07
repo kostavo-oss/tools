@@ -25,7 +25,7 @@ let keys = new Map();     // scope -> [[key, changed in ms], ...]
 let detail = new Map();   // scope -> { access, keyvault, grants }
 let scope = null;         // the selected scope's name
 let secret = 0;           // the selected secret's place among those shown
-let shown = null;         // { scope, key, value, bytes } while a value is on the page
+let shown = null;         // { scope, key, value, bytes, since } while a value is on the page
 let timer = null, left = 0;
 let query = "";
 let showAll = false;
@@ -88,7 +88,8 @@ async function elsewhere() {
 function wipe() {
   hide(); clearTimeout(looking);
   keys = new Map(); detail = new Map(); scope = null; secret = 0; read = null; query = "";
-  picked = null; editing = null; moving = null; confirming = null; granting = null; turn += 1;
+  picked = null; editing = null; moving = null; confirming = null; granting = null; grantAt = 0;
+  turn += 1;
   listing = null; everyGrant = new Map(); granted = null; queue = Promise.resolve();
   for (const id of ["scopes", "secrets", "detail", "code-rows", "who", "list-rows", "list-head", "list-title",
     "list-note", "confirm-note", "confirm-title", "confirm-what", "env-scope", "move-from", "grants-scope",
@@ -367,15 +368,23 @@ async function toggle() {
   const at = { scope, key: row[0] };
   const got = await value(row);
   if (scope !== at.scope || (chosen() ?? [])[0] !== at.key) return;   // moved on while it came
-  shown = { ...at, value: said(got), bytes: got.binary ? got.size : 0 };
+  shown = { ...at, value: said(got), bytes: got.binary ? got.size : 0, since: Date.now() };
   left = HIDE_AFTER;
   clearInterval(timer);
-  timer = setInterval(() => {
-    left -= 1;
-    if (left <= 0) { hide(); draw(); } else if ($("hint")) $("hint").textContent = hintText();
-  }, 1000);
+  timer = setInterval(tick, 1000);
   draw();
 }
+// A shown value hides when its time has gone by the clock — not after so many ticks, of
+// which a machine asleep, or a tab in the background, is given none. A clock that was put
+// back hides it too: how long it has been shown is not known then.
+function tick() {
+  if (!shown) return;
+  const gone = Date.now() - shown.since;
+  left = HIDE_AFTER - Math.floor(gone / 1000);
+  if (gone < 0 || left <= 0) { hide(); draw(); } else if ($("hint")) $("hint").textContent = hintText();
+}
+// a page that is looked at again asks the clock at once, not at the next tick
+document.addEventListener("visibilitychange", tick);
 function hide() { shown = null; clearInterval(timer); }
 // the value goes from the answer to the clipboard; it is never written into the page
 async function put(text) {
@@ -440,6 +449,14 @@ const inTurn = (work) => (...args) => {
   queue = next.catch(() => {});
   return next;
 };
+// What is kept for the next time is sent one after the other: two quick presses that
+// arrived the other way round would keep the older choice.
+let kept = Promise.resolve();
+function prefer(what) {
+  const next = kept.then(() => ask("/api/settings", what));
+  kept = next.catch(() => {});
+  return next;
+}
 // after a change: read the workspace again, go to what was changed — or, when it is gone,
 // stay at the place it had — and say so
 async function changed(toScope, toKey, saying, place = 0) {
@@ -619,25 +636,50 @@ async function saveMove() {
 }
 
 // who has access to a scope
-let granting = null;
+let granting = null, grantAt = 0;   // the scope whose grants are open, and the grant picked
 function openGrants() {
   if (scope === null || !detail.get(scope)) return;
-  granting = scope;
+  granting = scope; grantAt = 0;
   $("grant-who").value = ""; fail("grants-error");
   drawGrants();
   if (!open("grants")) return;
+  $("grants-box").focus();
 }
 function drawGrants() {
   const about = detail.get(granting);
   if (!about) return;
   const you = told.identity ? told.identity.user : "";
+  grantAt = Math.max(0, Math.min(grantAt, about.grants.length - 1));
   $("grants-scope").textContent = granting;
-  $("grants-rows").replaceChildren(...about.grants.map(([who, may]) => el("tr", {},
-    el("td", { textContent: who === you ? `${who} (you)` : who }), el("td", {}, pill(may)),
-    el("td", { className: "end" }, ...(canChange() ? [
-      button("Change", "", () => { $("grant-who").value = who; $("grant-may").value = may; $("grant-may").focus(); }), " ",
-      button("Remove", "", () => removeGrant(who, who === you), "danger")] : [])))));
+  $("grants-rows").replaceChildren(...about.grants.map(([who, may], index) => {
+    const row = el("tr", {},
+      el("td", { textContent: who === you ? `${who} (you)` : who }), el("td", {}, pill(may)),
+      el("td", { className: "end" }, ...(canChange() ? [
+        button("Change", "", () => changeGrant(who, may)), " ",
+        button("Remove", "", () => removeGrant(who, who === you), "danger")] : [])));
+    row.setAttribute("aria-selected", String(index === grantAt));
+    return row;
+  }));
   $("grants-none").hidden = about.grants.length > 0;
+}
+// a grant is changed by granting again: who it is for is put in the form, to say what they may
+function changeGrant(who, may) {
+  $("grant-who").value = who; $("grant-may").value = may; $("grant-may").focus();
+}
+// In the grants the arrows pick one, e changes it and d removes it — which asks first, and
+// takes a y. A letter typed into the name, or an arrow on the permission, is not a key.
+function grantsKey(event) {
+  if (event.target.matches("input, select")) return;
+  const rows = detail.get(granting)?.grants ?? [], picked = rows[grantAt];
+  const move = { ArrowDown: 1, ArrowUp: -1, j: 1, k: -1 }[event.key];
+  if (move && rows.length) {
+    grantAt = (grantAt + move + rows.length) % rows.length;
+    drawGrants(); $("grants-box").focus();
+  } else if (event.key === "e" && picked && canChange()) changeGrant(...picked);
+  else if (event.key === "d" && picked && canChange()) {
+    removeGrant(picked[0], picked[0] === (told.identity ? told.identity.user : ""));
+  } else return;
+  event.preventDefault();
 }
 async function regrant(work) {
   try {
@@ -822,7 +864,7 @@ function openStale() {
         t: async () => {
           told.stale_after = STALE[(STALE.indexOf(days) + 1) % STALE.length];
           drawList();
-          await ask("/api/settings", { stale_after: told.stale_after });
+          await prefer({ stale_after: told.stale_after });
         },
         c: async () => {
           const name = (text) => "`" + text.replace(/[\r\n]+/g, " ").replace(/\|/g, "\\|").replace(/`/g, "'") + "`";
@@ -920,12 +962,14 @@ async function openPicker(why = "") {
   (places.length ? $("picker-box") : $("picker-url")).focus();
   return true;
 }
+// one that was found, said back as the list said it: two may have one name, and one address
+const found = (w) => ({ name: w.name, host: w.host, from: w.from });
 function drawPicker() {
   $("picker-rows").replaceChildren(...places.map((w, index) => {
     const row = el("tr", {}, el("td", { className: "mono", textContent: w.name }),
       el("td", { className: "mono", textContent: w.host }), el("td", { className: "dim", textContent: w.from }));
     row.setAttribute("aria-selected", String(index === place));
-    row.onclick = carefully(() => { place = index; return goToWorkspace({ name: w.name, host: w.host }); });
+    row.onclick = carefully(() => { place = index; return goToWorkspace(found(w)); });
     return row;
   }));
   $("picker-none").hidden = places.length > 0;
@@ -963,7 +1007,7 @@ function pickerKey(event) {
   const move = { ArrowDown: 1, ArrowUp: -1, j: 1, k: -1 }[event.key];
   if (move && places.length) { place = (place + move + places.length) % places.length; drawPicker(); }
   else if (event.key === "Enter" && places[place] && !event.target.matches("button, input")) {
-    carefully(goToWorkspace)({ name: places[place].name, host: places[place].host });
+    carefully(goToWorkspace)(found(places[place]));
   } else return;
   event.preventDefault();
 }
@@ -1022,8 +1066,11 @@ const right = () => pane === "scopes" ? go(visibleSecrets().length ? "secrets" :
 const back = () => pane === "secrets" ? go("scopes")
   : pane === "detail" ? (action === 0 ? go(visibleSecrets().length ? "secrets" : "scopes") : stepAction(-1)) : null;
 
+// The keys open at their first line: the list is longer than a small window, and the
+// browser brings into view what it gives the keyboard to, which is at the list's end.
+const openHelp = () => { if (open("help")) $("help").scrollTop = 0; };
 const KEYS = {
-  "/": () => { $("filter").focus(); $("filter").select(); }, "?": () => open("help"),
+  "/": () => { $("filter").focus(); $("filter").select(); }, "?": openHelp,
   ArrowDown: () => down(1), j: () => down(1), ArrowUp: () => down(-1), k: () => down(-1),
   ArrowRight: right, l: right, ArrowLeft: back, h: back, g: () => ends(false), G: () => ends(true),
   " ": toggle, Enter: () => pane === "scopes" ? right() : toggle(),
@@ -1035,7 +1082,7 @@ const KEYS = {
   f: async () => {
     showAll = !showAll; draw();
     toast(showAll ? `Showing all ${told.scopes.length} scopes.` : "Showing only the scopes you can reach.");
-    await ask("/api/settings", { show_all: showAll });   // kept for the next time
+    await prefer({ show_all: showAll });   // kept for the next time
   },
 };
 // In the filter the arrows pick while you type, enter goes to what is left, esc clears.
@@ -1058,6 +1105,9 @@ document.addEventListener("keydown", (event) => {
   }
   if ($("list").open && !$("confirm").open) return listKey(event);
   if ($("picker").open) return pickerKey(event);
+  if ($("grants").open && !$("confirm").open) return grantsKey(event);
+  // forgetting has a key only where it is shown, in the keys: not one to press by a slip
+  if ($("help").open && event.key === "z") { event.preventDefault(); return $("forget").click(); }
   if (document.querySelector("dialog[open]")) return;
   const target = event.target;
   if (target === $("filter")) return filterKey(event);
@@ -1083,7 +1133,7 @@ document.querySelectorAll("dialog").forEach((node) => {
   });
   node.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => node.close()));
 });
-$("help-open").onclick = () => open("help");
+$("help-open").onclick = openHelp;
 $("new-open").onclick = () => openForm(false);
 $("picker-go").onclick = carefully(signIn);
 // said here and not in the page: the page itself names no address at all, so that it can

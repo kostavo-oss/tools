@@ -64,9 +64,9 @@ def test_list_secrets_sorted_by_key():
     assert [s.key for s in secrets] == ["a", "b"]
 
 
-def test_get_secret_value_base64_decoded():
+def test_a_value_is_the_bytes_the_api_hands_over_as_base64():
     gw = DatabricksSecretStore.from_client(_client())
-    assert gw.get_secret_value("p", "k") == "hunter2"
+    assert gw.get_secret_bytes("p", "k") == b"hunter2"
 
 
 def test_errors_are_wrapped_in_store_error():
@@ -79,12 +79,12 @@ def test_errors_are_wrapped_in_store_error():
 def test_mutations_call_sdk():
     client = _client()
     gw = DatabricksSecretStore.from_client(client)
-    gw.put_secret("s", "k", "v")
+    gw.put_secret_bytes("s", "k", b"\x00v\xff")
     gw.delete_secret("s", "k")
     gw.create_scope("new")
     gw.delete_scope("new")
     client.secrets.put_secret.assert_called_once_with(
-        scope="s", key="k", string_value="v"
+        scope="s", key="k", bytes_value=base64.b64encode(b"\x00v\xff").decode()
     )
     client.secrets.delete_secret.assert_called_once_with(scope="s", key="k")
     client.secrets.create_scope.assert_called_once_with(scope="new")

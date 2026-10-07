@@ -20,13 +20,10 @@ def perm_rank(permission: str) -> int:
 
 @dataclass
 class AuthSummary:
-    """Per-scope authorization picture for the authorization overview screen."""
+    """What the person may do in one scope: what the page shows as their access."""
 
     scope: str
     effective: str = "—"  # current user's effective permission
-    acl_count: int = 0
-    can_write: bool = False
-    can_manage: bool = False
 
 
 def authorization_summary(
@@ -35,7 +32,7 @@ def authorization_summary(
     acls_by_scope: Mapping[str, list[Acl]],
     readable: set[str] | None = None,
 ) -> list[AuthSummary]:
-    """Compute the current user's effective permission on each scope (US-13).
+    """Compute the current user's effective permission on each scope.
 
     "Effective" is the highest permission granted to any principal that is *you*:
     your username, the `users` group (everyone), or any group you belong to — so
@@ -59,14 +56,6 @@ def authorization_summary(
                 best = perm_rank(acl.permission)
                 effective = acl.permission
         if best == 0 and scope.name in readable:
-            best, effective = perm_rank("READ"), "READ"
-        summaries.append(
-            AuthSummary(
-                scope=scope.name,
-                effective=effective,
-                acl_count=len(acls),
-                can_write=best >= perm_rank("WRITE"),
-                can_manage=best >= perm_rank("MANAGE"),
-            )
-        )
+            effective = "READ"
+        summaries.append(AuthSummary(scope=scope.name, effective=effective))
     return summaries

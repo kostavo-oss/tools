@@ -20,22 +20,29 @@ body:
     id: version
     attributes:
       label: Caland version
-      placeholder: "0.1.0  (uvx caland --version, or `uv tool list`)"
+      placeholder: "0.6.0  (caland --version)"
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 15"
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "Chrome 141"
   - type: input
     id: python
     attributes:
       label: Python version
       placeholder: "3.12"
-  - type: input
-    id: os
-    attributes:
-      label: OS / terminal
-      placeholder: "macOS 15 · iTerm2"
   - type: textarea
-    id: logs
+    id: terminal
     attributes:
-      label: Error output
+      label: What the terminal printed
       description: >
-        The TUI takes over the screen, so capture stderr with
-        `caland 2>err.log` and paste `err.log` here.
+        What the terminal that runs caland shows. When the page says "caland
+        failed", there is a line there that says where: `caland: POST /api/…
+        failed: …`. Leave out a link that ends in `#…`: what comes after the
+        `#` is a key. Never paste a secret's value.
       render: text

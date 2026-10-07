@@ -8,10 +8,10 @@ and delete; show and copy values; put a certificate in from a file.
 [![PyPI](https://img.shields.io/pypi/v/caland.svg)](https://pypi.org/project/caland/)
 [![Python](https://img.shields.io/pypi/pyversions/caland.svg)](https://pypi.org/project/caland/)
 [![Docs](https://img.shields.io/badge/docs-caland-8b7cff.svg)](https://kostavo-oss.github.io/caland/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/caland/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-![Caland with a secret's value shown](docs/img/page-browse.png)
+![Caland with a secret's value shown](https://raw.githubusercontent.com/kostavo-oss/caland/main/docs/img/page-browse.png)
 
 **[Read the docs →](https://kostavo-oss.github.io/caland/)** — installation,
 connecting, every key, and how the page is kept yours.
@@ -53,8 +53,8 @@ goes straight there. Otherwise the page asks:
 
 1. **A bundle** — the workspace of a `databricks.yml` in the current folder, picked for you.
 2. **`~/.databrickscfg`** — every profile.
-3. **An address** — sign in through the browser, as `databricks auth login` does. No
-   token; keep it as a profile if you want to come back by name.
+3. **An address** — sign in through the browser. No token to paste; keep it as a profile
+   if you want to come back by name.
 
 ```sh
 caland prod               # straight to a workspace by name
@@ -76,7 +76,7 @@ caland --no-open          # print the link instead of opening a browser
 - **`.env` in and out**, and a report of the secrets nobody has changed in a while.
 - **A value is shown when asked, and hides itself after 30 seconds.**
 
-![The form for a new secret, with a certificate picked](docs/img/page-form.png)
+![The form for a new secret, with a certificate picked](https://raw.githubusercontent.com/kostavo-oss/caland/main/docs/img/page-form.png)
 
 ## Keys
 
@@ -97,14 +97,18 @@ Everything has a key, and everything can be clicked. `?` on the page lists them 
 
 ## Security
 
-- **A value is read when you ask for it, and written nowhere**: not to disk, not to a cache,
-  not to a log. Shown, it hides itself after 30 seconds.
+- **A value is read from the workspace each time you ask for it, and written nowhere**:
+  not to disk, not to a log. Shown, it hides itself after 30 seconds.
 - **The page is yours only.** It is served from `127.0.0.1`, answers only to its own page
   at its own address, and to nothing without the session's key — which is never a cookie
   and never on a command line.
-- **Nothing is deleted without a `y`**, and `--read-only` changes nothing at all.
-- **No credentials of its own.** It signs in the way the Databricks CLI does. A profile it
-  saves holds an address and how to sign in, never a token.
+- **Nothing is deleted without a `y`**, and `--read-only` changes nothing in the workspace.
+  On your own machine it may still write what it always may: your two preferences, and a
+  profile if you sign in to an address and ask to keep it.
+- **No credentials of its own.** Caland stores no token. It signs in through the Databricks
+  SDK, which keeps a browser sign-in in its own folder
+  (`~/.config/databricks-sdk-py/oauth/`). A profile Caland saves holds an address and how
+  to sign in, never a token.
 
 More, and what it cannot defend against, in
 [the docs](https://kostavo-oss.github.io/caland/page/#how-it-is-kept-yours).
@@ -117,7 +121,8 @@ without a network:
 
 ```
 caland/
-  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore, BundleStore)
+  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore,
+                   BundleStore, SettingsStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the only Databricks-SDK importers
   interface/web/   the page: a server on this machine, and what it serves
@@ -126,7 +131,7 @@ caland/
 
 ## Contributing
 
-Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). The toolkit is
+Issues and PRs welcome — see [CONTRIBUTING.md](https://github.com/kostavo-oss/caland/blob/main/CONTRIBUTING.md). The toolkit is
 all-[Astral](https://astral.sh): **uv** (env/deps/run), **ruff** (lint+format),
 **ty** (types).
 
@@ -147,9 +152,12 @@ uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 Caland is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
 Each does one job and none needs another: this one is for the secrets a deploy and a
 data model both end up depending on, and for the people who have to look after them.
+Kostavo is the company behind them: it builds
+[a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
+complete without it.
 
 Community project, not affiliated with or endorsed by Databricks.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/caland/blob/main/LICENSE).

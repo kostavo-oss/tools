@@ -1,14 +1,15 @@
 """WorkspaceCache — the in-memory read model the UI renders from.
 
-A projection that the application service warms up front (US-14) and keeps in
-sync on writes. Pure data + bookkeeping; it holds no business rules (those live
-in the domain) and does no I/O.
+A projection that the application service warms up front and keeps in sync on
+writes. Pure data + bookkeeping; it holds no business rules (those live in the
+domain) and does no I/O.
 
-Strategy (US-14/16):
+Strategy:
   * On connect the service warms scopes -> secret metadata -> ACLs in the
     background.
-  * Secret *values* are NOT bulk-loaded; they are fetched lazily on reveal and
-    cached thereafter, so sensitive material isn't pulled into memory needlessly.
+  * Secret *values* are NOT bulk-loaded: one is read when it is asked for, and
+    read again every time it is. What was read or written is held here until it
+    is forgotten, and nothing is answered from it.
 """
 
 from __future__ import annotations
@@ -26,14 +27,10 @@ class WorkspaceCache:
     scopes: list[Scope] = field(default_factory=list)
     secrets: dict[str, list[Secret]] = field(default_factory=dict)
     acls: dict[str, list[Acl]] = field(default_factory=dict)
-    values: dict[tuple[str, str], str] = field(default_factory=dict)
-    # the same values as they are stored — bytes — for the face that can carry them
+    # values as they are stored — bytes — by scope and key
     raw: dict[tuple[str, str], bytes] = field(default_factory=dict)
     # scopes whose secrets we could list ⇒ the user holds at least READ on them
     readable: set[str] = field(default_factory=set)
-
-    scopes_loaded: bool = False
-    warm_error: str = ""
 
     # -- lookups ------------------------------------------------------------
     def secrets_for(self, scope: str) -> list[Secret]:
@@ -41,12 +38,6 @@ class WorkspaceCache:
 
     def acls_for(self, scope: str) -> list[Acl]:
         return self.acls.get(scope, [])
-
-    def cached_value(self, scope: str, key: str) -> str | None:
-        return self.values.get((scope, key))
-
-    def set_value(self, scope: str, key: str, value: str) -> None:
-        self.values[(scope, key)] = value
 
     # -- mutation keeping the read model + UI consistent --------------------
     def upsert_secret(self, secret: Secret) -> None:
@@ -61,7 +52,6 @@ class WorkspaceCache:
 
     def remove_secret(self, scope: str, key: str) -> None:
         self.secrets[scope] = [s for s in self.secrets.get(scope, []) if s.key != key]
-        self.values.pop((scope, key), None)
         self.raw.pop((scope, key), None)
 
     def add_scope(self, scope: Scope) -> None:
@@ -76,5 +66,12 @@ class WorkspaceCache:
         self.secrets.pop(name, None)
         self.acls.pop(name, None)
         self.readable.discard(name)
-        self.values = {k: v for k, v in self.values.items() if k[0] != name}
-        self.raw = {k: v for k, v in self.raw.items() if k[0] != name}
+        self.forget_scope(name)
+
+    def forget_scope(self, name: str) -> None:
+        """Let go of the values held of one scope — in place, each by its own
+        key. Scopes are read eight at a time while values are read and written:
+        made anew from what was held a moment before, what is held would lose
+        whatever came in between."""
+        for key in [key for key in list(self.raw) if key[0] == name]:
+            self.raw.pop(key, None)

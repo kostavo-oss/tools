@@ -3,7 +3,8 @@
 ## Requirements
 
 - **Python ≥ 3.11**
-- A browser, on **macOS**, **Linux**, or **Windows**
+- A browser, on **macOS** or **Linux**. That is where Caland is run and tested. Windows is
+  untried: nothing is known to stop it there, and nothing has shown that it works.
 
 Caland is distributed on PyPI. No configuration is required before you install or run it — connection details are gathered interactively on launch.
 

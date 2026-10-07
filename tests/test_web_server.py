@@ -6,6 +6,7 @@ import http.client
 import json
 import socket
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -264,11 +265,19 @@ def test_a_value_is_the_answer_to_a_post_with_the_token(served):
     assert served.store.reads() == 1
 
 
-def test_a_value_is_read_from_the_workspace_once(served):
+def test_a_value_is_read_from_the_workspace_every_time_it_is_asked_for(served):
     served.enter()
     for _ in range(3):
         served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
-    assert served.store.reads() == 1
+    assert served.store.reads() == 3
+
+
+def test_a_value_asked_for_again_is_what_the_workspace_holds_now(served):
+    served.enter()
+    asked = {"scope": "prod", "key": "api-key"}
+    assert served.json("POST", "/api/value", asked)[1] == {"value": SECRET}
+    served.store._values[("prod", "api-key")] = "rotated elsewhere"
+    assert served.json("POST", "/api/value", asked)[1] == {"value": "rotated elsewhere"}
 
 
 def test_forgetting_drops_every_value_held(served):
@@ -484,7 +493,15 @@ def test_a_connection_that_breaks_prints_nothing(served, capfd):
         # closed the hard way: the server finds the connection reset under it
         raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
         raw.close()
-    served.enter()
+    # Five at once is all the system keeps waiting for the server (its backlog): until it
+    # has got round to the ones that broke, one more may be turned away at the door. So
+    # wait for it to answer again, and do not count on it having done so already.
+    for _ in range(500):
+        try:
+            served.enter()
+            break
+        except OSError:
+            threading.Event().wait(0.01)
     assert served.json("GET", "/api/state")[0] == 200
     printed = capfd.readouterr()
     assert printed.out == "" and printed.err == ""
@@ -535,6 +552,88 @@ def test_a_failure_inside_says_nothing_of_what_failed(served):
     served.page.loader.service.forget_values = broken
     status, _, text = served.ask("POST", "/api/forget", {})
     assert status == 500 and b"hunter2" not in text and b"Traceback" not in text
+
+
+def test_a_failure_inside_is_said_in_the_terminal_and_not_what_it_said(served, capfd):
+    """Which request, what kind of failure, and where: enough to find it. Never
+    the failure's own words — they can quote a value — and no traceback. The
+    page is told what it was told before."""
+    import re
+
+    served.enter()
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the secret is hunter2")
+
+    served.page.loader.service.forget_values = broken
+    for _ in range(3):
+        status, _, text = served.ask("POST", "/api/forget", {})
+        assert status == 500 and json.loads(text) == {"error": "caland failed"}
+    said = capfd.readouterr()
+    assert said.out == "" and said.err.count("\n") == 1  # one line, said once
+    assert said.err.startswith("caland: POST /api/forget failed: RuntimeError at ")
+    # the line of caland's own that was reached, and where it was raised
+    assert re.search(r" at caland/interface/web/server\.py:\d+, raised at ", said.err)
+    assert re.search(r"raised at tests/test_web_server\.py:\d+\n$", said.err)
+    assert "hunter2" not in said.err and "Traceback" not in said.err
+    assert str(Path.home()) not in said.err
+
+
+def test_a_failure_is_said_where_the_server_was_told_to_say_it(served, capfd):
+    import io
+
+    served.enter()
+    served.server.out = io.StringIO()
+    served.page.settings = None  # so that the state cannot be drawn up
+    assert served.json("GET", "/api/state?x=hunter2") == (500, {"error": "caland failed"})
+    said = served.server.out.getvalue()
+    assert said.startswith("caland: GET /api/state failed: AttributeError at caland/")
+    assert "hunter2" not in said and "raised at" not in said
+    assert capfd.readouterr().err == ""
+
+
+def test_a_request_that_was_not_let_in_is_never_said_in_the_terminal(served, capfd):
+    """Anyone who can reach the port could fill a terminal otherwise."""
+    served.enter()
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the secret is hunter2")
+
+    served.page.loader.service.forget_values = broken
+    assert served.ask("POST", "/api/forget", {}, token="wrong")[0] == 401
+    # an address that cannot be read: refused before the gate has looked at it
+    assert served.ask("GET", "http://[", token=None)[0] == 500
+    printed = capfd.readouterr()
+    assert printed.out == "" and printed.err == ""
+
+
+def test_a_terminal_is_not_filled_by_failures(served, capfd):
+    from caland.interface.web.server import FAILURES_SAID
+
+    served.enter()
+    served.page.touch = None  # every request about anything fails, each by its own path
+    for n in range(FAILURES_SAID + 10):
+        path = "/api/" + "abcdefghij"[n % 10] + "klmnopqrst"[n // 10]
+        assert served.ask("GET", path)[0] == 500
+    assert capfd.readouterr().err.count("\n") == FAILURES_SAID
+
+
+def test_a_path_that_is_not_as_calands_own_are_is_not_said_in_the_terminal(served, capfd):
+    """What a request says could colour a terminal, or clear it."""
+    served.enter()
+    served.page.touch = None
+    asked = (
+        "GET /api/\x1b[2J\x1b[31mhunter2 HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:{served.server.port}\r\n"
+        f"{gate.TOKEN_HEADER}: {served.token}\r\n\r\n"
+    )
+    with socket.create_connection(("127.0.0.1", served.server.port), timeout=5) as raw:
+        raw.sendall(asked.encode("latin-1"))
+        assert raw.recv(65536).startswith(b"HTTP/1.1 500 ")
+    assert served.ask("GET", "/api/" + "a" * 60)[0] == 500
+    said = capfd.readouterr().err
+    assert said.count("\n") == 1 and said.startswith("caland: GET ? failed: TypeError ")
+    assert "\x1b" not in said and "hunter2" not in said
 
 
 def test_nothing_a_request_says_is_printed(served, capfd):

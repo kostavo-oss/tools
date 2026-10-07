@@ -39,17 +39,16 @@ def test_bytes_go_in_and_come_back_as_they_were(service):
     assert service.secret("prod", "bundle") is not None
 
 
-def test_a_value_is_read_once_and_kept_for_the_session(service):
+def test_a_value_is_read_from_the_workspace_every_time_it_is_asked_for(service):
     for _ in range(3):
         service.reveal_bytes("prod", "api-key")
-    assert service.store.count("get_secret_bytes") == 1
+    assert service.store.count("get_secret_bytes") == 3
 
 
-def test_writing_drops_what_the_text_of_it_was(service):
-    assert service.reveal("prod", "api-key") == "value::prod/api-key"
-    service.put_secret_bytes("prod", "api-key", b"new")
-    assert service.cached_value("prod", "api-key") is None
-    assert service.reveal_bytes("prod", "api-key") == b"new"
+def test_a_second_look_shows_what_is_there_now(service):
+    assert service.reveal_bytes("prod", "api-key") == b"value::prod/api-key"
+    service.store._values[("prod", "api-key")] = b"rotated elsewhere"
+    assert service.reveal_bytes("prod", "api-key") == b"rotated elsewhere"
 
 
 def test_moving_keeps_every_byte(service):
@@ -172,10 +171,10 @@ def test_a_delete_keeps_the_value_as_it_was_when_deleted(service):
 
 def test_reading_a_scope_again_lets_go_of_what_was_read_of_it(service):
     service.reveal_bytes("prod", "api-key")
-    service.reveal("prod", "db-password")
+    service.reveal_bytes("prod", "db-password")
     service.reveal_bytes("kv", "tenant-id")
     service.refresh_scope("prod")
-    assert list(service.cache.raw) == [("kv", "tenant-id")] and service.cache.values == {}
+    assert list(service.cache.raw) == [("kv", "tenant-id")]
 
 
 # ── nothing lands on what is there ───────────────────────────────────
@@ -300,3 +299,55 @@ def test_deleting_a_scope_drops_the_values_held_from_it(service):
 def test_the_fake_reads_text_it_was_given_as_bytes():
     store = FakeSecretStore(values={("s", "k"): "text"})
     assert store.get_secret_bytes("s", "k") == b"text"
+
+
+# ── eight scopes are read at a time, and a value may be held meanwhile ─
+class Watched(dict):
+    """What is held of values — which says when it is being looked through,
+    and the first time waits there until it is let go on."""
+
+    def __init__(self, *args) -> None:
+        import threading
+
+        super().__init__(*args)
+        self.looked, self.go_on = threading.Event(), threading.Event()
+
+    def _wait(self) -> None:
+        if not self.looked.is_set():
+            self.looked.set()
+            self.go_on.wait(10)
+
+    def __iter__(self):
+        names = list(super().__iter__())
+        self._wait()
+        return iter(names)
+
+    def keys(self):
+        return list(self)
+
+    def items(self):
+        pairs = list(super().items())
+        self._wait()
+        return pairs
+
+
+@pytest.mark.parametrize("again", ["refresh_scope", "delete_scope"])
+def test_letting_go_of_one_scopes_values_loses_none_held_of_another_meanwhile(
+    service, again
+):
+    """A scope is read again, or deleted, on one thread while a value of another
+    scope is read on a second: what is held was once made anew from what it was
+    a moment before, and the value that came in between was gone."""
+    import threading
+
+    held = Watched({("prod", "api-key"): b"read before"})
+    service.cache.raw = held
+    working = threading.Thread(target=getattr(service, again), args=("prod",))
+    working.start()
+    try:
+        assert held.looked.wait(10)  # it is looking through what is held
+        service.reveal_bytes("kv", "tenant-id")  # and meanwhile a value is read
+    finally:
+        held.go_on.set()
+    working.join(timeout=10)
+    assert service.cache.raw == {("kv", "tenant-id"): b"value::kv/tenant-id"}

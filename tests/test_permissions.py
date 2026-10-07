@@ -18,9 +18,7 @@ def test_authorization_summary_computes_effective_permission():
     }
     summaries = {s.scope: s for s in authorization_summary(identity, scopes, acls)}
     assert summaries["prod"].effective == "MANAGE"
-    assert summaries["prod"].can_write and summaries["prod"].can_manage
     assert summaries["ro"].effective == "READ"
-    assert not summaries["ro"].can_write
 
 
 def test_effective_permission_resolves_via_group_membership():
@@ -34,7 +32,6 @@ def test_effective_permission_resolves_via_group_membership():
     summaries = {s.scope: s for s in authorization_summary(identity, scopes, acls)}
     # your group grants WRITE; the admins ACL does NOT apply (you're not an admin)
     assert summaries["shared"].effective == "WRITE"
-    assert summaries["shared"].can_write and not summaries["shared"].can_manage
     # a group you don't belong to grants you nothing
     assert summaries["other"].effective == "—"
 
@@ -50,7 +47,6 @@ def test_readable_scope_floors_effective_to_read():
         for s in authorization_summary(identity, scopes, {}, readable={"shared"})
     }
     assert summaries["shared"].effective == "READ"
-    assert not summaries["shared"].can_write
     assert summaries["hidden"].effective == "—"
 
 
@@ -64,4 +60,3 @@ def test_visible_manage_grant_beats_readable_floor():
         for s in authorization_summary(identity, scopes, acls, readable={"shared"})
     }
     assert summaries["shared"].effective == "MANAGE"
-    assert summaries["shared"].can_manage

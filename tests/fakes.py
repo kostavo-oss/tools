@@ -53,8 +53,8 @@ class FakeSecretStore:
         return sum(1 for c in self.calls if c[0] == name)
 
     def reads(self) -> int:
-        """How many times a value was read, as text or as it is."""
-        return self.count("get_secret_value") + self.count("get_secret_bytes")
+        """How many times a value was read."""
+        return self.count("get_secret_bytes")
 
     # -- Gateway protocol ----------------------------------------------
     def whoami(self) -> Identity:
@@ -82,20 +82,6 @@ class FakeSecretStore:
         if scope in self._no_read:
             raise StoreError(f"permission denied: {scope}")
         return sorted(self._secrets.get(scope, []), key=lambda s: s.key.lower())
-
-    def get_secret_value(self, scope: str, key: str) -> str:
-        self._record("get_secret_value", scope, key)
-        key = self._as_kept(scope, key)
-        held = self._values.get((scope, key), f"value::{scope}/{key}")
-        return held.decode("utf-8", "replace") if isinstance(held, bytes) else held
-
-    def put_secret(self, scope: str, key: str, value: str) -> None:
-        self._record("put_secret", scope, key, value)
-        key = self._as_kept(scope, key)
-        self._values[(scope, key)] = value
-        rows = self._secrets.setdefault(scope, [])
-        if not any(s.key == key for s in rows):
-            rows.append(Secret(scope=scope, key=key))
 
     def get_secret_bytes(self, scope: str, key: str) -> bytes:
         self._record("get_secret_bytes", scope, key)

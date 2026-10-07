@@ -6,6 +6,58 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Keys for what had none.** In the list of a scope's grants (`p`) the arrows pick a
+  grant, `e` changes it and `d` removes it, after the same `y` as before. *Forget every
+  value* has a key where it is shown: `?`, then `z`.
+
+### Changed
+
+- **`caland --help` lists `-V` and `-h`**, which were always taken, and says of
+  `--read-only` what it is about: the workspace.
+
+### Fixed
+
+- **`enter` is in the list of keys and in the docs.** It always went on from the scopes to
+  the secrets, and showed a secret's value; nothing said so. The docs also say now that
+  `DATABRICKS_HOST` is offered when there is no profile, and what `--read-only` may still
+  write on your own machine: your two preferences, and a profile you ask to keep.
+- **The list of keys opens at its first line** in a window too small to show all of it.
+- **Every profile is on the list, and can be asked for by name.** A profile at an address
+  that was already listed was left out: of two profiles for one workspace only the first
+  was offered, and in a bundle's folder the profile for the bundle's own workspace was
+  not — so its token or service principal could not be used there, and `caland NAME` said
+  there was no such workspace. Each is a row of its own now, the bundle's target first.
+  Where a bundle's target and a profile have one name, `caland NAME` is the profile.
+- **A second look at a value shows what is there now.** A value was read once and then
+  answered from memory for as long as Caland ran: changed in the workspace meanwhile, it
+  was shown and copied as it had been. Showing and copying read the workspace every time
+  now, as the page says. The docs said "no cache"; they say what Caland holds in memory,
+  for how long, and how it is forgotten.
+- **A `~/.databrickscfg` that is a link stays a link.** Keeping a profile put a plain file
+  where the link was, and left the file it pointed to — in a folder of dotfiles, say — as
+  it had been. The file it points to is written now. The docs said the file is "never left
+  readable by anybody but you": a new one is yours alone, and one that is there keeps the
+  permissions you gave it, which is what they say now.
+- **When something goes wrong inside Caland, the terminal says where.** The page said
+  "caland failed" and nothing was printed anywhere, so there was nothing to put in a bug
+  report. The terminal now gets one line: which request, the kind of failure, and the file
+  and line it came from. Never the failure's own words — they can quote a value — and the
+  page is told no more than before.
+- **A shown value hides after 30 seconds by the clock.** The page counted thirty ticks, and
+  a laptop that slept, or a tab in the background, was given none: the value was still
+  there, for as long again, when you came back. It goes by the time now, and is gone as
+  soon as the page is looked at again.
+- **The source package holds the source, the tests and the licence, and nothing else.**
+  From 0.5.1 to 0.6.0 it also held `snapshot_report.html`: a report a test tool had written
+  into the repository, committed by mistake, with the environment of the machine it was
+  written on. It is gone from the repository, and a source package is now made from a
+  list. The wheels — what `uvx caland` and `pip install caland` use — never had it.
+- **Two quick changes to a setting keep the last one.** Pressing `t` twice in the list of
+  secrets not changed sent both choices side by side, and the first could arrive last and
+  be the one kept. They go one after the other now.
+
 ## [0.6.0] - 2026-10-07
 
 ### Changed
@@ -415,8 +467,8 @@ Initial release.
 [0.5.1]: https://github.com/kostavo-oss/caland/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kostavo-oss/caland/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kostavo-oss/caland/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/kostavo-oss/caland/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/kostavo-oss/caland/compare/v0.2.8...v0.3.0
+[0.4.0]: https://github.com/kostavo-oss/caland/compare/d4b5e1366acfd6df5f4471d59c9a5785fe29dd81...v0.4.0
+[0.3.0]: https://github.com/kostavo-oss/caland/compare/v0.2.8...d4b5e1366acfd6df5f4471d59c9a5785fe29dd81
 [0.2.8]: https://github.com/kostavo-oss/caland/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/kostavo-oss/caland/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/kostavo-oss/caland/compare/v0.2.5...v0.2.6
@@ -425,5 +477,5 @@ Initial release.
 [0.2.3]: https://github.com/kostavo-oss/caland/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kostavo-oss/caland/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kostavo-oss/caland/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/kostavo-oss/caland/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/misja-pronk/isolinear/releases/tag/v0.1.0
+[0.2.0]: https://github.com/kostavo-oss/caland/compare/625abbde680b0ec5e13684e1ba39050bba8d71b8...v0.2.0
+[0.1.0]: https://github.com/kostavo-oss/caland/tree/625abbde680b0ec5e13684e1ba39050bba8d71b8

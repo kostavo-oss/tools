@@ -7,12 +7,15 @@ Skipped where there is no Chrome; CI's runners have one.
 from __future__ import annotations
 
 import threading
+import time
+from collections.abc import Callable
 
 import pytest
 
 from caland.application import Loader, WorkspaceService
 from caland.domain import Acl, Scope, Secret, StoreError, Workspace
 from caland.interface.web import Page, Server
+from caland.interface.web.server import Handler
 from chrome import CHROME, Browser
 from fakes import FakeSecretStore
 
@@ -131,6 +134,36 @@ ASKED = (
     "performance.getEntriesByType('resource')"
     ".filter(r => r.name.includes('/api/')).length"
 )
+#: Watch the page's requests to WHAT, for the tests that need an answer to come late.
+#: With HOLD a request is not sent until the test calls `window.letGo()`, which is there
+#: once the request is waiting. `window.answered` is true once the page has read the
+#: answer: whatever the page does with it is done by the next look at the page.
+LATE = """(() => { const real = window.fetch; window.answered = false;
+  window.fetch = (url, options) => {
+    if (!String(url).includes('WHAT')) return real(url, options);
+    const first = HOLD ? new Promise((go) => { window.letGo = go; }) : Promise.resolve();
+    return first.then(() => real(url, options)).then((answer) => {
+      const read = answer.json.bind(answer);
+      answer.json = () => read().finally(() => { window.answered = true; });
+      return answer;
+    });
+  }; })()"""
+
+
+def late(what: str, hold: bool = True) -> str:
+    return LATE.replace("WHAT", what).replace("HOLD", "true" if hold else "false")
+
+
+def until(so: Callable[[], object], seconds: float = 10) -> None:
+    """Wait for something outside the page to be so — the server's own state, a
+    call the workspace got — looked at again and again, and not for ever."""
+    deadline = time.monotonic() + seconds
+    while not so():
+        if time.monotonic() > deadline:
+            raise TimeoutError("it never came to be so")
+        time.sleep(0.01)
+
+
 SELECTED_SCOPE = "document.querySelector('#scopes [aria-selected=true] span').textContent"
 SELECTED_KEY = "document.querySelector('#secrets [aria-selected=true] td').textContent"
 WHOLE_PAGE = "document.documentElement.outerHTML"
@@ -319,6 +352,83 @@ def test_a_value_is_in_the_page_only_while_it_is_shown(page):
     assert VALUE not in page.js(WHOLE_PAGE)
 
 
+def test_a_value_shown_again_is_read_again_and_is_what_is_there_now(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    page.store._values[("prod", "api-key")] = "rotated elsewhere"
+    page.press(" ")
+    page.wait("!document.querySelector('pre.value.shown')")
+    page.press(" ")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js("document.querySelector('pre.value').textContent") == (
+        "rotated elsewhere"
+    )
+    assert page.store.reads() == 2
+    page.press("c")
+    page.wait(f"{TOAST} === 'Copied api-key.'")
+    assert page.clipboard() == "rotated elsewhere" and page.store.reads() == 3
+
+
+#: The page's clock, which the tests can put forward: `AHEAD` seconds from now on.
+CLOCK = """(() => {
+  if (window.ahead === undefined) {
+    const real = Date.now.bind(Date);
+    Date.now = () => real() + window.ahead;
+  }
+  window.ahead = AHEAD * 1000;
+})()"""
+#: The seconds the hint says a shown value has left.
+SECONDS_LEFT = (
+    "Number(/hides in (\\d+) s/.exec(document.getElementById('hint').textContent)[1])"
+)
+
+
+def test_a_shown_value_hides_itself_when_30_seconds_have_gone_by_the_clock(page):
+    """By the clock, not by counting: a machine that slept through the seconds
+    must not go on showing the value for as many more when it wakes."""
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js(SECONDS_LEFT) in (30, 29)
+    page.js(CLOCK.replace("AHEAD", "12"))
+    page.wait(f"{SECONDS_LEFT} <= 18", seconds=4)  # said at the next look at the clock
+    assert page.js(SECONDS_LEFT) >= 13 and VALUE in page.js(WHOLE_PAGE)
+    page.js(CLOCK.replace("AHEAD", "31"))
+    page.wait("!document.querySelector('pre.value.shown')", seconds=4)
+    assert VALUE not in page.js(WHOLE_PAGE)
+    assert "hides in" not in page.js("document.getElementById('hint').textContent")
+
+
+def test_a_page_that_is_looked_at_again_hides_a_value_whose_time_has_gone_at_once(page):
+    """A tab in the background is given few turns, and a machine asleep none:
+    coming back, the value is gone before anything else happens."""
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    gone_at_once = page.js(
+        f"""(() => {{
+          {CLOCK.replace("AHEAD", "31")};
+          document.dispatchEvent(new Event('visibilitychange'));
+          return !document.querySelector('pre.value.shown');
+        }})()"""
+    )
+    assert gone_at_once is True and VALUE not in page.js(WHOLE_PAGE)
+
+
+def test_a_clock_put_back_does_not_keep_a_value_on_the_page(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    page.js(CLOCK.replace("AHEAD", "-3600"))
+    page.wait("!document.querySelector('pre.value.shown')", seconds=4)
+    assert VALUE not in page.js(WHOLE_PAGE)
+
+
 def test_moving_on_takes_the_value_off_the_page(page):
     page.press("j")
     page.wait(PROD)
@@ -400,15 +510,44 @@ def test_a_scope_may_be_called_what_every_object_has(browser, serve):
 
 
 # ── fast, and held to it (spec/008, R7) ──────────────────────────────
+#: R7's two numbers, in milliseconds: how soon the page is painted, and how long a
+#: keystroke in the filter may take in a workspace of 500 scopes and 5,000 secrets.
+FIRST_PAINT, KEYSTROKE = 300, 50
+#: A limit in milliseconds is the point of that test, so it has one — with room. On the
+#: machine this was written on the page is painted in about 80 ms and a keystroke takes
+#: about 8; a shared CI runner is several times slower, and a limit that fails there now
+#: and then holds nothing. What must not depend on any machine's speed — that the page
+#: is painted before the workspace has answered — is held without a number.
+ROOM = 3
+
+
 def test_a_big_workspace_draws_at_once_and_filters_without_waiting(browser, serve):
-    server = serve(big(500, 10))
-    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
-    paint = (
-        "performance.getEntriesByType('paint')"
-        ".find(p => p.name === 'first-contentful-paint')"
-    )
-    tab.wait(paint)
-    assert tab.js(f"{paint}.startTime") < 300
+    go_on = threading.Event()
+
+    class Held(FakeSecretStore):
+        """A workspace that does not say what scopes it has until it is let."""
+
+        def list_scopes(self):
+            go_on.wait(30)
+            return super().list_scopes()
+
+    made = big(500, 10)
+    store = Held(scopes=made._scopes, secrets=made._secrets, acls=made._acls)
+    try:
+        server = serve(store)
+        tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+        paint = (
+            "performance.getEntriesByType('paint')"
+            ".find(p => p.name === 'first-contentful-paint')"
+        )
+        tab.wait(paint)
+        # painted, and the workspace has yet to say anything: it was not waited for
+        assert store.count("list_secrets") == 0 and not go_on.is_set()
+        assert tab.js("document.body.dataset.phase") != "ready"
+        took = tab.js(f"{paint}.startTime")
+        assert took < FIRST_PAINT * ROOM, f"the page was painted after {took:.0f} ms"
+    finally:
+        go_on.set()
     tab.wait("document.body.dataset.phase === 'ready'", seconds=30)
     assert tab.js("document.querySelectorAll('#scopes li').length") == 500
     took = tab.js(
@@ -422,7 +561,7 @@ def test_a_big_workspace_draws_at_once_and_filters_without_waiting(browser, serv
           return times.sort((a, b) => a - b)[Math.floor(times.length / 2)];
         })()"""
     )
-    assert took < 50, f"a keystroke in the filter took {took:.0f} ms"
+    assert took < KEYSTROKE * ROOM, f"a keystroke in the filter took {took:.0f} ms"
 
 
 # ── changing things (spec/008, R1 and R4–R6) ─────────────────────────
@@ -453,9 +592,7 @@ GRANTS = (
 
 def wrote(store: FakeSecretStore) -> list[tuple]:
     names = ("put_secret_bytes", "delete_secret", "put_acl", "delete_acl", "create_scope")
-    return [
-        call for call in store.calls if call[0] in (*names, "delete_scope", "put_secret")
-    ]
+    return [call for call in store.calls if call[0] in (*names, "delete_scope")]
 
 
 @pytest.fixture
@@ -741,25 +878,20 @@ def test_an_empty_file_is_refused_in_the_form(prod, tmp_path):
 def test_a_file_described_too_late_does_not_land_in_another_form(prod, tmp_path):
     """Choose a file, close the form, open it for another secret and type: the
     answer about the file must not replace what was typed."""
-    import time
-
     file = tmp_path / "late.txt"
     file.write_text("from a file chosen for another secret\n")
-    prod.js(
-        """(() => { const real = window.fetch;
-          window.fetch = (url, options) => String(url).includes('/api/describe')
-            ? new Promise((done) => setTimeout(done, 500)).then(() => real(url, options))
-            : real(url, options); })()"""
-    )
+    prod.js(late("/api/describe"))
     prod.press("n")
     prod.wait(OPEN.format("form"))
     prod.choose_files("#file", str(file))
+    prod.wait("window.letGo")  # asked what the file is, and the answer is held up
     prod.press("Escape")
     prod.wait(f"!{OPEN.format('form')}")
     prod.press("j", "e")
     prod.wait(OPEN.format("form"))
     prod.type("typed for db-password")
-    time.sleep(0.9)  # the late answer has come by now
+    prod.js("window.letGo()")
+    prod.wait("window.answered")  # the late answer has come
     assert (
         prod.js("document.getElementById('form-value').value") == "typed for db-password"
     )
@@ -876,6 +1008,78 @@ def test_removing_your_own_grant_is_said_to_be_that(prod):
     )
     prod.press("Escape")
     assert wrote(prod.store) == []
+
+
+#: The grant the keyboard is on, in the dialog: whose it is.
+PICKED_GRANT = (
+    "document.querySelector('#grants-rows [aria-selected=true] td').textContent"
+)
+
+
+def test_a_grant_is_picked_changed_and_removed_by_its_keys(prod):
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    assert prod.focus() == "grants-box"
+    assert prod.js(PICKED_GRANT) == "me@corp.com (you)"
+    prod.press("j")
+    assert prod.js(PICKED_GRANT) == "users"
+    prod.press("ArrowDown", "ArrowDown", "k")  # round past the last, and back to it
+    assert prod.js(PICKED_GRANT) == MARKUP
+    prod.press("k")
+    assert prod.js(PICKED_GRANT) == "users" and prod.focus() == "grants-box"
+    # e: the grant that is picked is put in the form, to be changed
+    prod.press("e")
+    assert prod.focus() == "grant-may"
+    assert prod.js("document.getElementById('grant-who').value") == "users"
+    assert prod.js("document.getElementById('grant-may').value") == "READ"
+    assert wrote(prod.store) == []
+    prod.js("document.getElementById('grant-may').value = 'WRITE'")
+    prod.js("document.getElementById('grant-give').click()")
+    prod.wait(f"{GRANTS}.includes('users=WRITE')")
+    assert ("put_acl", "prod", "users", "WRITE") in prod.store.calls
+    # d: removing asks first, names who, and a y is what removes
+    prod.js("document.getElementById('grants-box').focus()")
+    assert prod.js(PICKED_GRANT) == "users"
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js("document.getElementById('confirm-what').innerText") == (
+        "Remove the grant of users on prod."
+    )
+    prod.press("d", "d")  # the key that opened it does not confirm it
+    assert prod.store.count("delete_acl") == 0
+    prod.press("y")
+    prod.wait(f"!{GRANTS}.some(row => row.startsWith('users='))")
+    assert ("delete_acl", "prod", "users") in prod.store.calls
+    assert prod.js(OPEN.format("grants")) is True and prod.focus() == "grants-box"
+
+
+def test_a_letter_typed_into_a_grants_name_is_no_key(prod):
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    prod.js("document.getElementById('grant-who').focus()")
+    prod.type("jed")
+    prod.press("d", "e", "j")
+    assert prod.js("document.getElementById('grant-who').value").startswith("jed")
+    assert prod.js(OPEN.format("confirm")) is False
+    assert prod.js(PICKED_GRANT) == "me@corp.com (you)" and wrote(prod.store) == []
+
+
+def test_started_read_only_the_keys_in_the_grants_pick_and_change_nothing(browser, serve):
+    store = workspace()
+    server = serve(store, read_only=True)
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait(SHOWN)
+    tab.press("j")
+    tab.wait(PROD)
+    tab.press("p")
+    tab.wait(OPEN.format("grants"))
+    tab.press("j", "e", "d")
+    assert tab.js(PICKED_GRANT) == "users"
+    assert tab.js("[...document.querySelectorAll('dialog[open]')].map(d => d.id)") == [
+        "grants"
+    ]
+    assert tab.js("document.getElementById('grant-who').value") == ""
+    assert wrote(store) == []
 
 
 def test_a_grant_with_nobody_named_is_said_in_the_dialog(prod):
@@ -1022,8 +1226,7 @@ def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
     assert prod.store.reads() == 0  # names and dates: no value is read for it
     prod.press("t", "t")
     prod.wait(f"{LIST_TITLE}.startsWith('Not changed in 365 days')")
-    prod.wait("true")
-    assert prod.server.page.settings.audit_threshold == 365  # and kept
+    until(lambda: prod.server.page.settings.audit_threshold == 365)  # and kept
     prod.press("c")
     prod.wait("document.getElementById('list-note').textContent.startsWith('Copied')")
     copied = prod.clipboard().splitlines()
@@ -1146,15 +1349,39 @@ def test_a_scopes_values_are_copied_only_after_a_y(prod):
     assert VALUE not in prod.js(WHOLE_PAGE)
 
 
+def test_two_quick_changes_to_a_setting_are_kept_in_the_order_made(prod, monkeypatch):
+    """The first is held up on its way. Were the second sent beside it, it would
+    overtake, and what is kept would be the older choice."""
+    prefer, asked, done = Handler._prefer, [], []
+    overtaken, both = threading.Event(), threading.Event()
+
+    def held_up(self, body):
+        asked.append(body.get("stale_after"))
+        if len(asked) == 1:
+            overtaken.wait(1)
+        else:
+            overtaken.set()
+        try:
+            return prefer(self, body)
+        finally:
+            done.append(body.get("stale_after"))
+            if len(done) == 2:
+                both.set()
+
+    monkeypatch.setattr(Handler, "_prefer", held_up)
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.press("t", "t")
+    prod.wait(f"{LIST_TITLE}.startsWith('Not changed in 365 days')")
+    assert both.wait(10)
+    assert done == [180, 365]
+    assert prod.server.page.settings.audit_threshold == 365
+
+
 def test_f_is_kept_for_the_next_time(page):
     page.press("f")
     page.wait("document.querySelectorAll('#scopes li').length === 4")
-    page.wait("true")
-    for _ in range(100):
-        if page.server.page.settings.show_all_scopes:
-            break
-        page.wait("true")
-    assert page.server.page.settings.show_all_scopes is True
+    until(lambda: page.server.page.settings.show_all_scopes is True)
 
 
 def test_every_value_can_be_forgotten_from_the_keys(prod):
@@ -1169,28 +1396,108 @@ def test_every_value_can_be_forgotten_from_the_keys(prod):
     assert VALUE not in prod.js(WHOLE_PAGE)
 
 
+def test_every_value_is_forgotten_by_a_key_in_the_keys_and_by_none_outside(prod):
+    prod.press(" ")
+    prod.wait("document.querySelector('pre.value.shown')")
+    held = prod.server.page.loader.service.cache.raw
+    prod.press("z")  # on the page itself it is no key: forgetting is not done by a slip
+    prod.press("?")
+    prod.wait(OPEN.format("help"))
+    assert held != {} and prod.js("document.getElementById('toast').hidden") is True
+    assert prod.js("document.getElementById('forget').innerText").endswith("z")
+    prod.press("z")
+    prod.wait(f"{TOAST}.startsWith('Forgot every value')")
+    assert prod.server.page.loader.service.cache.raw == {}
+    assert prod.js(OPEN.format("help")) is False and VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_the_keys_open_at_their_first_line(page):
+    """The list is longer than a small window, and the browser gives the keyboard
+    to its first button, which is at its end."""
+    page.press("?")
+    page.wait(OPEN.format("help"))
+    assert page.js("document.getElementById('help').scrollTop") == 0
+    assert page.js(
+        "document.getElementById('help-title').getBoundingClientRect().top >= 0"
+    )
+
+
+def test_enter_goes_on_from_the_scopes_and_shows_the_value_of_a_secret(page):
+    page.press("j")
+    page.wait(PROD)
+    assert page.focus() == "scopes"
+    page.press("Enter")
+    assert page.focus() == "keys" and page.store.reads() == 0
+    page.press("Enter")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js("document.querySelector('pre.value').textContent") == VALUE
+    page.press("Enter")
+    page.wait("!document.querySelector('pre.value.shown')")
+
+
+#: A key as the page's list of keys and the docs name it, and as the page takes it.
+NAMED = {
+    "space": " ",
+    "enter": "Enter",
+    "slash": "/",
+    "question": "?",
+    "←": "ArrowLeft",
+    "→": "ArrowRight",
+    "↑": "ArrowUp",
+    "↓": "ArrowDown",
+    "left": "ArrowLeft",
+    "right": "ArrowRight",
+    "up": "ArrowUp",
+    "down": "ArrowDown",
+}
+
+
+def test_every_key_the_page_takes_is_in_the_list_of_keys_and_in_the_docs(page):
+    """ "Everything has a key" — and a key nobody is told of is no key."""
+    import re
+    from pathlib import Path
+
+    taken = set(page.js("Object.keys(KEYS)"))
+    assert {"Enter", "f", "w", "D"} <= taken  # it is the page's own list that is read
+    listed = page.js(
+        "[...document.querySelectorAll('#help kbd, #help-open kbd')]"
+        ".map(k => k.textContent)"
+    )
+    assert taken - {NAMED.get(key, key) for key in listed} == set()
+    docs = (Path(__file__).parent.parent / "docs" / "page.md").read_text("utf-8")
+    written = set()
+    for key in re.findall(r"\+\+([a-z+]+?)\+\+", docs):
+        shifted, name = key.startswith("shift+"), key.removeprefix("shift+")
+        written.add(name.upper() if shifted and len(name) == 1 else NAMED.get(name, name))
+    assert taken - written == set()
+    # enter has a line of its own, in both: it is not only what the filter does with it
+    in_front = (
+        "[...document.querySelectorAll('#help td:first-child')].map(c => c.innerText)"
+    )
+    assert "enter" in page.js(in_front) and "\n| ++enter++ |" in docs
+    # and the keys that are keys only where they are shown: in the grants, in the keys
+    for inside in ("++e++ changes", "++d++ removes", "++question++ then ++z++"):
+        assert inside in docs, inside
+    in_the_keys = page.js("document.getElementById('help').textContent")
+    assert "e changes it, d removes it" in " ".join(in_the_keys.split())
+
+
 # ── what a second pair of eyes found in the tools ────────────────────
-SLOWLY = """(() => { const real = window.fetch;
-  window.fetch = (url, options) => String(url).includes('WHAT')
-    ? new Promise((done) => setTimeout(done, 400)).then(() => real(url, options))
-    : real(url, options); })()"""
-
-
 def test_an_import_answered_late_does_not_take_the_place_of_another_question(
     prod, tmp_path
 ):
     """Choose a file, then `d` before the server has said what the import would
     do: the question on the page stays "Delete", and `y` deletes — it must not
     have become "Import" underneath."""
-    import time
-
     file = tmp_path / "app.env"
     file.write_text("NEW_ONE=1\nAPI-KEY=overwritten\n")
-    prod.js(SLOWLY.replace("WHAT", "/api/env/preview"))
+    prod.js(late("/api/env/preview"))
     prod.choose_files("#env-file", str(file))
+    prod.wait("window.letGo")  # asked what the import would do, and the answer is held up
     prod.press("d")
     prod.wait(OPEN.format("confirm"))
-    time.sleep(0.8)  # the late answer has come by now
+    prod.js("window.letGo()")
+    prod.wait("window.answered")  # the late answer has come
     assert (
         prod.js("document.getElementById('confirm-title').textContent") == "Delete secret"
     )
@@ -1204,12 +1511,13 @@ def test_an_import_answered_late_does_not_take_the_place_of_another_question(
 def test_a_list_answered_late_does_not_open_over_a_question(prod):
     """`P` then `d` at once: the list must not open over "Delete?" — typing a name
     with a y in it into its filter would answer the question underneath."""
-    import time
-
-    prod.js(SLOWLY.replace("WHAT", "/api/grants"))
-    prod.press("P", "d")
+    prod.js(late("/api/grants"))
+    prod.press("P")
+    prod.wait("window.letGo")  # asked for the grants, and the answer is held up
+    prod.press("d")
     prod.wait(OPEN.format("confirm"))
-    time.sleep(0.8)
+    prod.js("window.letGo()")
+    prod.wait("window.answered")  # the late answer has come
     assert prod.js(OPEN.format("list")) is False
     assert prod.js("document.querySelectorAll('dialog[open]').length") == 1
     prod.press("Escape")
@@ -1511,28 +1819,38 @@ def keys_of(store, scope="common"):
 def test_a_change_asked_for_in_one_workspace_is_never_done_in_another(choosing):
     """`d y`, `d y` again while the first is still under way, then off to prod: the
     second delete was asked of dev. prod has the same names — and keeps them."""
-    import time
-
     in_common(choosing, "dev")
     dev, prod = choosing.connector.stores["dev"], choosing.connector.stores["prod"]
     real = dev.delete_secret
+    under_way, go_on = threading.Event(), threading.Event()
 
-    def slowly(scope, key):
-        time.sleep(0.6)
+    def held(scope, key):
+        under_way.set()
+        go_on.wait(30)
         real(scope, key)
 
-    dev.delete_secret = slowly
-    choosing.press("d")
-    choosing.wait(OPEN.format("confirm"))
-    choosing.press("y", "d")
-    choosing.wait(OPEN.format("confirm"))
-    choosing.press("y", "w")
-    choosing.wait(OPEN.format("picker"))
-    choosing.press("j", "Enter")
-    choosing.wait(
-        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
-    )
-    time.sleep(1.2)  # whatever was still to come has come
+    dev.delete_secret = held
+    try:
+        choosing.press("d")
+        choosing.wait(OPEN.format("confirm"))
+        choosing.press("y")
+        assert under_way.wait(10)  # the first is with the workspace, and stays there
+        choosing.press("d")
+        choosing.wait(OPEN.format("confirm"))
+        choosing.press("y")
+        # the page's own queue of changes, as it is now: the second delete is its end
+        choosing.js("window.queued = queue, true")
+        choosing.press("w")
+        choosing.wait(OPEN.format("picker"))
+        choosing.press("j", "Enter")
+        choosing.wait(
+            f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+        )
+        go_on.set()
+        # whatever was still to come has come: the queue has been gone through
+        assert choosing.js("window.queued.then(() => true)") is True
+    finally:
+        go_on.set()
     assert keys_of(prod) == ["A", "B"] and prod.count("delete_secret") == 0
     assert keys_of(dev) == ["B"]  # the one that was under way, and no more
 
@@ -1556,24 +1874,31 @@ def test_a_tab_left_showing_another_workspace_changes_nothing_and_catches_up(cho
 
 
 def test_a_value_that_comes_late_is_not_shown_under_another_workspace(choosing):
-    import time
-
     in_common(choosing, "dev")
     dev = choosing.connector.stores["dev"]
     real = dev.get_secret_bytes
+    asked, go_on = threading.Event(), threading.Event()
 
-    def slowly(scope, key):
-        time.sleep(0.6)
+    def held(scope, key):
+        asked.set()
+        go_on.wait(30)
         return real(scope, key)
 
-    dev.get_secret_bytes = slowly
-    choosing.press(" ", "w")
-    choosing.wait(OPEN.format("picker"))
-    choosing.press("j", "Enter")
-    choosing.wait(
-        f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
-    )
-    time.sleep(1.0)
+    dev.get_secret_bytes = held
+    choosing.js(late("/api/value", hold=False))
+    try:
+        choosing.press(" ")
+        assert asked.wait(10)  # the value is being read, and stays so
+        choosing.press("w")
+        choosing.wait(OPEN.format("picker"))
+        choosing.press("j", "Enter")
+        choosing.wait(
+            f"document.body.dataset.phase === 'ready' && {SCOPES}.includes('only-prod')"
+        )
+        go_on.set()
+        choosing.wait("window.answered")  # the value has come, late
+    finally:
+        go_on.set()
     assert "A of only-dev" not in choosing.js(WHOLE_PAGE)
     assert choosing.js("document.querySelector('pre.value.shown')") is None
 
@@ -1663,3 +1988,41 @@ def test_a_profile_not_kept_is_said_once_and_the_sign_in_stands(choosing):
     )
     choosing.wait(f"{TOAST}.includes('profile was not kept')")
     assert "cannot be written" in choosing.js(TOAST)
+
+
+def test_the_row_that_is_picked_is_gone_to_also_when_two_have_one_name_and_address(
+    browser,
+):
+    """A bundle's target and a profile for the same workspace: the second row is
+    the profile, and signs in as the profile does."""
+    from caland.application import OnboardingService
+    from caland.domain import SOURCE_BUNDLE
+    from fakes import StubBundle, StubProfiles
+    from test_web_picker import PROD, Connector
+
+    bundle = Workspace(
+        host="https://prod.example.com", source=SOURCE_BUNDLE, target="prod", default=True
+    )
+    connector = Connector()
+    page = Page(
+        onboarding=OnboardingService(connector, StubProfiles([PROD]), StubBundle(bundle))
+    )
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        tab = browser.tab(f"{server.address}#{page.new_key()}")
+        tab.wait(OPEN.format("picker"))
+        found_in = (
+            "[...document.querySelectorAll('#picker-rows tr')]"
+            ".map(r => r.cells[2].textContent)"
+        )
+        assert tab.js(PLACES) == ["prod", "prod"]
+        assert tab.js(found_in)[1] == "~/.databrickscfg"
+        tab.press("j", "Enter")
+        tab.wait(f"!{OPEN.format('picker')} && document.body.dataset.phase === 'ready'")
+        assert list(connector.stores) == ["prod"]  # the profile: no sign-in by address
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

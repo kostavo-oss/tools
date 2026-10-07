@@ -22,6 +22,17 @@ fine; coming back to it from another site is not — the page asks for a new lin
 If no tab opens, or the link opens in something that is not your browser, start it with
 `--no-open` and open the link it prints. The link works once.
 
+If the page says *caland failed*, something went wrong inside Caland itself, and the
+terminal has a line about it:
+
+```
+caland: POST /api/value failed: KeyError at caland/interface/web/server.py:412
+```
+
+Which request, what kind of failure, and where in the code — never a value, and nothing
+else of what was asked. That line is what a
+[bug report](https://github.com/kostavo-oss/caland/issues/new/choose) needs.
+
 ## What it does
 
 Three panes: the scopes you can reach, the secrets of the selected scope with when each was
@@ -46,7 +57,8 @@ A certificate pasted into the value field is taken line for line, like a file �
 holds one line, and would join the rest to it.
 
 **Grants and scopes.** ++p++ lists who has access to the scope, and gives, changes and
-removes a grant; removing asks first, and says so when the grant is your own. ++shift+n++
+removes a grant; removing asks first, and says so when the grant is your own. In that list
+++up++ ++down++ pick a grant, ++e++ changes it and ++d++ removes it. ++shift+n++
 makes a scope; ++shift+d++ deletes one, after saying how many secrets go with it. A scope
 has a key of its own so that a ++d++ meant for a secret never reaches one.
 
@@ -69,11 +81,15 @@ every scope with your access and how many have a grant on it. ++shift+p++ lists 
 made to a name — type a user, a group or a service principal — for an access review, or for
 someone who has left. None of the three reads a value.
 
+![The secrets not changed in 90 days, oldest first](img/page-stale.png)
+
 **Sorting.** ++s++ sorts the pane the keyboard is in by its next column, ++shift+s++ the
 other way round; a click on a heading does the same.
 
-**Read-only.** `caland prod --read-only` offers no change at all — and the server
-refuses one whatever the page shows.
+**Read-only.** `caland prod --read-only` offers no change to the workspace at all — and
+the server refuses one whatever the page shows. What is kept on your own machine is kept
+as always: ++f++ and the stale report's number of days, and a profile if you sign in to an
+address and ask to keep it.
 
 A Key Vault-backed scope's secrets are Azure's: they can be shown, copied, and copied out to
 another scope, and nothing else.
@@ -90,12 +106,13 @@ Everything has a key, and everything can be clicked.
 | ++g++ / ++shift+g++ | To a pane's first and last |
 | ++slash++ | Filter scopes and secrets: ++down++ picks while you type, ++enter++ goes to what is left, ++esc++ clears |
 | ++space++ | Show or hide the value; it hides itself after 30 s |
+| ++enter++ | In the scopes: on to the secrets. On a secret: show or hide the value |
 | ++c++ / ++shift+c++ | Copy the value / copy how to reach it from code |
 | ++n++ / ++shift+n++ | New secret / new scope |
 | ++e++ · ++m++ · ++d++ | Edit · move, copy or rename · delete the secret |
 | ++shift+d++ | Delete the scope |
 | ++u++ | Put back the secret last deleted or moved away |
-| ++p++ | Who has access to the scope |
+| ++p++ | Who has access to the scope; there ++up++ ++down++ pick a grant, ++e++ changes it, ++d++ removes it |
 | ++i++ / ++x++ | Fill the scope from a `.env` file / copy the scope as `.env` |
 | ++shift+a++ · ++a++ · ++shift+p++ | Secrets gone stale · what you can reach · what somebody else can |
 | ++s++ / ++shift+s++ | Sort the pane by its next column / the other way round |
@@ -103,6 +120,7 @@ Everything has a key, and everything can be clicked.
 | ++w++ | [Another workspace](connecting.md) |
 | ++r++ / ++shift+r++ | Read the scope again / the whole workspace |
 | ++question++ | The keys |
+| ++question++ then ++z++ | Forget every value Caland holds, and with them what ++u++ could put back |
 
 ++tab++ moves between panes, not between buttons, and blue marks where the keyboard is: a bar
 on a row, a ring on a button. After the last pane ++tab++ goes on to the browser's own bar, as
@@ -126,9 +144,10 @@ asking.
 - **A file you pick goes to Caland on your machine and from there to Databricks.** It is
   written nowhere on the way, and nothing of it is kept once it is saved.
 - **Nothing changes without being asked, and nothing is deleted without a ++y++.** Started
-  with `--read-only`, nothing changes at all.
-- **Nothing is kept.** No cache, no cookie, no history of values. The page loads nothing
-  that is not Caland's own.
+  with `--read-only`, nothing in the workspace changes at all.
+- **The browser keeps nothing.** No cache, no cookie, no history of values. The page loads
+  nothing that is not Caland's own. What Caland itself holds in memory while it runs, and
+  how it is forgotten, is under [Security](security.md#what-caland-holds-of-a-value).
 
 !!! warning "What it cannot defend"
     A browser extension that is allowed to read every page can read a value while it is

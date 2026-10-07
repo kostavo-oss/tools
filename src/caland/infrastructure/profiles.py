@@ -1,11 +1,12 @@
 """DatabricksCfgProfileStore — the `ProfileStore` port over ~/.databrickscfg.
 
 That file holds tokens. So it is written one writer at a time, never half — a
-copy beside it is written and moved into its place — and never left readable by
-anybody but its owner. A profile that is added is added to the end of what is
-there, which is left exactly as it was; and a profile that is there is never
-written over: it keeps its own way of signing in, and under another address
-that would be sent there.
+copy beside it is written and moved into its place. A new file is its owner's
+alone; one that is there keeps who may read it, which is the person's to say,
+and one that is a link stays a link: the file it points to is what is written.
+A profile that is added is added to the end of what is there, which is left
+exactly as it was; and a profile that is there is never written over: it keeps
+its own way of signing in, and under another address that would be sent there.
 """
 
 from __future__ import annotations
@@ -35,7 +36,12 @@ def _read(path: Path) -> configparser.ConfigParser:
 
 def _replace(path: Path, text: str) -> None:
     """Put `text` in the file's place: whole, or not at all. A file that was
-    there keeps who may read it; a new one is its owner's alone."""
+    there keeps who may read it; a new one is its owner's alone.
+
+    A link is written through: the copy is made beside the file it points to,
+    and moved into that file's place. Moved into the link's, it would leave a
+    plain file where the link was, and the file the person keeps as it was."""
+    path = Path(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
     handle, beside = tempfile.mkstemp(dir=path.parent, prefix=".databrickscfg-")
@@ -88,7 +94,8 @@ class DatabricksCfgProfileStore:
 
     def add(self, name: str, host: str) -> None:
         """Keep an address under a new name: the address and that signing in is
-        through the browser, as `databricks auth login` writes it. No secret.
+        through the browser, as the Databricks SDK for Python reads it — which
+        is not what `databricks auth login` writes. No secret.
 
         Raises `Exists` when the file has a profile of that name, whatever its
         case and whether it has an address or not — and nothing is written."""

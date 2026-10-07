@@ -3,10 +3,13 @@
 What caland is, what each part of it must do, and what is still open. `docs/` tells a user
 how to use it; this says what it promises, so that a change can be held to something.
 
-Written on 2026-10-06 from the tool as it is at 0.4.1 — its code, its tests, its docs and its
-changelog — when the tool took the name caland. Nothing in 001–006 is a plan: it describes
-what is built. 008 and 009 are the opposite: what the owner asked for that day, worked out,
-with nothing built. What is not decided is in each spec's **To decide**, and gathered below.
+Written on 2026-10-06, when the tool took the name caland. 001–006 were written from the
+terminal app as it was at 0.4.1 — its code, its tests, its docs and its changelog — and say
+what the page does today; what only the terminal app had is listed in each as gone. 007 and
+008 were plans that day, and are built, merged and released since: caland 0.5.0, 0.5.1 and
+0.5.2 on 2026-10-06, and 0.6.0 on 2026-10-07, the release in which caland became the page.
+009 is parked, with nothing built beyond what 004 describes. What is not decided is in each
+spec's **To decide**, and gathered below.
 
 | Spec | What | Stands |
 | --- | --- | --- |
@@ -17,8 +20,8 @@ with nothing built. What is not decided is in each spec's **To decide**, and gat
 | [004 — scopes and permissions](004-scopes-and-permissions.md) | Scopes, ACLs, who can touch what | built |
 | [005 — bulk work and audits](005-bulk-and-audit.md) | `.env` in and out, the stale-secret report | built |
 | [006 — what caland may do](006-safety.md) | What it never stores, what it asks before, read-only | built |
-| [007 — the name and the next release](007-name-and-release.md) | isolinear → caland, and the first release under it | prepared; questions open |
-| [008 — the page](008-the-page.md) | caland as a local page in lely's look, with a file picker | built; it is what caland is |
+| [007 — the name and the releases under it](007-name-and-release.md) | isolinear → caland, and the releases since | done: released as 0.5.0 to 0.6.0; one question open |
+| [008 — the page](008-the-page.md) | caland as a local page in lely's look, with a file picker | built and released (0.6.0); it is what caland is |
 | [009 — who reads a secret](009-who-reads-a-secret.md) | Who can read it, through which group; when it was last read | parked; last-read ruled out |
 
 ## How to read a requirement
@@ -38,22 +41,21 @@ The owner's to answer.
   served from the person's own machine. It uses only the SDK.
 - caland has no terminal version. The terminal app is `isolinear`, left as it is until the
   owner removes it.
+- The release that made caland the page is a minor version: 0.6.0, on 2026-10-07.
+  → [007](007-name-and-release.md)
 
 **Open**
 
-1. **The next release.** What is on `main` changes what `caland` is, and takes things away:
-   a minor version, when the owner says. → [007](007-name-and-release.md)
-2. **isolinear's two bugs** — a rename that only changes the case deletes the secret; a
+1. **isolinear's two bugs** — a rename that only changes the case deletes the secret; a
    `.env` value over several lines is mis-read. Fixed in caland only.
    → [007, D4](007-name-and-release.md#to-decide)
-3. *Who has access* does not follow groups. → [004, D1](004-scopes-and-permissions.md#to-decide),
+2. *Who has access* does not follow groups. → [004, D1](004-scopes-and-permissions.md#to-decide),
    [009](009-who-reads-a-secret.md)
-4. `docs/USER_STORIES.md` is from the first versions of the terminal app.
-   → [000, D1](000-what-caland-is.md#to-decide)
-5. Where a vulnerability is reported: a personal work address is in `SECURITY.md` and the
+3. Where a vulnerability is reported: a personal work address is in `SECURITY.md` and the
    docs. → [006, D3](006-safety.md#to-decide)
 
 **Proposals nobody asked for** — the writer's, to take or leave.
 
-6. Forget a value some minutes after it was last shown. → [003, D2](003-secrets.md#to-decide)
-7. Let a workspace be marked to open read-only. → [006, D2](006-safety.md#to-decide)
+4. Forget a value once it has been shown or copied: nothing reads it back any more.
+   → [003, D2](003-secrets.md#to-decide)
+5. Let a workspace be marked to open read-only. → [006, D2](006-safety.md#to-decide)

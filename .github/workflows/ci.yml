@@ -10,8 +10,8 @@ jobs:
     name: lint + types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync
@@ -34,19 +34,42 @@ jobs:
           - os: macos-latest
             python-version: "3.14"
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Tests (pytest)
         run: uv run --python ${{ matrix.python-version }} pytest
 
+  lowest:
+    name: test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Every `>=` in pyproject.toml says the version it names works. This
+      # installs exactly those — the lowest each dependency allows, on the oldest
+      # Python — so a floor that has gone false fails here and not on someone's
+      # machine. The test tools go in afterwards at whatever is current: it is
+      # the package's floors that are on trial, not pytest's.
+      - name: Install with the lowest direct dependencies
+        run: |
+          uv venv --python 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e .
+          uv pip install --python /tmp/lowest/bin/python --group dev
+          uv pip freeze --python /tmp/lowest/bin/python
+      # without the page in a browser: that is Chrome's to pass, not a dependency's
+      - name: Tests (pytest)
+        run: /tmp/lowest/bin/python -m pytest --ignore=tests/test_page_in_a_browser.py
+
   docs:
     name: docs (strict build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       # mkdocs lives in the `docs` dependency group, which a plain sync skips
@@ -58,15 +81,36 @@ jobs:
     name: build (wheel + sdist)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
+      - name: The source package holds what is listed, and nothing else
+        run: |
+          have=$(tar tzf dist/*.tar.gz | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          want=".gitignore CHANGELOG.md LICENSE PKG-INFO README.md pyproject.toml src tests "
+          echo "$have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::the source package holds something that is not on the list in pyproject.toml"
+            exit 1
+          fi
       - name: Smoke-test the built wheel on 3.11
         run: |
           uv venv /tmp/smoke -p 3.11
           uv pip install --python /tmp/smoke/bin/python dist/*.whl
-          /tmp/smoke/bin/python -c "import caland.app; print('import OK')"
-      - uses: actions/upload-artifact@v4
+          # the command as it is installed, not only that it can be imported
+          /tmp/smoke/bin/caland --version | grep -E '^caland [0-9]+\.[0-9]+'
+          /tmp/smoke/bin/caland --help | grep -F -- '--read-only'
+      - name: The wheel holds the page
+        run: |
+          /tmp/smoke/bin/python - <<'EOF'
+          from importlib import resources
+
+          static = resources.files("caland.interface.web").joinpath("static")
+          for name in ("page.html", "page.css", "page.js"):
+              assert static.joinpath(name).read_bytes(), f"{name} is not in the wheel"
+          print("the page is in the wheel")
+          EOF
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/*

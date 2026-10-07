@@ -134,7 +134,8 @@ class Loader:
             service.warm_scope(name)  # never raises: a scope it can't read is empty
             self._one_more()
 
-        # each scope is written under its own key, so the writes don't race
+        # each scope is written under its own key, and what is held of its values
+        # is let go of key by key (`forget_scope`): the writes don't race
         with ThreadPoolExecutor(max_workers=self._workers) as pool:
             list(pool.map(warm, [scope.name for scope in scopes]))
         self._set(phase=READY)
