@@ -14,6 +14,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -25,6 +26,7 @@ import project
 from fake_github import FakeGitHub
 from fakes import FakeDatabricks
 from lely import cli, planfile
+from lely.errors import LelyError
 from lely.model import Workspace
 
 runner = CliRunner()
@@ -1926,3 +1928,99 @@ def test_a_file_made_again_is_for_the_same_group_or_for_nobody_else(
     plan.chmod(0o4755)
     cli._write(plan, "newest")
     assert plan.stat().st_mode & 0o7777 == 0o755
+
+
+# -- the SDK edge ------------------------------------------------------------------------
+#
+# Every test above puts a fake where lely asks the workspace who is running.
+# These hold the three functions themselves, with a client that stands in for
+# `databricks.sdk.WorkspaceClient` and answers in the SDK's own classes — so
+# the names lely reads off them are the SDK's, on whichever version is
+# installed, and nothing reaches a network.
+
+
+class Client:
+    """What lely asks of a `WorkspaceClient`: who is running, and where."""
+
+    made: list[str | None] = []
+    groups: tuple[str, ...] | None = ("users",)
+    host: str | None = project.WORKSPACE.host
+    fails: Exception | None = None
+
+    def __init__(self, *, profile: str | None = None) -> None:
+        type(self).made.append(profile)
+        if self.fails is not None:
+            raise self.fails
+        self.config = SimpleNamespace(host=self.host)
+        self.current_user = self
+
+    def me(self) -> Any:
+        from databricks.sdk.service import iam
+
+        listed = self.groups
+        return iam.User(
+            user_name=project.WORKSPACE.identity,
+            groups=None
+            if listed is None
+            else [iam.ComplexValue(display=name) for name in listed],
+        )
+
+
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> type[Client]:
+    class Here(Client):
+        made: list[str | None] = []
+
+    monkeypatch.setattr("databricks.sdk.WorkspaceClient", Here)
+    return Here
+
+
+def test_who_is_running_is_asked_of_the_sdk_with_the_profile(
+    client: type[Client],
+) -> None:
+    """005/R35: the host and the identity, from the profile that was named."""
+    assert cli._whoami("dev") == project.WORKSPACE
+    assert cli._whoami(None) == project.WORKSPACE
+    assert client.made == ["dev", None]
+    client.host = None  # nothing the SDK is sure of: said, not guessed
+    assert cli._whoami(None).host == "?"
+
+
+def test_a_workspace_that_cant_be_reached_is_said_with_what_to_do(
+    client: type[Client],
+) -> None:
+    client.fails = ValueError("default auth: cannot configure default credentials")
+    with pytest.raises(LelyError) as caught:
+        cli._whoami(None)
+    assert str(caught.value) == (
+        "Can't reach a workspace: default auth: cannot configure default credentials\n"
+        "Pass --profile, or set the variables the Databricks CLI reads. `lely doctor` "
+        "shows what lely sees."
+    )
+
+
+def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -> None:
+    connected = cli._connect("dev")
+    assert isinstance(connected, client)
+    assert client.made == ["dev"]
+
+
+@pytest.mark.parametrize(
+    ("groups", "said_"),
+    [
+        (("users", "admins"), "a workspace admin: these credentials can change anything"),
+        (("users", "data-admins"), "not a workspace admin; lely can't tell what else"),
+        ((), "not a workspace admin"),
+        (None, "not a workspace admin"),
+    ],
+)
+def test_a_member_of_admins_is_a_workspace_admin(
+    client: type[Client], groups: tuple[str, ...] | None, said_: str
+) -> None:
+    """002/R13a. `admins` is the system group of a workspace's administrators:
+    https://docs.databricks.com/aws/en/admin/users-groups/groups — and the one
+    thing about what credentials may do that lely reads off. Assumed, not
+    seen: that the SDK's `current_user.me()` lists it under that name."""
+    client.groups = groups
+    assert cli._powers("dev").startswith(said_)
+    assert client.made == ["dev"]

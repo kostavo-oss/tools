@@ -247,8 +247,15 @@ def _connect(profile: str | None) -> WorkspaceClient:
 def _powers(profile: str | None) -> str:
     """What these credentials may do, as far as lely can tell.
 
+    `admins` is the system group of a workspace's administrators:
+    https://docs.databricks.com/aws/en/admin/users-groups/groups
+
     TODO(verify): no API says "read-only" in general. Being a workspace admin is
     the one thing that can be read off.
+    TODO(verify): that `current_user.me()` lists `admins`, under that name, for
+    every admin — one who is in it through another group too. Not seen on a
+    workspace. A miss reads as "not a workspace admin; lely can't tell what
+    else", which claims nothing.
     """
     from databricks.sdk import WorkspaceClient
 
