@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **lely asks for a typer it works with**: `typer>=0.17.5`, where 0.1.0 said `>=0.12`. With
+  an older one every `--help` could end in a traceback, or a command given no `-t` could run
+  without one. CI now runs the tests on the oldest version of every dependency.
+
 ## [0.1.0] - 2026-10-07
 
 The first release, as alpha: this is what is built.

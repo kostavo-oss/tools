@@ -500,12 +500,12 @@ requires-dist = [
     { name = "databricks-sdk", specifier = ">=0.89" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13.7" },
-    { name = "typer", specifier = ">=0.12" },
+    { name = "typer", specifier = ">=0.17.5" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "jsonschema", specifier = ">=4.20" },
+    { name = "jsonschema", specifier = ">=4.21" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "syrupy", specifier = ">=4.8" },

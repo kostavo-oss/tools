@@ -21,11 +21,17 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Typing :: Typed",
 ]
+# Each floor is the oldest version the unit tests pass on: CI holds them, in the job
+# `test (lowest dependencies)`.
 dependencies = [
     "databricks-sdk>=0.89",
+    # the first with wheels for Python 3.14
     "pyyaml>=6.0.3",
     "rich>=13.7",
-    "typer>=0.12",
+    # Older ones install beside a click they don't work with: up to 0.15.3 every
+    # `--help` is a traceback, and from 0.16.0 to 0.17.4 a command given no `-t` runs
+    # without one. (0.15.4 keeps to an older click, whose test runner the suite can't use.)
+    "typer>=0.17.5",
 ]
 
 [project.urls]
@@ -53,7 +59,7 @@ packages = ["src/lely"]
 
 [dependency-groups]
 dev = [
-    "jsonschema>=4.20",
+    "jsonschema>=4.21",
     "pytest>=8.0",
     "ruff>=0.6",
     "syrupy>=4.8",
