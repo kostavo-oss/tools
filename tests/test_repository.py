@@ -87,3 +87,13 @@ def test_what_a_user_reads_first_does_not_speak_of_the_terminal_app() -> None:
         text = (ROOT / name).read_text(encoding="utf-8")
         for word in ("TUI", "terminal UI", "--iso-", "2>err.log"):
             assert word not in text, f"{word} in {name}"
+
+
+def test_it_is_said_to_run_where_it_is_run() -> None:
+    """macOS and Linux, which CI runs. Windows is untried, and is not promised:
+    not by a classifier, not by the installation page."""
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    systems = [c for c in config["project"]["classifiers"] if "Operating System" in c]
+    assert systems == ["Operating System :: MacOS", "Operating System :: POSIX :: Linux"]
+    page = (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
+    assert "Windows is\n  untried" in page
