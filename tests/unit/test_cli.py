@@ -1006,6 +1006,36 @@ def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:
     }
 
 
+def test_what_a_program_says_while_a_step_runs_is_shown_never_obeyed(
+    ready: Lely,
+) -> None:
+    """A warning the Databricks CLI or a step's command writes on stderr while
+    it succeeds was never shown. It is a line of the step's progress now — on
+    lely's stderr, so stdout still holds the result and nothing else — and
+    what it holds for a terminal to obey is made visible."""
+    (ready.fake.world / "warn-deploy").write_text(
+        "Warning: jobs.bar has no owner\n\x1b[2Kgone\n"
+    )
+    (ready.fake.world / "warn-run").write_text("Run URL: https://x/run/1\n")
+    (ready.root / "ops" / "notify.sh").write_text(
+        "#!/bin/sh\necho 'WARNING: 3 rows were rejected' >&2\n"
+    )
+    result = ready("apply", "-t", "dev", "--yes", "-f", "json")
+    assert result.exit_code == 0, said(result)
+    assert json.loads(result.stdout)["outcome"] == "done"
+    progress = _ANSI.sub("", result.stderr)
+    for line in (
+        "… app: Deployment complete!",
+        "… app: Warning: jobs.bar has no owner",
+        "… app: �[2Kgone",
+        "… notify: WARNING: 3 rows were rejected",
+        "… backfill: Run of jobs.backfill finished: SUCCESS",
+        "… backfill: Run URL: https://x/run/1",
+    ):
+        assert line in progress
+    assert "\x1b[2K" not in result.stderr
+
+
 def test_escape_sequences_in_a_plan_file_dont_reach_the_terminal(ready: Lely) -> None:
     planned(ready)
     path = ready.root / "plan.json"
@@ -1601,11 +1631,16 @@ def test_with_github_no_line_lely_says_holds_the_token(
     token and succeeds put it in lely's own progress lines; a plan command
     that fails with it put it in the error."""
     leaking(ready, apply="apply", destroy="destroy")
+    # the Databricks CLI can print it too, while it deploys
+    (ready.fake.world / "warn-deploy").write_text(f"auth: {fake_github.TOKEN}\n")
     applied = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)
     assert applied.exit_code == 0
     destroyed = ready("destroy", "-t", "dev", "--yes", "--github", *extra)
     assert destroyed.exit_code == 0
     nowhere(ready, hub, applied, destroyed)
+    # what each program wrote was passed on, on both streams: hidden, not dropped
+    for line in ("seed: signed in with ***", "seed: and on stderr ***", "app: auth: ***"):
+        assert f"… {line}" in _ANSI.sub("", applied.stderr)
 
     leaking(ready, apply="apply-fails")
     failed = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)

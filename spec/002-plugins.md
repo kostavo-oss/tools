@@ -273,6 +273,11 @@ requirement:
   written is written as a string.
 - **What a plugin prints goes to stderr.** stdout is lely's — a plan or a result as JSON, a
   schema — and a `print` left in a plugin would land in the middle of it.
+- **What a program says while a step runs goes through the step's log** (R22), like a line
+  the plugin logs itself: `lely.process.run(…, said=…)` passes on each line as it comes, and
+  `lely.databricks.heard` does it for the Databricks CLI. What a step is given is unchanged —
+  `ctx.databricks.run(args, cwd)` still answers when the program is done — so a stand-in for
+  the CLI that keeps to that is heard when it is done, not while it runs.
 - **Only what a config can set is an option**: a field the `Options` class fills in itself is
   not one. A `Literal` option takes one of its members and of its kind — `true` is not `1`.
 - **A plugin's own view (R8)** is `StepPlan.view`: HTML, as text, made by `plan` (and by

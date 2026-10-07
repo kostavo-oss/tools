@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
 import project
-from fakes import FakeDatabricks, write_bundle
+from fakes import FakeDatabricks, Heard, write_bundle
 from lely.errors import LelyError
 from lely.model import Change, Linked, Skip
 from lely.planning import Session
@@ -97,6 +98,21 @@ def test_a_failed_run_is_a_failed_step(tmp_path: Path) -> None:
         LelyError, match="(?s)`databricks bundle run jobs.backfill` failed.*load"
     ):
         BundleRun().apply(step, BundleRun().plan(step))
+
+
+def test_what_the_run_says_is_passed_on(tmp_path: Path) -> None:
+    """R11. A run can take long, and what the CLI writes meanwhile is the only
+    sign of it; on stderr too."""
+    log = Heard()
+    step = dataclasses.replace(ctx(tmp_path), log=log)
+    assert isinstance(step.databricks, FakeDatabricks)
+    (step.databricks.world / "warn-run").write_text("Run URL: https://x/run/1\n")
+    BundleRun().apply(step, BundleRun().plan(step))
+    assert log.lines == [
+        "backfill: bundle run jobs.backfill",
+        "backfill: Run of jobs.backfill finished: SUCCESS",
+        "backfill: Run URL: https://x/run/1",
+    ]
 
 
 def test_nothing_to_destroy_and_nothing_to_list(tmp_path: Path) -> None:

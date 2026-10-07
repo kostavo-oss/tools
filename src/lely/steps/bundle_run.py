@@ -30,7 +30,7 @@ from lely.errors import LelyError
 from lely.model import Change, Json, Linked, Outputs, StepPlan
 from lely.process import failure
 from lely.step import Context
-from lely.steps.bundle import Bundle, open_bundle, resource_keys
+from lely.steps.bundle import Bundle, open_bundle, passing_on, resource_keys
 
 
 class BundleRun:
@@ -83,7 +83,7 @@ class BundleRun:
         bundle = open_bundle(ctx.databricks, ctx.root, ctx.target, options)
         tail = ("--", *ctx.options.args) if ctx.options.args else ()
         ctx.log.info(f"{ctx.name}: bundle run {ctx.options.resource}")
-        result = bundle.run("run", ctx.options.resource, tail=tail)
+        result = bundle.run("run", ctx.options.resource, said=passing_on(ctx), tail=tail)
         if result.returncode != 0:
             raise failure(f"`databricks bundle run {ctx.options.resource}`", result)
         return {}

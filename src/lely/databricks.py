@@ -18,7 +18,7 @@ from pathlib import Path
 
 from lely.errors import LelyError
 from lely.model import Json
-from lely.process import failure, run
+from lely.process import Said, failure, run
 from lely.step import Cli
 
 INSTALL = (
@@ -36,13 +36,34 @@ class DatabricksCli:
     profile: str | None = None
     env: Mapping[str, str] | None = None
 
-    def run(self, args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    def run(
+        self, args: Sequence[str], cwd: Path, *, said: Said | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """`said` is given each line the CLI writes, as it comes (`heard`)."""
         command = [*self.executable, *args]
         if self.profile is not None:
             # before a `--`: what follows one is the job's, not the CLI's
             at = command.index("--") if "--" in command else len(command)
             command[at:at] = ["--profile", self.profile]
-        return run(command, cwd, env=self.env, hint=INSTALL)
+        return run(command, cwd, env=self.env, hint=INSTALL, said=said)
+
+
+def heard(
+    cli: Cli, args: Sequence[str], cwd: Path, said: Said
+) -> subprocess.CompletedProcess[str]:
+    """Run `databricks <args>` and pass on what it writes, a line at a time.
+
+    For a call that changes a workspace and takes its time — a deploy, a
+    destroy, a job run. The CLI itself is heard while it runs. Whatever else
+    stands in for it is run as the contract has it (`Cli.run(args, cwd)`, which
+    answers when the program is done) and is heard then.
+    """
+    if isinstance(cli, DatabricksCli):
+        return cli.run(args, cwd, said=said)
+    result = cli.run(args, cwd)
+    for line in (*result.stdout.splitlines(), *result.stderr.splitlines()):
+        said(line)
+    return result
 
 
 def answer(cli: Cli, args: Sequence[str], cwd: Path) -> dict[str, Json]:

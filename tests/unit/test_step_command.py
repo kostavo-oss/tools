@@ -3,6 +3,7 @@ apply command that writes its outputs; and optionally a destroy command."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from fakes import Heard
 from lely.errors import LelyError
 from lely.model import Change, Output, Secret, Skip, StepPlan
 from lely.step import lists
@@ -177,6 +179,55 @@ def test_a_non_zero_exit_is_a_failed_step_and_what_it_printed_is_shown(
         applied(tmp_path, "print('boom', file=sys.stderr); sys.exit(4)")
 
 
+def test_what_a_command_writes_is_passed_on_while_it_runs(tmp_path: Path) -> None:
+    """R3. On both streams, and as it comes: a warning on stderr from a command
+    that succeeded was never shown, and a long one said nothing until it was
+    done. The script goes on only once its first line is in the step's log."""
+    body = (
+        "import pathlib, time\n"
+        "print('loading orders', flush=True)\n"
+        "for _ in range(400):\n"
+        "    if pathlib.Path('heard').exists():\n"
+        "        break\n"
+        "    time.sleep(0.05)\n"
+        "else:\n"
+        "    sys.exit('nobody heard the first line while this ran')\n"
+        "print('WARNING: 3 rows were rejected', file=sys.stderr)"
+    )
+
+    class Marks(Heard):
+        def info(self, message: str) -> None:
+            super().info(message)
+            if message.endswith("loading orders"):
+                (tmp_path / "heard").touch()
+
+    log = Marks()
+    built = Command.Options(apply=script(tmp_path, body, "apply.py"))
+    ctx = dataclasses.replace(context(built, name="seed", root=tmp_path), log=log)
+    assert Command().apply(ctx, Command().plan(ctx)) == {}
+    assert log.lines == [
+        f"seed: {PYTHON} apply.py",
+        "seed: loading orders",
+        "seed: WARNING: 3 rows were rejected",
+    ]
+
+
+def test_a_command_that_fails_is_quoted_on_both_streams(tmp_path: Path) -> None:
+    """Its reason may be on stdout, with only a notice on stderr."""
+    body = (
+        "print('ERROR: table `orders` does not exist')\n"
+        "print('notice: a new version is out', file=sys.stderr)\n"
+        "sys.exit(3)"
+    )
+    with pytest.raises(LelyError) as caught:
+        applied(tmp_path, body)
+    assert str(caught.value) == (
+        "step `seed`'s apply command failed (exit 3):\n"
+        "stdout:\nERROR: table `orders` does not exist\n"
+        "stderr:\nnotice: a new version is out"
+    )
+
+
 def test_a_listed_output_given_in_neither_way_is_a_failed_step(tmp_path: Path) -> None:
     with pytest.raises(LelyError) as caught:
         applied(tmp_path, "pass", outputs=("count",))
@@ -243,6 +294,18 @@ def test_a_failing_destroy_command_is_shown(tmp_path: Path) -> None:
     ctx = context(options, name="seed", root=tmp_path)
     with pytest.raises(LelyError, match="(?s)destroy command failed.*locked"):
         Command().destroy(ctx, StepPlan())
+
+
+def test_what_a_destroy_command_writes_is_passed_on_too(tmp_path: Path) -> None:
+    body = "print('dropping 3 tables'); print('WARNING: 1 was gone', file=sys.stderr)"
+    options = Command.Options(apply=("true",), destroy=script(tmp_path, body))
+    log = Heard()
+    ctx = dataclasses.replace(context(options, name="seed", root=tmp_path), log=log)
+    Command().destroy(ctx, StepPlan())
+    assert sorted(log.lines[1:]) == [
+        "seed: WARNING: 1 was gone",
+        "seed: dropping 3 tables",
+    ]
 
 
 def test_status_has_nothing_to_list() -> None:

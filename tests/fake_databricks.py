@@ -34,7 +34,14 @@ or, where that run couldn't show it, the way lely believes it does:
 -     `validate` creates the bundle's `files` folder. Seen: it is recorded in
       `state.json` under `folders`, so a test can hold lely to not calling it.
 
-Anything it can't answer exits 1 — loudly, like the CLI would.
+Anything it can't answer exits 1 — loudly, like the CLI would. A test makes a
+verb of a simulated bundle fail with `<world>/fail-<verb>`: its text is the
+error.
+
+**What it says on the side.** `<world>/warn-<verb>` is written to stderr when
+`bundle <verb>` succeeds: a warning, a line of progress. The real CLI's words
+for those are not recorded here; that a program can succeed and still have
+said something on stderr is all this stands for.
 """
 
 from __future__ import annotations
@@ -64,9 +71,11 @@ def answer(world: Path, args: list[str], cwd: Path) -> tuple[int, str, str]:
     with (world / "calls.jsonl").open("a", encoding="utf-8") as calls:
         calls.write(json.dumps(args) + "\n")
     try:
-        return 0, _answer(world, args, cwd), ""
+        said = _answer(world, args, cwd)
     except _Fails as error:
         return 1, "", f"Error: {error}\n"
+    aside = world / f"warn-{args[1]}" if args[:1] == ["bundle"] else None
+    return 0, said, aside.read_text() if aside is not None and aside.exists() else ""
 
 
 def _answer(world: Path, args: list[str], cwd: Path) -> str:

@@ -284,6 +284,10 @@ read; a second bundle in one project; a pull request in a real repository.
   change, not their values. A fingerprint of the resolved variables in the plan would catch
   it, at the price of refusing a plan whose variables depend on who runs it. *Not built; the
   owner's to decide.*
+- **What the CLI writes while it deploys or destroys** — on stdout and on stderr — is passed
+  on to the step's log a line at a time, as it comes, and kept for the error if the call
+  fails; that error quotes both streams. `summary` and `plan` are answers: they are read, not
+  shown. *(2026-10-07; before, only a failure showed anything, and of one stream.)*
 - **A `path` that isn't a directory** is said so at plan. It used to read as "the Databricks
   CLI isn't installed".
 - **What is still assumed** is a `TODO(verify)` in `src/lely/steps/bundle.py`; what was seen is

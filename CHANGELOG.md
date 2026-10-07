@@ -6,8 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **What a step's program says is shown while it runs.** `bundle deploy`, `bundle destroy`,
+  `bundle run` and a `command` step's apply and destroy commands are passed on a line at a
+  time, as they come, on stderr — what they write to stdout and to stderr. Before, a deploy
+  or a long job run was silent until it ended, and a warning from a program that succeeded
+  was never shown.
+
 ### Fixed
 
+- **A program that fails is quoted on both of its streams**, each under its name. One that
+  gave its reason on stdout and a notice on stderr was quoted for the notice alone.
 - **lely asks for a typer it works with**: `typer>=0.17.5`, where 0.1.0 said `>=0.12`. With
   an older one every `--help` could end in a traceback, or a command given no `-t` could run
   without one. CI now runs the tests on the oldest version of every dependency.

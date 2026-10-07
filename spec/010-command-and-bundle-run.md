@@ -100,13 +100,18 @@ plan.
 - **An argument is passed as it was written**: `1.10` stays `1.10`.
 - **`LELY_PLAN` (R4)** holds the plan made right before the command runs, which was checked
   against the approved one.
-- **What a command prints (R3)** is shown when it fails, and logged line by line when it
-  succeeds.
+- **What a command writes (R3)** on apply and destroy — on stdout and on stderr — is passed
+  on to the step's log a line at a time, as it comes: a warning from a command that succeeds
+  is shown, and a long one is not silent. When it fails, the error quotes both streams, each
+  under its name when both were written to: the reason may be on either. A plan command is
+  run to its end and read; no command has a time limit. *(2026-10-07: before, a failure
+  quoted stderr or else stdout, and stderr of a command that succeeded was dropped.)*
 - **`env` may hold a secret (R8)**; arguments may not, a value from the environment included.
 - **`bundle` on `bundle.run` (R9)** is an option that names a step — see
   [002, As built](002-plugins.md#as-built).
 - **`bundle run <key> -- <args>` (R11):** that arguments after `--` reach the job, and that a
-  failed run exits non-zero, are from the CLI's docs and not seen live.
+  failed run exits non-zero, are from the CLI's docs and not seen live. What the CLI writes
+  while the run goes on is passed on like a command's, so a long run is not silent.
 
 ## Done when
 

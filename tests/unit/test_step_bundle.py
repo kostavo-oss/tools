@@ -12,6 +12,7 @@ names it.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ from typing import Any
 import pytest
 
 import project
-from fakes import HOST, FakeDatabricks, deploy, fixture, write_bundle
+from fakes import HOST, FakeDatabricks, Heard, deploy, fixture, write_bundle
 from lely.errors import LelyError, Refused
 from lely.model import Change, Item, Linked, Overview, Secret, StepPlan
 from lely.step import Context
@@ -312,6 +313,37 @@ def test_a_deploy_that_fails_is_a_failure_not_a_refusal(tmp_path: Path) -> None:
     assert not isinstance(caught.value, Refused)
     assert "`databricks bundle deploy` failed" in str(caught.value)
     assert "PERMISSION_DENIED" in str(caught.value)
+
+
+def test_what_the_cli_says_while_it_deploys_and_destroys_is_passed_on(
+    tmp_path: Path,
+) -> None:
+    """On both streams — a warning on stderr from a deploy that succeeded was
+    never shown — and only for the calls that change something: the summary
+    asked for after a deploy is an answer, not something to show. (This fake
+    answers in process, so it is heard when it is done; the CLI as a program is
+    heard while it runs — `test_cli.py`.)"""
+    fake = project.databricks(tmp_path)
+    (fake.world / "warn-deploy").write_text("Warning: jobs.bar has no owner\n")
+    (fake.world / "warn-summary").write_text("never shown\n")
+    (fake.world / "warn-destroy").write_text("Warning: 2 files were left\n")
+    log = Heard()
+    step = dataclasses.replace(ctx(tmp_path, fake), log=log)
+    plan = Bundle().plan(step)
+    log.lines.clear()
+    Bundle().apply(step, plan)
+    assert log.lines == [
+        "app: bundle deploy",
+        "app: Deployment complete!",
+        "app: Warning: jobs.bar has no owner",
+    ]
+    log.lines.clear()
+    Bundle().destroy(step, Bundle().plan_destroy(step))
+    assert log.lines == [
+        "app: bundle destroy",
+        "app: Destroy complete!",
+        "app: Warning: 2 files were left",
+    ]
 
 
 # -- overview ----------------------------------------------------------------------

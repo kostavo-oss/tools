@@ -69,8 +69,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path
+from typing import Any
 
-from lely.databricks import CliError, answer
+from lely.databricks import CliError, answer, heard
 from lely.errors import LelyError, Refused
 from lely.model import (
     Action,
@@ -84,7 +85,7 @@ from lely.model import (
     Secret,
     StepPlan,
 )
-from lely.process import failure
+from lely.process import Said, failure, wrote
 from lely.step import Cli, Context
 
 #: The direct engine's plan format this was written against.
@@ -177,9 +178,11 @@ class Bundle:
             # `--auto-approve` answers the CLI's own questions (V2): lely has
             # asked already, and checked for destructive changes.
             # TODO(verify): whether the CLI would ask, without it, before a delete.
-            result = bundle.run("deploy", "--plan", str(path), "--auto-approve")
+            result = bundle.run(
+                "deploy", "--plan", str(path), "--auto-approve", said=passing_on(ctx)
+            )
         if result.returncode != 0:
-            said = result.stderr.strip() or result.stdout.strip()
+            said = wrote(result)
             if _STALE in said:
                 raise Refused(
                     f"The Databricks CLI refused the plan for step `{ctx.name}`:\n{said}"
@@ -237,7 +240,7 @@ class Bundle:
         ctx.log.info(f"{ctx.name}: bundle destroy")
         # Without `--auto-approve` and nobody to ask, the CLI refuses (V2). lely
         # has asked: the target's name typed, or `--yes` in the command.
-        result = bundle.run("destroy", "--auto-approve")
+        result = bundle.run("destroy", "--auto-approve", said=passing_on(ctx))
         if result.returncode != 0:
             raise CliError(str(failure("`databricks bundle destroy`", result)))
 
@@ -263,10 +266,18 @@ class OpenBundle:
         return answer(self.cli, self.args(verb), self.cwd)
 
     def run(
-        self, verb: str, *extra: str, tail: tuple[str, ...] = ()
+        self, verb: str, *extra: str, said: Said, tail: tuple[str, ...] = ()
     ) -> subprocess.CompletedProcess[str]:
-        """`tail` goes last — after a `--`, it is the job's, not the CLI's."""
-        return self.cli.run(self.args(verb, *extra, tail=tail), self.cwd)
+        """A verb that changes the workspace: what the CLI writes meanwhile is
+        passed to `said`, and kept. `tail` goes last — after a `--`, it is the
+        job's, not the CLI's."""
+        return heard(self.cli, self.args(verb, *extra, tail=tail), self.cwd, said)
+
+
+def passing_on(ctx: Context[Any]) -> Said:
+    """What the CLI writes while a step deploys, destroys or runs, to the
+    step's log: a line at a time, under the step's name."""
+    return lambda line: ctx.log.info(f"{ctx.name}: {line}")
 
 
 def open_bundle(cli: Cli, root: Path, target: str, options: Bundle.Options) -> OpenBundle:

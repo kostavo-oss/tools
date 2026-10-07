@@ -46,6 +46,8 @@ lely apply plan.json --yes        # … without a terminal to ask at
   the step will do. The next plan shows it ready.
 - **`--from <step>`** starts at a step; the ones before it are planned, for what they give,
   and not run.
+- **What a step's program says is passed on** while it runs — `bundle deploy`, a job run, a
+  step's command — a line at a time, on stderr, both what it writes to stdout and to stderr.
 
 ### When a step fails
 

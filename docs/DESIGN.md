@@ -644,6 +644,13 @@ The builder's calls again; none is the owner's yet.
 - **A plugin can't end lely or take its streams.** `sys.exit` in a plugin is that step's
   error. What a plugin prints, however it prints it, goes to stderr through a stream of its
   own.
+- **A program is heard while it changes something** *(2026-10-07)*. `process.run` takes
+  `said`: each line the program writes, on either stream, is passed to it as it comes and
+  kept for the result. The plugins lely ships pass it to the step's log for an apply or a
+  destroy command, `bundle deploy`, `bundle destroy` and `bundle run`; what only answers a
+  question — a plan command, `bundle summary` — is run to its end and read. The log is the
+  command line's, so a line a program wrote is cleaned and searched for the run's token like
+  every other line lely says. A failure quotes both streams. Nothing has a time limit.
 
 ## The page, as built 2026-10-06
 
