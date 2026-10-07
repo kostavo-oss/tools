@@ -932,8 +932,14 @@ def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
     )
 
     version = _program_says(DATABRICKS, "--version")
-    if version is None:
+    if version is None and runs_the_cli:
         line(False, f"the Databricks CLI: `{DATABRICKS[0]}` isn't on PATH")
+    elif version is None:
+        # nothing here needs it: said, and no failed check
+        line(
+            None,
+            f"the Databricks CLI: `{DATABRICKS[0]}` isn't on PATH. No step here runs it.",
+        )
     else:
         line(True, f"the Databricks CLI: {version}")
         if runs_the_cli:
@@ -1349,7 +1355,8 @@ def _keep(
     try:
         _write(record, _without_token(json.dumps(document, indent=2) + "\n", hub))
     except (OSError, ValueError, TypeError, RecursionError) as error:
-        why = getattr(error, "strerror", None) or error
+        # an error's own words are shown, never obeyed: no markup, no escape
+        why = escape(clean(str(getattr(error, "strerror", None) or error)))
         err.print(f"[red]Can't write the result to {escape(str(record))}: {why}[/]")
     else:
         err.print(Text.assemble(("Wrote", "green"), f" {record}"))

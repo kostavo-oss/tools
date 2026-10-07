@@ -709,6 +709,25 @@ def test_doctor_fails_when_a_tool_is_missing(
     assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
 
 
+def test_doctor_doesnt_fail_for_a_cli_no_step_runs(
+    lely: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project of commands needs no Databricks CLI: one that is missing is
+    said, and is no failed check."""
+    project.write(
+        lely.root,
+        "steps:\n  - name: seed\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh]}\n",
+    )
+    monkeypatch.setattr(cli, "DATABRICKS", ("no-such-databricks",))
+    result = lely("doctor")
+    told = " ".join(said(result).split())
+    assert result.exit_code == 0, said(result)
+    assert (
+        "! the Databricks CLI: `no-such-databricks` isn't on PATH. No step here" in told
+    )
+
+
 def test_doctor_compares_the_clis_version_with_the_one_bundles_need(lely: Lely) -> None:
     """It printed the version and "GA in CLI v1.3.0" side by side, and left
     the comparing to the reader."""
@@ -1680,6 +1699,22 @@ def test_a_run_that_never_started_leaves_a_record_of_that(ready: Lely) -> None:
     page = ready("ui", "result.json", "-o", "-").stdout
     assert '<strong class="refused">Refused.</strong> Nothing was rolled back.' in page
     assert "Pass --yes to run without asking." in page
+
+
+def test_why_a_record_cant_be_written_is_shown_and_never_obeyed(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The error's own words went into the line as they were: markup in them
+    was markup, and an escape was an escape."""
+
+    def refuses(*_: object, **__: object) -> None:
+        raise ValueError("[bold red]not markup[/] \x1b[2Jnor a command")
+
+    monkeypatch.setattr(cli, "_write", refuses)
+    applied = ready("apply", "-t", "dev", "--yes", "-o", "result.json")
+    assert applied.exit_code == 0
+    assert "[bold red]not markup[/]" in applied.stderr
+    assert "\x1b[2J" not in applied.stderr
 
 
 def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely) -> None:

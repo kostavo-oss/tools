@@ -37,6 +37,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checkout, in a repository, is a failed check — `lely plan` fails there. It compares the
   Databricks CLI's version with v1.3.0 and says when it is older, and says what bundles
   need only to a project with a step that runs the CLI.
+- **`lely doctor` doesn't fail for a Databricks CLI no step runs.** In a project of
+  commands a missing CLI is said, and is no failed check.
+- **Why a run's record couldn't be written is shown, not obeyed**: the error's own words
+  went into the line as markup.
 - **`lely doctor` says a plugin that fails in one line**, with the step and the plugin, and
   checks the rest. A plugin whose `programs` raised ended it in a traceback.
 - **A traceback never shows local values.** With a typer below 0.23, an error lely didn't
