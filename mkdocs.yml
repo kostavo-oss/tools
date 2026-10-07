@@ -1,0 +1,61 @@
+site_name: leeghwater
+site_description: "Your dlt pipeline, the same on your laptop and in a Databricks job"
+site_author: Misja Pronk
+site_url: https://kostavo-oss.github.io/leeghwater/
+
+repo_name: kostavo-oss/leeghwater
+repo_url: https://github.com/kostavo-oss/leeghwater
+edit_uri: edit/main/docs/
+
+copyright: Apache-2.0 © Misja Pronk
+
+theme:
+  name: material
+  font: false # use the system font stack (SF on macOS) for a native, calm feel
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Switch to light
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kostavo-oss/leeghwater
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/leeghwater/
+
+nav:
+  - Home: index.md

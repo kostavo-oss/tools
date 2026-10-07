@@ -1,0 +1,9 @@
+# Written by copier, and read by `copier update` — not edited by hand.
+_commit: 7522bc8
+_src_path: gh:kostavo-oss/template-python
+description: Your dlt pipeline, the same on your laptop and in a Databricks job
+distribution_name: leeghwater
+named_after: Jan Adriaanszoon Leeghwater — the millwright who drained the Beemster
+    with windmills, dry in 1612. He moved water from where it lay to where it was
+    wanted.
+tool_name: leeghwater
