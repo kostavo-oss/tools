@@ -5,9 +5,10 @@ as firm as what it does.
 
 ## What it keeps to
 
-- **A value is never written.** Not to disk, not to a cache, not to a log. It is read from
-  Databricks when you ask, held in memory, and forgotten when Caland stops — or sooner, with
-  *Forget every value* under ++question++.
+- **A value is never written.** Not to disk, not to a file of any kind, not to a log. It is
+  read from Databricks each time you ask — a second look shows what is there now, not
+  what was there the first time. [What Caland holds in memory](#what-caland-holds-of-a-value)
+  is said below.
 - **A value is read only for something you asked for.** Connecting reads names, dates and
   grants. A value is read to show it, to copy it, to move or copy its secret, to delete its
   secret — so that ++u++ can put it back — and for a `.env` export with values. Where your
@@ -25,6 +26,22 @@ as firm as what it does.
   but you.
 - **One door to Databricks.** Only one layer of the code imports the Databricks SDK; the
   page and the server have no other way out.
+
+## What Caland holds of a value
+
+In its own memory, while it runs, and nowhere else:
+
+- **The secret you last deleted or moved away**, with its value, so that ++u++ can put it
+  back. One deep: the next delete or move takes its place.
+- **The values it has read or written for you**: shown, copied, saved, moved, exported.
+  They are not used again — showing or copying asks the workspace every time.
+
+A scope's values are let go of when that scope is read again (++r++, or ++shift+r++ for
+the whole workspace) or deleted. Everything, with what ++u++ could put back, is forgotten
+by *Forget every value* under ++question++, by going to another workspace, and when Caland
+stops: ++ctrl+c++, or by itself after 30 minutes with nothing asked of it.
+
+The page in your browser holds less: a value is in it only while it is shown.
 
 The page is served from your own machine, to you only:
 [how it is kept yours](page.md#how-it-is-kept-yours) has those rules, and what it cannot

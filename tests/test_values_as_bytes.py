@@ -39,10 +39,16 @@ def test_bytes_go_in_and_come_back_as_they_were(service):
     assert service.secret("prod", "bundle") is not None
 
 
-def test_a_value_is_read_once_and_kept_for_the_session(service):
+def test_a_value_is_read_from_the_workspace_every_time_it_is_asked_for(service):
     for _ in range(3):
         service.reveal_bytes("prod", "api-key")
-    assert service.store.count("get_secret_bytes") == 1
+    assert service.store.count("get_secret_bytes") == 3
+
+
+def test_a_second_look_shows_what_is_there_now(service):
+    assert service.reveal_bytes("prod", "api-key") == b"value::prod/api-key"
+    service.store._values[("prod", "api-key")] = b"rotated elsewhere"
+    assert service.reveal_bytes("prod", "api-key") == b"rotated elsewhere"
 
 
 def test_writing_drops_what_the_text_of_it_was(service):

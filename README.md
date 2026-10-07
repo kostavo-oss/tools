@@ -97,8 +97,8 @@ Everything has a key, and everything can be clicked. `?` on the page lists them 
 
 ## Security
 
-- **A value is read when you ask for it, and written nowhere**: not to disk, not to a cache,
-  not to a log. Shown, it hides itself after 30 seconds.
+- **A value is read from the workspace each time you ask for it, and written nowhere**:
+  not to disk, not to a log. Shown, it hides itself after 30 seconds.
 - **The page is yours only.** It is served from `127.0.0.1`, answers only to its own page
   at its own address, and to nothing without the session's key — which is never a cookie
   and never on a command line.

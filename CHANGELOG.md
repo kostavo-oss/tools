@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   not — so its token or service principal could not be used there, and `caland NAME` said
   there was no such workspace. Each is a row of its own now, the bundle's target first.
   Where a bundle's target and a profile have one name, `caland NAME` is the profile.
+- **A second look at a value shows what is there now.** A value was read once and then
+  answered from memory for as long as Caland ran: changed in the workspace meanwhile, it
+  was shown and copied as it had been. Showing and copying read the workspace every time
+  now, as the page says. The docs said "no cache"; they say what Caland holds in memory,
+  for how long, and how it is forgotten.
 - **The source package holds the source, the tests and the licence, and nothing else.**
   From 0.5.1 to 0.6.0 it also held `snapshot_report.html`: a report a test tool had written
   into the repository, committed by mistake, with the environment of the machine it was

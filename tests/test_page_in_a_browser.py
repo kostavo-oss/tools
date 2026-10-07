@@ -320,6 +320,25 @@ def test_a_value_is_in_the_page_only_while_it_is_shown(page):
     assert VALUE not in page.js(WHOLE_PAGE)
 
 
+def test_a_value_shown_again_is_read_again_and_is_what_is_there_now(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    page.store._values[("prod", "api-key")] = "rotated elsewhere"
+    page.press(" ")
+    page.wait("!document.querySelector('pre.value.shown')")
+    page.press(" ")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js("document.querySelector('pre.value').textContent") == (
+        "rotated elsewhere"
+    )
+    assert page.store.reads() == 2
+    page.press("c")
+    page.wait(f"{TOAST} === 'Copied api-key.'")
+    assert page.clipboard() == "rotated elsewhere" and page.store.reads() == 3
+
+
 def test_moving_on_takes_the_value_off_the_page(page):
     page.press("j")
     page.wait(PROD)

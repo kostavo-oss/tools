@@ -179,13 +179,10 @@ class WorkspaceService:
     # What the page works with. A value is carried as the bytes it is stored
     # as, so that a file that is no text goes in, moves and comes back whole.
     def reveal_bytes(self, scope: str, key: str) -> bytes:
-        """The value as stored, read once and kept for the session."""
-        held = self.cache.raw.get((scope, key))
-        if held is not None:
-            return held
-        value = self._store.get_secret_bytes(scope, key)
-        self.cache.raw[(scope, key)] = value
-        return value
+        """The value as stored, read from the workspace every time it is asked
+        for: a second look is never answered from the first, which may be a
+        value that has been changed since."""
+        return self._read_now(scope, key)
 
     def put_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
         with self._one_at_a_time:

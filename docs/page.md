@@ -127,8 +127,9 @@ asking.
   written nowhere on the way, and nothing of it is kept once it is saved.
 - **Nothing changes without being asked, and nothing is deleted without a ++y++.** Started
   with `--read-only`, nothing changes at all.
-- **Nothing is kept.** No cache, no cookie, no history of values. The page loads nothing
-  that is not Caland's own.
+- **The browser keeps nothing.** No cache, no cookie, no history of values. The page loads
+  nothing that is not Caland's own. What Caland itself holds in memory while it runs, and
+  how it is forgotten, is under [Security](security.md#what-caland-holds-of-a-value).
 
 !!! warning "What it cannot defend"
     A browser extension that is allowed to read every page can read a value while it is

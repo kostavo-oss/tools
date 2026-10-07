@@ -42,10 +42,25 @@ look at its value — each in a keystroke or two, and none of them by accident.
 
 ## How a value is held
 
-A value fetched for R6, R7, R4, R5 or an export ([005](005-bulk-and-audit.md)) stays in
-memory for the session, so asking twice does not ask Databricks twice. Hiding after 30
-seconds takes it off the screen, not out of memory; R9 and quitting do that. It is never
-written anywhere. → [006](006-safety.md)
+A value is read from the workspace every time it is asked for — to show it (R6), to copy
+it (R7), to move or delete its secret (R4, R5), for an export
+([005](005-bulk-and-audit.md)). A second look asks Databricks again: it is never answered
+from the first, which may be a value that was changed since. *(Decided by the owner,
+2026-10-07. Until then a value was read once and kept, and a second look could show what
+was no longer there.)*
+
+What caland holds, in memory and nowhere else:
+
+- **The secret last deleted or moved away**, with the value it had, so that `u` can put it
+  back (R5). It is the one value caland uses again.
+- **Each value it read or wrote**, by scope and key. Nothing reads these back any more;
+  they are held as they were before the decision above (D2).
+
+How long: a scope's values until that scope is read again (`r`, `R`) or deleted, a secret's
+until it is deleted; all of them, the one for `u` included, until *Forget every value*
+(R9), going to another workspace, or caland stopping — by ctrl+c, or by itself after 30
+minutes of nothing asked. Hiding takes a value off the page, not out of caland's memory.
+It is never written anywhere. → [006](006-safety.md)
 
 ## What changed with the page
 
@@ -71,9 +86,11 @@ written anywhere. → [006](006-safety.md)
   one. *Proposal:* the dialog says what is so — that `u` puts it back, for as long as the
   session lasts and nothing else is deleted. *(found while writing this spec)*
 - **D2 — Should a hidden value also be forgotten?** Today it stays in memory until the
-  session ends. That makes a second look instant, and means a session left open for a day
-  holds every value it was ever asked for. *The writer has no strong view;* forgetting a
-  value some minutes after it was last used would cost one round-trip and is easy to build.
+  session ends, which means a session left open for a day holds every value it was ever
+  asked for. It used to make a second look instant; since 2026-10-07 a second look reads
+  the workspace again, so what is held of a value that was only shown or copied is used
+  by nothing. *Proposal:* hold only what `u` needs, and let go of the rest as soon as it
+  has been answered.
 - **D3 — A value that is not text does not survive caland.** A secret holding bytes — a
   PKCS#12 bundle put in with the CLI — is shown as base64, which is fair. But moving it,
   copying it, or taking back its delete writes that base64 back *as text*: the secret at

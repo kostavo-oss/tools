@@ -7,8 +7,9 @@ in the domain) and does no I/O.
 Strategy (US-14/16):
   * On connect the service warms scopes -> secret metadata -> ACLs in the
     background.
-  * Secret *values* are NOT bulk-loaded; they are fetched lazily on reveal and
-    cached thereafter, so sensitive material isn't pulled into memory needlessly.
+  * Secret *values* are NOT bulk-loaded: one is read when it is asked for, and
+    read again every time it is. What was read or written is held here until it
+    is forgotten, and nothing is answered from it.
 """
 
 from __future__ import annotations

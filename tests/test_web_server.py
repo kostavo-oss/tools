@@ -264,11 +264,19 @@ def test_a_value_is_the_answer_to_a_post_with_the_token(served):
     assert served.store.reads() == 1
 
 
-def test_a_value_is_read_from_the_workspace_once(served):
+def test_a_value_is_read_from_the_workspace_every_time_it_is_asked_for(served):
     served.enter()
     for _ in range(3):
         served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
-    assert served.store.reads() == 1
+    assert served.store.reads() == 3
+
+
+def test_a_value_asked_for_again_is_what_the_workspace_holds_now(served):
+    served.enter()
+    asked = {"scope": "prod", "key": "api-key"}
+    assert served.json("POST", "/api/value", asked)[1] == {"value": SECRET}
+    served.store._values[("prod", "api-key")] = "rotated elsewhere"
+    assert served.json("POST", "/api/value", asked)[1] == {"value": "rotated elsewhere"}
 
 
 def test_forgetting_drops_every_value_held(served):
