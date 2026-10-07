@@ -10,8 +10,8 @@ jobs:
     name: lint + types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync
@@ -34,8 +34,8 @@ jobs:
           - os: macos-latest
             python-version: "3.14"
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Tests (pytest)
@@ -45,8 +45,8 @@ jobs:
     name: docs (strict build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       # mkdocs lives in the `docs` dependency group, which a plain sync skips
@@ -58,8 +58,8 @@ jobs:
     name: build (wheel + sdist)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
       - name: The source package holds what is listed, and nothing else
         run: |
@@ -87,7 +87,7 @@ jobs:
               assert static.joinpath(name).read_bytes(), f"{name} is not in the wheel"
           print("the page is in the wheel")
           EOF
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/*
