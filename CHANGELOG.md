@@ -20,6 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or a long job run was silent until it ended, and a warning from a program that succeeded
   was never shown.
 
+- **The source package holds the code, its tests and the files that say what it is.** It
+  also carried the docs site, the specs, the workflows and the lock file, and was five times
+  the wheel's size. The wheel is as it was.
+
 ### Removed
 
 - `lely.step.StderrLog` and `lely.planfile.outputs_json`: nothing used them.
