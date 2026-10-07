@@ -1,7 +1,6 @@
 # Installation
 
-lely is a Python tool (3.11 or newer). It isn't on PyPI yet, so for now it is installed from
-its repository.
+lely is a Python tool (3.11 or newer), on [PyPI](https://pypi.org/project/lely/).
 
 ## In a project
 
@@ -9,9 +8,21 @@ With [uv](https://docs.astral.sh/uv/), as a development dependency of the projec
 the bundle:
 
 ```sh
-uv add --dev git+https://github.com/kostavo-oss/lely
+uv add --dev lely
 uv run lely --version
 ```
+
+A plugin that is a package of yours is found this way, because lely is installed next to it.
+
+## On its own
+
+```sh
+uvx lely --version        # run it once, installing nothing
+uv tool install lely      # or keep the command
+```
+
+Installed this way lely has the plugins it comes with and a class in your repository
+(`./ops/steps.py:Class`), and not a plugin that is a package of its own.
 
 ## From a checkout
 

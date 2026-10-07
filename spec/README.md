@@ -27,7 +27,7 @@ The numbers are names, not an order; the order of work is in
 | [006 — the stevin plugin](006-stevin.md) | Tables, through stevin | — | parked |
 | [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | built |
 | [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; not yet run on a real repository |
-| [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | not started; questions open |
+| [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | released: 0.1.0, 2026-10-07 |
 
 ## How a spec is written
 
@@ -150,4 +150,5 @@ The ones worth remembering:
    [007, As built](007-ui.md#as-built). The workflows in `docs/GITHUB.md` have run once on a
    real repository; what that didn't try is listed there. Which plugins come after is still
    open. → [000](000-what-lely-is.md#to-decide)
-5. **The first release** waits for the owner's answers. → [009](009-first-release.md#to-decide)
+5. **The first release is out**: 0.1.0, on 2026-10-07, when the owner said.
+   → [009](009-first-release.md#as-released-2026-10-07)

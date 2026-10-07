@@ -4,7 +4,7 @@
   <body>
   <header>
   <h1>lely destroy plan <span class="dim">·</span> target <b>dev</b></h1>
-  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc6</code> <span class="dim">·</span> lely 0.0.1</p>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc6</code> <span class="dim">·</span> lely (this version)</p>
   <p class="counts">1 change <span class="dim">·</span> 0 runs <span class="dim">·</span> <span class="destructive">1 destructive</span></p>
   </header>
   <main>
@@ -23,7 +23,7 @@
   <body>
   <header>
   <h1>lely plan <span class="dim">·</span> project <b>team-a</b> <span class="dim">·</span> target <b>dev</b></h1>
-  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc642cb</code> <span class="dim">·</span> lely 0.0.1</p>
+  <p class="meta"><code>https://dbc-example.cloud.databricks.com</code> as <code>jane@example.com</code> <span class="dim">·</span> git tree <code>4b825dc642cb</code> <span class="dim">·</span> lely (this version)</p>
   <p class="counts">2 changes <span class="dim">·</span> 2 runs <span class="dim">·</span> <span class="destructive">1 destructive</span> <span class="dim">·</span> 1 waiting</p>
   <div class="alert"><strong class="destructive">Destructive</strong> — 1 change that can't be taken back:<ul><li><code>app</code>: replace <code>pipelines.foo</code></li></ul></div>
   <p class="warning">Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.</p>
