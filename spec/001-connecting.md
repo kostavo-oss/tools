@@ -16,7 +16,8 @@ meant.
   from three places, and every row says where it came from: an Asset Bundle in the current
   directory, the profiles in `~/.databrickscfg`, and a URL typed in. Every profile that
   has an address is listed, also one at the bundle's address or at another profile's: it
-  has its own way of signing in. *(built, 0.1.0)*
+  has its own way of signing in. With no profile that has an address, `DATABRICKS_HOST`
+  from the environment is offered as the profile `DEFAULT`. *(built, 0.1.0)*
 - **R2 — A bundle's workspace is the default.** With a `databricks.yml` in the current
   directory, its workspace is listed first and selected: the target marked `default: true`,
   or the only target, or the top-level `workspace.host`. A host that still holds a `${…}`

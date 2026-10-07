@@ -102,7 +102,9 @@ Everything has a key, and everything can be clicked. `?` on the page lists them 
 - **The page is yours only.** It is served from `127.0.0.1`, answers only to its own page
   at its own address, and to nothing without the session's key — which is never a cookie
   and never on a command line.
-- **Nothing is deleted without a `y`**, and `--read-only` changes nothing at all.
+- **Nothing is deleted without a `y`**, and `--read-only` changes nothing in the workspace.
+  On your own machine it may still write what it always may: your two preferences, and a
+  profile if you sign in to an address and ask to keep it.
 - **No credentials of its own.** It signs in the way the Databricks CLI does. A profile it
   saves holds an address and how to sign in, never a token.
 

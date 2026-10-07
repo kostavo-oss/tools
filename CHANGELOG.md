@@ -6,8 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Keys for what had none.** In the list of a scope's grants (`p`) the arrows pick a
+  grant, `e` changes it and `d` removes it, after the same `y` as before. *Forget every
+  value* has a key where it is shown: `?`, then `z`.
+
+### Changed
+
+- **`caland --help` lists `-V` and `-h`**, which were always taken, and says of
+  `--read-only` what it is about: the workspace.
+
 ### Fixed
 
+- **`enter` is in the list of keys and in the docs.** It always went on from the scopes to
+  the secrets, and showed a secret's value; nothing said so. The docs also say now that
+  `DATABRICKS_HOST` is offered when there is no profile, and what `--read-only` may still
+  write on your own machine: your two preferences, and a profile you ask to keep.
+- **The list of keys opens at its first line** in a window too small to show all of it.
 - **Every profile is on the list, and can be asked for by name.** A profile at an address
   that was already listed was left out: of two profiles for one workspace only the first
   was offered, and in a bundle's folder the profile for the bundle's own workspace was

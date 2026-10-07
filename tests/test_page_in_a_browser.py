@@ -1012,6 +1012,78 @@ def test_removing_your_own_grant_is_said_to_be_that(prod):
     assert wrote(prod.store) == []
 
 
+#: The grant the keyboard is on, in the dialog: whose it is.
+PICKED_GRANT = (
+    "document.querySelector('#grants-rows [aria-selected=true] td').textContent"
+)
+
+
+def test_a_grant_is_picked_changed_and_removed_by_its_keys(prod):
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    assert prod.focus() == "grants-box"
+    assert prod.js(PICKED_GRANT) == "me@corp.com (you)"
+    prod.press("j")
+    assert prod.js(PICKED_GRANT) == "users"
+    prod.press("ArrowDown", "ArrowDown", "k")  # round past the last, and back to it
+    assert prod.js(PICKED_GRANT) == MARKUP
+    prod.press("k")
+    assert prod.js(PICKED_GRANT) == "users" and prod.focus() == "grants-box"
+    # e: the grant that is picked is put in the form, to be changed
+    prod.press("e")
+    assert prod.focus() == "grant-may"
+    assert prod.js("document.getElementById('grant-who').value") == "users"
+    assert prod.js("document.getElementById('grant-may').value") == "READ"
+    assert wrote(prod.store) == []
+    prod.js("document.getElementById('grant-may').value = 'WRITE'")
+    prod.js("document.getElementById('grant-give').click()")
+    prod.wait(f"{GRANTS}.includes('users=WRITE')")
+    assert ("put_acl", "prod", "users", "WRITE") in prod.store.calls
+    # d: removing asks first, names who, and a y is what removes
+    prod.js("document.getElementById('grants-box').focus()")
+    assert prod.js(PICKED_GRANT) == "users"
+    prod.press("d")
+    prod.wait(OPEN.format("confirm"))
+    assert prod.js("document.getElementById('confirm-what').innerText") == (
+        "Remove the grant of users on prod."
+    )
+    prod.press("d", "d")  # the key that opened it does not confirm it
+    assert prod.store.count("delete_acl") == 0
+    prod.press("y")
+    prod.wait(f"!{GRANTS}.some(row => row.startsWith('users='))")
+    assert ("delete_acl", "prod", "users") in prod.store.calls
+    assert prod.js(OPEN.format("grants")) is True and prod.focus() == "grants-box"
+
+
+def test_a_letter_typed_into_a_grants_name_is_no_key(prod):
+    prod.press("p")
+    prod.wait(OPEN.format("grants"))
+    prod.js("document.getElementById('grant-who').focus()")
+    prod.type("jed")
+    prod.press("d", "e", "j")
+    assert prod.js("document.getElementById('grant-who').value").startswith("jed")
+    assert prod.js(OPEN.format("confirm")) is False
+    assert prod.js(PICKED_GRANT) == "me@corp.com (you)" and wrote(prod.store) == []
+
+
+def test_started_read_only_the_keys_in_the_grants_pick_and_change_nothing(browser, serve):
+    store = workspace()
+    server = serve(store, read_only=True)
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait(SHOWN)
+    tab.press("j")
+    tab.wait(PROD)
+    tab.press("p")
+    tab.wait(OPEN.format("grants"))
+    tab.press("j", "e", "d")
+    assert tab.js(PICKED_GRANT) == "users"
+    assert tab.js("[...document.querySelectorAll('dialog[open]')].map(d => d.id)") == [
+        "grants"
+    ]
+    assert tab.js("document.getElementById('grant-who').value") == ""
+    assert wrote(store) == []
+
+
 def test_a_grant_with_nobody_named_is_said_in_the_dialog(prod):
     prod.press("p")
     prod.wait(OPEN.format("grants"))
@@ -1324,6 +1396,92 @@ def test_every_value_can_be_forgotten_from_the_keys(prod):
     prod.wait(f"{TOAST}.startsWith('Forgot every value')")
     assert prod.server.page.loader.service.cache.raw == {}
     assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_every_value_is_forgotten_by_a_key_in_the_keys_and_by_none_outside(prod):
+    prod.press(" ")
+    prod.wait("document.querySelector('pre.value.shown')")
+    held = prod.server.page.loader.service.cache.raw
+    prod.press("z")  # on the page itself it is no key: forgetting is not done by a slip
+    prod.press("?")
+    prod.wait(OPEN.format("help"))
+    assert held != {} and prod.js("document.getElementById('toast').hidden") is True
+    assert prod.js("document.getElementById('forget').innerText").endswith("z")
+    prod.press("z")
+    prod.wait(f"{TOAST}.startsWith('Forgot every value')")
+    assert prod.server.page.loader.service.cache.raw == {}
+    assert prod.js(OPEN.format("help")) is False and VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_the_keys_open_at_their_first_line(page):
+    """The list is longer than a small window, and the browser gives the keyboard
+    to its first button, which is at its end."""
+    page.press("?")
+    page.wait(OPEN.format("help"))
+    assert page.js("document.getElementById('help').scrollTop") == 0
+    assert page.js(
+        "document.getElementById('help-title').getBoundingClientRect().top >= 0"
+    )
+
+
+def test_enter_goes_on_from_the_scopes_and_shows_the_value_of_a_secret(page):
+    page.press("j")
+    page.wait(PROD)
+    assert page.focus() == "scopes"
+    page.press("Enter")
+    assert page.focus() == "keys" and page.store.reads() == 0
+    page.press("Enter")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js("document.querySelector('pre.value').textContent") == VALUE
+    page.press("Enter")
+    page.wait("!document.querySelector('pre.value.shown')")
+
+
+#: A key as the page's list of keys and the docs name it, and as the page takes it.
+NAMED = {
+    "space": " ",
+    "enter": "Enter",
+    "slash": "/",
+    "question": "?",
+    "←": "ArrowLeft",
+    "→": "ArrowRight",
+    "↑": "ArrowUp",
+    "↓": "ArrowDown",
+    "left": "ArrowLeft",
+    "right": "ArrowRight",
+    "up": "ArrowUp",
+    "down": "ArrowDown",
+}
+
+
+def test_every_key_the_page_takes_is_in_the_list_of_keys_and_in_the_docs(page):
+    """ "Everything has a key" — and a key nobody is told of is no key."""
+    import re
+    from pathlib import Path
+
+    taken = set(page.js("Object.keys(KEYS)"))
+    assert {"Enter", "f", "w", "D"} <= taken  # it is the page's own list that is read
+    listed = page.js(
+        "[...document.querySelectorAll('#help kbd, #help-open kbd')]"
+        ".map(k => k.textContent)"
+    )
+    assert taken - {NAMED.get(key, key) for key in listed} == set()
+    docs = (Path(__file__).parent.parent / "docs" / "page.md").read_text("utf-8")
+    written = set()
+    for key in re.findall(r"\+\+([a-z+]+?)\+\+", docs):
+        shifted, name = key.startswith("shift+"), key.removeprefix("shift+")
+        written.add(name.upper() if shifted and len(name) == 1 else NAMED.get(name, name))
+    assert taken - written == set()
+    # enter has a line of its own, in both: it is not only what the filter does with it
+    in_front = (
+        "[...document.querySelectorAll('#help td:first-child')].map(c => c.innerText)"
+    )
+    assert "enter" in page.js(in_front) and "\n| ++enter++ |" in docs
+    # and the keys that are keys only where they are shown: in the grants, in the keys
+    for inside in ("++e++ changes", "++d++ removes", "++question++ then ++z++"):
+        assert inside in docs, inside
+    in_the_keys = page.js("document.getElementById('help').textContent")
+    assert "e changes it, d removes it" in " ".join(in_the_keys.split())
 
 
 # ── what a second pair of eyes found in the tools ────────────────────

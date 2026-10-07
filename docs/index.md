@@ -25,7 +25,8 @@ for it and written nowhere.
 - **A value is shown when asked, and hides itself after 30 seconds.** It is read from the
   workspace each time you ask, and written nowhere: no cookie, no file.
 - **Yours only** — the page is served from `127.0.0.1` to you, and answers to nothing else.
-- **Read-only when you want it** — `caland prod --read-only` changes nothing.
+- **Read-only when you want it** — `caland prod --read-only` changes nothing in the
+  workspace.
 - **Nothing to set up** — it finds the workspace of a bundle in the current folder and the
   profiles in `~/.databrickscfg`, or signs in to an address through the browser.
 

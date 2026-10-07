@@ -74,6 +74,9 @@ It is never written anywhere. → [006](006-safety.md)
   tab that was in the background, hides the value as soon as it is looked at again.
   `enter` shows a value only with the keyboard in the secrets or the detail; in the scopes
   it goes on to the next pane.
+- R9: *Forget every value caland holds* is in the list of keys (`?`), and has a key there
+  and only there: `z`. Forgetting takes with it what `u` could put back, and is not a key
+  to press by a slip.
 - A new secret does not overwrite one that is there: edit it instead.
 - D3: a value that is no text survives — it is carried as bytes.
 

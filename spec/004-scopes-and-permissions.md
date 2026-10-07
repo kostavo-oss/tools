@@ -40,6 +40,8 @@ time. The questions people have go the other way: what can *I* touch, and what c
 
 - R1: deleting a scope has a key of its own, `D`, so that a `d` meant for a secret never
   reaches one. A scope whose secrets cannot be listed is not called empty.
+- R4: in the list of grants the arrows pick one, `e` changes it and `d` removes it — after
+  the same question and the same `y` as the button.
 - R5, R6: `a` and `P`. Neither follows groups (D1 stands).
 
 ## Not in this spec

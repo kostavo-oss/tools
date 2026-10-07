@@ -23,7 +23,7 @@ A name that is not there is said, with the names that are, and nothing starts.
 On the page, ++w++ opens the choice again. Going to another workspace leaves nothing of the
 one you were in: not on the page, and not in Caland's memory.
 
-## The three sources
+## Where workspaces are found
 
 ### 1. Asset bundle
 
@@ -74,7 +74,18 @@ Tick *keep it as a profile* and give it a name to come back to it by. What is wr
 name has to be a new one: a profile that is there keeps its own way of signing in, and
 Caland will not point it at another address.
 
+### With no profile: `DATABRICKS_HOST`
+
+When `~/.databrickscfg` has no profile with an address — or is not there at all — and
+`DATABRICKS_HOST` is set, that address is offered, under the name `DEFAULT`. How you are
+signed in there is the Databricks SDK's to work out, from what else the environment holds.
+It is listed as a profile, since that is how Caland asks the SDK for it.
+
+`DATABRICKS_CONFIG_FILE` names another file than `~/.databrickscfg`, for Caland as for the
+Databricks SDK it signs in with: profiles are read from it, and one you keep is written to
+it.
+
 ## When nothing is found
 
-With no bundle here and no profile, the list is empty and the field for an address is all
-there is. Sign in to one, keep it as a profile, and the next time it is on the list.
+With no bundle here, no profile and no `DATABRICKS_HOST`, the list is empty and the field
+for an address is all there is. Sign in to one, keep it as a profile, and the next time it is on the list.

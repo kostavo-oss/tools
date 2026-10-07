@@ -17,8 +17,11 @@ as firm as what it does.
 - **Nothing is deleted without a ++y++**, and nothing lands on what is there: a new secret
   does not overwrite one, a move does not land on one, ++u++ does not put one back over one
   made since.
-- **`--read-only` changes nothing.** The server refuses every change, whatever the page
-  shows.
+- **`--read-only` changes nothing in the workspace.** The server refuses every change to
+  it, whatever the page shows. Read-only is about the workspace, not about your own
+  machine: there Caland may still write your two preferences
+  (`~/.config/caland/settings.json`), and a profile in `~/.databrickscfg` if you sign in
+  to an address and ask to keep it.
 - **No credentials of its own.** Caland signs in the way the Databricks CLI does and stores
   no token. A profile it keeps holds an address and that you sign in through the browser —
   and it never writes over a profile that is there.
@@ -39,8 +42,8 @@ In its own memory, while it runs, and nowhere else:
 
 A scope's values are let go of when that scope is read again (++r++, or ++shift+r++ for
 the whole workspace) or deleted. Everything, with what ++u++ could put back, is forgotten
-by *Forget every value* under ++question++, by going to another workspace, and when Caland
-stops: ++ctrl+c++, or by itself after 30 minutes with nothing asked of it.
+by *Forget every value* (++question++ then ++z++), by going to another workspace, and when
+Caland stops: ++ctrl+c++, or by itself after 30 minutes with nothing asked of it.
 
 The page in your browser holds less: a value is in it only while it is shown.
 

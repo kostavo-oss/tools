@@ -42,6 +42,9 @@ it will not do has to be as firm as what it does.
 ## What changed with the page
 
 - R3: one dialog is open at a time, and `y` reaches only the question that is showing.
+- R4: read-only is about the workspace. On the person's own machine caland may still
+  write what R6 keeps, and a profile that is asked for when signing in to an address
+  ([001, R4](001-connecting.md)).
 - R6: two preferences — whether all scopes are shown, and the stale report's number of
   days. There is no theme.
 - R8: the door is `interface/web/`: the browser talks to a server on the person's machine,

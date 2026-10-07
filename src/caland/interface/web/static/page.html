@@ -114,12 +114,16 @@
 
 <dialog id="grants" aria-labelledby="grants-title">
   <h1 id="grants-title">Who has access to <span class="mono" id="grants-scope"></span></h1>
-  <table>
-    <thead><tr><th>Principal</th><th>May</th><th></th></tr></thead>
-    <tbody id="grants-rows"></tbody>
-  </table>
+  <div id="grants-box" tabindex="-1">
+    <table>
+      <thead><tr><th>Principal</th><th>May</th><th></th></tr></thead>
+      <tbody id="grants-rows"></tbody>
+    </table>
+  </div>
   <p class="none" id="grants-none" hidden>No grants are listed. Listing them takes MANAGE on the
     scope.</p>
+  <p class="meta" data-changes><kbd>&uarr;</kbd> <kbd>&darr;</kbd> pick a grant &middot;
+    <kbd>e</kbd> change it &middot; <kbd>d</kbd> remove it</p>
   <p class="quiet">Grants are for a whole scope: whoever may read one secret in it may read
     them all.</p>
   <div class="grant" data-changes>
@@ -220,12 +224,13 @@
     <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> &middot; <kbd>j</kbd> <kbd>k</kbd></td><td>Up and down inside a pane; <kbd>g</kbd> <kbd>G</kbd> to its ends</td></tr>
     <tr><td><kbd>/</kbd></td><td>Filter; <kbd>&darr;</kbd> picks while you type, <kbd>enter</kbd> goes to what is left, <kbd>esc</kbd> clears</td></tr>
     <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
+    <tr><td><kbd>enter</kbd></td><td>In the scopes: on to the secrets. On a secret: show or hide the value</td></tr>
     <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
     <tr><td><kbd>n</kbd> &middot; <kbd>N</kbd></td><td>New secret &middot; new scope</td></tr>
     <tr><td><kbd>e</kbd> &middot; <kbd>m</kbd> &middot; <kbd>d</kbd></td><td>Edit &middot; move, copy or rename &middot; delete the secret</td></tr>
     <tr><td><kbd>D</kbd></td><td>Delete the scope</td></tr>
     <tr><td><kbd>u</kbd></td><td>Put back the secret last deleted or moved away</td></tr>
-    <tr><td><kbd>p</kbd></td><td>Who has access to the scope</td></tr>
+    <tr><td><kbd>p</kbd></td><td>Who has access to the scope; there <kbd>&uarr;</kbd> <kbd>&darr;</kbd> pick a grant, <kbd>e</kbd> changes it, <kbd>d</kbd> removes it</td></tr>
     <tr><td><kbd>i</kbd> &middot; <kbd>x</kbd></td><td>Fill the scope from a .env file &middot; copy the scope as .env</td></tr>
     <tr><td><kbd>A</kbd> &middot; <kbd>a</kbd> &middot; <kbd>P</kbd></td><td>Secrets gone stale &middot; what you can reach &middot; what somebody else can</td></tr>
     <tr><td><kbd>s</kbd> &middot; <kbd>S</kbd></td><td>Sort the pane by its next column &middot; the other way round</td></tr>
@@ -233,7 +238,7 @@
     <tr><td><kbd>w</kbd></td><td>Another workspace</td></tr>
     <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
   </tbody></table>
-  <div class="acts"><button type="button" id="forget">Forget every value caland holds</button></div>
+  <div class="acts"><button type="button" id="forget">Forget every value caland holds <kbd>z</kbd></button></div>
   <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
 </dialog>
 
