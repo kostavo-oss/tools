@@ -152,6 +152,9 @@ uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 Caland is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
 Each does one job and none needs another: this one is for the secrets a deploy and a
 data model both end up depending on, and for the people who have to look after them.
+Kostavo is the company behind them: it builds
+[a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
+complete without it.
 
 Community project, not affiliated with or endorsed by Databricks.
 
