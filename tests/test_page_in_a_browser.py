@@ -1696,3 +1696,41 @@ def test_a_profile_not_kept_is_said_once_and_the_sign_in_stands(choosing):
     )
     choosing.wait(f"{TOAST}.includes('profile was not kept')")
     assert "cannot be written" in choosing.js(TOAST)
+
+
+def test_the_row_that_is_picked_is_gone_to_also_when_two_have_one_name_and_address(
+    browser,
+):
+    """A bundle's target and a profile for the same workspace: the second row is
+    the profile, and signs in as the profile does."""
+    from caland.application import OnboardingService
+    from caland.domain import SOURCE_BUNDLE
+    from fakes import StubBundle, StubProfiles
+    from test_web_picker import PROD, Connector
+
+    bundle = Workspace(
+        host="https://prod.example.com", source=SOURCE_BUNDLE, target="prod", default=True
+    )
+    connector = Connector()
+    page = Page(
+        onboarding=OnboardingService(connector, StubProfiles([PROD]), StubBundle(bundle))
+    )
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        tab = browser.tab(f"{server.address}#{page.new_key()}")
+        tab.wait(OPEN.format("picker"))
+        found_in = (
+            "[...document.querySelectorAll('#picker-rows tr')]"
+            ".map(r => r.cells[2].textContent)"
+        )
+        assert tab.js(PLACES) == ["prod", "prod"]
+        assert tab.js(found_in)[1] == "~/.databrickscfg"
+        tab.press("j", "Enter")
+        tab.wait(f"!{OPEN.format('picker')} && document.body.dataset.phase === 'ready'")
+        assert list(connector.stores) == ["prod"]  # the profile: no sign-in by address
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

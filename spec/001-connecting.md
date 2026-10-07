@@ -14,7 +14,9 @@ meant.
 
 - **R1 — One picker for every way in.** On launch, caland lists the workspaces it can reach
   from three places, and every row says where it came from: an Asset Bundle in the current
-  directory, the profiles in `~/.databrickscfg`, and a URL typed in. *(built, 0.1.0)*
+  directory, the profiles in `~/.databrickscfg`, and a URL typed in. Every profile that
+  has an address is listed, also one at the bundle's address or at another profile's: it
+  has its own way of signing in. *(built, 0.1.0)*
 - **R2 — A bundle's workspace is the default.** With a `databricks.yml` in the current
   directory, its workspace is listed first and selected: the target marked `default: true`,
   or the only target, or the top-level `workspace.host`. A host that still holds a `${…}`
@@ -30,12 +32,18 @@ meant.
 - **R7 — Switch without restarting.** `w` reopens the picker; the new workspace's data
   replaces the old. *(built)*
 - **R8 — Straight to a workspace by name.** `caland prod`, or `--profile prod`, skips the
-  picker and connects to a workspace the picker would have listed. *(built, 0.4.0)*
+  picker and connects to a workspace the picker would have listed. Every profile can be
+  asked for by its name; where a bundle's target has that name too, the name means the
+  profile — the target is where caland goes with no name at all. *(built, 0.4.0)*
 
 ## What changed with the page
 
 - R1, R5: the picker is the page's first dialog, and is not shown at all when there is no
   doubt which workspace is meant.
+- R1, R8: up to 0.6.0 a profile at an address that was already listed — the bundle's, or
+  an earlier profile's — was left out, and could not be asked for by name. A bundle's
+  target and a profile of one name at one address are two rows, told apart by where each
+  was found.
 - R4: a sign-in is kept as a profile under a **new** name only — never over a profile that
   is there, which keeps its own way of signing in.
 - R7: `w`. Going to another workspace forgets every value held of the one that is left.

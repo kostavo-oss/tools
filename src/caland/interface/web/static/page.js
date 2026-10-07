@@ -928,12 +928,14 @@ async function openPicker(why = "") {
   (places.length ? $("picker-box") : $("picker-url")).focus();
   return true;
 }
+// one that was found, said back as the list said it: two may have one name, and one address
+const found = (w) => ({ name: w.name, host: w.host, from: w.from });
 function drawPicker() {
   $("picker-rows").replaceChildren(...places.map((w, index) => {
     const row = el("tr", {}, el("td", { className: "mono", textContent: w.name }),
       el("td", { className: "mono", textContent: w.host }), el("td", { className: "dim", textContent: w.from }));
     row.setAttribute("aria-selected", String(index === place));
-    row.onclick = carefully(() => { place = index; return goToWorkspace({ name: w.name, host: w.host }); });
+    row.onclick = carefully(() => { place = index; return goToWorkspace(found(w)); });
     return row;
   }));
   $("picker-none").hidden = places.length > 0;
@@ -971,7 +973,7 @@ function pickerKey(event) {
   const move = { ArrowDown: 1, ArrowUp: -1, j: 1, k: -1 }[event.key];
   if (move && places.length) { place = (place + move + places.length) % places.length; drawPicker(); }
   else if (event.key === "Enter" && places[place] && !event.target.matches("button, input")) {
-    carefully(goToWorkspace)({ name: places[place].name, host: places[place].host });
+    carefully(goToWorkspace)(found(places[place]));
   } else return;
   event.preventDefault();
 }

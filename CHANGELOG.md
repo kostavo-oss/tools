@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Every profile is on the list, and can be asked for by name.** A profile at an address
+  that was already listed was left out: of two profiles for one workspace only the first
+  was offered, and in a bundle's folder the profile for the bundle's own workspace was
+  not — so its token or service principal could not be used there, and `caland NAME` said
+  there was no such workspace. Each is a row of its own now, the bundle's target first.
+  Where a bundle's target and a profile have one name, `caland NAME` is the profile.
 - **The source package holds the source, the tests and the licence, and nothing else.**
   From 0.5.1 to 0.6.0 it also held `snapshot_report.html`: a report a test tool had written
   into the repository, committed by mistake, with the environment of the machine it was

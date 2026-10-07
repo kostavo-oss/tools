@@ -418,7 +418,8 @@ class Handler(BaseHTTPRequestHandler):
             raise _Refused(400, "say which workspace: its name, or its address")
         try:
             if "name" in body:
-                page.connect(_found(onboarding, _text(body, "name"), body.get("host")))
+                named = _text(body, "name"), body.get("host"), body.get("from")
+                page.connect(_found(onboarding, *named))
                 return {}
             host = _address(body)
             save_as = body.get("save_as", "")
@@ -707,9 +708,12 @@ _LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 _HOST = re.compile(rf"(?:{_LABEL}\.)+(?!\d+$){_LABEL}")
 
 
-def _found(onboarding: OnboardingService, name: str, host: object) -> Workspace:
-    """The workspace of this name — and of this address, where two that were
-    found have one name: a bundle's target and a profile, say."""
+def _found(
+    onboarding: OnboardingService, name: str, host: object, found_in: object
+) -> Workspace:
+    """The workspace of this name — and of this address, found in this place,
+    where two that were found have one name: a bundle's target and a profile,
+    say, which may be at one address too. Each is said as the list said it."""
     named = [w for w in onboarding.available_workspaces() if w.name == name]
     if not named:
         return onboarding.choose(name)  # says what there is, in its own words
@@ -717,8 +721,16 @@ def _found(onboarding: OnboardingService, name: str, host: object) -> Workspace:
         named = [w for w in named if w.host_label == host]
         if not named:
             raise AuthError(f"No workspace “{name}” at {host} was found.")
+    if isinstance(found_in, str):
+        named = [w for w in named if w.source_label == found_in]
+        if not named:
+            raise AuthError(f"No workspace “{name}” was found there.")
     if len(named) > 1:
-        raise _Refused(409, f"there are {len(named)} called “{name}”: say which address")
+        raise _Refused(
+            409,
+            f"there are {len(named)} called “{name}”: say which address, "
+            "and where it was found",
+        )
     return named[0]
 
 

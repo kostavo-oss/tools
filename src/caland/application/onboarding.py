@@ -48,32 +48,29 @@ class OnboardingService:
     # -- discovery ------------------------------------------------------
     def available_workspaces(self) -> list[Workspace]:
         """Every workspace we can offer, each tagged with where it came from: the
-        bundle target (default) first, then the ~/.databrickscfg profiles."""
-        workspaces: list[Workspace] = []
-        seen: set[str] = set()
+        bundle target (default) first, then every ~/.databrickscfg profile.
+
+        A profile at the bundle's address, or at another profile's, is offered
+        like any other: it has its own way of signing in — a token, a service
+        principal — which the entry beside it has not."""
         bundle = self._bundle.discover() if self._bundle else None
-        if bundle:
-            workspaces.append(bundle)
-            seen.add(bundle.host_label)
-        for ws in self._profiles.discover():
-            if ws.host_label and ws.host_label in seen:
-                continue  # already offered by the bundle
-            seen.add(ws.host_label)
-            workspaces.append(ws)
-        return workspaces
+        return [*([bundle] if bundle else []), *self._profiles.discover()]
 
     def choose(self, name: str | None = None) -> Workspace:
         """The workspace that was asked for by name — or, with no name, the one
         there is no doubt about: the bundle's default, or the only one there is.
 
+        A profile comes before a bundle's target of the same name: the target
+        needs no name, and the profile has no other way to be asked for.
+
         Raises `AuthError` saying what there is to choose from otherwise.
         """
         workspaces = self.available_workspaces()
         if name:
-            for workspace in workspaces:
-                if workspace.name == name:
-                    return workspace
-            raise AuthError(f"No workspace “{name}” found. {_on_offer(workspaces)}")
+            named = [workspace for workspace in workspaces if workspace.name == name]
+            if not named:
+                raise AuthError(f"No workspace “{name}” found. {_on_offer(workspaces)}")
+            return next((w for w in named if w.source == SOURCE_PROFILE), named[0])
         default = next((w for w in workspaces if w.default), None)
         if default:
             return default

@@ -381,8 +381,7 @@ def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspac
 
 
 def test_a_profile_that_is_on_no_list_is_in_use_all_the_same(served):
-    """One at the bundle's address, or with none: not offered, and still there —
-    with its token."""
+    """One with no address: not offered, and still there — with its token."""
     served.profiles.others = ["prod-sp"]
     for name in ("prod-sp", "PROD-SP"):
         status, told = connect(served, url="https://evil.example.com", save_as=name)
@@ -494,3 +493,46 @@ def test_an_address_is_kept_as_it_was_read_in_small_letters(served):
     assert served.profiles.saved == [
         ("azure", "https://adb-123.azuredatabricks.net:443", None)
     ]
+
+
+def test_a_bundles_target_and_a_profile_at_one_address_are_both_there_to_go_to():
+    """One name, one address: told apart by where each was found. The profile
+    signs in as profiles do — with its token, say — and the target through the
+    browser."""
+    from caland.domain import SOURCE_BUNDLE
+
+    bundle = Workspace(
+        host="https://prod.example.com", source=SOURCE_BUNDLE, target="prod", default=True
+    )
+    connector = Connector()
+    page = Page(
+        onboarding=OnboardingService(connector, StubProfiles([PROD]), StubBundle(bundle))
+    )
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        served = Served(server, None)
+        served.enter()
+        rows = served.json("GET", "/api/workspaces")[1]["workspaces"]
+        assert [(row["name"], row["host"], row["default"]) for row in rows] == [
+            ("prod", "prod.example.com", True),
+            ("prod", "prod.example.com", False),
+        ]
+        status, told = connect(served, name="prod", host="prod.example.com")
+        assert status == 409 and "where it was found" in told["error"]
+        profile = {key: rows[1][key] for key in ("name", "host", "from")}
+        assert connect(served, **profile)[0] == 202
+        assert ready(served)["phase"] == "ready"
+        assert list(connector.stores) == ["prod"]  # the profile: no sign-in by address
+        target = {key: rows[0][key] for key in ("name", "host", "from")}
+        assert connect(served, **target)[0] == 202
+        assert ready(served)["phase"] == "ready"
+        assert list(connector.stores) == ["prod", "https://prod.example.com"]
+        assert connect(served, name="prod", **{"from": "nowhere"})[0] == 404
+        # said badly, it picks none of the two
+        assert connect(served, name="prod", **{"from": 7})[0] == 409
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

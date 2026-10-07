@@ -59,6 +59,11 @@ targets:
 
 Every saved profile in `~/.databrickscfg` is listed automatically. Saved profiles connect instantly, because authentication is already configured.
 
+A profile is listed whatever its address: two profiles for one workspace — yours and a
+service principal's, say — are two rows, and so is a profile for the workspace of the
+bundle you are in. Each signs in its own way. `caland NAME` means the profile of that name;
+the bundle's target is where Caland goes when you name nothing.
+
 ### 3. An address
 
 Type a workspace's address into the field under the list and press ++enter++: you are
