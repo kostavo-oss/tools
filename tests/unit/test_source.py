@@ -377,7 +377,9 @@ def test_a_git_folder_git_cant_use_is_not_no_repository(
     copied = tmp_path / "copied"  # a worktree, copied without what it points to
     copied.mkdir()
     (copied / ".git").write_text("gitdir: /nonexistent/.git/worktrees/x\n")
-    with pytest.raises(SourceError, match="There is a `.git` here or above"):
+    # up to git 2.55 this is "not a git repository" too; from 2.56 git says the
+    # file points to no repository. Refused either way, in git's words
+    with pytest.raises(SourceError, match="would be held to nothing"):
         source.read(copied)
 
     project_dir = repo / "deploy"

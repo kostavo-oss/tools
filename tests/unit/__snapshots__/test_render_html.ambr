@@ -14,7 +14,7 @@
   <details class="step ready" open><summary><span class="name">app</span><span class="uses">bundle</span><span class="state ready">ready</span><span class="tally">1 change · 0 runs · <span class="destructive">1 destructive</span></span></summary><div class="body"><h2>Takes</h2><ul class="takes"><li>model_version = 14  <span class="dim">← model.version</span></li></ul><h2>Would do</h2><table class="changes"><tr class="delete"><td class="sym">−</td><td class="action">delete</td><td class="what">jobs.backfill <strong class="destructive">destructive</strong><div class="detail">backfill · id 771</div></td></tr></table><ul class="notes"><li>the bundle&#x27;s uploaded files go with them</li><li>and whatever else `bundle destroy` removes</li><li>as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev</li></ul><h2>From the plugin, <code>bundle</code></h2><div class="frame"><h4>jobs <small>(2)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">jobs.backfill</td><td>backfill</td><td class="delete">delete <strong class="destructive">destructive</strong></td><td class="dim">771</td></tr><tr><td class="key">jobs.bar</td><td>job bar</td><td class="unchanged">unchanged</td><td class="dim">not deployed</td></tr></table><h4>pipelines <small>(1)</small></h4><table><tr><th>resource</th><th>name</th><th>this plan</th><th>now</th></tr><tr><td class="key">pipelines.foo</td><td>pipeline foo</td><td class="unchanged">unchanged</td><td class="dim">not deployed</td></tr></table></div></div></details>
   <details class="step skipped"><summary><span class="name">model</span><span class="uses">./ops/steps.py:LatestModel</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: `./ops/steps.py:LatestModel` has nothing to destroy</p></div></details>
   </main>
-  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely 0.0.1; what <code>lely apply</code> runs is the changes listed for each step.</footer>
+  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely (this version); what <code>lely apply</code> runs is the changes listed for each step.</footer>
   
   '''
 # ---
@@ -35,7 +35,7 @@
   <details class="step ready" open><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state ready">ready</span><span class="tally">0 changes · 1 run</span></summary><div class="body"><h2>Takes</h2><ul class="takes"><li>bundle  <span class="dim">← app</span></li></ul><h2>Would do</h2><table class="changes"><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">runs jobs.backfill</td></tr></table></div></details>
   <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">skipped</span></summary><div class="body"><p class="dim">skipped: not for target `dev`</p></div></details>
   </main>
-  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely 0.0.1; what <code>lely apply</code> runs is the changes listed for each step.</footer>
+  <footer>This page only shows: nothing on it applies or destroys anything, and nothing was fetched to make it. It was made from a plan file by lely (this version); what <code>lely apply</code> runs is the changes listed for each step.</footer>
   
   '''
 # ---
@@ -54,7 +54,7 @@
   <details class="step done" open><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state done">✓ done</span></summary><div class="body"><h2>Did</h2><table class="changes"><tr class="run"><td class="sym">▶</td><td class="action">run</td><td class="what">runs jobs.backfill</td></tr></table></div></details>
   <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">– skipped</span><span class="tally">not for target `dev`</span></summary><div class="body"></div></details>
   </main>
-  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely 0.0.1. Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
+  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely (this version). Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
   
   '''
 # ---
@@ -75,7 +75,7 @@
   <details class="step not-started"><summary><span class="name">backfill</span><span class="uses">bundle.run</span><span class="state not-started">· not started</span></summary><div class="body"></div></details>
   <details class="step skipped"><summary><span class="name">warm</span><span class="uses">command</span><span class="state skipped">– skipped</span><span class="tally">not for target `dev`</span></summary><div class="body"></div></details>
   </main>
-  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely 0.0.1. Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
+  <footer>This page only shows: it is a record of one run, made from the result that run wrote, by lely (this version). Nothing was fetched to make it, and lely never reads a result back to decide anything.</footer>
   
   '''
 # ---

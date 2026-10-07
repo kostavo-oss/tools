@@ -13,7 +13,7 @@ from syrupy.assertion import SnapshotAssertion
 
 import project
 from fakes import FakeDatabricks, deploy
-from lely import planning, running
+from lely import __version__, planning, running
 from lely.config import Config, load
 from lely.model import (
     Change,
@@ -61,8 +61,11 @@ def planned(
 
 
 def body(page: str) -> str:
-    """The page without its style sheet: what a snapshot is for."""
-    return page[page.index("<body>") : page.index("</body>")]
+    """The page without its style sheet, and without which lely made it: what a
+    snapshot is for, and what a release does not change."""
+    inside = page[page.index("<body>") : page.index("</body>")]
+    assert f"by lely {__version__}" in inside  # the page says who made it
+    return inside.replace(f"by lely {__version__}", "by lely (this version)")
 
 
 class Read(HTMLParser):
