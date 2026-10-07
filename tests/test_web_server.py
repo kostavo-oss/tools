@@ -493,7 +493,15 @@ def test_a_connection_that_breaks_prints_nothing(served, capfd):
         # closed the hard way: the server finds the connection reset under it
         raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
         raw.close()
-    served.enter()
+    # Five at once is all the system keeps waiting for the server (its backlog): until it
+    # has got round to the ones that broke, one more may be turned away at the door. So
+    # wait for it to answer again, and do not count on it having done so already.
+    for _ in range(500):
+        try:
+            served.enter()
+            break
+        except OSError:
+            threading.Event().wait(0.01)
     assert served.json("GET", "/api/state")[0] == 200
     printed = capfd.readouterr()
     assert printed.out == "" and printed.err == ""
