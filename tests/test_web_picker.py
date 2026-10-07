@@ -383,6 +383,37 @@ def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspac
     )
 
 
+def test_the_choice_says_where_caland_was_when_it_was_asked(served):
+    """Which workspace caland is in is read once for a request. Read a second
+    time, later, it may be another: here caland goes elsewhere while the list
+    is being drawn up."""
+    connect(served, name="dev")
+    ready(served)
+    real = served.profiles.discover
+
+    def meanwhile():
+        served.profiles.discover = real
+        served.page.connect(PROD)  # another tab goes to prod
+        return real()
+
+    served.profiles.discover = meanwhile
+    assert served.json("GET", "/api/workspaces")[1]["current"] == "dev"
+    assert served.json("GET", "/api/workspaces")[1]["current"] == "prod"
+
+
+def test_what_a_request_says_of_the_workspace_is_from_the_one_reading():
+    """`Page.current()` once per request, and nothing of it read beside that:
+    not which workspace, not what reads it, not what there is to say of it."""
+    import inspect
+
+    from caland.interface.web.server import Handler
+
+    source = inspect.getsource(Handler)
+    assert source.count("page.current()") == 1
+    for beside in ("page.workspace", "page.loader", "page.turn", "page.notice"):
+        assert beside not in source, beside
+
+
 def test_a_profile_that_is_on_no_list_is_in_use_all_the_same(served):
     """One with no address: not offered, and still there — with its token."""
     served.profiles.others = ["prod-sp"]

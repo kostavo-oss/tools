@@ -171,12 +171,13 @@ class Page:
         self.entered()
         return self.token
 
-    def current(self) -> tuple[int, Workspace | None, Loader | None]:
+    def current(self) -> tuple[int, Workspace | None, Loader | None, str]:
         """Which workspace caland is in, as one answer: its number, what it is,
-        and what reads it. Asked once per request — never piece by piece, or a
-        request could name one workspace and act on another."""
+        what reads it, and what there is to say of it. Asked once per request —
+        never piece by piece, or a request could name one workspace and act on,
+        or be told of, another."""
         with self._lock:
-            return self.turn, self.workspace, self.loader
+            return self.turn, self.workspace, self.loader, self.notice
 
     def connect(self, workspace: Workspace, save_as: str = "") -> None:
         """Leave the workspace that is shown, if any, and start on another.
@@ -358,7 +359,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"token": token})
 
         page.touch()
-        turn, workspace, loader = page.current()
+        turn, workspace, loader, notice = page.current()
         self._reading = loader
         service = loader.service if loader else None
 
@@ -372,11 +373,11 @@ class Handler(BaseHTTPRequestHandler):
                     settings=page.settings,
                     version=page.version,
                     turn=turn,
-                    notice=page.notice,
+                    notice=notice,
                 )
             )
         if (method, path) == ("GET", "/api/workspaces"):
-            return self._json(self._workspaces())
+            return self._json(self._workspaces(workspace))
         if (method, path) == ("POST", "/api/connect"):
             return self._json(self._connect(body), status=202)
         if (method, path) == ("POST", "/api/describe"):
@@ -440,12 +441,12 @@ class Handler(BaseHTTPRequestHandler):
         return {}, 202
 
     # -- which workspace -------------------------------------------------
-    def _workspaces(self) -> dict[str, Any]:
-        """What there is to choose from, and where each was found."""
+    def _workspaces(self, current: Workspace | None) -> dict[str, Any]:
+        """What there is to choose from, and where each was found. `current` is
+        the workspace caland was in when the request came."""
         onboarding = self.server.page.onboarding
         return views.workspaces(
-            onboarding.available_workspaces() if onboarding else [],
-            self.server.page.workspace,
+            onboarding.available_workspaces() if onboarding else [], current
         )
 
     def _connect(self, body: _Said) -> dict[str, Any]:
