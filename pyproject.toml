@@ -12,7 +12,6 @@ keywords = [
     "secrets",
     "secret-manager",
     "browser",
-    "cli",
     "security",
 ]
 classifiers = [
@@ -30,7 +29,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
     "Topic :: Utilities",
-    "Typing :: Typed",
 ]
 dependencies = [
     "databricks-sdk>=0.30",

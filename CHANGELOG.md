@@ -467,8 +467,8 @@ Initial release.
 [0.5.1]: https://github.com/kostavo-oss/caland/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kostavo-oss/caland/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kostavo-oss/caland/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/kostavo-oss/caland/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/kostavo-oss/caland/compare/v0.2.8...v0.3.0
+[0.4.0]: https://github.com/kostavo-oss/caland/compare/d4b5e1366acfd6df5f4471d59c9a5785fe29dd81...v0.4.0
+[0.3.0]: https://github.com/kostavo-oss/caland/compare/v0.2.8...d4b5e1366acfd6df5f4471d59c9a5785fe29dd81
 [0.2.8]: https://github.com/kostavo-oss/caland/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/kostavo-oss/caland/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/kostavo-oss/caland/compare/v0.2.5...v0.2.6
@@ -477,5 +477,5 @@ Initial release.
 [0.2.3]: https://github.com/kostavo-oss/caland/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kostavo-oss/caland/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kostavo-oss/caland/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/kostavo-oss/caland/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/misja-pronk/isolinear/releases/tag/v0.1.0
+[0.2.0]: https://github.com/kostavo-oss/caland/compare/625abbde680b0ec5e13684e1ba39050bba8d71b8...v0.2.0
+[0.1.0]: https://github.com/kostavo-oss/caland/tree/625abbde680b0ec5e13684e1ba39050bba8d71b8

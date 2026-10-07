@@ -113,3 +113,35 @@ def test_the_security_policy_says_what_the_docs_say() -> None:
         assert said in policy, said
     for gone in ("explicitly reveal or copy", "databricks auth login` does"):
         assert gone not in policy, gone
+
+
+def test_the_changelogs_links_point_at_what_is_there() -> None:
+    """A version's link compares two tags. 0.1.0 and 0.3.0 were never tagged, and
+    the links that named `v0.1.0` and `v0.3.0` opened nothing; neither did the one
+    to the repository under its first owner. Where there is no tag the link names
+    the commit. Skipped in a checkout without tags, as CI's is."""
+    import re
+
+    tags = subprocess.run(
+        ["git", "tag", "--list"], cwd=ROOT, capture_output=True, text=True, check=False
+    ).stdout.split()
+    if not tags:
+        pytest.skip("no tags in this checkout")
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    links = re.findall(r"^\[[^\]]+\]: (\S+)$", text, flags=re.MULTILINE)
+    assert len(links) > 15
+    for link in links:
+        assert link.startswith("https://github.com/kostavo-oss/caland/"), link
+        for name in re.findall(r"(?:compare/|\.\.\.|tree/)([^./][^.]*(?:\.\d+)*)", link):
+            there = name in tags or name == "HEAD" or re.fullmatch(r"[0-9a-f]{40}", name)
+            assert there, f"{name} in {link}"
+
+
+def test_the_package_says_of_itself_what_is_so() -> None:
+    """A tool, not a library: it ships no `py.typed`, and does not say it is typed."""
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project = config["project"]
+    assert "Typing :: Typed" not in project["classifiers"]
+    assert not (ROOT / "src" / "caland" / "py.typed").exists()
+    assert "Environment :: Console" in project["classifiers"]  # it is a command
+    assert "cli" not in project["keywords"]
