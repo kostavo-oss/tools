@@ -25,7 +25,7 @@ let keys = new Map();     // scope -> [[key, changed in ms], ...]
 let detail = new Map();   // scope -> { access, keyvault, grants }
 let scope = null;         // the selected scope's name
 let secret = 0;           // the selected secret's place among those shown
-let shown = null;         // { scope, key, value, bytes } while a value is on the page
+let shown = null;         // { scope, key, value, bytes, since } while a value is on the page
 let timer = null, left = 0;
 let query = "";
 let showAll = false;
@@ -367,15 +367,23 @@ async function toggle() {
   const at = { scope, key: row[0] };
   const got = await value(row);
   if (scope !== at.scope || (chosen() ?? [])[0] !== at.key) return;   // moved on while it came
-  shown = { ...at, value: said(got), bytes: got.binary ? got.size : 0 };
+  shown = { ...at, value: said(got), bytes: got.binary ? got.size : 0, since: Date.now() };
   left = HIDE_AFTER;
   clearInterval(timer);
-  timer = setInterval(() => {
-    left -= 1;
-    if (left <= 0) { hide(); draw(); } else if ($("hint")) $("hint").textContent = hintText();
-  }, 1000);
+  timer = setInterval(tick, 1000);
   draw();
 }
+// A shown value hides when its time has gone by the clock — not after so many ticks, of
+// which a machine asleep, or a tab in the background, is given none. A clock that was put
+// back hides it too: how long it has been shown is not known then.
+function tick() {
+  if (!shown) return;
+  const gone = Date.now() - shown.since;
+  left = HIDE_AFTER - Math.floor(gone / 1000);
+  if (gone < 0 || left <= 0) { hide(); draw(); } else if ($("hint")) $("hint").textContent = hintText();
+}
+// a page that is looked at again asks the clock at once, not at the next tick
+document.addEventListener("visibilitychange", tick);
 function hide() { shown = null; clearInterval(timer); }
 // the value goes from the answer to the clipboard; it is never written into the page
 async function put(text) {

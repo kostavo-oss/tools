@@ -29,6 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   report. The terminal now gets one line: which request, the kind of failure, and the file
   and line it came from. Never the failure's own words — they can quote a value — and the
   page is told no more than before.
+- **A shown value hides after 30 seconds by the clock.** The page counted thirty ticks, and
+  a laptop that slept, or a tab in the background, was given none: the value was still
+  there, for as long again, when you came back. It goes by the time now, and is gone as
+  soon as the page is looked at again.
 - **The source package holds the source, the tests and the licence, and nothing else.**
   From 0.5.1 to 0.6.0 it also held `snapshot_report.html`: a report a test tool had written
   into the repository, committed by mistake, with the environment of the machine it was

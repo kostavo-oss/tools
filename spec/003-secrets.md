@@ -70,6 +70,10 @@ It is never written anywhere. → [006](006-safety.md)
   back over one made since, and holds what it holds until it is back.
 - R4: a move does not land on another secret, takes the value as it is at that moment,
   and refuses a rename that only changes the case (D4).
+- R6: the 30 seconds are by the clock, not counted in ticks: a machine that slept, or a
+  tab that was in the background, hides the value as soon as it is looked at again.
+  `enter` shows a value only with the keyboard in the secrets or the detail; in the scopes
+  it goes on to the next pane.
 - A new secret does not overwrite one that is there: edit it instead.
 - D3: a value that is no text survives — it is carried as bytes.
 

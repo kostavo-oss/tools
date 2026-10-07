@@ -339,6 +339,64 @@ def test_a_value_shown_again_is_read_again_and_is_what_is_there_now(page):
     assert page.clipboard() == "rotated elsewhere" and page.store.reads() == 3
 
 
+#: The page's clock, which the tests can put forward: `AHEAD` seconds from now on.
+CLOCK = """(() => {
+  if (window.ahead === undefined) {
+    const real = Date.now.bind(Date);
+    Date.now = () => real() + window.ahead;
+  }
+  window.ahead = AHEAD * 1000;
+})()"""
+#: The seconds the hint says a shown value has left.
+SECONDS_LEFT = (
+    "Number(/hides in (\\d+) s/.exec(document.getElementById('hint').textContent)[1])"
+)
+
+
+def test_a_shown_value_hides_itself_when_30_seconds_have_gone_by_the_clock(page):
+    """By the clock, not by counting: a machine that slept through the seconds
+    must not go on showing the value for as many more when it wakes."""
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    assert page.js(SECONDS_LEFT) in (30, 29)
+    page.js(CLOCK.replace("AHEAD", "12"))
+    page.wait(f"{SECONDS_LEFT} <= 18", seconds=4)  # said at the next look at the clock
+    assert page.js(SECONDS_LEFT) >= 13 and VALUE in page.js(WHOLE_PAGE)
+    page.js(CLOCK.replace("AHEAD", "31"))
+    page.wait("!document.querySelector('pre.value.shown')", seconds=4)
+    assert VALUE not in page.js(WHOLE_PAGE)
+    assert "hides in" not in page.js("document.getElementById('hint').textContent")
+
+
+def test_a_page_that_is_looked_at_again_hides_a_value_whose_time_has_gone_at_once(page):
+    """A tab in the background is given few turns, and a machine asleep none:
+    coming back, the value is gone before anything else happens."""
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    gone_at_once = page.js(
+        f"""(() => {{
+          {CLOCK.replace("AHEAD", "31")};
+          document.dispatchEvent(new Event('visibilitychange'));
+          return !document.querySelector('pre.value.shown');
+        }})()"""
+    )
+    assert gone_at_once is True and VALUE not in page.js(WHOLE_PAGE)
+
+
+def test_a_clock_put_back_does_not_keep_a_value_on_the_page(page):
+    page.press("j")
+    page.wait(PROD)
+    page.press("l", " ")
+    page.wait("document.querySelector('pre.value.shown')")
+    page.js(CLOCK.replace("AHEAD", "-3600"))
+    page.wait("!document.querySelector('pre.value.shown')", seconds=4)
+    assert VALUE not in page.js(WHOLE_PAGE)
+
+
 def test_moving_on_takes_the_value_off_the_page(page):
     page.press("j")
     page.wait(PROD)
