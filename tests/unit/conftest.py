@@ -3,11 +3,16 @@
 A machine with the Databricks CLI or stevin installed would answer
 differently from one without them — and from CI — so the unit suite hides
 both from PATH; tests that want one pass a fake as the `executable`.
+
+So would git under a developer's own config: `commit.gpgsign = true` there
+failed every fixture that commits. git, as the tests run it and as lely does
+in them, reads a repository's own config and nothing of the machine's.
 """
 
 import os
 import shutil
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +29,23 @@ def path_without(*programs: str) -> str:
 @pytest.fixture(autouse=True)
 def _without_real_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", path_without("databricks", "stevin"))
+
+
+@pytest.fixture(scope="session")
+def _no_git_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """An empty file to stand where git looks for a user's config."""
+    empty = tmp_path_factory.mktemp("git") / "config"
+    empty.touch()
+    return empty
+
+
+@pytest.fixture(autouse=True)
+def _without_the_machines_git_config(
+    _no_git_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No global and no system config, wherever a test makes a repository."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(_no_git_config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
 
 
 @pytest.fixture
