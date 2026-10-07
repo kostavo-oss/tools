@@ -34,17 +34,6 @@ says what changed and what didn't.
 
 ## Install
 
-> **Not on PyPI under this name yet.** The first release as `stevin` is being prepared.
-> Until this notice is gone, do not install a `stevin` from PyPI — it is not ours. Install
-> it from GitHub, or under the name its releases have so far, `deltaplan`:
->
-> ```sh
-> uv tool install git+https://github.com/kostavo-oss/stevin   # stevin, as it is on main
-> uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
-> ```
-
-Once it is released:
-
 ```sh
 uvx --prerelease allow stevin --version      # run it once, nothing installed
 uv tool install --prerelease allow stevin    # or keep it

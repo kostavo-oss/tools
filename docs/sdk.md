@@ -13,11 +13,6 @@ it.
 pip install --pre stevin      # no extras: the library is the package
 ```
 
-!!! warning "Not on PyPI under this name yet"
-    The first release as `stevin` is being prepared. Until this notice is gone, do not
-    install a `stevin` from PyPI — it is not ours. [Installation](installation.md) says
-    how to get it meanwhile.
-
 Everything below is exported from `stevin` itself. Names reached through a
 submodule are the implementation, and move without notice.
 
