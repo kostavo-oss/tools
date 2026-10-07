@@ -463,11 +463,12 @@ file.
 
 ## The plan file
 
-JSON, format 2. At the top: the format version; lely's version; whether it is a plan to apply or to
+JSON, format 4. At the top: the format version; lely's version; whether it is a plan to apply or to
 destroy; the target; the workspace's host and the identity it was planned as; and the git tree it
-was made on. Then every step in order: its name and plugin; ready, waiting (for what) or skipped
-(why); a hash of its options as written; what it takes and from where, with the value where it was
-known; its changes; the outputs it showed; and the plugin's payload.
+was made on, with which project of that repository it is for. Then every step in order: its name
+and plugin; ready, waiting (for what) or skipped (why); a hash of its options as written; what it
+takes and from where, with the value where it was known; its changes; the outputs it showed; the
+plugin's payload; and the plugin's own view of its plan, where it gave one.
 
 It never holds a secret: a secret output is a marker, a payload with one is refused, and an
 environment value is a secret. Nothing in it is kept for apply — every step is planned again, and
@@ -561,7 +562,7 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 "Terraform for your platform, Asset Bundles for your code, stevin for your data model — and lely to
 deploy them as one." lely is not a fourth layer: it carries the layers out together. stevin stays a
-standalone CLI; caland stays a TUI for people.
+standalone CLI; caland is a page in the browser, for people.
 
 All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **caland**.
 Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.

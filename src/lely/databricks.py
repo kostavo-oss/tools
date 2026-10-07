@@ -1,7 +1,7 @@
 """The Databricks CLI, run with this run's credentials.
 
 `DatabricksCli` is the edge: a subprocess. What a plugin asks it for is the
-plugin's business — the bundle plugin asks for `bundle validate`, `plan` and
+plugin's business — the bundle plugin asks for `bundle summary`, `plan` and
 the rest — so nothing here knows a verb. Tests put a fake in its place.
 
 The workspace comes from `--profile` or from the variables the CLI and the SDK
@@ -69,8 +69,8 @@ def heard(
 def answer(cli: Cli, args: Sequence[str], cwd: Path) -> dict[str, Json]:
     """What `databricks <args> --output json` prints, as a JSON object.
 
-    The exit code decides success, not the output: a failed `bundle validate`
-    still prints JSON.
+    The exit code decides success, not the output: the CLI can fail and still
+    print JSON — a failed `bundle validate` does, in its own recordings.
     """
     what = f"`databricks {' '.join(args[:2])}`"
     result = cli.run([*args, "--output", "json"], cwd)

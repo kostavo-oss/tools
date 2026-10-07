@@ -51,6 +51,7 @@ from lely.model import (
 #: Bumped when the shape changes in a way a reader has to know about.
 #: 2: one list of steps, the bundle among them; the workspace; the git tree.
 #: 3: which project of the repository; read strictly.
+#: 4: a step's plan may carry its plugin's own view.
 FORMAT_VERSION = 4
 
 _SECRET = "$secret"

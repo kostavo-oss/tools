@@ -113,8 +113,10 @@ The ones worth remembering:
 
 - **A saved destroy plan is run by `lely destroy <file> -t <target>`,** never by `lely apply`.
   → [005/R14](005-plan-apply-destroy.md), [005/R20](005-plan-apply-destroy.md)
-- **A reviewed plan is tied to what it was made from** — the git tree, the workspace and the
-  identity — and refused anywhere else. → [005/R35](005-plan-apply-destroy.md),
+- **A reviewed plan is tied to what it was made from** — the git tree and the workspace — and
+  refused anywhere else. The identity it was planned as is recorded and shown, and may
+  differ: a plan is made with credentials that can read, and applied with ones that can
+  write. → [005/R35](005-plan-apply-destroy.md),
   [005/R36](005-plan-apply-destroy.md)
 - **The approval check:** every change in a re-planned step must be one that was shown; changes
   that are gone are fine. → [005/R7](005-plan-apply-destroy.md)
