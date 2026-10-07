@@ -14,10 +14,10 @@ working with secrets needs to *see*: who reaches a secret and through which grou
 was last read, what a certificate is before it goes in. It has no file dialog, so a
 certificate goes in by typing a path. And it looks like nothing else in the family.
 
-The owner's direction *(2026-10-06)*: caland becomes "a local tool with a html", so that it
-can be better to use; it is "only for people working with secrets in Databricks"; it has a
-file picker "so that people can navigate to certificates"; it follows the design language
-lely has; and it stays fast — "we need to keep it performant and working".
+The direction *(decided by the owner, 2026-10-06)*: caland becomes a local tool with an
+HTML face, so that it can be better to use; it is only for people working with secrets in
+Databricks; it has a file picker, so that people can find their way to a certificate; it
+follows the design language lely has; and it stays fast.
 
 ## The shape
 
@@ -39,7 +39,8 @@ Two other shapes were looked at *(the writer's comparison)*:
 | Over SSH, in a dev container | yes, with a forwarded port | no | yes |
 | What it costs | a local port to defend (R9) | a heavier package, a second thing to trust | delivers none of the above |
 
-**The first.** *(owner, 2026-10-06)* Nothing in it should stand in the way of the second
+**The first.** *(Decided by the owner, 2026-10-06: a page in the browser, not a native
+window.)* Nothing in it should stand in the way of the second
 wrapping the same page later, if the browser turns out to be the wrong home for it.
 
 ## Requirements
@@ -407,20 +408,22 @@ an address — that opens a browser to sign in with, which nothing here can driv
 ## Decided
 
 - **caland is for people working with secrets in Databricks, and only that.** No side that
-  runs unattended, no lely step for grants. *(owner, 2026-10-06)*
+  runs unattended, no lely step for grants. *(Decided by the owner, 2026-10-06.)*
 - **It becomes a local tool with an HTML face, in lely's design language, with a file
-  picker for certificates.** *(owner, 2026-10-06)*
+  picker for certificates.** *(Decided by the owner, 2026-10-06.)*
 - **A browser tab, from a server on the person's own machine** — not a window of its own.
-  *(owner, 2026-10-06; was D1)*
+  *(Decided by the owner, 2026-10-06; was D1.)*
 - **The terminal version is frozen, then dropped.** It stays as it is and gets nothing new;
   `caland` opens the page and `caland --tui` the terminal; it goes in the release where the
-  page does everything it does. *(owner, 2026-10-06; was D2)*
-- **caland has no terminal version.** *(owner, 2026-10-07; was D5)* The terminal app is
-  `isolinear`, which is left as it is.
-- **The page first, with what the terminal version does today.** Who reads a secret
-  ([009](009-who-reads-a-secret.md)) is not part of it. *(owner, 2026-10-06)*
+  page does everything it does. *(Decided by the owner, 2026-10-06; was D2.)*
+- **caland has no terminal version.** The terminal app is `isolinear`, which is left as it
+  is. *(Decided by the owner, 2026-10-07; was D5.)*
+- **The page first, with what the terminal version did.** Who reads a secret
+  ([009](009-who-reads-a-secret.md)) is not part of it.
+  *(Decided by the owner, 2026-10-06.)*
 - **Only the SDK.** No audit table, no warehouse — caland reaches a workspace the way the
-  original did. *(owner, 2026-10-06)* → [000](000-what-caland-is.md#the-rules-it-keeps)
+  original did. *(Decided by the owner, 2026-10-06.)*
+  → [000](000-what-caland-is.md#the-rules-it-keeps)
 - **The server is Python's own HTTP server, and the page a small script of caland's own**:
   one person, one machine, no new dependency. *(The writer's choice, built that way on
   2026-10-06 and released in 0.5.0; the owner let it stand. Was D3.)*

@@ -68,9 +68,9 @@ mis-read. They are fixed in caland only ([To decide](#to-decide)).
 
 ## Decided
 
-- **The name.** *(owner, 2026-10-06)*
-- **All three tools release the same way.** *(owner, 2026-10-06, for lely; taken to hold
-  here — say if not)*
+- **The name.** *(Decided by the owner, 2026-10-06.)*
+- **All three tools release the same way.** *(Decided by the owner, 2026-10-06, for lely;
+  taken to hold here, and the four releases since were made that way.)*
 - **The first caland is 0.5.0**: a new name with nothing lost is a minor release.
   *(Decided by the owner, 2026-10-06, by merging the release as proposed; was D1.)*
 - **The author is given by name, without an address**, as for lely. *(Decided by the
@@ -111,10 +111,10 @@ behind `--page`.
 
 ## 0.6.0 (2026-10-07)
 
-Released on the owner's word ("minor bump"). It is the release in which caland becomes the
-page: `caland` opens it, a workspace is chosen on it, and the terminal app, the old command
-names and `textual` are gone ([008](008-the-page.md)). A minor version, because it takes
-things away: whoever typed `caland` for a terminal app gets a browser tab, and
+Released on the owner's word, as a minor version. It is the release in which caland
+becomes the page: `caland` opens it, a workspace is chosen on it, and the terminal app, the
+old command names and `textual` are gone ([008](008-the-page.md)). A minor version, because
+it takes things away: whoever typed `caland` for a terminal app gets a browser tab, and
 `caland --tui` says where the terminal app is.
 
 ## To decide

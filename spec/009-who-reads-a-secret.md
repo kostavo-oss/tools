@@ -52,12 +52,11 @@ What caland does show, and keeps showing, is when a secret was last *changed*
 
 ## Decided
 
-- **Not now.** The page first, with what the terminal version does today.
-  *(owner, 2026-10-06)*
+- **Not now.** The page first, with what the terminal version did.
+  *(Decided by the owner, 2026-10-06.)*
 - **No audit table and no warehouse: only the SDK, as the original did.**
-  *(owner, 2026-10-06)* That rules out R3–R6. The writer's note, so that it is not a
-  surprise later: it also means "when was it last accessed", which the owner asked about
-  the same day, has no answer in caland. If it is wanted after all, this rule is the one
+  *(Decided by the owner, 2026-10-06.)* That rules out R3–R6, and with them any answer in
+  caland to when a secret was last read. If that is wanted after all, this rule is the one
   to reopen.
 
 ## To decide
