@@ -349,18 +349,18 @@ def test_the_state_says_which_workspace_it_is_counted_from_the_first(served):
 
 
 def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspace(served):
-    import time
-
     connect(served, name="dev")
     ready(served)
     dev = served.connector.stores["dev"]
-    slow = dev.delete_secret
+    real = dev.delete_secret
+    under_way, go_on = threading.Event(), threading.Event()
 
-    def slowly(scope, key):
-        time.sleep(0.3)
-        slow(scope, key)
+    def held(scope, key):
+        under_way.set()
+        go_on.wait(30)
+        real(scope, key)
 
-    dev.delete_secret = slowly
+    dev.delete_secret = held
     done = []
     asking = threading.Thread(
         target=lambda: done.append(
@@ -368,10 +368,13 @@ def test_a_change_under_way_when_caland_goes_elsewhere_stays_in_its_own_workspac
         )
     )
     asking.start()
-    time.sleep(0.1)
-    connect(served, name="prod")
-    ready(served)
-    asking.join(timeout=5)
+    try:
+        assert under_way.wait(10)  # the delete is with dev, and stays there
+        connect(served, name="prod")
+        ready(served)
+    finally:
+        go_on.set()
+    asking.join(timeout=10)
     assert done[0][0] == 200
     assert "delete_secret" in [call[0] for call in dev.calls]
     assert wrote(served.connector.stores["prod"]) == []
@@ -404,21 +407,25 @@ def test_a_name_taken_while_signing_in_is_said_and_the_sign_in_stands(served):
 
 
 def test_a_sign_in_given_up_for_another_keeps_nothing(served):
-    import time
-
     held = threading.Event()
     real = served.connector.connect_url
 
     def slowly(host):
-        held.wait(5)
+        held.wait(30)
         return real(host)
 
     served.connector.connect_url = slowly
     connect(served, url="https://new.example.com", save_as="given-up")
+    given_up = served.page.loader
     connect(served, name="dev")
     assert ready(served)["workspace"]["name"] == "dev"
     held.set()
-    time.sleep(0.3)
+    # the sign-in that was given up runs to its end: by then it has kept what it would
+    for _ in range(1000):
+        if given_up.progress().phase in ("ready", "failed"):
+            break
+        threading.Event().wait(0.01)
+    assert given_up.progress().phase == "ready"
     assert served.profiles.saved == []
     assert state(served)["workspace"]["name"] == "dev" and state(served)["notice"] == ""
 

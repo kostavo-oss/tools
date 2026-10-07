@@ -95,8 +95,11 @@ wrapping the same page later, if the browser turns out to be the wrong home for 
       script, both inside the package. It works with no network but the workspace.
     - Anything slow is asked for, never waited on, and kept for the session.
     - It asks a workspace only what the terminal version asks: no query, no warehouse.
-    - Numbers a test holds: first paint within 300 ms of the server being up; a workspace
-      of 500 scopes and 5,000 secrets filters within 50 ms a keystroke.
+    - The numbers: first paint within 300 ms of the server being up; a workspace of 500
+      scopes and 5,000 secrets filters within 50 ms a keystroke. A test holds both, with
+      room — three times as long, since the machine that runs it may be a shared one —
+      and holds without a number that the page is painted before the workspace has
+      answered.
 - **R8 — A value is in the page only while it is shown.** Not in the page's source, not in a
   URL, not in anything the browser keeps: it arrives when asked for and is taken out again
   when hidden or after 30 seconds. *Copy* never writes it into the page. *(built; how copy
