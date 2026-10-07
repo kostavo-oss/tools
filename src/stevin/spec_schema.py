@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +45,7 @@ def _object(
     keys: Iterable[str],
     properties: dict[str, Schema],
     *,
-    required: Iterable[str] = (),
+    required: Collection[str] = (),
     description: str | None = None,
     manage: Manage = EVERYTHING,
 ) -> Schema:
