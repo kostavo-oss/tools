@@ -92,6 +92,19 @@ uv run ty check
 `mise tasks` lists the rest. Docs: `mise run docs` (mkdocs-material, published to
 Pages). Releases are version-driven from `pyproject.toml` — see CONTRIBUTING.md.
 
+The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks` lists
+them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
+`test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
+assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
+`dev` and `docs` keep running until they are stopped, so they are not for an assistant to
+start and wait on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
+an assistant that asks mise for it.
+
+`mise.toml`, `.mcp.json`, the workflows and the packaging come from
+[the template](https://github.com/kostavo-oss/template-python); `.copier-answers.yml` says
+which version this tool has taken, and `uvx copier update` brings the next. What every
+tool shares is changed there, not here.
+
 ## Milestone 1 (read-only) — done
 
 All eight items are built, lint/type/test clean, with golden plans in
