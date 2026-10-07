@@ -296,6 +296,11 @@ All by the owner, on 2026-10-05.
   as well: for a command line, never for what they found. `lely apply` with neither a file
   nor `-t` is refused before the config is read or the workspace reached *(2026-10-07: it
   asked the workspace who was running first)*.
+- **A plugin that fails in `lely doctor`** — its `programs` raises, or names something that
+  isn't text — is one line with the step and the plugin, as a failed check; the steps after
+  it are still looked at *(2026-10-07: it ended the command in a traceback)*. And a traceback
+  lely didn't expect shows no frame's local values, on any typer: the frames of `plan` and
+  `apply` hold the run's token and the environment.
 - **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
   each program a step runs is there. It can't tell whether a bundle is on the direct engine
   without planning one, and says only which version brought it. It can't tell whether

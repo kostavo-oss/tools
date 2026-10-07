@@ -704,6 +704,57 @@ def test_doctor_fails_when_a_tool_is_missing(
     assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
 
 
+def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> None:
+    """`programs` is a plugin's own code. One that raised ended `lely doctor`
+    in a traceback; so did one that named something that isn't text."""
+    (lely.root / "ops" / "odd.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from pathlib import Path\n"
+        "class Odd:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options: pass\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        raise RuntimeError('no programs \\x1b[2Ktoday')\n"
+        "    def plan(self, ctx): pass\n    def apply(self, ctx, plan): pass\n"
+        "class NoText(Odd):\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        return (Path('ops/notify.sh'),)\n"
+        "class Ends(Odd):\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        raise SystemExit(3)\n"
+    )
+    project.write(
+        lely.root,
+        "steps:\n  - name: a\n    uses: ./ops/odd.py:Odd\n"
+        "  - name: b\n    uses: ./ops/odd.py:NoText\n"
+        "  - name: c\n    uses: ./ops/odd.py:Ends\n"
+        "  - name: seed\n    uses: command\n    with: {apply: [./ops/notify.sh]}\n",
+    )
+    result = lely("doctor")
+    assert result.exit_code == 1
+    text = " ".join(said(result).split())
+    assert (
+        "✗ step `a` (./ops/odd.py:Odd): its `programs` failed: RuntimeError: "
+        "no programs �[2Ktoday"
+    ) in text
+    assert "✗ step `b` (./ops/odd.py:NoText): its `programs` failed: " in text
+    assert "names a program as PosixPath, not as text" in text
+    assert "✗ step `c` (./ops/odd.py:Ends): its `programs` failed: " in text
+    assert "ended the program" in text
+    assert "✓ step `seed` runs `./ops/notify.sh`" in text  # the rest is still checked
+    assert "Traceback" not in text
+
+
+def test_an_error_lely_didnt_expect_shows_no_frames_locals() -> None:
+    """typer prints a traceback for one, and below 0.23 every frame's local
+    values with it — and the frames of `plan` and `apply` hold the run's token
+    and the whole environment."""
+    assert cli.app.pretty_exceptions_show_locals is False
+
+
 # -- found in review ---------------------------------------------------------------
 
 

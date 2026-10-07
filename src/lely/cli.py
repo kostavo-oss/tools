@@ -92,6 +92,10 @@ app = typer.Typer(
     # said, because typer's own default changed (0.20.1): help is Rich markup on
     # every version, so what is escaped in it reads the same on each
     rich_markup_mode="rich",
+    # An error lely didn't expect is a traceback, and typer's own (below 0.23)
+    # prints every frame's local values with it: `plan` and `apply` hold the
+    # run's token and the whole environment in theirs.
+    pretty_exceptions_show_locals=False,
     help="One plan for your whole Databricks deploy.",
 )
 out = Console(highlight=False)
@@ -939,7 +943,16 @@ def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
                 line(False, f"step `{step.name}`: {error}")
                 continue
             said = config.written(step.options)
-            for program in _programs(found.cls, said if isinstance(said, dict) else {}):
+            try:
+                programs = _programs(found.cls, said if isinstance(said, dict) else {})
+            except Exception as error:  # a plugin's `programs` is its own code
+                problem = str(error)
+                if not isinstance(error, LelyError):
+                    problem = f"{type(error).__name__}: {error}"
+                where = f"step `{step.name}` ({step.uses})"
+                line(False, clean(f"{where}: its `programs` failed: {problem}"))
+                continue
+            for program in programs:
                 there = _there(program, loaded.root)
                 line(
                     there,
@@ -956,7 +969,13 @@ def _programs(cls: type, written: Mapping[str, Any]) -> tuple[str, ...]:
     if not callable(listed):
         return ()
     with contract.quietly():
-        return tuple(dict.fromkeys(listed(written)))
+        named = tuple(dict.fromkeys(listed(written)))
+    for program in named:
+        if not isinstance(program, str):
+            raise LelyError(
+                f"it names a program as {type(program).__name__}, not as text"
+            )
+    return named
 
 
 def _there(program: str, root: Path) -> bool:

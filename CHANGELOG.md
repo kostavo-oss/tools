@@ -24,6 +24,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that
   gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **`lely doctor` says a plugin that fails in one line**, with the step and the plugin, and
+  checks the rest. A plugin whose `programs` raised ended it in a traceback.
+- **A traceback never shows local values.** With a typer below 0.23, an error lely didn't
+  expect printed every frame's locals, and the frames of `plan` and `apply` hold the run's
+  token and the environment.
 - **`lely apply` with neither a plan file nor `-t` is refused at once**, with 2. It reached
   the workspace first, so without credentials it failed with 1 instead.
 - **Every `--help` names `[tool.lely]` again.** It read "a pyproject.toml with . Found from
