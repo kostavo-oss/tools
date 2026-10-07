@@ -96,8 +96,10 @@ How it is built — the layers, the ports — is in `docs/architecture.md`.
   — it would take the audit table and a warehouse, and caland uses only the SDK.
   *(owner, 2026-10-06)* → [009](009-who-reads-a-secret.md)
 
+- **`docs/USER_STORIES.md` is removed: the specs say what the page does.** It described
+  the terminal app as of its first versions, and was D1 here. *(Decided by the owner,
+  2026-10-07.)*
+
 ## To decide
 
-- **D1 — `docs/USER_STORIES.md`** describes the tool as of its first versions and is behind:
-  it lists bulk import and export as out of scope, and both are built; it has no search, no
-  audit, no undo. *Proposal:* this folder replaces it, and the file goes.
+Nothing.

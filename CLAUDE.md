@@ -64,9 +64,8 @@ This project is **all-[Astral](https://astral.sh)**, version-managed by
   uv replaces pip/virtualenv; ruff replaces black/flake8/isort; ty replaces mypy.
 - **Always** invoke project tools through `uv run …` (uv comes from mise, so it
   resolves the right Python and the project `.venv` automatically).
-- Need a one-off dependency for a script (e.g. an image lib for mockups)?
-  Use `uv run --with <pkg> python script.py` — **do not** install it into the
-  project or create a separate venv.
+- Need a one-off dependency for a script? Use `uv run --with <pkg> python script.py`
+  — **do not** install it into the project or create a separate venv.
 - Add a real dependency with `uv add <pkg>` (runtime) or `uv add --dev <pkg>`
   (dev tooling). This edits `pyproject.toml` + `uv.lock` — never edit `.venv`
   by hand.

@@ -1,8 +1,8 @@
 """DatabricksSecretStore — the infrastructure adapter implementing SecretStore.
 
 The only place that imports the Databricks SDK. Converts SDK types into our
-domain value objects and SDK exceptions into `StoreError`. All methods block;
-the UI calls them from worker threads.
+domain value objects and SDK exceptions into `StoreError`. All methods block:
+they are called on the thread of the request that asked, or on the loader's.
 """
 
 from __future__ import annotations

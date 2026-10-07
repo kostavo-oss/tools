@@ -81,6 +81,8 @@ every scope with your access and how many have a grant on it. ++shift+p++ lists 
 made to a name — type a user, a group or a service principal — for an access review, or for
 someone who has left. None of the three reads a value.
 
+![The secrets not changed in 90 days, oldest first](img/page-stale.png)
+
 **Sorting.** ++s++ sorts the pane the keyboard is in by its next column, ++shift+s++ the
 other way round; a click on a heading does the same.
 

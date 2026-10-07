@@ -1,10 +1,10 @@
 """WorkspaceCache — the in-memory read model the UI renders from.
 
-A projection that the application service warms up front (US-14) and keeps in
-sync on writes. Pure data + bookkeeping; it holds no business rules (those live
-in the domain) and does no I/O.
+A projection that the application service warms up front and keeps in sync on
+writes. Pure data + bookkeeping; it holds no business rules (those live in the
+domain) and does no I/O.
 
-Strategy (US-14/16):
+Strategy:
   * On connect the service warms scopes -> secret metadata -> ACLs in the
     background.
   * Secret *values* are NOT bulk-loaded: one is read when it is asked for, and

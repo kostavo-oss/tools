@@ -77,10 +77,6 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/caland/
 
-# docs/ also holds a file that is the repository's and not the site's
-exclude_docs: |
-  USER_STORIES.md
-
 nav:
   - Home: index.md
   - Installation: installation.md

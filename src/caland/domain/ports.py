@@ -53,7 +53,8 @@ class BundleStore(Protocol):
 
 @runtime_checkable
 class SettingsStore(Protocol):
-    """Loads and saves persisted UI preferences (theme, toggles)."""
+    """Loads and saves what the person prefers: how things are shown, never a
+    secret."""
 
     def load(self) -> Settings: ...
     def save(self, settings: Settings) -> None: ...

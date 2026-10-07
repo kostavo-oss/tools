@@ -20,7 +20,7 @@ def perm_rank(permission: str) -> int:
 
 @dataclass
 class AuthSummary:
-    """Per-scope authorization picture for the authorization overview screen."""
+    """What the person may do in one scope: what the page shows as their access."""
 
     scope: str
     effective: str = "—"  # current user's effective permission
@@ -32,7 +32,7 @@ def authorization_summary(
     acls_by_scope: Mapping[str, list[Acl]],
     readable: set[str] | None = None,
 ) -> list[AuthSummary]:
-    """Compute the current user's effective permission on each scope (US-13).
+    """Compute the current user's effective permission on each scope.
 
     "Effective" is the highest permission granted to any principal that is *you*:
     your username, the `users` group (everyone), or any group you belong to — so

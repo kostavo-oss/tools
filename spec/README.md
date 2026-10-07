@@ -48,12 +48,11 @@ The owner's to answer.
    → [007, D4](007-name-and-release.md#to-decide)
 3. *Who has access* does not follow groups. → [004, D1](004-scopes-and-permissions.md#to-decide),
    [009](009-who-reads-a-secret.md)
-4. `docs/USER_STORIES.md` is from the first versions of the terminal app.
-   → [000, D1](000-what-caland-is.md#to-decide)
-5. Where a vulnerability is reported: a personal work address is in `SECURITY.md` and the
+4. Where a vulnerability is reported: a personal work address is in `SECURITY.md` and the
    docs. → [006, D3](006-safety.md#to-decide)
 
 **Proposals nobody asked for** — the writer's, to take or leave.
 
-6. Forget a value some minutes after it was last shown. → [003, D2](003-secrets.md#to-decide)
-7. Let a workspace be marked to open read-only. → [006, D2](006-safety.md#to-decide)
+5. Forget a value once it has been shown or copied: nothing reads it back any more.
+   → [003, D2](003-secrets.md#to-decide)
+6. Let a workspace be marked to open read-only. → [006, D2](006-safety.md#to-decide)

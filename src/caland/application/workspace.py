@@ -5,9 +5,10 @@ operation the UI needs as a plain, synchronous method. All store/cache
 coordination lives here, so:
 
   * the UI just calls a method and renders the result (no business logic), and
-  * the whole layer is unit-testable with a fake store and no event loop.
+  * the whole layer is unit-testable with a fake store and no server.
 
-The UI runs these (blocking) methods in worker threads.
+These methods block. The server calls them on the thread of the request that
+asked; a workspace is read in the background (`loading.py`).
 """
 
 from __future__ import annotations
@@ -295,7 +296,7 @@ class WorkspaceService:
                     + (f": {why}." if why else ".")
                 )
 
-    # -- scope permissions / ACLs (US-11 update, US-12) -----------------
+    # -- scope permissions / ACLs --------------------------------------
     def set_acl(self, scope: str, principal: str, permission: str) -> None:
         """Grant or change a principal's permission (put_acl is an upsert)."""
         with self._one_at_a_time:
