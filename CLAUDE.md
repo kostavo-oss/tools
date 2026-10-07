@@ -10,10 +10,20 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 
 ## Rules
 
-- The core is pure: config, references, the wiring, plan assembly, the approval check and the
-  renderers do no I/O, no SDK calls, no clock, no env. I/O lives at the edges: the plugins, the
-  Databricks CLI runner, the workspace client, `git`, the command line.
-- No module outside `src/lely/steps/` knows a plugin by name — the bundle included.
+- The core does no I/O of its own. References, options, the approval check, the plan file,
+  the schema and the renderers are pure: values in, values out — no SDK calls, no clock, no
+  env. The config is read from disk in two functions, `config.find` and `config.load`; what
+  they read is parsed by `config.load_text`, which is pure. Planning and running reach the
+  outside only through what they are handed: the plugins, the Databricks CLI runner, the
+  workspace client, the environment as a mapping, a log. I/O lives at those edges, and in
+  `registry` (which imports a plugin's module, so `validate` runs the project's code),
+  `git` and the command line.
+- No module outside `src/lely/steps/` imports a plugin or asks which plugin a step uses —
+  the bundle included. Plugins are found through `registry`, and what the core needs of one
+  it reads off the contract: its `outputs`, its `programs`. A test holds the imports. What
+  the core does know is the Databricks CLI, which is lely's own edge: that `databricks` is a
+  program a step may run, which of its calls only read (`testing.READS`), and which version
+  brought the direct engine (`lely doctor`).
 - Domain model: frozen, slotted stdlib dataclasses with tuples.
 - The bundle is the Databricks CLI's: the `bundle` plugin asks it
   (`bundle summary/plan -o json`, `deploy --plan`, `destroy`) and never reimplements what it

@@ -58,9 +58,11 @@ been seen — a `TODO(verify)`.
 
 `CLAUDE.md` lists them. The ones a contributor trips over first:
 
-- The core is pure. I/O lives at the edges: the plugins, the Databricks CLI runner, `git`,
-  GitHub, the command line.
-- No module outside `src/lely/steps/` knows a plugin by name — the bundle included.
+- The core does no I/O of its own. I/O lives at the edges: reading the config file, loading
+  a plugin, the plugins themselves, the Databricks CLI runner, `git`, GitHub, the command
+  line.
+- No module outside `src/lely/steps/` imports a plugin or asks which plugin a step uses — the
+  bundle included.
 - Nothing that changes a workspace runs unasked, and nothing destructive without
   `--allow-destructive`.
 - Nothing a plan says is obeyed where it is shown — a terminal, Markdown, the page.

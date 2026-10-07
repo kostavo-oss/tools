@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 import unicodedata
@@ -97,6 +98,41 @@ def test_every_text_file_is_read_with_git_or_without(
     walked = {path.relative_to(ROOT).as_posix() for path in files()}
     assert wanted <= walked
     assert not any(name.startswith((".venv/", "site/", ".git/")) for name in walked)
+
+
+def imports_a_plugin(source: str) -> bool:
+    """Whether a module's text imports `lely.steps`, or anything in it."""
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            names = [node.module or ""]
+            if node.module == "lely":
+                names = [f"lely.{alias.name}" for alias in node.names]
+        else:
+            continue
+        if any(name == "lely.steps" or name.startswith("lely.steps.") for name in names):
+            return True
+    return False
+
+
+def test_no_module_outside_steps_imports_a_plugin() -> None:
+    """CLAUDE.md: plugins are found through the registry, the bundle included.
+    The plugins lely ships are in `src/lely/steps/`, and only they import one
+    another."""
+    assert imports_a_plugin("from lely.steps.bundle import Bundle")
+    assert imports_a_plugin("def f():\n    from lely import steps")
+    assert imports_a_plugin("import lely.steps.command as c")
+    assert not imports_a_plugin("from lely import step as contract\nimport lely.step")
+    package = ROOT / "src" / "lely"
+    core = [path for path in package.rglob("*.py") if path.parent.name != "steps"]
+    assert len(core) > 15
+    found = [
+        path.relative_to(package).as_posix()
+        for path in core
+        if imports_a_plugin(path.read_text(encoding="utf-8"))
+    ]
+    assert found == []
 
 
 # -- what a document shows can be followed ---------------------------------------------

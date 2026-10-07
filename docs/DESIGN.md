@@ -89,9 +89,11 @@ destroy:  options resolved top to bottom, then bottom to top: planned again, che
 status:   options resolved top to bottom, each plugin asked what exists
 ```
 
-The core does no I/O: config, references, the wiring, plan assembly, the approval check and the
-renderers are pure. I/O happens at the edges: the plugins, the Databricks CLI runner, the workspace
-client, `git`, and the command line.
+The core does no I/O of its own: references, options, the approval check, the plan file, the schema
+and the renderers are pure. The config is read from disk by `config.find` and `config.load`, and
+parsed by `config.load_text`, which is pure. Planning and running reach the outside only through
+what they are handed. I/O happens at the edges: the plugins, `registry` (which imports a plugin's
+module), the Databricks CLI runner, the workspace client, `git`, and the command line.
 
 | Module | Does |
 |---|---|
@@ -111,7 +113,9 @@ client, `git`, and the command line.
 | `databricks`, `source`, `process` | the Databricks CLI, `git`, any other program |
 | `cli` | the commands, consent, exit codes |
 
-No module outside `steps/` knows a plugin by name.
+No module outside `steps/` imports a plugin or asks which plugin a step uses: plugins are found
+through `registry`, and read through the contract. The Databricks CLI is not a plugin: `testing`
+knows which of its calls only read, and `cli` which version brought the direct engine.
 
 ## Config
 
@@ -476,7 +480,8 @@ gives its values again.
 
 ## Testing
 
-- **Unit**: config, references, the wiring, the approval check and the renderers are pure.
+- **Unit**: reading a config's text, references, the wiring, the approval check and the renderers
+  are pure, and tested as such.
 - **A fake `databricks`** (`tests/fake_databricks.py`), as a program and in process. It answers
   from recordings — the CLI's own acceptance-test outputs, `tests/fixtures/cli/` — or simulates a
   bundle in a small workspace kept in a folder: `plan`, `deploy`, `summary`, `destroy`, `run`. A
