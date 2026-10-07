@@ -9,13 +9,15 @@ lely replaces the script around `databricks bundle deploy`.
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model —
 > and lely to deploy them as one.**
 
-> **Status: pre-alpha.** Everything below is built, tested against a fake Databricks CLI and a
+> **Status: alpha.** Everything below is built, tested against a fake Databricks CLI and a
 > fake GitHub, and has run for real a few times, with small bundles — see
 > [what has been tried](#what-has-been-tried). That is a first proof, not a track record.
 
 **Docs: [kostavo-oss.github.io/lely](https://kostavo-oss.github.io/lely/)** ·
-[spec/](spec/README.md) says what each piece must do · [docs/DESIGN.md](docs/DESIGN.md) says
-how it is built.
+[spec/](https://github.com/kostavo-oss/lely/blob/main/spec/README.md) says what each piece
+must do ·
+[docs/DESIGN.md](https://github.com/kostavo-oss/lely/blob/main/docs/DESIGN.md) says how it
+is built.
 
 ## Why
 
@@ -45,13 +47,16 @@ the Databricks CLI.
 
 ## Install
 
-lely isn't on PyPI yet. From a checkout:
+lely is on [PyPI](https://pypi.org/project/lely/), and needs Python 3.11 or newer. With
+[uv](https://docs.astral.sh/uv/), in the project that has the bundle:
 
 ```sh
-git clone https://github.com/kostavo-oss/lely && cd lely
-uv sync
+uv add --dev lely
 uv run lely --version
 ```
+
+Or without a project: `uvx lely --version` runs it once, `uv tool install lely` keeps the
+command.
 
 It needs the [Databricks CLI](https://docs.databricks.com/aws/en/dev-tools/cli/install) with
 the direct engine (GA in v1.3.0). `lely doctor` shows what it finds.
@@ -138,8 +143,9 @@ lely plan -t dev --github
 In a GitHub Actions run, `--github` puts the plan on the pull request as one comment —
 updated in place on every push — and on the run's page; after an apply the run's page says
 what each step did and what exists now, with links. `-f md` prints the same Markdown.
-[docs/GITHUB.md](docs/GITHUB.md) has the workflows to copy: plan on a pull request, apply the
-reviewed plan on merge, destroy only by hand.
+[docs/GITHUB.md](https://github.com/kostavo-oss/lely/blob/main/docs/GITHUB.md) has the
+workflows to copy: plan on a pull request, apply the reviewed plan on merge, destroy only by
+hand.
 
 ## As a page
 
@@ -252,4 +258,4 @@ mise run check   # lint + format check + types + unit tests
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/lely/blob/main/LICENSE).

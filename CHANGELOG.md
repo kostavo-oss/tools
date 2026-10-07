@@ -6,7 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing has been released yet. This is what is built, and would be the first release.
+## [0.1.0] - 2026-10-07
+
+The first release, as alpha: this is what is built.
 
 ### Added
 

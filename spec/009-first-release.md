@@ -1,8 +1,6 @@
 # 009 — first release
 
-**Status:** prepared, 2026-10-06: the questions are answered ([Decided](#decided)) and R1–R4
-are done. Nothing is published, tagged or registered: the release is one pull request, opened
-when the owner says.
+**Status:** released, 2026-10-07 — 0.1.0, as alpha ([As released](#as-released-2026-10-07)).
 
 ## Why
 
@@ -73,6 +71,16 @@ The release itself will be one pull request: `version = "0.1.0"`, the classifier
 the name alone under `authors`, the changelog's notes moved under `## [0.1.0]`, and the
 README's install line. Nothing in it is done yet, so that merging anything else releases
 nothing.
+
+## As released, 2026-10-07
+
+The owner registered the publisher on PyPI and said to release ("i done lely and stevins pypi
+do the meres release"). The release is the one pull request this page said it would be:
+`version = "0.1.0"`, the classifier *Alpha*, the name alone under `authors`, the changelog's
+notes under `## [0.1.0]`, and **R5** — the README, the installation page and the GitHub guide
+say `uv add --dev lely` where they said to install from the repository. The words
+"pre-alpha" became "alpha" where the status is told; what has and hasn't been tried is as it
+was.
 
 ## Done when
 

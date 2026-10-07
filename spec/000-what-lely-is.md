@@ -149,7 +149,7 @@ No longer excluded: `bundle destroy` and teardown.
    first is [D1](#to-decide).
 
 Outside the phases: **stevin** ([006](006-stevin.md)) is the owner's to take up separately, and
-[009 — first release](009-first-release.md) happens when the owner says.
+[009 — first release](009-first-release.md) happened on 2026-10-07, when the owner said.
 
 ## What this changes
 

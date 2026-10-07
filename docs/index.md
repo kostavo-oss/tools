@@ -4,7 +4,7 @@
 steps before, the steps after — reviewed before anything runs, and taken down again when you
 say so.
 
-!!! warning "Pre-alpha"
+!!! warning "Alpha"
     Everything described here is built, and has run for real a few times: on a workspace,
     and through GitHub's workflows. That is a first proof, not a track record —
     [what has been tried](tried.md) says exactly what was and wasn't. Try it on a

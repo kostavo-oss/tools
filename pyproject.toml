@@ -1,15 +1,15 @@
 [project]
 name = "lely"
-version = "0.0.1"
+version = "0.1.0"
 description = "One plan for your whole Databricks deploy: the bundle and the steps around it, reviewed before anything runs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Misja Pronk", email = "misja@prorexconsultancy.nl" }]
+authors = [{ name = "Misja Pronk" }]
 keywords = ["databricks", "asset-bundles", "deployment", "infrastructure-as-code", "cli"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",

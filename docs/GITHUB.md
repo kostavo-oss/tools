@@ -36,8 +36,9 @@ why, and the command ends as it would have without the flag.
 Signing in to Databricks from GitHub Actions without a stored secret:
 <https://docs.databricks.com/aws/en/dev-tools/auth/provider-github>
 
-lely isn't on PyPI yet, so the workflows below assume it is a dependency of the project
-(`uv add --dev git+https://github.com/kostavo-oss/lely`) and run it with `uv run`.
+The workflows below assume lely is a development dependency of the project
+(`uv add --dev lely`), so that the lock file says which lely plans and applies, and run it
+with `uv run`.
 
 ## Three rules these workflows keep
 

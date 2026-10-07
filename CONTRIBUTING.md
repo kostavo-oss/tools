@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome.
 
-`lely` is pre-alpha: everything in the specs is built, and it has run for real only a few
+`lely` is alpha: everything in the specs is built, and it has run for real only a few
 times. `spec/` says what each piece must deliver, `docs/DESIGN.md` how it is built. If the
 code disagrees with either, that is a bug in one of them — please say which.
 
@@ -75,4 +75,4 @@ notices the new version on `main`, runs the gate, publishes to PyPI with Trusted
 no token — and makes the GitHub release and its tag. A change to `pyproject.toml` that isn't a
 new version releases nothing.
 
-No version of lely has been released yet.
+The first release was 0.1.0, on 2026-10-07.
