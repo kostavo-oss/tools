@@ -19,6 +19,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   was shown and copied as it had been. Showing and copying read the workspace every time
   now, as the page says. The docs said "no cache"; they say what Caland holds in memory,
   for how long, and how it is forgotten.
+- **A `~/.databrickscfg` that is a link stays a link.** Keeping a profile put a plain file
+  where the link was, and left the file it pointed to — in a folder of dotfiles, say — as
+  it had been. The file it points to is written now. The docs said the file is "never left
+  readable by anybody but you": a new one is yours alone, and one that is there keeps the
+  permissions you gave it, which is what they say now.
 - **The source package holds the source, the tests and the licence, and nothing else.**
   From 0.5.1 to 0.6.0 it also held `snapshot_report.html`: a report a test tool had written
   into the repository, committed by mistake, with the environment of the machine it was

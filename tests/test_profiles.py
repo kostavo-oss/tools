@@ -170,3 +170,59 @@ def test_a_profile_that_is_there_twice_is_one_profile_not_a_failure(
     )
     monkeypatch.setenv("DATABRICKS_CONFIG_FILE", str(path))
     assert [w.profile for w in DatabricksCfgProfileStore().discover()] == ["dup"]
+
+
+# ── a config that is a link: kept in a folder of dotfiles, say ────────
+ADDED = "\n[new-one]\nhost = https://new.example.com\nauth_type = external-browser\n"
+
+
+def _linked(tmp_path, monkeypatch, to: str | None = None):
+    """A config that is a link to a file elsewhere. The file, and the link."""
+    import sys
+
+    if sys.platform == "win32":
+        pytest.skip("links are another matter there")
+    real = tmp_path / "dotfiles" / "databrickscfg"
+    real.parent.mkdir()
+    link = tmp_path / "home" / ".databrickscfg"
+    link.parent.mkdir()
+    link.symlink_to(to or real)
+    monkeypatch.setenv("DATABRICKS_CONFIG_FILE", str(link))
+    return real, link
+
+
+def test_a_config_that_is_a_link_is_written_through_the_link(tmp_path, monkeypatch):
+    import stat
+
+    real, link = _linked(tmp_path, monkeypatch)
+    real.write_text(CFG)
+    real.chmod(0o640)
+    DatabricksCfgProfileStore().add("new-one", "https://new.example.com")
+    assert link.is_symlink() and link.resolve() == real.resolve()
+    assert real.read_text() == CFG + ADDED and link.read_text() == CFG + ADDED
+    assert stat.S_IMODE(real.stat().st_mode) == 0o640  # the person's, as it was
+    # no copy is left, beside the file or beside the link
+    assert [p.name for p in real.parent.iterdir()] == ["databrickscfg"]
+    assert [p.name for p in link.parent.iterdir()] == [".databrickscfg"]
+
+
+def test_a_link_said_from_where_it_is_and_a_link_to_a_link_stay_links(
+    tmp_path, monkeypatch
+):
+    real, link = _linked(tmp_path, monkeypatch, to="../dotfiles/first")
+    (real.parent / "first").symlink_to("databrickscfg")
+    real.write_text(CFG)
+    DatabricksCfgProfileStore().add("new-one", "https://new.example.com")
+    assert link.is_symlink() and (real.parent / "first").is_symlink()
+    assert real.read_text() == CFG + ADDED and not real.is_symlink()
+
+
+def test_a_link_to_a_file_that_is_not_there_yet_gets_that_file_and_stays(
+    tmp_path, monkeypatch
+):
+    import stat
+
+    real, link = _linked(tmp_path, monkeypatch)
+    DatabricksCfgProfileStore().add("new-one", "https://new.example.com")
+    assert link.is_symlink() and real.read_text() == ADDED.lstrip("\n")
+    assert stat.S_IMODE(real.stat().st_mode) == 0o600  # a new file: its owner's alone

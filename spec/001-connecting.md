@@ -45,7 +45,10 @@ meant.
   target and a profile of one name at one address are two rows, told apart by where each
   was found.
 - R4: a sign-in is kept as a profile under a **new** name only — never over a profile that
-  is there, which keeps its own way of signing in.
+  is there, which keeps its own way of signing in. The file is written whole or not at
+  all. A new file is its owner's alone; one that is there keeps who may read it, which is
+  the person's to say; one that is a link stays a link, and the file it points to is what
+  is written.
 - R7: `w`. Going to another workspace forgets every value held of the one that is left.
 - R8: a name that is not there ends it before it starts, with the names that are.
 

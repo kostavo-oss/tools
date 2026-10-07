@@ -22,8 +22,9 @@ as firm as what it does.
 - **No credentials of its own.** Caland signs in the way the Databricks CLI does and stores
   no token. A profile it keeps holds an address and that you sign in through the browser —
   and it never writes over a profile that is there.
-- **`~/.databrickscfg` is written whole or not at all**, and never left readable by anybody
-  but you.
+- **`~/.databrickscfg` is written whole or not at all.** A new file is yours alone; one
+  that is there keeps who may read it — that is yours to say, not Caland's. Where it is a
+  link, the file it points to is written and the link stays.
 - **One door to Databricks.** Only one layer of the code imports the Databricks SDK; the
   page and the server have no other way out.
 
