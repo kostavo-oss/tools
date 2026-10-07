@@ -220,3 +220,16 @@ def test_a_source_package_is_made_from_a_list() -> None:
         "/CHANGELOG.md",
         "/pyproject.toml",
     }
+
+
+def test_pre_commit_runs_the_ruff_that_ci_runs() -> None:
+    """A commit is checked by pre-commit and a pull request by `uv run ruff`.
+    Two versions of one formatter is a commit that passes one and fails the
+    other — and Dependabot only moves the lock file."""
+    import tomllib
+
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    (locked,) = [p["version"] for p in lock["package"] if p["name"] == "ruff"]
+    hooks = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    pinned = re.search(r"ruff-pre-commit\s+rev: v(\S+)", hooks)
+    assert pinned and pinned.group(1) == locked
