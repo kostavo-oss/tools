@@ -117,7 +117,8 @@ without a network:
 
 ```
 caland/
-  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore, BundleStore)
+  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore,
+                   BundleStore, SettingsStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the only Databricks-SDK importers
   interface/web/   the page: a server on this machine, and what it serves

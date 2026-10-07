@@ -1,7 +1,9 @@
 """Application layer — use-cases that orchestrate the domain.
 
-Depends only on `domain`; never on infrastructure or the UI. The read model
-(`WorkspaceCache`) is pure in-memory app state, so it lives here too.
+Depends on `domain`; never on infrastructure, the SDK or the UI. The read model
+(`WorkspaceCache`) is pure in-memory app state, so it lives here too. One
+library is used here: `cryptography`, by `files`, to say what a file somebody
+picked is — bytes in, facts out, no I/O.
 """
 
 from . import files

@@ -38,7 +38,9 @@ interface → application → domain ← infrastructure
 
 - **`domain/`** — pure model, rules, and ports (`Protocol`s). No UI, no SDK.
 - **`application/`** — use-cases (`WorkspaceService`, `OnboardingService`) and
-  the in-memory read model. Depends only on `domain`.
+  the in-memory read model. Depends on `domain`, never on `infrastructure`, the
+  SDK or the page — and on one library: `files.py` reads what a picked file is
+  with `cryptography`, bytes in and facts out, no I/O.
 - **`infrastructure/`** — adapters that implement the ports; the *only* place
   that imports the Databricks SDK.
 - **`interface/web/`** — the page: a server on this machine (`gate.py` decides which

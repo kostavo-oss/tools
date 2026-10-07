@@ -96,7 +96,8 @@ ports, so the domain is unit-testable with no network. Respect the layering:
 
 ```
 src/caland/
-  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore)
+  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore,
+                   BundleStore, SettingsStore)
   application/     use-cases (WorkspaceService, OnboardingService) + read model
   infrastructure/  adapters — the ONLY place the Databricks SDK is imported
   interface/web/   the page: a server on this machine, and what it serves
