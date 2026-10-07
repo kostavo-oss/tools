@@ -18,6 +18,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that
   gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **Every `--help` names `[tool.lely]` again.** It read "a pyproject.toml with . Found from
+  here up": the brackets were taken for markup. So did what `lely schema -o` says of a
+  `pyproject.toml`.
 - **lely asks for a typer it works with**: `typer>=0.17.5`, where 0.1.0 said `>=0.12`. With
   an older one every `--help` could end in a traceback, or a command given no `-t` could run
   without one. CI now runs the tests on the oldest version of every dependency.

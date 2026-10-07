@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typer
 from typer.testing import CliRunner, Result
 
 import fake_github
@@ -181,6 +182,66 @@ def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> 
     # and the plugin this project names
     assert "./ops/steps.py:LatestModel  file ./ops/steps.py" in text
     assert "gives  version (at plan)" in text
+
+
+def _commands() -> dict[str, Any]:
+    group: Any = typer.main.get_command(cli.app)
+    return dict(group.commands)
+
+
+@pytest.mark.parametrize("name", sorted(_commands()))
+def test_help_shows_every_bracket_it_was_written_with(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Help is read as Rich markup, where `[tool.lely]` is a style nobody
+    defined: it was dropped, and every `--help` said "a pyproject.toml with .
+    Found from here up". Nor is what stops that shown: a typer that didn't
+    read help as markup (before 0.20.1) showed the backslash."""
+    monkeypatch.setenv("COLUMNS", "200")
+    result = runner.invoke(cli.app, [name, "--help"])
+    assert result.exit_code == 0, result.output
+    shown = " ".join(_ANSI.sub("", result.output).split())
+    command = _commands()[name]
+    written = [command.help or ""]
+    written += [getattr(param, "help", None) or "" for param in command.params]
+    for text in written:
+        for bracket in re.findall(r"\[[^\[\]]*\]", text.replace("\\[", "[")):
+            assert bracket in shown, f"`lely {name} --help` lost {bracket}"
+    assert "\\[" not in shown
+    if any(param.name == "path" for param in command.params):
+        assert "a pyproject.toml with [tool.lely]. Found from here up" in shown
+
+
+def test_what_schema_says_of_a_pyproject_names_its_section(lely: Lely) -> None:
+    """The same bracket, lost the same way: "a `` section in pyproject.toml"."""
+    (lely.root / "lely.yml").unlink()
+    project.write(lely.root, toml=True)
+    result = lely("schema", "-o", "lely.schema.json")
+    assert result.exit_code == 0, said(result)
+    assert (
+        "a `[tool.lely]` section in pyproject.toml has no schema of its own"
+    ) in " ".join(said(result).split())
+
+
+def test_the_commands_help_is_read_for_are_all_of_them() -> None:
+    assert sorted(_commands()) == [
+        "apply",
+        "destroy",
+        "doctor",
+        "plan",
+        "schema",
+        "show",
+        "status",
+        "steps",
+        "ui",
+        "validate",
+    ]
+    with_a_config = [
+        name
+        for name, command in _commands().items()
+        if any(param.name == "path" for param in command.params)
+    ]
+    assert len(with_a_config) == 8  # all but `show` and `ui`: they read a file
 
 
 def test_version() -> None:

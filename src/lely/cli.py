@@ -88,6 +88,9 @@ if TYPE_CHECKING:
 app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
+    # said, because typer's own default changed (0.20.1): help is Rich markup on
+    # every version, so what is escaped in it reads the same on each
+    rich_markup_mode="rich",
     help="One plan for your whole Databricks deploy.",
 )
 out = Console(highlight=False)
@@ -108,8 +111,11 @@ ConfigOption = Annotated[
     typer.Option(
         "--config",
         "-c",
-        help="lely.yml, or a pyproject.toml with [tool.lely]. Found from here up "
-        "when not given.",
+        # help is read as markup, where `[tool.lely]` would be a style: escaped
+        help=escape(
+            "lely.yml, or a pyproject.toml with [tool.lely]. Found from here up "
+            "when not given."
+        ),
     ),
 ]
 
@@ -570,10 +576,11 @@ def schema(
     except (LelyError, ValueError):
         found = None
     if found is not None and found.name == config.PYPROJECT:
-        out.print(
-            "[dim]It is for a `lely.yml`: a `[tool.lely]` section in pyproject.toml "
-            "has no schema of its own.[/]"
+        words = (
+            "It is for a `lely.yml`: a `[tool.lely]` section in pyproject.toml has "
+            "no schema of its own."
         )
+        out.print(f"[dim]{escape(words)}[/]")
         return
     out.print(
         "[dim]As the first line of lely.yml:[/]  "
