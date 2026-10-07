@@ -165,7 +165,8 @@ literal one wins, and any parts left over walk into the value.
 
 **An input is a reference in the step's own options:** `${steps.<name>.<output>}`. There is no other
 channel. `${env.<NAME>}` reads the environment, which is not a step; its value is a `Secret`, so it
-can only go where a plugin asked for one and is never shown or written.
+can only go where a plugin asked for one and is never shown or written. `$${` is no reference: it is
+how a literal `${` is written, and the step is handed `${`.
 
 An option can also name a whole step — `bundle: app` on a `bundle.run` step — when its type is
 `Linked`. The plugin is then given that step's options and outputs. It is the same rule: the

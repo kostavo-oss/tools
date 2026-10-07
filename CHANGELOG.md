@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`$${…}` writes a literal `${…}`.** `apply: [sh, -c, 'echo $${HOME}']` hands the shell
+  `${HOME}`; before, there was no way to write one. The error for a `${…}` that is no
+  reference says so, and names a step only when one above gives a value of that name.
+
 ### Changed
 
 - **What a step's program says is shown while it runs.** `bundle deploy`, `bundle destroy`,

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -966,3 +967,19 @@ def test_an_overview_line_says_whether_it_is_deployed_in_one_word(tmp_path: Path
     assert step.overview is None
     assert "an overview line's `deployed` is true or false" in step.detail
     json.dumps(planfile.result_to_json(result))
+
+
+def test_a_literal_dollar_brace_reaches_the_command_as_it_is_meant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """003: `$${…}` is a literal `${…}`, for the shell to read — no reference."""
+    monkeypatch.setenv("LELY_TEST_HOME", "/home/jane")
+    p = Project(
+        tmp_path,
+        "steps:\n  - name: seed\n    uses: command\n    with:\n"
+        "      apply: [sh, -c, 'echo \"$${LELY_TEST_HOME}\" > home.txt']\n",
+    )
+    given: dict[str, Any] = {**edges(p.fake), "env": dict(os.environ)}
+    result = running.apply(p.config, p.plan(), **given)
+    assert result.outcome == "done", result.message
+    assert (tmp_path / "home.txt").read_text() == "/home/jane\n"

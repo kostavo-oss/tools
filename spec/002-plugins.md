@@ -254,6 +254,17 @@ requirement:
 - **What a step is given (R22)** is also its own name, the workspace's host, the environment
   for a program it runs, and the Databricks CLI with this run's credentials — all "a way to
   reach the workspace", none another step's.
+- **A literal `${…}` is written `$${…}`** (R15a) *(2026-10-07)*. `${` always starts a
+  reference, so a shell's own `${HOME}` in a command could not be written at all. `$${` is
+  the escape, as in Terraform and Compose: it is no reference, and the step is handed `${`.
+  It is read from the left, so in `$$${` the first dollar is only a dollar; a `$$` before
+  anything but `{` is two dollars.
+- **A `${…}` that is no reference says how to write it** (R15a, R18): as a literal, and —
+  when a step above gives an output of that name, which is how a bundle's own file spells
+  `${var.catalog}` — as `${steps.<that step>.var.catalog}`, naming the step. No step is named
+  that isn't there: the message used to say "write `${steps.<bundle step>.…}`" in a project
+  without a bundle. The check reads what the steps above declare, so it knows no plugin by
+  name; `${bundle.target}` gets the plain message, because no step gives a `bundle.target`.
 - **A value from the environment is a `Secret`** (R13): it can go only where a plugin asked for
   one, which is what keeps it out of every plan and every line of output.
 - **The kit (R25)** has `check_plan`, `check_apply`, `check_destroy` and `check_overview`.

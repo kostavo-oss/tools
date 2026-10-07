@@ -15,6 +15,9 @@ which is not a step. Three jobs, kept apart:
 A value that isn't known yet — the `id` of a job this deploy creates — resolves
 to `Unknown`, naming the output, never to an empty string. A step whose options
 hold one is *waiting* instead of being planned wrong.
+
+`$${` is no reference: it is how a literal `${` is written, as in Terraform and
+Compose — a shell's own `${HOME}` in a command is `$${HOME}` here.
 """
 
 from __future__ import annotations
@@ -29,11 +32,10 @@ from lely.model import KNOWN, Json, Output, Outputs, Secret, Value
 
 NAMESPACES = ("steps", "env")
 
-_REF = re.compile(r"\$\{([^}]*)\}")
+#: A reference, with its body, or `$${`: the escape for a literal `${`. Read
+#: from the left, so in `$$${` the first dollar is only a dollar.
+_REF = re.compile(r"\$\$\{|\$\{([^}]*)\}")
 _PART = re.compile(r"[A-Za-z0-9_-]+\Z")
-
-#: The spellings from when the bundle was built in. Each now names its step.
-_FORMER = ("var", "bundle", "workspace", "resources")
 
 
 class RefError(LelyError):
@@ -74,27 +76,32 @@ class Unknown:
     secret: bool = False
 
 
-def parse(text: str, loc: Loc) -> tuple[Ref, ...]:
-    """Every reference in a string, each checked for shape."""
+def parse(
+    text: str, loc: Loc, above: Mapping[str, Above] | None = None
+) -> tuple[Ref, ...]:
+    """Every reference in a string, each checked for shape. A `$${` is none.
+
+    `above` is the steps listed above, where the caller knows them: a `${…}`
+    that is no reference may be what one of them gives, written the way a
+    bundle's own file writes it, and the error then names that step.
+    """
     refs: list[Ref] = []
     for found in _REF.finditer(text):
         body = found.group(1)
+        if body is None:
+            continue  # `$${`: a literal, written out by `resolve`
+        literal = f"For a literal `${{{body}}}`, write `$${{{body}}}`."
         parts = tuple(body.split("."))
         if not all(_PART.match(part) for part in parts):
             raise RefError(
-                f"{loc}: `${{{body}}}` is not a reference: expected dotted names"
+                f"{loc}: `${{{body}}}` is not a reference: expected dotted names. "
+                f"{literal}"
             )
         namespace = parts[0]
-        if namespace in _FORMER:
-            now = ".".join(parts[1:]) if namespace == "bundle" else body
-            raise RefError(
-                f"{loc}: `${{{body}}}`: every reference names the step its value "
-                f"comes from — write `${{steps.<bundle step>.{now}}}`"
-            )
         if namespace not in NAMESPACES:
             raise RefError(
                 f"{loc}: `${{{body}}}`: unknown namespace `{namespace}`; expected one of "
-                f"{', '.join(NAMESPACES)}"
+                f"{', '.join(NAMESPACES)}. {_given_above(body, parts, above)}{literal}"
             )
         if namespace == "env" and len(parts) != 2:
             raise RefError(
@@ -106,6 +113,32 @@ def parse(text: str, loc: Loc) -> tuple[Ref, ...]:
             )
         refs.append(Ref(parts))
     return tuple(refs)
+
+
+def _given_above(
+    body: str, parts: tuple[str, ...], above: Mapping[str, Above] | None
+) -> str:
+    """For a `${…}` that names no namespace: the steps above that give an
+    output of that name, and how it is written then. Nothing, when none does —
+    no step is named that isn't there."""
+    givers = [
+        name
+        for name, step in (above or {}).items()
+        if step.declared is not None and match(step.declared, parts) is not None
+    ]
+    if not givers:
+        return ""
+    named = " and ".join(f"`{name}`" for name in givers)
+    written = " or ".join(f"`${{steps.{name}.{body}}}`" for name in givers)
+    return (
+        f"Step {named} gives `{body}`, and every reference names the step its value "
+        f"comes from: write {written}. "
+    )
+
+
+def literal(text: str) -> str:
+    """A string that holds no reference, as it is meant: each `$${` is a `${`."""
+    return _REF.sub(lambda found: found.group(0)[1:], text)
 
 
 # -- which declared output a reference names ---------------------------------
@@ -255,11 +288,11 @@ def resolve(text: str, scope: Scope, loc: Loc) -> Value | Unknown:
     A string that is exactly one reference keeps the value's type (a version
     stays an int); references inside a longer string are formatted into it. A
     secret anywhere makes the whole result one — and a value from the
-    environment is a secret.
+    environment is a secret. `$${` is written out as `${`.
     """
     refs = parse(text, loc)
     if not refs:
-        return text
+        return literal(text)
     if len(refs) == 1 and text.strip() == refs[0].text:
         return lookup(refs[0], scope, loc)
     secret = False
@@ -267,6 +300,8 @@ def resolve(text: str, scope: Scope, loc: Loc) -> Value | Unknown:
 
     def substitute(found: re.Match[str]) -> str:
         nonlocal secret, unknown
+        if found.group(1) is None:
+            return "${"
         ref = Ref(tuple(found.group(1).split(".")))
         value = lookup(ref, scope, loc)
         if isinstance(value, Unknown):

@@ -79,6 +79,23 @@ never into a command's arguments, which every process on the machine can see.
         SEED_TOKEN: ${env.SEED_TOKEN}
 ```
 
+## A literal `${…}`
+
+`${` always starts a reference. To hand a step the characters themselves — a shell's own
+variable in a command — double the dollar: **`$${…}` is written out as `${…}`** and is no
+reference.
+
+```yaml
+  - name: report
+    uses: command
+    with:
+      apply: [sh, -c, 'echo "$${HOME}" > where.txt']     # the shell reads ${HOME}
+```
+
+A `${…}` that is no reference is an error, and the error says how to write it either way: as
+a literal, or — where a step above gives something of that name, as a bundle's `${var.x}`
+would be — as `${steps.<that step>.var.x}`.
+
 ## In `pyproject.toml`
 
 The same list, as TOML:
