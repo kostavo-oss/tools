@@ -2,7 +2,7 @@
 
 **Status:** done. The rename was merged on 2026-10-06 (pull request #15) and released the
 same day as caland 0.5.0, the first release under the name; 0.5.1 and 0.5.2 followed that
-day, and 0.6.0 on 2026-10-07. Of what the rename first set out to do, R2–R4 were undone in
+day, and 0.6.0 and 0.7.0 on 2026-10-07. Of what the rename first set out to do, R2–R4 were undone in
 0.6.0 ([below](#changed-on-2026-10-07-the-old-name-is-isolinears-again)). One question is
 open: D4. Written 2026-10-06, and brought up to where things stand on 2026-10-07.
 

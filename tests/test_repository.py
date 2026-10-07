@@ -119,7 +119,8 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
     """A version's link compares two tags. 0.1.0 and 0.3.0 were never tagged, and
     the links that named `v0.1.0` and `v0.3.0` opened nothing; neither did the one
     to the repository under its first owner. Where there is no tag the link names
-    the commit. Skipped in a checkout without tags, as CI's is."""
+    the commit. The version in pyproject.toml may have none yet: releasing it is
+    what makes its tag. Skipped in a checkout without tags, as CI's is."""
     import re
 
     tags = subprocess.run(
@@ -127,13 +128,19 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
     ).stdout.split()
     if not tags:
         pytest.skip("no tags in this checkout")
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    coming = f"v{project['project']['version']}"
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     links = re.findall(r"^\[[^\]]+\]: (\S+)$", text, flags=re.MULTILINE)
     assert len(links) > 15
     for link in links:
         assert link.startswith("https://github.com/kostavo-oss/caland/"), link
         for name in re.findall(r"(?:compare/|\.\.\.|tree/)([^./][^.]*(?:\.\d+)*)", link):
-            there = name in tags or name == "HEAD" or re.fullmatch(r"[0-9a-f]{40}", name)
+            there = (
+                name in tags
+                or name in ("HEAD", coming)
+                or re.fullmatch(r"[0-9a-f]{40}", name)
+            )
             assert there, f"{name} in {link}"
 
 
