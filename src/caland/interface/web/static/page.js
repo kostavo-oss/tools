@@ -440,6 +440,14 @@ const inTurn = (work) => (...args) => {
   queue = next.catch(() => {});
   return next;
 };
+// What is kept for the next time is sent one after the other: two quick presses that
+// arrived the other way round would keep the older choice.
+let kept = Promise.resolve();
+function prefer(what) {
+  const next = kept.then(() => ask("/api/settings", what));
+  kept = next.catch(() => {});
+  return next;
+}
 // after a change: read the workspace again, go to what was changed — or, when it is gone,
 // stay at the place it had — and say so
 async function changed(toScope, toKey, saying, place = 0) {
@@ -822,7 +830,7 @@ function openStale() {
         t: async () => {
           told.stale_after = STALE[(STALE.indexOf(days) + 1) % STALE.length];
           drawList();
-          await ask("/api/settings", { stale_after: told.stale_after });
+          await prefer({ stale_after: told.stale_after });
         },
         c: async () => {
           const name = (text) => "`" + text.replace(/[\r\n]+/g, " ").replace(/\|/g, "\\|").replace(/`/g, "'") + "`";
@@ -1035,7 +1043,7 @@ const KEYS = {
   f: async () => {
     showAll = !showAll; draw();
     toast(showAll ? `Showing all ${told.scopes.length} scopes.` : "Showing only the scopes you can reach.");
-    await ask("/api/settings", { show_all: showAll });   // kept for the next time
+    await prefer({ show_all: showAll });   // kept for the next time
   },
 };
 // In the filter the arrows pick while you type, enter goes to what is left, esc clears.

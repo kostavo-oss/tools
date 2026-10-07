@@ -13,6 +13,7 @@ import pytest
 from caland.application import Loader, WorkspaceService
 from caland.domain import Acl, Scope, Secret, StoreError, Workspace
 from caland.interface.web import Page, Server
+from caland.interface.web.server import Handler
 from chrome import CHROME, Browser
 from fakes import FakeSecretStore
 
@@ -1022,7 +1023,10 @@ def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
     assert prod.store.reads() == 0  # names and dates: no value is read for it
     prod.press("t", "t")
     prod.wait(f"{LIST_TITLE}.startsWith('Not changed in 365 days')")
-    prod.wait("true")
+    for _ in range(100):
+        if prod.server.page.settings.audit_threshold == 365:
+            break
+        prod.wait("true")
     assert prod.server.page.settings.audit_threshold == 365  # and kept
     prod.press("c")
     prod.wait("document.getElementById('list-note').textContent.startsWith('Copied')")
@@ -1144,6 +1148,35 @@ def test_a_scopes_values_are_copied_only_after_a_y(prod):
     prod.wait(f"{TOAST}.startsWith('Copied the values of prod as .env.')")
     assert prod.clipboard().splitlines()[0] == f"api-key={VALUE}"
     assert VALUE not in prod.js(WHOLE_PAGE)
+
+
+def test_two_quick_changes_to_a_setting_are_kept_in_the_order_made(prod, monkeypatch):
+    """The first is held up on its way. Were the second sent beside it, it would
+    overtake, and what is kept would be the older choice."""
+    prefer, asked, done = Handler._prefer, [], []
+    overtaken, both = threading.Event(), threading.Event()
+
+    def held_up(self, body):
+        asked.append(body.get("stale_after"))
+        if len(asked) == 1:
+            overtaken.wait(1)
+        else:
+            overtaken.set()
+        try:
+            return prefer(self, body)
+        finally:
+            done.append(body.get("stale_after"))
+            if len(done) == 2:
+                both.set()
+
+    monkeypatch.setattr(Handler, "_prefer", held_up)
+    prod.press("A")
+    prod.wait(OPEN.format("list"))
+    prod.press("t", "t")
+    prod.wait(f"{LIST_TITLE}.startsWith('Not changed in 365 days')")
+    assert both.wait(10)
+    assert done == [180, 365]
+    assert prod.server.page.settings.audit_threshold == 365
 
 
 def test_f_is_kept_for_the_next_time(page):

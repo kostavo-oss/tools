@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   into the repository, committed by mistake, with the environment of the machine it was
   written on. It is gone from the repository, and a source package is now made from a
   list. The wheels — what `uvx caland` and `pip install caland` use — never had it.
+- **Two quick changes to a setting keep the last one.** Pressing `t` twice in the list of
+  secrets not changed sent both choices side by side, and the first could arrive last and
+  be the one kept. They go one after the other now.
 
 ## [0.6.0] - 2026-10-07
 
