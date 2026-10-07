@@ -39,6 +39,7 @@ Homepage = "https://github.com/kostavo-oss/lely"
 Documentation = "https://kostavo-oss.github.io/lely/"
 Repository = "https://github.com/kostavo-oss/lely"
 Issues = "https://github.com/kostavo-oss/lely/issues"
+Changelog = "https://github.com/kostavo-oss/lely/blob/main/CHANGELOG.md"
 
 [project.scripts]
 lely = "lely.cli:main"
