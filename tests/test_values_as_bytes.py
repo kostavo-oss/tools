@@ -306,3 +306,55 @@ def test_deleting_a_scope_drops_the_values_held_from_it(service):
 def test_the_fake_reads_text_it_was_given_as_bytes():
     store = FakeSecretStore(values={("s", "k"): "text"})
     assert store.get_secret_bytes("s", "k") == b"text"
+
+
+# ── eight scopes are read at a time, and a value may be held meanwhile ─
+class Watched(dict):
+    """What is held of values — which says when it is being looked through,
+    and the first time waits there until it is let go on."""
+
+    def __init__(self, *args) -> None:
+        import threading
+
+        super().__init__(*args)
+        self.looked, self.go_on = threading.Event(), threading.Event()
+
+    def _wait(self) -> None:
+        if not self.looked.is_set():
+            self.looked.set()
+            self.go_on.wait(10)
+
+    def __iter__(self):
+        names = list(super().__iter__())
+        self._wait()
+        return iter(names)
+
+    def keys(self):
+        return list(self)
+
+    def items(self):
+        pairs = list(super().items())
+        self._wait()
+        return pairs
+
+
+@pytest.mark.parametrize("again", ["refresh_scope", "delete_scope"])
+def test_letting_go_of_one_scopes_values_loses_none_held_of_another_meanwhile(
+    service, again
+):
+    """A scope is read again, or deleted, on one thread while a value of another
+    scope is read on a second: what is held was once made anew from what it was
+    a moment before, and the value that came in between was gone."""
+    import threading
+
+    held = Watched({("prod", "api-key"): b"read before"})
+    service.cache.raw = held
+    working = threading.Thread(target=getattr(service, again), args=("prod",))
+    working.start()
+    try:
+        assert held.looked.wait(10)  # it is looking through what is held
+        service.reveal_bytes("kv", "tenant-id")  # and meanwhile a value is read
+    finally:
+        held.go_on.set()
+    working.join(timeout=10)
+    assert service.cache.raw == {("kv", "tenant-id"): b"value::kv/tenant-id"}

@@ -77,5 +77,13 @@ class WorkspaceCache:
         self.secrets.pop(name, None)
         self.acls.pop(name, None)
         self.readable.discard(name)
-        self.values = {k: v for k, v in self.values.items() if k[0] != name}
-        self.raw = {k: v for k, v in self.raw.items() if k[0] != name}
+        self.forget_scope(name)
+
+    def forget_scope(self, name: str) -> None:
+        """Let go of the values held of one scope — in place, each by its own
+        key. Scopes are read eight at a time while values are read and written:
+        made anew from what was held a moment before, what is held would lose
+        whatever came in between."""
+        for held in (self.values, self.raw):
+            for key in [key for key in list(held) if key[0] == name]:
+                held.pop(key, None)

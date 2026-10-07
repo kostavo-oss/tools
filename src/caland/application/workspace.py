@@ -78,8 +78,7 @@ class WorkspaceService:
         actually see — even when its ACLs are off-limits.
         """
         # what was read of it before is not what is there now
-        self.cache.values = {k: v for k, v in self.cache.values.items() if k[0] != scope}
-        self.cache.raw = {k: v for k, v in self.cache.raw.items() if k[0] != scope}
+        self.cache.forget_scope(scope)
         try:
             self.cache.secrets[scope] = self._store.list_secrets(scope)
             self.cache.readable.add(scope)
