@@ -145,3 +145,19 @@ def test_the_package_says_of_itself_what_is_so() -> None:
     assert not (ROOT / "src" / "caland" / "py.typed").exists()
     assert "Environment :: Console" in project["classifiers"]  # it is a command
     assert "cli" not in project["keywords"]
+
+
+def test_the_readme_has_no_link_or_picture_that_only_works_on_github() -> None:
+    """The README is the page on PyPI too, where `docs/img/…` is no picture and
+    `LICENSE` no link: every address in it is a whole one."""
+    import re
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)\s]+)", readme)
+    targets += re.findall(r"(?:src|href)=[\"']([^\"']+)", readme)
+    assert len(targets) > 10
+    relative = [target for target in targets if not target.startswith("https://")]
+    assert relative == []
+    # and the pictures are ones that are in the repository
+    for picture in re.findall(r"/caland/main/(docs/img/[\w.-]+)", readme):
+        assert (ROOT / picture).is_file(), picture
