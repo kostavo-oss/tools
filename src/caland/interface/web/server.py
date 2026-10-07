@@ -12,17 +12,20 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import json
 import re
 import secrets
 import socketserver
+import sys
 import threading
 import time
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
-from typing import Any
+from pathlib import Path
+from typing import Any, TextIO
 from urllib.parse import parse_qs, urlsplit
 
 from ...application import (
@@ -72,6 +75,16 @@ CONNECTIONS = 64
 
 #: Seconds a connection may say nothing before it is closed.
 QUIET = 10
+
+#: How many failures inside are said in the terminal in one run, each once: a
+#: bug leaves a trace, and a terminal is not filled.
+FAILURES_SAID = 20
+
+#: A path as caland's own are. Any other is not said in the terminal.
+_PLAIN = re.compile(r"/[a-z/.]{0,40}")
+
+#: caland's own code: a failure is said by the last line of it that was reached.
+_OWN = Path(__file__).resolve().parents[2]
 
 #: The page: where each file is asked for, what it is called, and what it is.
 _FILES = {
@@ -210,6 +223,10 @@ class Server(ThreadingHTTPServer):
 
     def __init__(self, page: Page, port: int = 0) -> None:
         self.page = page
+        #: Where a failure inside is said: the terminal caland runs in.
+        self.out: TextIO | None = None
+        self._said: set[str] = set()
+        self._saying = threading.Lock()
         self._open = threading.BoundedSemaphore(CONNECTIONS)
         # this machine only. There is no way to ask for anything wider.
         super().__init__(("127.0.0.1", port), Handler)
@@ -230,6 +247,25 @@ class Server(ThreadingHTTPServer):
     def handle_error(self, request: Any, client_address: Any) -> None:
         """A connection that broke is nobody's news: nothing is printed. Not a
         traceback either — anyone who can reach the port could fill a terminal."""
+
+    def failed(self, method: str, path: str, exc: BaseException) -> None:
+        """Say in the terminal that a request the gate let through went wrong
+        inside caland: which request, what kind of failure, and the file and
+        line it came from. One line, each said once, and no more than
+        `FAILURES_SAID` of them.
+
+        Never the failure's own words — they can quote a value — and never a
+        traceback. Of the request only its method and a path as caland's own
+        are: nothing else it said."""
+        asked = path if _PLAIN.fullmatch(path) else "?"
+        line = f"caland: {method} {asked} failed: {type(exc).__name__} at {_where(exc)}"
+        with self._saying:
+            if line in self._said or len(self._said) >= FAILURES_SAID:
+                return
+            self._said.add(line)
+        # a terminal that is gone must not be what keeps the request unanswered
+        with contextlib.suppress(OSError, ValueError):
+            print(line, file=self.out or sys.stderr, flush=True)
 
     def server_bind(self) -> None:
         # not HTTPServer's: it looks the machine's name up, which can take seconds
@@ -285,6 +321,7 @@ class Handler(BaseHTTPRequestHandler):
     # -- one request ----------------------------------------------------
     def _answer(self, method: str) -> None:
         page = self.server.page
+        let_in = ""  # the path, once the gate has let the request through
         try:
             url = urlsplit(self.path)
             refusal = gate.check(
@@ -297,12 +334,17 @@ class Handler(BaseHTTPRequestHandler):
             if refusal:
                 self._refuse(refusal.status, refusal.reason)
             elif url.path in _FILES:
+                let_in = url.path
                 self._file(url.path)
             else:
+                let_in = url.path
                 self._api(method, url.path, parse_qs(url.query))
         except _Refused as refused:
             self._refuse(refused.status, refused.reason)
-        except Exception:  # noqa: BLE001 — never a traceback, or a detail, to the asker
+        except Exception as exc:  # noqa: BLE001 — never a traceback, or a detail, to the asker
+            if let_in:
+                # the terminal is told where to look; the asker is told no more
+                self.server.failed(method, let_in, exc)
             self._refuse(500, "caland failed")
 
     def _api(self, method: str, path: str, query: dict[str, list[str]]) -> None:
@@ -662,6 +704,40 @@ class _Refused(Exception):
         super().__init__(reason)
         self.status = status
         self.reason = reason
+
+
+def _where(exc: BaseException) -> str:
+    """Where a failure came from, as file and line: the last line of caland's
+    own that was reached — and where it was raised, when that is elsewhere.
+    A file is said from caland's own folder, or by the end of its path: not
+    with where on this machine it is."""
+    reached: list[tuple[str, int]] = []
+    trace = exc.__traceback__
+    while trace is not None:
+        reached.append((trace.tb_frame.f_code.co_filename, trace.tb_lineno))
+        trace = trace.tb_next
+
+    def own(file: str) -> tuple[str, ...] | None:
+        try:
+            return Path(file).resolve().relative_to(_OWN).parts
+        except (ValueError, OSError):
+            return None
+
+    def place(file: str, line: int) -> str:
+        parts = own(file)
+        if parts is not None:
+            parts = (_OWN.name, *parts)
+        else:
+            parts = Path(file).parts
+            cut = parts.index("site-packages") + 1 if "site-packages" in parts else -2
+            parts = parts[cut:]
+        return f"{'/'.join(parts)}:{line}"
+
+    if not reached:
+        return "a place that is not known"
+    raised = place(*reached[-1])
+    ours = next((place(*at) for at in reversed(reached) if own(at[0]) is not None), "")
+    return raised if ours in ("", raised) else f"{ours}, raised at {raised}"
 
 
 def _one(query: dict[str, list[str]], name: str) -> str:

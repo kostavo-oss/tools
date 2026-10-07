@@ -22,6 +22,17 @@ fine; coming back to it from another site is not — the page asks for a new lin
 If no tab opens, or the link opens in something that is not your browser, start it with
 `--no-open` and open the link it prints. The link works once.
 
+If the page says *caland failed*, something went wrong inside Caland itself, and the
+terminal has a line about it:
+
+```
+caland: POST /api/value failed: KeyError at caland/interface/web/server.py:412
+```
+
+Which request, what kind of failure, and where in the code — never a value, and nothing
+else of what was asked. That line is what a
+[bug report](https://github.com/kostavo-oss/caland/issues/new/choose) needs.
+
 ## What it does
 
 Three panes: the scopes you can reach, the secrets of the selected scope with when each was

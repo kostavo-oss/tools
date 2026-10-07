@@ -159,6 +159,11 @@ Decided while building, the builder's unless marked:
   the script hold no name and no value, and are given to anyone who asks. Everything under
   `/api/` needs the token.
 - **Python's own HTTP server** (D3), and no new dependency.
+- **A failure inside is one line in the terminal** (2026-10-07; until then it left no
+  trace at all): which request, the kind of failure, and the file and line it came from.
+  Never the failure's own words, which can quote a value, and no traceback; only for a
+  request the gate let through, each line once and twenty at most, so that nobody who can
+  reach the port can fill a terminal. The page is told "caland failed" and no more.
 
 Held by: `tests/test_web_gate.py` (the rules of R9, as a pure function),
 `test_web_server.py` (the server asked over real HTTP), `test_web_opening.py`,

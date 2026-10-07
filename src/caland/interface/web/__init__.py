@@ -58,6 +58,7 @@ def run(
         version=version,
     )
     server = Server(page)
+    server.out = out  # where a failure inside is said: the terminal, by a line
     opener = Opener(browser)
     page.entered = opener.clean
     if workspace is not None:
