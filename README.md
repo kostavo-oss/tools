@@ -174,7 +174,8 @@ runs none of the project's code. `lely apply -o result.json` keeps a record of a
 - **A plan file is held to what it was made for:** the workspace, the project and its steps as
   written, the values each step took, and a clean checkout of the same git tree.
 - **No rollback.** The first failing step stops the run; running it again finishes it.
-- **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again.
+- **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again — or couldn't
+  make sense of the command line.
 
 ## Plugins
 

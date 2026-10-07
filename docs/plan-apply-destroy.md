@@ -55,7 +55,8 @@ The first step that fails stops the run. Nothing after it starts, and **nothing 
 back**. The result says which steps ran, which failed and which never started; running it
 again finishes the job.
 
-Exit codes: **0** done · **1** something failed · **2** lely refused — plan again.
+Exit codes: **0** done · **1** something failed · **2** lely refused — plan again — or
+couldn't make sense of the command line ([all of it](cli.md#exit-codes)).
 
 ## What a plan file is held to
 

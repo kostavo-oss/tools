@@ -292,6 +292,10 @@ All by the owner, on 2026-10-05.
   was handed to `apply` or `destroy`. With `-f json`, a run that lely ends before its first
   step still prints a result, and stdout holds JSON and nothing else. A command line typer
   itself rejects — a missing or an empty `-t` — prints its usage on stderr and no JSON.
+  That holds for every command, so `plan`, `status`, `validate` and `doctor` can end with 2
+  as well: for a command line, never for what they found. `lely apply` with neither a file
+  nor `-t` is refused before the config is read or the workspace reached *(2026-10-07: it
+  asked the workspace who was running first)*.
 - **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
   each program a step runs is there. It can't tell whether a bundle is on the direct engine
   without planning one, and says only which version brought it. It can't tell whether

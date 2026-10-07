@@ -355,11 +355,22 @@ def test_at_a_terminal_apply_shows_the_plan_and_asks(ready: Lely) -> None:
     assert "deploy" in ready.fake.verbs
 
 
-def test_apply_without_a_file_needs_a_target(ready: Lely) -> None:
-    """R37."""
+def test_apply_without_a_file_needs_a_target(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R37 — and it is refused before anything is reached: the workspace was
+    asked who is running first, so the refusal waited on a sign-in, and
+    without credentials the command failed with 1 instead."""
+
+    def reached(profile: str | None) -> Workspace:
+        raise AssertionError("the workspace was reached")
+
+    monkeypatch.setattr(cli, "WHOAMI", reached)
+    (ready.root / "lely.yml").write_text("not: [a config")  # not read either
     result = ready("apply", "--yes")
     assert result.exit_code == 2
     assert "Give the target: `lely apply -t <target>`." in said(result)
+    assert ready.fake.calls == []
 
 
 def test_a_destructive_change_is_refused_without_the_flag(ready: Lely) -> None:

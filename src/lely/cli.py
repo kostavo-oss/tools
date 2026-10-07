@@ -20,7 +20,8 @@ Nothing that changes a workspace runs unasked: `apply` and `destroy` ask, or
 were given `--yes`. With no terminal and no `--yes` they refuse. To destroy at
 a terminal, the answer is the target's name.
 
-Exit codes: 0 done, 1 something failed, 2 lely refused — plan again.
+Exit codes: 0 done, 1 something failed, 2 lely refused — plan again. A command
+line lely can't make sense of ends with 2 as well, whatever the command.
 """
 
 from __future__ import annotations
@@ -1008,6 +1009,10 @@ def apply(
     hub = _github(on_github)
     try:
         _no_fork(hub, "apply")
+        if plan_file is None and target is None:
+            # before the config is read or a workspace reached: nothing is
+            # asked of either for a command that can't say what it is for
+            raise Refused("Give the target: `lely apply -t <target>`.")
         run = _run(path, profile)
         known.workspace = run.workspace
         if plan_file is not None:
@@ -1028,8 +1033,7 @@ def apply(
             _still_holds(approved, run, plan_file)
             at_waiting = None
         else:
-            if target is None:
-                raise Refused("Give the target: `lely apply -t <target>`.")
+            assert target is not None  # refused above
             running.check_applies(run.config, target)
             running.check_from(run.config, target, from_step)
             approved = planning.plan(

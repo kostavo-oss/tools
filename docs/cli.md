@@ -41,7 +41,12 @@ read.
 | --- | --- |
 | **0** | Done. |
 | **1** | Something failed. |
-| **2** | lely refused: nothing more will come of trying again — plan again. |
+| **2** | lely refused: nothing more will come of trying again — plan again. Or the command line is one lely can't make sense of. |
 
 `plan`, `status`, `validate` and `doctor` change nothing, so they have nothing to refuse:
-they end with 0 or 1.
+what goes wrong in them ends with 1.
+
+A command line lely can't make sense of ends with 2 whatever the command — a missing or an
+empty `-t`, an option it doesn't know, `lely apply` with neither a plan file nor `-t` — and
+before the project's config is read or a workspace reached. So 2 from `plan` or `status` is
+always that.

@@ -18,6 +18,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that
   gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **`lely apply` with neither a plan file nor `-t` is refused at once**, with 2. It reached
+  the workspace first, so without credentials it failed with 1 instead.
 - **Every `--help` names `[tool.lely]` again.** It read "a pyproject.toml with . Found from
   here up": the brackets were taken for markup. So did what `lely schema -o` says of a
   `pyproject.toml`.
