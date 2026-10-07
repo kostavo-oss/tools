@@ -161,3 +161,10 @@ def test_the_readme_has_no_link_or_picture_that_only_works_on_github() -> None:
     # and the pictures are ones that are in the repository
     for picture in re.findall(r"/caland/main/(docs/img/[\w.-]+)", readme):
         assert (ROOT / picture).is_file(), picture
+
+
+def test_the_package_says_where_its_docs_are() -> None:
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    docs = config["project"]["urls"]["Documentation"]
+    assert docs == "https://kostavo-oss.github.io/caland/"
+    assert f"site_url: {docs}\n" in (ROOT / "mkdocs.yml").read_text(encoding="utf-8")

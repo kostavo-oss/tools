@@ -38,6 +38,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/kostavo-oss/caland"
+Documentation = "https://kostavo-oss.github.io/caland/"
 Repository = "https://github.com/kostavo-oss/caland"
 Issues = "https://github.com/kostavo-oss/caland/issues"
 Changelog = "https://github.com/kostavo-oss/caland/blob/main/CHANGELOG.md"
