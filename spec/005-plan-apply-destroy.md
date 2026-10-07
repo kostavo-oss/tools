@@ -303,7 +303,14 @@ All by the owner, on 2026-10-05.
   `apply` hold the run's token and the environment.
 - **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
   each program a step runs is there. It can't tell whether a bundle is on the direct engine
-  without planning one, and says only which version brought it. It can't tell whether
+  without planning one: it compares the CLI's version with the one that brought the engine,
+  and says when the CLI is older — as a warning, since what an older one does with the
+  engine switched on by hand is not known. It says so only where a step runs the Databricks
+  CLI, or where there is no project yet. **It asks git** what `lely plan` asks first: git
+  missing, or refusing the checkout, in a repository is a failed check, because a plan
+  fails there; git missing outside a repository is a note. *(2026-10-07: it printed the
+  version and "GA in CLI v1.3.0" side by side, said so to a project without a bundle, and
+  didn't look for git, which the docs said it did.)* It can't tell whether
   credentials are read-only: it reports whether the identity is a workspace admin, and that it
   knows no more.
 - **The workspace and the identity** are asked of the Databricks SDK, which reads the same

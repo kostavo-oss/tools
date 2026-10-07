@@ -80,7 +80,9 @@ def answer(world: Path, args: list[str], cwd: Path) -> tuple[int, str, str]:
 
 def _answer(world: Path, args: list[str], cwd: Path) -> str:
     if args[:1] == ["--version"]:
-        return "Databricks CLI v1.18.0\n"
+        # `<world>/version`, for a test of another CLI than this one
+        other = world / "version"
+        return other.read_text() if other.exists() else "Databricks CLI v1.18.0\n"
     if len(args) < 2 or args[0] != "bundle":
         raise _Fails(f"unknown command {args!r}")
     verb, rest = args[1], args[2:]

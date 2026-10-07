@@ -24,6 +24,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that
   gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **`lely doctor` looks for git**, as the docs said it did: git missing or refusing the
+  checkout, in a repository, is a failed check — `lely plan` fails there. It compares the
+  Databricks CLI's version with v1.3.0 and says when it is older, and says what bundles
+  need only to a project with a step that runs the CLI.
 - **`lely doctor` says a plugin that fails in one line**, with the step and the plugin, and
   checks the rest. A plugin whose `programs` raised ended it in a traceback.
 - **A traceback never shows local values.** With a typer below 0.23, an error lely didn't

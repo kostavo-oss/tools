@@ -686,7 +686,9 @@ def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> 
     result = lely("doctor")
     assert result.exit_code == 0, said(result)
     text = said(result)
-    assert "the Databricks CLI: Databricks CLI v1.18.0" in text
+    assert "✓ the Databricks CLI: Databricks CLI v1.18.0" in text
+    assert "✓ bundles need the direct engine (GA in CLI v1.3.0): this CLI has it" in text
+    assert "✓ git: git version " in text
     assert "the workspace: https://dbc-example.cloud.databricks.com as jane" in text
     assert "not a workspace admin" in text
     assert "credentials that can read and nothing more" in text
@@ -704,6 +706,71 @@ def test_doctor_fails_when_a_tool_is_missing(
     assert result.exit_code == 1
     assert "`no-such-databricks` isn't on PATH" in said(result)
     assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
+
+
+def test_doctor_compares_the_clis_version_with_the_one_bundles_need(lely: Lely) -> None:
+    """It printed the version and "GA in CLI v1.3.0" side by side, and left
+    the comparing to the reader."""
+    (lely.fake.world / "version").write_text("Databricks CLI v1.2.9\n")
+    older = " ".join(said(lely("doctor")).split())
+    assert "✓ the Databricks CLI: Databricks CLI v1.2.9" in older
+    assert (
+        "! bundles need the direct engine (GA in CLI v1.3.0): this CLI is older"
+    ) in older
+    (lely.fake.world / "version").write_text("Databricks CLI v1.3.0\n")
+    assert "(GA in CLI v1.3.0): this CLI has it" in " ".join(said(lely("doctor")).split())
+    (lely.fake.world / "version").write_text("a build of today\n")
+    unread = " ".join(said(lely("doctor")).split())
+    assert (
+        "! bundles need the direct engine (GA in CLI v1.3.0); lely couldn't read "
+        "this CLI's version"
+    ) in unread
+
+
+def test_doctor_speaks_of_bundles_only_where_a_step_runs_the_cli(
+    lely: Lely, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project of commands was told what bundles need."""
+    project.write(
+        lely.root,
+        "steps:\n  - name: seed\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh]}\n",
+    )
+    result = lely("doctor")
+    assert result.exit_code == 0, said(result)
+    assert "the Databricks CLI: Databricks CLI v1.18.0" in said(result)
+    assert "bundles need" not in said(result)
+    # with no project at all, nobody knows yet what it will hold
+    monkeypatch.chdir(tmp_path_factory.mktemp("empty"))
+    nowhere_ = said(lely("doctor"))
+    assert "no project checked" in nowhere_
+    assert "bundles need the direct engine" in nowhere_
+
+
+def test_doctor_says_whether_git_is_there_and_can_say_what_a_plan_is_made_on(
+    lely: Lely, git_is_gone: Callable[[], None]
+) -> None:
+    """The docs said `doctor` reports git; it didn't look. Without git, in a
+    repository, `lely plan` fails — and outside one nothing needs it."""
+    git_is_gone()
+    outside = lely("doctor")
+    assert outside.exit_code == 0, said(outside)
+    assert "! git: `git` isn't on PATH. Nothing here needs it" in said(outside)
+    (lely.root / ".git").mkdir()
+    inside = lely("doctor")
+    assert inside.exit_code == 1
+    text = " ".join(said(inside).split())
+    assert "✗ git: This is a git repository, and git couldn't be run" in text
+
+
+def test_doctor_says_when_git_refuses_the_checkout(
+    lely: Lely, git_refuses: Callable[[], None]
+) -> None:
+    """As in many containers: there `lely plan` fails, so `doctor` does."""
+    git_refuses()
+    result = lely("doctor")
+    assert result.exit_code == 1
+    assert "✗ git: " in said(result) and "dubious ownership" in said(result)
 
 
 def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> None:

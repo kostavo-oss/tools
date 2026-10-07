@@ -49,6 +49,16 @@ def _without_the_machines_git_config(
 
 
 @pytest.fixture
+def git_is_gone(monkeypatch: pytest.MonkeyPatch) -> Callable[[], None]:
+    """Call it, and from then on there is no `git` on PATH."""
+
+    def gone() -> None:
+        monkeypatch.setenv("PATH", path_without("git"))
+
+    return gone
+
+
+@pytest.fixture
 def git_refuses(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> Callable[[], None]:
