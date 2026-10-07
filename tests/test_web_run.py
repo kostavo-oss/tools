@@ -110,7 +110,7 @@ def test_every_value_is_forgotten_when_it_stops():
     class Remembering(OnboardingService):
         def connect(self, workspace):
             connection = super().connect(workspace)
-            connection.service.reveal("prod", "api-key")
+            connection.service.reveal_bytes("prod", "api-key")
             held.append(connection.service)
             return connection
 
@@ -118,4 +118,4 @@ def test_every_value_is_forgotten_when_it_stops():
         ConnectingStubConnector(seeded_store()), StubProfiles([DEV]), StubBundle()
     )
     run(onboarding=board)
-    assert held and held[0].cached_value("prod", "api-key") is None
+    assert held and held[0].cache.raw == {}

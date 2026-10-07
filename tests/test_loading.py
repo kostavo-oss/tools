@@ -87,8 +87,7 @@ def test_a_scope_out_of_reach_is_empty_not_an_error():
     store = FakeSecretStore(scopes=[Scope("open"), Scope("shut")], no_read={"shut"})
     loader = loaded(store)
     assert loader.progress().phase == READY
-    assert service(loader).is_readable("open")
-    assert not service(loader).is_readable("shut")
+    assert service(loader).cache.readable == {"open"}
 
 
 def test_at_most_eight_scopes_are_asked_for_at_once():

@@ -29,10 +29,6 @@ def test_multiline_values_round_trip():
     assert parse_dotenv(text) == {"TLS_KEY": pem, "PLAIN": "abc"}
 
 
-def test_format_redacted_writes_keys_only():
-    assert format_dotenv([("A", "x"), ("B", "y")], redact=True) == "A=\nB=\n"
-
-
 # ── what a second pair of eyes found ─────────────────────────────────
 PEM = (
     "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq=\n"

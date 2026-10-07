@@ -16,20 +16,20 @@ def test_upsert_secret_adds_updates_and_sorts():
     assert rows[0].last_updated_ms == 123
 
 
-def test_remove_secret_drops_row_and_cached_value():
+def test_remove_secret_drops_row_and_the_value_held_of_it():
     cache = WorkspaceCache(label="t")
     cache.upsert_secret(Secret("s", "a"))
-    cache.set_value("s", "a", "secret")
+    cache.raw[("s", "a")] = b"secret"
     cache.remove_secret("s", "a")
     assert cache.secrets_for("s") == []
-    assert cache.cached_value("s", "a") is None
+    assert cache.raw == {}
 
 
 def test_add_and_remove_scope():
     cache = WorkspaceCache(label="t")
     cache.add_scope(Scope("s"))
-    cache.set_value("s", "k", "v")
+    cache.raw[("s", "k")] = b"v"
     assert any(sc.name == "s" for sc in cache.scopes)
     cache.remove_scope("s")
     assert cache.scopes == []
-    assert cache.cached_value("s", "k") is None
+    assert cache.raw == {}

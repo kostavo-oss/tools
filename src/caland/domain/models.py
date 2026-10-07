@@ -6,9 +6,7 @@ workspaces, scopes, secrets, ACLs, identity.
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 # Rotation-policy default: a secret untouched this long counts as stale.
 STALE_AFTER_DAYS = 90
@@ -76,25 +74,6 @@ class Secret:
     scope: str
     key: str
     last_updated_ms: int | None = None
-
-    @property
-    def last_updated(self) -> str:
-        if not self.last_updated_ms:
-            return "—"
-        dt = datetime.fromtimestamp(self.last_updated_ms / 1000, tz=UTC)
-        return dt.strftime("%Y-%m-%d %H:%M")
-
-    @property
-    def age_days(self) -> float | None:
-        """Days since the last update; None when the timestamp is unknown."""
-        if not self.last_updated_ms:
-            return None
-        return max(0.0, (time.time() - self.last_updated_ms / 1000) / 86400)
-
-    def is_stale(self, days: int = STALE_AFTER_DAYS) -> bool:
-        """Not updated within `days` (unknown ages are never flagged)."""
-        age = self.age_days
-        return age is not None and age >= days
 
 
 @dataclass

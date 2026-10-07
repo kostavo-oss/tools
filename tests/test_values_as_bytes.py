@@ -51,13 +51,6 @@ def test_a_second_look_shows_what_is_there_now(service):
     assert service.reveal_bytes("prod", "api-key") == b"rotated elsewhere"
 
 
-def test_writing_drops_what_the_text_of_it_was(service):
-    assert service.reveal("prod", "api-key") == "value::prod/api-key"
-    service.put_secret_bytes("prod", "api-key", b"new")
-    assert service.cached_value("prod", "api-key") is None
-    assert service.reveal_bytes("prod", "api-key") == b"new"
-
-
 def test_moving_keeps_every_byte(service):
     service.put_secret_bytes("prod", "bundle", BUNDLE)
     service.move_secret("prod", "bundle", "prod", "renamed")
@@ -178,10 +171,10 @@ def test_a_delete_keeps_the_value_as_it_was_when_deleted(service):
 
 def test_reading_a_scope_again_lets_go_of_what_was_read_of_it(service):
     service.reveal_bytes("prod", "api-key")
-    service.reveal("prod", "db-password")
+    service.reveal_bytes("prod", "db-password")
     service.reveal_bytes("kv", "tenant-id")
     service.refresh_scope("prod")
-    assert list(service.cache.raw) == [("kv", "tenant-id")] and service.cache.values == {}
+    assert list(service.cache.raw) == [("kv", "tenant-id")]
 
 
 # ── nothing lands on what is there ───────────────────────────────────

@@ -97,13 +97,11 @@ def _unescaped(inner: str) -> str:
         return inner
 
 
-def format_dotenv(pairs: list[tuple[str, str]], *, redact: bool = False) -> str:
-    """Render pairs as .env lines; `redact` writes keys only (a template)."""
+def format_dotenv(pairs: list[tuple[str, str]]) -> str:
+    """Render pairs as .env lines."""
     lines = []
     for key, value in pairs:
-        if redact:
-            lines.append(f"{key}=")
-        elif _BARE.fullmatch(value):  # the whole of it: `$` would let a last newline by
+        if _BARE.fullmatch(value):  # the whole of it: `$` would let a last newline by
             lines.append(f"{key}={value}")
         else:
             lines.append(f"{key}={json.dumps(value)}")

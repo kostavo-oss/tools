@@ -13,7 +13,6 @@ The UI runs these (blocking) methods in worker threads.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
 
 from ..domain import (
     Acl,
@@ -66,7 +65,6 @@ class WorkspaceService:
     def load_scopes(self) -> list[Scope]:
         scopes = self._store.list_scopes()
         self.cache.scopes = scopes
-        self.cache.scopes_loaded = True
         return scopes
 
     def warm_scope(self, scope: str) -> None:
@@ -90,13 +88,6 @@ class WorkspaceService:
         except StoreError:
             self.cache.acls.setdefault(scope, [])
 
-    def warm_all(self) -> Iterator[tuple[int, int, Scope]]:
-        """Warm every scope, yielding (index, total, scope) for progress."""
-        total = len(self.cache.scopes)
-        for i, scope in enumerate(self.cache.scopes, 1):
-            self.warm_scope(scope.name)
-            yield i, total, scope
-
     # -- reads ----------------------------------------------------------
     def secrets_for(self, scope: str) -> list[Secret]:
         return self.cache.secrets_for(scope)
@@ -104,57 +95,18 @@ class WorkspaceService:
     def acls_for(self, scope: str) -> list[Acl]:
         return self.cache.acls_for(scope)
 
-    def is_readable(self, scope: str) -> bool:
-        """Whether the user can list this scope's secrets (holds ≥ READ)."""
-        return scope in self.cache.readable
-
     def scope(self, name: str) -> Scope | None:
         return next((s for s in self.cache.scopes if s.name == name), None)
 
     def secret(self, scope: str, key: str) -> Secret | None:
         return next((s for s in self.cache.secrets_for(scope) if s.key == key), None)
 
-    def all_secrets(self) -> list[Secret]:
-        """Every warmed secret across all scopes (the global-search projection)."""
-        return [
-            s for scope in self.cache.scopes for s in self.cache.secrets_for(scope.name)
-        ]
-
-    def acl_entries(self) -> list[tuple[str, Acl]]:
-        """Every (scope, acl) pair in the workspace (the principal-lookup view)."""
-        return [
-            (scope.name, a)
-            for scope in self.cache.scopes
-            for a in self.cache.acls_for(scope.name)
-        ]
-
-    def cached_value(self, scope: str, key: str) -> str | None:
-        return self.cache.cached_value(scope, key)
-
     def forget_values(self) -> None:
-        """Purge every cached secret value; reveal will re-fetch on demand."""
-        self.cache.values.clear()
+        """Let go of every value that is held, and of what could be put back."""
         self.cache.raw.clear()
         self._taken = None
 
-    def reveal(self, scope: str, key: str) -> str:
-        """Return the secret value, fetching+caching it on first access."""
-        cached = self.cache.cached_value(scope, key)
-        if cached is not None:
-            return cached
-        value = self._store.get_secret_value(scope, key)
-        self.cache.set_value(scope, key, value)
-        return value
-
     # -- mutations ------------------------------------------------------
-    def put_secret(self, scope: str, key: str, value: str) -> None:
-        self._store.put_secret(scope, key, value)
-        try:  # refresh metadata so the timestamp is accurate
-            self.cache.secrets[scope] = self._store.list_secrets(scope)
-        except StoreError:
-            self.cache.upsert_secret(Secret(scope=scope, key=key))
-        self.cache.set_value(scope, key, value)
-
     def delete_secret(self, scope: str, key: str) -> None:
         with self._one_at_a_time:
             self._store.delete_secret(scope, key)
@@ -196,10 +148,11 @@ class WorkspaceService:
                 (s.key for s in self.cache.secrets_for(scope) if same_name(s.key, key)),
                 key,
             )
-            for held in (self.cache.raw, self.cache.values):
-                for other in [k for k in held if k[0] == scope and same_name(k[1], key)]:
-                    del held[other]
-            self.cache.raw[(scope, name)] = value
+            held = self.cache.raw
+            for other in list(held):
+                if other[0] == scope and same_name(other[1], key):
+                    held.pop(other, None)
+            held[(scope, name)] = value
 
     def create_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
         """Put a secret that is not there yet. Raises `Exists` when one is."""

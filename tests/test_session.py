@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import cast
-
 from caland.application import WorkspaceService
 from caland.domain import Scope
 from fakes import FakeSecretStore, seeded_store
@@ -42,8 +40,7 @@ def test_warm_scope_marks_readability_per_scope():
     s.load_scopes()
     s.warm_scope("mine")
     s.warm_scope("theirs")  # must not raise even though both reads fail
-    assert s.is_readable("mine")
-    assert not s.is_readable("theirs")
+    assert s.cache.readable == {"mine"}
     # the auth summary reflects it: READ floor for the one you can read, none else
     access = {a.scope: a.effective for a in s.auth_summary()}
     assert access == {"mine": "READ", "theirs": "—"}
@@ -53,24 +50,7 @@ def test_created_scope_is_readable():
     s = WorkspaceService(FakeSecretStore(scopes=[]), "t")
     s.load_scopes()
     s.create_scope("fresh")
-    assert s.is_readable("fresh")
-
-
-def test_reveal_caches_value(session: WorkspaceService):
-    gw = cast(FakeSecretStore, session._store)
-    first = session.reveal("prod", "api-key")
-    second = session.reveal("prod", "api-key")
-    assert first == second
-    assert gw.count("get_secret_value") == 1  # fetched once, then cached
-
-
-def test_put_secret_updates_cache_and_value():
-    s = WorkspaceService(seeded_store(), "t")
-    s.load_scopes()
-    s.warm_scope("prod")
-    s.put_secret("prod", "new-key", "v")
-    assert any(sec.key == "new-key" for sec in s.secrets_for("prod"))
-    assert s.cached_value("prod", "new-key") == "v"
+    assert "fresh" in s.cache.readable
 
 
 def test_delete_secret_and_scope(session: WorkspaceService):
@@ -88,7 +68,7 @@ def test_create_scope(session: WorkspaceService):
 def test_auth_summary_delegates(session: WorkspaceService):
     session.authenticate()
     summary = {s.scope: s for s in session.auth_summary()}
-    assert summary["prod"].can_manage
+    assert summary["prod"].effective == "MANAGE"
 
 
 def test_set_acl_grants_permission(session: WorkspaceService):
@@ -104,7 +84,7 @@ def test_set_acl_is_an_upsert(session: WorkspaceService):
     # auth summary reflects the downgrade
     session.authenticate()
     summary = {s.scope: s for s in session.auth_summary()}
-    assert not summary["prod"].can_manage
+    assert summary["prod"].effective == "READ"
 
 
 def test_remove_acl(session: WorkspaceService):

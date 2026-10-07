@@ -592,9 +592,7 @@ GRANTS = (
 
 def wrote(store: FakeSecretStore) -> list[tuple]:
     names = ("put_secret_bytes", "delete_secret", "put_acl", "delete_acl", "create_scope")
-    return [
-        call for call in store.calls if call[0] in (*names, "delete_scope", "put_secret")
-    ]
+    return [call for call in store.calls if call[0] in (*names, "delete_scope")]
 
 
 @pytest.fixture

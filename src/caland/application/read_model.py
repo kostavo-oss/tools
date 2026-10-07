@@ -27,14 +27,10 @@ class WorkspaceCache:
     scopes: list[Scope] = field(default_factory=list)
     secrets: dict[str, list[Secret]] = field(default_factory=dict)
     acls: dict[str, list[Acl]] = field(default_factory=dict)
-    values: dict[tuple[str, str], str] = field(default_factory=dict)
-    # the same values as they are stored — bytes — for the face that can carry them
+    # values as they are stored — bytes — by scope and key
     raw: dict[tuple[str, str], bytes] = field(default_factory=dict)
     # scopes whose secrets we could list ⇒ the user holds at least READ on them
     readable: set[str] = field(default_factory=set)
-
-    scopes_loaded: bool = False
-    warm_error: str = ""
 
     # -- lookups ------------------------------------------------------------
     def secrets_for(self, scope: str) -> list[Secret]:
@@ -42,12 +38,6 @@ class WorkspaceCache:
 
     def acls_for(self, scope: str) -> list[Acl]:
         return self.acls.get(scope, [])
-
-    def cached_value(self, scope: str, key: str) -> str | None:
-        return self.values.get((scope, key))
-
-    def set_value(self, scope: str, key: str, value: str) -> None:
-        self.values[(scope, key)] = value
 
     # -- mutation keeping the read model + UI consistent --------------------
     def upsert_secret(self, secret: Secret) -> None:
@@ -62,7 +52,6 @@ class WorkspaceCache:
 
     def remove_secret(self, scope: str, key: str) -> None:
         self.secrets[scope] = [s for s in self.secrets.get(scope, []) if s.key != key]
-        self.values.pop((scope, key), None)
         self.raw.pop((scope, key), None)
 
     def add_scope(self, scope: Scope) -> None:
@@ -84,6 +73,5 @@ class WorkspaceCache:
         key. Scopes are read eight at a time while values are read and written:
         made anew from what was held a moment before, what is held would lose
         whatever came in between."""
-        for held in (self.values, self.raw):
-            for key in [key for key in list(held) if key[0] == name]:
-                held.pop(key, None)
+        for key in [key for key in list(self.raw) if key[0] == name]:
+            self.raw.pop(key, None)
