@@ -1,12 +1,12 @@
 [project]
 name = "stevin"
-version = "0.2.0a4"
+version = "0.3.0a1"
 description = "Safe plan/apply migrations for Unity Catalog tables and schemas"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Misja Pronk", email = "misja@prorexconsultancy.nl" }]
+authors = [{ name = "Misja Pronk" }]
 keywords = [
     "databricks",
     "unity-catalog",

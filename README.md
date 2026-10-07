@@ -8,7 +8,7 @@ then apply it.
 [![ci](https://github.com/kostavo-oss/stevin/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/stevin/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-stevin-1f9e9a.svg)](https://kostavo-oss.github.io/stevin/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/stevin/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
@@ -29,17 +29,6 @@ work — [coming from deltaplan](https://kostavo-oss.github.io/stevin/installati
 says what changed and what didn't.
 
 ## Install
-
-> **Not on PyPI under this name yet.** The first release as `stevin` is being prepared.
-> Until this notice is gone, do not install a `stevin` from PyPI — it is not ours. Install
-> it from GitHub, or under the name its releases have so far, `deltaplan`:
->
-> ```sh
-> uv tool install git+https://github.com/kostavo-oss/stevin   # stevin, as it is on main
-> uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
-> ```
-
-Once it is released:
 
 ```sh
 uvx --prerelease allow stevin --version      # run it once, nothing installed
@@ -64,7 +53,8 @@ minutes on your own workspace, every step shown;
 **[the tour →](https://kostavo-oss.github.io/stevin/tour/)** takes one project from
 nothing to a reviewed pull request. The [docs](https://kostavo-oss.github.io/stevin/)
 have the spec format, the commands and the safety model, and
-[`docs/DESIGN.md`](docs/DESIGN.md) is the source of truth.
+[`docs/DESIGN.md`](https://github.com/kostavo-oss/stevin/blob/main/docs/DESIGN.md) is the
+source of truth.
 
 ## What it is for
 
@@ -200,8 +190,9 @@ mise run test    # uv run pytest tests/unit
 mise run docs    # preview the docs at localhost:8000
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the architecture and the house rules.
+See [CONTRIBUTING.md](https://github.com/kostavo-oss/stevin/blob/main/CONTRIBUTING.md) for
+the architecture and the house rules.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/stevin/blob/main/LICENSE).

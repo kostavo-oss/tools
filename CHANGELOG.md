@@ -6,55 +6,57 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0a1] - 2026-10-07
+
 ### Added
 
 - **A warehouse that is starting is waited for, not failed on.** A stopped SQL
   warehouse starts on the first request, and until it has started it refuses
   that request with the same sentence a warehouse that will never start gives —
-  which is how a cold start became a failed `plan`. deltaplan now asks the
+  which is how a cold start became a failed `plan`. stevin now asks the
   workspace what the warehouse is doing: while it says *starting* the request
   is made again (nothing ran, so that is safe for a write too), for up to five
   minutes; a running warehouse that refuses is reported at once, as before.
   `apply` shows the wait as *warehouse starting*.
 - **A heartbeat while a step runs.** `apply` shows how long the current step
   has been going — a spinner in a terminal, a line every five minutes in a log
-  — so a long rewrite is never silence. A program using `deltaplan.apply()`
+  — so a long rewrite is never silence. A program using `stevin.apply()`
   hears the same through its `observer`, as status `running`.
 - **The unit suite runs on Windows** in CI, next to Linux and macOS. Paths in
   messages are now written with forward slashes on every platform, so what
   Windows prints is what the docs show.
 
-- **`deltaplan adopt`.** The other half of `drift`. A column someone added by
+- **`stevin adopt`.** The other half of `drift`. A column someone added by
   hand at 2am to unblock a load is usually *wanted*, and until now the only ways
   out were to retype it into the spec or to apply the plan and undo their work.
-  `deltaplan adopt` writes live state into the spec file that already describes
+  `stevin adopt` writes live state into the spec file that already describes
   the table, and leaves a git diff to review. The file is **edited, not
   rewritten**: the comments someone wrote, the blank lines, the quoting, the
   `${catalog}` and every `renamed_from`, `using:` and seed row are still there
-  afterwards — only what deltaplan would otherwise have planned changes (a new
+  afterwards — only what stevin would otherwise have planned changes (a new
   module, `yamledit`, edits YAML text through its own node tree). What a spec
   never claimed is left alone: a tag, property or grant the file doesn't mention
   stays unmanaged, because adopting drift is not the moment to start managing
   something new. Then it reads its own work back and diffs it against the
   workspace, so what a file can't hold — a seed's rows, which live in the repo —
   is reported rather than discovered by the next plan. `--dry-run`, `--diff`, and
-  `deltaplan.adopt()` for a program.
+  `stevin.adopt()` for a program.
 
-- **`deltaplan verify`.** The Databricks behaviour deltaplan's plans rest on —
+- **`stevin verify`.** The Databricks behaviour stevin's plans rest on —
   that a `REPLACE` keeps a table's tags and grants, that a nested `NOT NULL` is
   an ordinary `ALTER`, that the warehouse runs in ANSI mode — used to be
   settled only by a live suite nobody but the maintainer can run, against one
   workspace on one runtime. It now ships as a list of named probes
-  (`deltaplan.PROBES`), and `verify --schema main.scratch` runs them in a
+  (`stevin.PROBES`), and `verify --schema main.scratch` runs them in a
   scratch schema of yours: ✓ for each that holds, and for each that doesn't the
   workspace's own words plus what it costs. Two long-standing `TODO(verify)`
   assumptions are probes too, so a user can settle on their own runtime what no
   workspace here could: a seed's `INSERT OVERWRITE … (columns) VALUES …`, and
   `CLUSTER BY AUTO`. `--json` for a host, exit 1 when something didn't hold,
-  `deltaplan.verify()` for a program. The live suite is now a thin caller of
+  `stevin.verify()` for a program. The live suite is now a thin caller of
   that same list, so an assumption is written down once.
 
-- **`deltaplan doctor`.** Checks the project, the target, the bundle, the
+- **`stevin doctor`.** Checks the project, the target, the bundle, the
   workspace, the warehouse, the metastore's table quota and where `apply` would
   record a run — and says what to do about whatever isn't right. Every check is
   there because something once surfaced five steps into an apply instead: a
@@ -63,22 +65,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exits 0 unless something will stop a run, and `--json` gives a host the same
   findings.
 
-- **What deltaplan knows about a Databricks refusal.** The workspace's own
+- **What stevin knows about a Databricks refusal.** The workspace's own
   sentence comes through first and whole, as always; for a dozen failures that
-  happen often, one paragraph underneath now says what deltaplan knows — that
+  happen often, one paragraph underneath now says what stevin knows — that
   the table quota counts dropped tables for a week, that a function's body needs
   its table to exist first, that "could not be processed by the warehouse" is
   what a stopped serverless warehouse looks like. Matched on the error class
   Databricks names, with the real messages as tests, so a rewording is a failing
   test rather than silence. An error with nothing to add is untouched.
 
-- **A plan you can read in a browser.** `deltaplan ui` serves the plan as one
+- **A plan you can read in a browser.** `stevin ui` serves the plan as one
   page on `127.0.0.1` and opens it. Every object is a comparison — what it is
   now, as read when the plan was made, and what it becomes — with the
   statements that get there underneath, and two readings of the same rows:
   *changes only* for whoever approves the change, *full object* for whoever
   wrote the spec. One table underneath both, built by a new pure module
-  (`render/compare.py`), so the readings can't disagree. `deltaplan plan -f html -o plan.html` writes
+  (`render/compare.py`), so the readings can't disagree. `stevin plan -f html -o plan.html` writes
   that same page as a single self-contained file — no dependencies, nothing
   fetched, opens offline — to attach to a pull request or hand to whoever
   approves it. It renders the same `Plan` the terminal and the Markdown comment
@@ -86,11 +88,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   written, no call to a workspace. `render_html` is public.
 
 - **Transcripts: what the workspace actually answered, kept.** The fake
-  warehouse proves that deltaplan's SQL matches deltaplan's *reading* of the
+  warehouse proves that stevin's SQL matches stevin's *reading* of the
   manual — where that reading is wrong, the fake is wrong the same way and the
   offline suite agrees with the mistake. A transcript is one live run written
   down: every statement sent, and the rows or the error that came back. With
-  `DELTAPLAN_RECORD=tests/transcripts` a live run writes one per assumption
+  `STEVIN_RECORD=tests/transcripts` a live run writes one per assumption
   (with the date and the runtime that answered), and `tests/unit/` replays each
   through the probe it was recorded for — offline, with no credentials. A
   statement a recording doesn't cover fails loudly, with the statement in the
@@ -135,7 +137,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 - **The pull-request comment shows the comparison, not a list of changes.** The
-  page `deltaplan ui` serves shows each object as *what it is now* beside *what
+  page `stevin ui` serves shows each object as *what it is now* beside *what
   it becomes*; the comment — where most reviewing actually happens — had the
   weakest view of the four. It now builds its per-object block from
   the same `render/compare.py` rows, in the five columns that page's *changes
@@ -156,7 +158,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lock stayed held until its TTL. Now a read keeps its budget (a read that
   takes five minutes has gone wrong), a step has none, and a statement that
   outlives a budget is **cancelled on the warehouse before it is reported** —
-  deltaplan never says a statement failed while it is still running. Ctrl-C
+  stevin never says a statement failed while it is still running. Ctrl-C
   during `apply` cancels the running statement the same way, releases the lock
   and leaves the run resumable. A long step keeps the lock alive while it runs.
 
