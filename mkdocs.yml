@@ -1,5 +1,5 @@
 site_name: Caland
-site_description: A keyboard-driven terminal UI for managing Databricks secrets.
+site_description: "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
 site_author: Misja Pronk
 site_url: https://kostavo-oss.github.io/caland/
 

@@ -25,7 +25,6 @@ TOP = {
     "README.md",
     "SECURITY.md",
     "docs",
-    "examples",
     "mise.toml",
     "mkdocs.yml",
     "pyproject.toml",
@@ -72,3 +71,19 @@ def test_a_source_package_is_made_from_a_list() -> None:
         "/CHANGELOG.md",
         "/pyproject.toml",
     }
+
+
+def test_what_a_user_reads_first_does_not_speak_of_the_terminal_app() -> None:
+    """Caland is a page. The site's description, the form for a bug and the
+    docs' stylesheet said "terminal UI", "the TUI" and `--iso-` for a release."""
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    site = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    assert f'site_description: "{config["project"]["description"]}"' in site
+    for name in (
+        "mkdocs.yml",
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        "docs/stylesheets/extra.css",
+    ):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        for word in ("TUI", "terminal UI", "--iso-", "2>err.log"):
+            assert word not in text, f"{word} in {name}"
