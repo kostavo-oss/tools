@@ -51,9 +51,10 @@ issue.
 
 ## Reporting a vulnerability
 
-Please report security issues **privately**, through this repository's
-[Report a vulnerability](https://github.com/kostavo-oss/lely/security/advisories/new)
-(GitHub Security Advisories).
+Please report security issues **privately**:
+
+- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/lely/security/advisories/new), or
+- email **info@kostavo.com**.
 
 Do not open a public issue for security reports. You'll get an acknowledgement as soon as
 possible, and we'll coordinate a fix and disclosure with you.
