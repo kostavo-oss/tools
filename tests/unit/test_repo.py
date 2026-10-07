@@ -203,3 +203,20 @@ def test_the_documents_show_whole_configs_to_check() -> None:
             "docs/writing-a-plugin.md",
         }
     assert {where.split(" #")[0] for where, _, _ in configs()} >= expected
+
+
+def test_a_source_package_is_made_from_a_list() -> None:
+    """Without one a build packs whatever lies in the folder, ignored or not —
+    a report a tool left behind, an editor's settings."""
+    import tomllib
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    listed = project["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    assert set(listed) == {
+        "/src",
+        "/tests",
+        "/README.md",
+        "/LICENSE",
+        "/CHANGELOG.md",
+        "/pyproject.toml",
+    }
