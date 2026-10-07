@@ -82,13 +82,17 @@ source of truth, and merging a bump to `main` ships it. No manual tagging.
    become the GitHub release body.
 3. Open a PR. When it merges to `main`, the [`release`](.github/workflows/release.yml)
    workflow:
+   - runs the gate on that commit — lint, format, types and the tests, the page in
+     Chrome among them — and publishes nothing if it fails,
    - builds the wheel + sdist and publishes them to **PyPI** (via Trusted
      Publishing — no API token), and
    - creates the **`vX.Y.Z`** git tag and a **GitHub release** with the changelog
      notes.
 
-A merge that doesn't change the version is a no-op, and a version that's already
-tagged or already on PyPI is skipped — so the workflow is safe to re-run.
+A merge that doesn't change the version is a no-op, a version that's already tagged or
+already on PyPI is skipped, and a version with no section in `CHANGELOG.md` is refused —
+so the workflow is safe to re-run. Started by hand, it picks a release up again after a
+failure.
 
 > **One-time setup.** Releasing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
 > instead of a token. Add a publisher at
