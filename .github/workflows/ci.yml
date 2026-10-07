@@ -41,6 +41,29 @@ jobs:
       - name: Tests (pytest)
         run: uv run --python ${{ matrix.python-version }} pytest
 
+  lowest:
+    name: test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Every `>=` in pyproject.toml says the version it names works. This
+      # installs exactly those — the lowest each dependency allows, on the oldest
+      # Python — so a floor that has gone false fails here and not on someone's
+      # machine. The test tools go in afterwards at whatever is current: it is
+      # the package's floors that are on trial, not pytest's.
+      - name: Install with the lowest direct dependencies
+        run: |
+          uv venv --python 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e .
+          uv pip install --python /tmp/lowest/bin/python --group dev
+          uv pip freeze --python /tmp/lowest/bin/python
+      # without the page in a browser: that is Chrome's to pass, not a dependency's
+      - name: Tests (pytest)
+        run: /tmp/lowest/bin/python -m pytest --ignore=tests/test_page_in_a_browser.py
+
   docs:
     name: docs (strict build)
     runs-on: ubuntu-latest
