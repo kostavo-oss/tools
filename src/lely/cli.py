@@ -20,7 +20,8 @@ Nothing that changes a workspace runs unasked: `apply` and `destroy` ask, or
 were given `--yes`. With no terminal and no `--yes` they refuse. To destroy at
 a terminal, the answer is the target's name.
 
-Exit codes: 0 done, 1 something failed, 2 lely refused — plan again.
+Exit codes: 0 done, 1 something failed, 2 lely refused — plan again. A command
+line lely can't make sense of ends with 2 as well, whatever the command.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ import errno
 import functools
 import json
 import os
+import re
 import shutil
 import stat
 import sys
@@ -88,6 +90,13 @@ if TYPE_CHECKING:
 app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
+    # said, because typer's own default changed (0.20.1): help is Rich markup on
+    # every version, so what is escaped in it reads the same on each
+    rich_markup_mode="rich",
+    # An error lely didn't expect is a traceback, and typer's own (below 0.23)
+    # prints every frame's local values with it: `plan` and `apply` hold the
+    # run's token and the whole environment in theirs.
+    pretty_exceptions_show_locals=False,
     help="One plan for your whole Databricks deploy.",
 )
 out = Console(highlight=False)
@@ -108,8 +117,11 @@ ConfigOption = Annotated[
     typer.Option(
         "--config",
         "-c",
-        help="lely.yml, or a pyproject.toml with [tool.lely]. Found from here up "
-        "when not given.",
+        # help is read as markup, where `[tool.lely]` would be a style: escaped
+        help=escape(
+            "lely.yml, or a pyproject.toml with [tool.lely]. Found from here up "
+            "when not given."
+        ),
     ),
 ]
 
@@ -236,8 +248,15 @@ def _connect(profile: str | None) -> WorkspaceClient:
 def _powers(profile: str | None) -> str:
     """What these credentials may do, as far as lely can tell.
 
+    `admins` is the system group of a workspace's administrators:
+    https://docs.databricks.com/aws/en/admin/users-groups/groups
+
     TODO(verify): no API says "read-only" in general. Being a workspace admin is
     the one thing that can be read off.
+    TODO(verify): that `current_user.me()` lists `admins`, under that name, for
+    every admin — one who is in it through another group too. Not seen on a
+    workspace. A miss reads as "not a workspace admin; lely can't tell what
+    else", which claims nothing.
     """
     from databricks.sdk import WorkspaceClient
 
@@ -570,10 +589,11 @@ def schema(
     except (LelyError, ValueError):
         found = None
     if found is not None and found.name == config.PYPROJECT:
-        out.print(
-            "[dim]It is for a `lely.yml`: a `[tool.lely]` section in pyproject.toml "
-            "has no schema of its own.[/]"
+        words = (
+            "It is for a `lely.yml`: a `[tool.lely]` section in pyproject.toml has "
+            "no schema of its own."
         )
+        out.print(f"[dim]{escape(words)}[/]")
         return
     out.print(
         "[dim]As the first line of lely.yml:[/]  "
@@ -897,12 +917,34 @@ def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
         mark = {True: "[green]✓[/]", False: "[red]✗[/]", None: "[yellow]![/]"}[ok]
         out.print(f"{mark} {escape(text)}")
 
+    # The project is read before anything is said: what its steps run decides
+    # what is checked. With no project, nobody knows yet what it will hold.
+    loaded: config.Config | None = None
+    unread = ""
+    try:
+        loaded = _load(path)
+    except LelyError as error:
+        unread = str(error)
+    root = loaded.root if loaded is not None else Path.cwd()
+    steps = _what_steps_run(loaded) if loaded is not None else []
+    runs_the_cli = loaded is None or any(
+        "databricks" in programs for _, programs in steps if isinstance(programs, tuple)
+    )
+
     version = _program_says(DATABRICKS, "--version")
-    if version is None:
+    if version is None and runs_the_cli:
         line(False, f"the Databricks CLI: `{DATABRICKS[0]}` isn't on PATH")
+    elif version is None:
+        # nothing here needs it: said, and no failed check
+        line(
+            None,
+            f"the Databricks CLI: `{DATABRICKS[0]}` isn't on PATH. No step here runs it.",
+        )
     else:
         line(True, f"the Databricks CLI: {version}")
-        line(None, "bundles need the direct engine (GA in CLI v1.3.0)")
+        if runs_the_cli:
+            line(*_has_the_engine(version))
+    line(*_git_can_say(root))
     try:
         workspace = WHOAMI(profile)
     except LelyError as error:
@@ -919,27 +961,79 @@ def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
         "step's plan command. On a pull request, give `lely plan` credentials that "
         "can read and nothing more.",
     )
-    try:
-        loaded = _load(path)
-    except LelyError as error:
-        line(None, f"no project checked: {error}")
-    else:
-        for step in loaded.steps:
-            try:
-                found = registry.find(step.uses, loaded.root)
-            except LelyError as error:
-                line(False, f"step `{step.name}`: {error}")
-                continue
-            said = config.written(step.options)
-            for program in _programs(found.cls, said if isinstance(said, dict) else {}):
-                there = _there(program, loaded.root)
-                line(
-                    there,
-                    f"step `{step.name}` runs `{program}`"
-                    + ("" if there else ": not found"),
-                )
+    if loaded is None:
+        line(None, f"no project checked: {unread}")
+    for name, programs in steps:
+        if not isinstance(programs, tuple):
+            line(False, programs)
+            continue
+        for program in programs:
+            there = _there(program, root)
+            line(
+                there,
+                f"step `{name}` runs `{program}`" + ("" if there else ": not found"),
+            )
     if failed:
         raise typer.Exit(1)
+
+
+#: The first Databricks CLI whose direct engine is generally available; the
+#: words are `doctor`'s, and say which version that is.
+_DIRECT_ENGINE = (1, 3, 0)
+_NEEDS_ENGINE = "bundles need the direct engine (GA in CLI v1.3.0)"
+
+
+def _has_the_engine(version: str) -> tuple[bool | None, str]:
+    """Whether a CLI that says `version` is new enough for a step that deploys
+    with it. An older one is said, not failed: what it can do with the engine
+    switched on by hand is not known here."""
+    found = re.search(r"\bv?(\d+)\.(\d+)\.(\d+)", version)
+    if found is None:
+        return None, f"{_NEEDS_ENGINE}; lely couldn't read this CLI's version"
+    if tuple(int(number) for number in found.groups()) < _DIRECT_ENGINE:
+        return None, f"{_NEEDS_ENGINE}: this CLI is older"
+    return True, f"{_NEEDS_ENGINE}: this CLI has it"
+
+
+def _git_can_say(root: Path) -> tuple[bool | None, str]:
+    """Whether git is there, and can say which version of the project a plan
+    is made on — asked the way `lely plan` asks, so what fails that fails this."""
+    version = _program_says(("git",), "--version")
+    try:
+        source.named(root)
+    except source.SourceError as error:
+        return False, clean(f"git: {error}")
+    if version is None:
+        return None, (
+            "git: `git` isn't on PATH. Nothing here needs it: this is no git "
+            "repository, and a plan file made here is held to no version of the "
+            "project."
+        )
+    return True, f"git: {version}"
+
+
+def _what_steps_run(loaded: config.Config) -> list[tuple[str, tuple[str, ...] | str]]:
+    """For each step, the programs it runs — or, as words, why that can't be
+    told: its plugin isn't found, or its `programs` failed."""
+    steps: list[tuple[str, tuple[str, ...] | str]] = []
+    for step in loaded.steps:
+        try:
+            found = registry.find(step.uses, loaded.root)
+        except LelyError as error:
+            steps.append((step.name, f"step `{step.name}`: {error}"))
+            continue
+        said = config.written(step.options)
+        try:
+            programs = _programs(found.cls, said if isinstance(said, dict) else {})
+        except Exception as error:  # a plugin's `programs` is its own code
+            problem = str(error)
+            if not isinstance(error, LelyError):
+                problem = f"{type(error).__name__}: {error}"
+            where = f"step `{step.name}` ({step.uses})"
+            steps.append((step.name, clean(f"{where}: its `programs` failed: {problem}")))
+            continue
+        steps.append((step.name, programs))
+    return steps
 
 
 def _programs(cls: type, written: Mapping[str, Any]) -> tuple[str, ...]:
@@ -948,7 +1042,13 @@ def _programs(cls: type, written: Mapping[str, Any]) -> tuple[str, ...]:
     if not callable(listed):
         return ()
     with contract.quietly():
-        return tuple(dict.fromkeys(listed(written)))
+        named = tuple(dict.fromkeys(listed(written)))
+    for program in named:
+        if not isinstance(program, str):
+            raise LelyError(
+                f"it names a program as {type(program).__name__}, not as text"
+            )
+    return named
 
 
 def _there(program: str, root: Path) -> bool:
@@ -1001,16 +1101,16 @@ def apply(
     hub = _github(on_github)
     try:
         _no_fork(hub, "apply")
+        if plan_file is None and target is None:
+            # before the config is read or a workspace reached: nothing is
+            # asked of either for a command that can't say what it is for
+            raise Refused("Give the target: `lely apply -t <target>`.")
         run = _run(path, profile)
         known.workspace = run.workspace
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
             known.target = approved.target
-            if approved.kind != "apply":
-                raise Refused(
-                    "This is a plan to destroy, and `lely apply` only applies. Run it "
-                    f"with `lely destroy {plan_file} -t {approved.target}`."
-                )
+            running.check_kind(approved, "apply", str(plan_file))
             if target is not None and target != approved.target:
                 raise Refused(
                     f"The plan was made for target `{approved.target}`, and the "
@@ -1021,8 +1121,7 @@ def apply(
             _still_holds(approved, run, plan_file)
             at_waiting = None
         else:
-            if target is None:
-                raise Refused("Give the target: `lely apply -t <target>`.")
+            assert target is not None  # refused above
             running.check_applies(run.config, target)
             running.check_from(run.config, target, from_step)
             approved = planning.plan(
@@ -1077,11 +1176,7 @@ def destroy(
         running.check_from(run.config, target, from_step)
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
-            if approved.kind != "destroy":
-                raise Refused(
-                    "This is a plan to apply, and `lely destroy` only destroys. Run "
-                    f"it with `lely apply {plan_file}`."
-                )
+            running.check_kind(approved, "destroy", str(plan_file))
             if target != approved.target:
                 raise Refused(
                     f"The plan was made for target `{approved.target}`, and the "
@@ -1260,7 +1355,8 @@ def _keep(
     try:
         _write(record, _without_token(json.dumps(document, indent=2) + "\n", hub))
     except (OSError, ValueError, TypeError, RecursionError) as error:
-        why = getattr(error, "strerror", None) or error
+        # an error's own words are shown, never obeyed: no markup, no escape
+        why = escape(clean(str(getattr(error, "strerror", None) or error)))
         err.print(f"[red]Can't write the result to {escape(str(record))}: {why}[/]")
     else:
         err.print(Text.assemble(("Wrote", "green"), f" {record}"))

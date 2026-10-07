@@ -21,11 +21,17 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Typing :: Typed",
 ]
+# Each floor is the oldest version the unit tests pass on: CI holds them, in the job
+# `test (lowest dependencies)`.
 dependencies = [
     "databricks-sdk>=0.89",
+    # the first with wheels for Python 3.14
     "pyyaml>=6.0.3",
     "rich>=13.7",
-    "typer>=0.12",
+    # Older ones install beside a click they don't work with: up to 0.15.3 every
+    # `--help` is a traceback, and from 0.16.0 to 0.17.4 a command given no `-t` runs
+    # without one. (0.15.4 keeps to an older click, whose test runner the suite can't use.)
+    "typer>=0.17.5",
 ]
 
 [project.urls]
@@ -33,6 +39,7 @@ Homepage = "https://github.com/kostavo-oss/lely"
 Documentation = "https://kostavo-oss.github.io/lely/"
 Repository = "https://github.com/kostavo-oss/lely"
 Issues = "https://github.com/kostavo-oss/lely/issues"
+Changelog = "https://github.com/kostavo-oss/lely/blob/main/CHANGELOG.md"
 
 [project.scripts]
 lely = "lely.cli:main"
@@ -51,9 +58,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/lely"]
 
+# A source package holds the code, its tests and the files that say what it is —
+# what is listed here and nothing else. The docs site, the specs, the workflows
+# and the lock file are the repository's.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
+
 [dependency-groups]
 dev = [
-    "jsonschema>=4.20",
+    "jsonschema>=4.21",
     "pytest>=8.0",
     "ruff>=0.6",
     "syrupy>=4.8",

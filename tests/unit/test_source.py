@@ -461,3 +461,27 @@ def test_a_folder_is_named_as_git_names_it_whether_or_not_it_is_there(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     assert source.named(elsewhere) is None and source.named(elsewhere / "gone") is None
+
+
+def test_git_in_these_tests_reads_no_config_of_the_machines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A developer's own `commit.gpgsign = true` failed every fixture that
+    commits: the tests named an author and took the rest of the machine's
+    config as it came. Here is such a config, in a home of its own — and a
+    commit, and what lely reads of it, go through all the same."""
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".gitconfig").write_text(
+        "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /no/such/gpg\n"
+        "[core]\n\thooksPath = /no/such/hooks\n"
+    )
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    root = tmp_path / "repo"
+    root.mkdir()
+    git(root, "init", "-q")
+    (root / "lely.yml").write_text("steps: []\n")
+    git(root, "add", ".")
+    git(root, "commit", "-q", "-m", "first")  # unsigned, and with no hook
+    assert source.read(root).tree == git(root, "rev-parse", "HEAD^{tree}")

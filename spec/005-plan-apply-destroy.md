@@ -1,7 +1,9 @@
 # 005 — plan, apply, destroy
 
-**Status:** built, 2026-10-05; run on a real workspace once, 2026-10-06 — see
-[As built](#as-built). Phase one.
+**Status:** built, 2026-10-05; run on a real workspace twice, 2026-10-06 — see
+[As built](#as-built). Phase one. The markers on the requirements below (*built*, *design*,
+*agreed*, *owner*) say where each came from when it was written, before any of this was
+built; what the code does now is under As built.
 
 ## Why
 
@@ -24,7 +26,8 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
   skipped (and why); what it takes and from where; its changes, each with its key, its kind,
   whether it is destructive, and the lines that were shown for it; the outputs known at plan; and
   whatever the plugin itself needs to carry — for a bundle step, the CLI's own plan.
-  *(built in part: no kind, no workspace, and the bundle's plan sits outside the steps)*
+  *(built in part before this spec: the file then had no kind and no workspace, and the
+  bundle's plan sat outside the steps)*
 - **R3** — A plan file in a format this lely doesn't read is refused, with a message that names
   both versions and says to plan again. *(built, for `show`)*
 
@@ -38,7 +41,8 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
   what it was planned with. What is compared is the config as lely reads it — not the file's
   text, so an unrelated edit to `pyproject.toml` doesn't make a plan stale — with values from the
   environment compared by name, and without the values that couldn't be known when planning. The
-  message says which step differs, and to plan again. *(design; today the file's text is hashed)*
+  message says which step differs, and to plan again. *(design; before this was built the
+  file's text was hashed)*
 - **R6** — Steps run in the order written. A step whose `targets:` leaves this target out is
   skipped, and the result says so. *(design)*
 - **R7 — The approval check.** Each step is planned again immediately before it runs. It may run
@@ -148,14 +152,15 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
   step in a reviewed file, a change that wasn't approved, a destructive change that wasn't
   allowed, no consent, a command it couldn't make sense of. A pipeline can tell "plan again" from
   "something broke" without reading the message. `plan`, `status`, `validate` and `doctor` end
-  with 0 or 1 by the same rule. *(owner, 2026-10-05; today every error ends with 1)*
+  with 0 or 1 by the same rule. *(owner, 2026-10-05; before this was built every error ended
+  with 1)*
 
 ### Naming the target
 
 - **R37 — `-t <target>` is always given** to a command that touches a workspace: `plan`, `apply`,
   `destroy`, `status`. There is no default target. With a plan file the target is the file's,
-  and for a destroy it is said again (R19). *(owner, 2026-10-05: go with the proposals; today
-  the bundle's own default target is used when `-t` is left out)*
+  and for a destroy it is said again (R19). *(owner, 2026-10-05: as proposed; before
+  this was built the bundle's own default target was used when `-t` was left out)*
 
 ### On demand
 
@@ -220,9 +225,9 @@ All by the owner, on 2026-10-05.
   unverified — in the code, and in the README where a user would rely on it — until a real run
   is done. The list of what is assumed is
   [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace).
-- **Whether `-t` is always needed** (was D8): yes — R37. *(go with the proposals)*
+- **Whether `-t` is always needed** (was D8): yes — R37. *(as proposed)*
 - **How strict the approval check is** (was D9): every change in the new plan must be one that
-  was shown; changes that are gone are fine — R7. *(go with the proposals)*
+  was shown; changes that are gone are fine — R7. *(as proposed)*
 
 ## As built
 
@@ -292,9 +297,25 @@ All by the owner, on 2026-10-05.
   was handed to `apply` or `destroy`. With `-f json`, a run that lely ends before its first
   step still prints a result, and stdout holds JSON and nothing else. A command line typer
   itself rejects — a missing or an empty `-t` — prints its usage on stderr and no JSON.
+  That holds for every command, so `plan`, `status`, `validate` and `doctor` can end with 2
+  as well: for a command line, never for what they found. `lely apply` with neither a file
+  nor `-t` is refused before the config is read or the workspace reached *(2026-10-07: it
+  asked the workspace who was running first)*.
+- **A plugin that fails in `lely doctor`** — its `programs` raises, or names something that
+  isn't text — is one line with the step and the plugin, as a failed check; the steps after
+  it are still looked at *(2026-10-07: it ended the command in a traceback)*. And a traceback
+  lely didn't expect shows no frame's local values, on any typer: the frames of `plan` and
+  `apply` hold the run's token and the environment.
 - **`lely doctor` (R33)** shows the CLI's version, the workspace and the identity, and whether
   each program a step runs is there. It can't tell whether a bundle is on the direct engine
-  without planning one, and says only which version brought it. It can't tell whether
+  without planning one: it compares the CLI's version with the one that brought the engine,
+  and says when the CLI is older — as a warning, since what an older one does with the
+  engine switched on by hand is not known. It says so only where a step runs the Databricks
+  CLI, or where there is no project yet. **It asks git** what `lely plan` asks first: git
+  missing, or refusing the checkout, in a repository is a failed check, because a plan
+  fails there; git missing outside a repository is a note. *(2026-10-07: it printed the
+  version and "GA in CLI v1.3.0" side by side, said so to a project without a bundle, and
+  didn't look for git, which the docs said it did.)* It can't tell whether
   credentials are read-only: it reports whether the identity is a workspace admin, and that it
   knows no more.
 - **The workspace and the identity** are asked of the Databricks SDK, which reads the same
@@ -304,4 +325,6 @@ All by the owner, on 2026-10-05.
 
 - Each requirement here has a test, against fake tools.
 - The README no longer says lely "shows you a whole deploy and runs none of it" — and says
-  instead that apply and destroy have not yet been run against a real workspace.
+  instead what apply and destroy have been run against. **Done**: when this was written that
+  was nothing real; since 2026-10-06 it is a workspace, twice, and the README's "What has
+  been tried" says what those runs showed and what they couldn't.

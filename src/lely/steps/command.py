@@ -227,12 +227,17 @@ def _run(
     env: Mapping[str, str],
     which: str,
 ) -> None:
+    """Run a step's apply or destroy command. What it writes, on either
+    stream, goes to the step's log a line at a time, as it comes."""
     ctx.log.info(f"{ctx.name}: {shlex.join(command)}")
-    result = process.run(command, ctx.root, env=env)
+    result = process.run(
+        command,
+        ctx.root,
+        env=env,
+        said=lambda line: ctx.log.info(f"{ctx.name}: {line}"),
+    )
     if result.returncode != 0:
         raise process.failure(f"step `{ctx.name}`'s {which} command", result)
-    for line in result.stdout.splitlines():
-        ctx.log.info(f"{ctx.name}: {line}")
 
 
 def _env(ctx: Context[Command.Options]) -> dict[str, str]:

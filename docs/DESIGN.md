@@ -89,9 +89,11 @@ destroy:  options resolved top to bottom, then bottom to top: planned again, che
 status:   options resolved top to bottom, each plugin asked what exists
 ```
 
-The core does no I/O: config, references, the wiring, plan assembly, the approval check and the
-renderers are pure. I/O happens at the edges: the plugins, the Databricks CLI runner, the workspace
-client, `git`, and the command line.
+The core does no I/O of its own: references, options, the approval check, the plan file, the schema
+and the renderers are pure. The config is read from disk by `config.find` and `config.load`, and
+parsed by `config.load_text`, which is pure. Planning and running reach the outside only through
+what they are handed. I/O happens at the edges: the plugins, `registry` (which imports a plugin's
+module), the Databricks CLI runner, the workspace client, `git`, and the command line.
 
 | Module | Does |
 |---|---|
@@ -111,7 +113,9 @@ client, `git`, and the command line.
 | `databricks`, `source`, `process` | the Databricks CLI, `git`, any other program |
 | `cli` | the commands, consent, exit codes |
 
-No module outside `steps/` knows a plugin by name.
+No module outside `steps/` imports a plugin or asks which plugin a step uses: plugins are found
+through `registry`, and read through the contract. The Databricks CLI is not a plugin: `testing`
+knows which of its calls only read, and `cli` which version brought the direct engine.
 
 ## Config
 
@@ -165,7 +169,8 @@ literal one wins, and any parts left over walk into the value.
 
 **An input is a reference in the step's own options:** `${steps.<name>.<output>}`. There is no other
 channel. `${env.<NAME>}` reads the environment, which is not a step; its value is a `Secret`, so it
-can only go where a plugin asked for one and is never shown or written.
+can only go where a plugin asked for one and is never shown or written. `$${` is no reference: it is
+how a literal `${` is written, and the step is handed `${`.
 
 An option can also name a whole step — `bundle: app` on a `bundle.run` step — when its type is
 `Linked`. The plugin is then given that step's options and outputs. It is the same rule: the
@@ -462,11 +467,12 @@ file.
 
 ## The plan file
 
-JSON, format 2. At the top: the format version; lely's version; whether it is a plan to apply or to
+JSON, format 4. At the top: the format version; lely's version; whether it is a plan to apply or to
 destroy; the target; the workspace's host and the identity it was planned as; and the git tree it
-was made on. Then every step in order: its name and plugin; ready, waiting (for what) or skipped
-(why); a hash of its options as written; what it takes and from where, with the value where it was
-known; its changes; the outputs it showed; and the plugin's payload.
+was made on, with which project of that repository it is for. Then every step in order: its name
+and plugin; ready, waiting (for what) or skipped (why); a hash of its options as written; what it
+takes and from where, with the value where it was known; its changes; the outputs it showed; the
+plugin's payload; and the plugin's own view of its plan, where it gave one.
 
 It never holds a secret: a secret output is a marker, a payload with one is refused, and an
 environment value is a secret. Nothing in it is kept for apply — every step is planned again, and
@@ -474,7 +480,8 @@ gives its values again.
 
 ## Testing
 
-- **Unit**: config, references, the wiring, the approval check and the renderers are pure.
+- **Unit**: reading a config's text, references, the wiring, the approval check and the renderers
+  are pure, and tested as such.
 - **A fake `databricks`** (`tests/fake_databricks.py`), as a program and in process. It answers
   from recordings — the CLI's own acceptance-test outputs, `tests/fixtures/cli/` — or simulates a
   bundle in a small workspace kept in a folder: `plan`, `deploy`, `summary`, `destroy`, `run`. A
@@ -490,7 +497,7 @@ Settled from the CLI's source and its recorded acceptance tests (commit `e41a5c8
   `ValidatePlanAgainstState`).
 - A failed `bundle validate` still prints JSON and exits 1. The exit code decides.
 
-**Run on a real workspace once**, on 2026-10-06, with CLI v1.19.0 and one small bundle. Before
+**Run on a real workspace twice**, on 2026-10-06, with CLI v1.19.0 and small bundles. Before
 that, apply and destroy were built against the fake only, on eight assumptions; the table says
 what became of each. [Spec 004](https://github.com/kostavo-oss/lely/blob/main/spec/004-asset-bundle.md#run-on-a-workspace-2026-10-06) has
 the detail.
@@ -560,7 +567,7 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 "Terraform for your platform, Asset Bundles for your code, stevin for your data model — and lely to
 deploy them as one." lely is not a fourth layer: it carries the layers out together. stevin stays a
-standalone CLI; caland stays a TUI for people.
+standalone CLI; caland is a page in the browser, for people.
 
 All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **caland**.
 Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.
@@ -644,6 +651,13 @@ The builder's calls again; none is the owner's yet.
 - **A plugin can't end lely or take its streams.** `sys.exit` in a plugin is that step's
   error. What a plugin prints, however it prints it, goes to stderr through a stream of its
   own.
+- **A program is heard while it changes something** *(2026-10-07)*. `process.run` takes
+  `said`: each line the program writes, on either stream, is passed to it as it comes and
+  kept for the result. The plugins lely ships pass it to the step's log for an apply or a
+  destroy command, `bundle deploy`, `bundle destroy` and `bundle run`; what only answers a
+  question — a plan command, `bundle summary` — is run to its end and read. The log is the
+  command line's, so a line a program wrote is cleaned and searched for the run's token like
+  every other line lely says. A failure quotes both streams. Nothing has a time limit.
 
 ## The page, as built 2026-10-06
 

@@ -1,6 +1,6 @@
 # 004 — the Asset Bundle plugin
 
-**Status:** built, 2026-10-05, and run on a real workspace once, on 2026-10-06 — see
+**Status:** built, 2026-10-05, and run on a real workspace twice, on 2026-10-06 — see
 [Run on a workspace](#run-on-a-workspace-2026-10-06) for what that settled and what it didn't.
 
 ## Why
@@ -135,7 +135,7 @@ listed below can use what it gives.
 
 ## To verify on a workspace
 
-*Written before any real run. One was done on 2026-10-06:
+*Written before any real run. Two were done on 2026-10-06:
 [Run on a workspace](#run-on-a-workspace-2026-10-06) says what became of each point below.*
 
 lely's rule is that nothing about Databricks is assumed without a test and a link. The owner
@@ -241,7 +241,8 @@ read; a second bundle in one project; a pull request in a real repository.
 - **The overview when nothing is deployed yet** (was D2): what would exist, marked as not
   deployed — R9a. *(owner, 2026-10-05)*
 - **No run on a real workspace for now:** see [To verify](#to-verify-on-a-workspace).
-  *(owner, 2026-10-05)*
+  *(owner, 2026-10-05. Two runs followed on 2026-10-06:
+  [Run on a workspace](#run-on-a-workspace-2026-10-06).)*
 
 ## As built
 
@@ -284,6 +285,10 @@ read; a second bundle in one project; a pull request in a real repository.
   change, not their values. A fingerprint of the resolved variables in the plan would catch
   it, at the price of refusing a plan whose variables depend on who runs it. *Not built; the
   owner's to decide.*
+- **What the CLI writes while it deploys or destroys** — on stdout and on stderr — is passed
+  on to the step's log a line at a time, as it comes, and kept for the error if the call
+  fails; that error quotes both streams. `summary` and `plan` are answers: they are read, not
+  shown. *(2026-10-07; before, only a failure showed anything, and of one stream.)*
 - **A `path` that isn't a directory** is said so at plan. It used to read as "the Databricks
   CLI isn't installed".
 - **What is still assumed** is a `TODO(verify)` in `src/lely/steps/bundle.py`; what was seen is
@@ -297,4 +302,5 @@ read; a second bundle in one project; a pull request in a real repository.
   as what has not been tried on a real workspace.
 
 Not part of done, by the owner's decision, and the first thing to do afterwards: a bundle
-planned, applied, listed and destroyed on a real target, end to end, settling V1–V7.
+planned, applied, listed and destroyed on a real target, end to end, settling V1–V7. *(Done
+twice on 2026-10-06; V7 is still open.)*

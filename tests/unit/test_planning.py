@@ -395,10 +395,35 @@ def test_check_refuses_a_reference_that_fits_no_shape(tmp_path: Path) -> None:
     )
 
 
-def test_check_refuses_the_spellings_from_before(tmp_path: Path) -> None:
-    text = project.LELY_YML.replace("model: dev.ml.churn", "model: ${var.catalog}")
-    [problem] = problems(tmp_path, text)
-    assert "write `${steps.<bundle step>.var.catalog}`" in problem
+def test_check_says_how_a_bundles_own_spelling_is_written_here(tmp_path: Path) -> None:
+    """`${var.catalog}` is how a bundle's file says it. Below the bundle step
+    the error names that step; where no step above gives such a thing — above
+    the bundle, or in a project without one — it names none."""
+    below = project.LELY_YML.replace("./ops/warm.sh]", './ops/warm.sh, "${var.catalog}"]')
+    [problem] = problems(tmp_path, below)
+    assert "unknown namespace `var`" in problem
+    assert "Step `app` gives `var.catalog`" in problem
+    assert "write `${steps.app.var.catalog}`" in problem
+    above = project.LELY_YML.replace("model: dev.ml.churn", "model: ${var.catalog}")
+    for text in (above, "steps:\n  - uses: command\n    with: {apply: ['${var.x}']}\n"):
+        [problem] = problems(tmp_path, text)
+        assert "unknown namespace `var`; expected one of steps, env. For a" in problem
+        assert "steps." not in problem
+
+
+def test_a_literal_dollar_brace_passes_check_and_is_written_out(tmp_path: Path) -> None:
+    """`apply: [bash, -c, 'echo ${HOME}']` could not be written: `$${HOME}`
+    failed like `${HOME}`, as an unknown namespace."""
+    text = (
+        "steps:\n  - name: seed\n    uses: command\n"
+        "    with: {apply: [sh, -c, 'echo $${HOME} > home.txt']}\n"
+    )
+    project.write(tmp_path, text)
+    [wire] = planning.check(load(tmp_path / "lely.yml"))
+    assert wire.takes == ()  # no reference: nothing is taken
+    [seed] = plan(tmp_path).steps
+    assert seed.inputs == ()
+    assert seed.plan.changes[0].summary == "runs sh -c 'echo ${HOME} > home.txt'"
 
 
 def test_check_refuses_a_step_that_runs_for_more_targets_than_what_it_takes(

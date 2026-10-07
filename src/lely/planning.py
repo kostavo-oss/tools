@@ -61,6 +61,7 @@ from lely.refs import (
     Scope,
     Unknown,
     check_step,
+    literal,
     lookup,
     match,
     parse,
@@ -158,7 +159,7 @@ def _offline(
 
     def resolver(scalar: Scalar) -> Any:
         text = str(scalar.value)
-        refs = parse(text, scalar.loc)
+        refs = parse(text, scalar.loc, position.above)
         secret = False
         for ref in refs:
             output = check_ref(ref, position, scalar.loc)
@@ -175,7 +176,7 @@ def _offline(
                 )
         # A value from the environment is a secret whatever it turns out to
         # be, so where it may not go is known without looking it up.
-        return Unknown("offline", secret=secret) if refs else text
+        return Unknown("offline", secret=secret) if refs else literal(text)
 
     return resolver
 

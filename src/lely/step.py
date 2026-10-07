@@ -66,11 +66,6 @@ class NullLog:
         pass
 
 
-class StderrLog:
-    def info(self, message: str) -> None:
-        print(message, file=sys.stderr)
-
-
 class Cli(Protocol):
     """The Databricks CLI, with this run's credentials."""
 

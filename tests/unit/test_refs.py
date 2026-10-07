@@ -48,7 +48,7 @@ def test_finds_every_reference_in_a_string() -> None:
 @pytest.mark.parametrize(
     ("text", "message"),
     [
-        ("${vars.catalog}", "unknown namespace `vars`; expected one of steps, env"),
+        ("${vars.catalog}", "unknown namespace `vars`; expected one of steps, env."),
         ("${env}", "an environment variable is `${env.<NAME>}`"),
         ("${env.A.B}", "an environment variable is `${env.<NAME>}`"),
         ("${steps.model}", "a step's output is `${steps.<name>.<output>}`"),
@@ -63,20 +63,62 @@ def test_a_malformed_reference_says_what_is_expected(text: str, message: str) ->
 @pytest.mark.parametrize(
     ("text", "now"),
     [
-        ("${var.catalog}", "${steps.<bundle step>.var.catalog}"),
-        (
-            "${resources.jobs.nightly.id}",
-            "${steps.<bundle step>.resources.jobs.nightly.id}",
-        ),
-        ("${workspace.host}", "${steps.<bundle step>.workspace.host}"),
-        ("${bundle.target}", "${steps.<bundle step>.target}"),
+        ("${var.catalog}", "${steps.app.var.catalog}"),
+        ("${resources.jobs.nightly.id}", "${steps.app.resources.jobs.nightly.id}"),
+        ("${workspace.host}", "${steps.app.workspace.host}"),
     ],
 )
-def test_the_short_spellings_are_gone_and_say_what_to_write(text: str, now: str) -> None:
+def test_what_a_step_above_gives_is_written_with_its_step(text: str, now: str) -> None:
+    """A bundle's own file says `${var.catalog}`; here every reference names the
+    step its value comes from, and the error names the step that gives it."""
+    above = {"model": Above(MODEL), "app": Above(BUNDLE), "lost": Above(None)}
+    with pytest.raises(RefError) as caught:
+        parse(text, LOC, above)
+    said = str(caught.value)
+    assert "unknown namespace" in said
+    assert f"Step `app` gives `{text[2:-1]}`" in said
+    assert "every reference names the step its value comes from" in said
+    assert f"write `{now}`" in said
+
+
+@pytest.mark.parametrize("above", [None, {"model": Above(MODEL)}])
+def test_no_step_is_named_that_isnt_there_to_give_it(
+    above: dict[str, Above] | None,
+) -> None:
+    """`${var.x}` used to answer "write `${steps.<bundle step>.var.x}`" in a
+    project with no bundle step at all."""
+    with pytest.raises(RefError) as caught:
+        parse("${var.catalog}", LOC, above)
+    assert str(caught.value) == (
+        "lely.yml:3:7: `${var.catalog}`: unknown namespace `var`; expected one of "
+        "steps, env. For a literal `${var.catalog}`, write `$${var.catalog}`."
+    )
+
+
+# -- a literal `${…}` ------------------------------------------------------------
+
+
+def test_a_doubled_dollar_is_a_literal_and_no_reference() -> None:
+    """As Terraform and Compose have it. A shell's own `${HOME}` in a command
+    could not be written at all: it failed as an unknown namespace, and so did
+    `\\${HOME}`."""
+    assert parse("echo $${HOME} $${not a name}", LOC) == ()
+    assert resolve("echo $${HOME}", scope(), LOC) == "echo ${HOME}"
+    assert resolve("$${steps.app.target}", scope(), LOC) == "${steps.app.target}"
+    # beside a reference, each is read for what it is
+    assert parse("$${A}-${steps.app.target}", LOC) == (Ref(("steps", "app", "target")),)
+    assert resolve("$${A}-${steps.app.target}", scope(), LOC) == "${A}-dev"
+    # read from the left: a dollar before the two is only a dollar
+    assert resolve("$$${HOME}", scope(), LOC) == "$${HOME}"
+    assert resolve("costs $$5 and $5", scope(), LOC) == "costs $$5 and $5"
+
+
+@pytest.mark.parametrize("text", ["${HOME}", "\\${HOME}", "${HOME:-/root}", "${a b}"])
+def test_what_is_no_reference_says_how_to_write_it_out(text: str) -> None:
     with pytest.raises(RefError) as caught:
         parse(text, LOC)
-    assert "every reference names the step its value comes from" in str(caught.value)
-    assert f"write `{now}`" in str(caught.value)
+    body = text[text.index("${") + 2 : -1]
+    assert f"For a literal `${{{body}}}`, write `$${{{body}}}`." in str(caught.value)
 
 
 # -- which declared output ------------------------------------------------------

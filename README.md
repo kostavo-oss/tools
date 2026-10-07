@@ -4,6 +4,12 @@
 The bundle and everything around it — the steps before, the steps after — reviewed before
 anything runs, and taken down again when you say so.
 
+[![ci](https://github.com/kostavo-oss/lely/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/lely/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/lely.svg)](https://pypi.org/project/lely/)
+[![Python](https://img.shields.io/pypi/pyversions/lely.svg)](https://pypi.org/project/lely/)
+[![Docs](https://img.shields.io/badge/docs-lely-2a6f97.svg)](https://kostavo-oss.github.io/lely/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/lely/blob/main/LICENSE)
+
 lely replaces the script around `databricks bundle deploy`.
 
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model —
@@ -90,6 +96,38 @@ A step takes a value from another step in one way only: `${steps.<name>.<output>
 options, and only from a step above it. Reading a step's `with:` is enough to know everything
 it depends on.
 
+`bundle` and `command` come with lely. `./ops/steps.py:LatestModel` is a plugin of your own —
+a class in a file in the repo. This one runs as it stands; your lookup goes where the `14` is:
+
+```python
+# ops/steps.py
+from dataclasses import dataclass
+
+from lely.model import Output, StepPlan
+
+
+class LatestModel:
+    """Looks up the version a serving endpoint should get. Changes nothing."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        model: str
+        alias: str = "candidate"
+
+    outputs = (Output("version"),)
+
+    def plan(self, ctx):
+        # a lookup changes nothing, so it belongs here; `ctx.workspace` is the
+        # Databricks SDK's client, for `ctx.options.model` and `.alias`
+        return StepPlan(outputs={"version": 14})
+
+    def apply(self, ctx, plan):
+        return plan.outputs  # nothing to do: what it gives was known at plan
+```
+
+The rest is yours too: a bundle beside `lely.yml` with a variable `model_version` and a job
+`backfill`, and the script `./ops/backfill.sh`.
+
 ```sh
 lely schema -o lely.schema.json  # for your editor: completes and checks `with:` as you type
 lely validate                    # config, options, references — offline; prints the wiring
@@ -174,7 +212,8 @@ runs none of the project's code. `lely apply -o result.json` keeps a record of a
 - **A plan file is held to what it was made for:** the workspace, the project and its steps as
   written, the values each step took, and a clean checkout of the same git tree.
 - **No rollback.** The first failing step stops the run; running it again finishes it.
-- **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again.
+- **Exit codes:** 0 done · 1 something failed · 2 lely refused — plan again — or couldn't
+  make sense of the command line.
 
 ## Plugins
 
@@ -238,9 +277,12 @@ got them built — the Afsluitdijk among them. The one who actually got big plan
 
 ## Where it fits
 
-lely is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks. It is not
-a fourth layer: it carries the layers out together. Terraform sets up the platform, an Asset
-Bundle deploys the code, stevin changes the data model — and lely deploys them as one.
+lely is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks. Kostavo is
+the company behind them: it builds
+[a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
+complete without it. lely is not a fourth layer: it carries the layers out together.
+Terraform sets up the platform, an Asset Bundle deploys the code, stevin changes the data
+model — and lely deploys them as one.
 
 It borrows Terraform's words — plan, apply, destroy — because everyone knows what they promise.
 The job is not the same: lely manages no resource itself and remembers nothing. It owns the

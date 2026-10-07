@@ -1,7 +1,7 @@
 # 002 — plugins
 
 **Status:** built, 2026-10-05, and tested against fakes; the bundle plugin was run on a real
-workspace once — see [As built](#as-built). The markers on
+workspace twice (2026-10-06) — see [As built](#as-built). The markers on
 the requirements below (*built*, *design*, "today …") say where each came from, and describe the
 code as it was before this was built.
 
@@ -39,7 +39,7 @@ What the bundle needs, every plugin can then have.
 - **R6 — Overview.** Say what exists because of this step, one line per thing: its kind, its key
   and its name, always; its id and a link, where the system has them; and whether it is deployed.
   Available right after an apply and on its own, without changing anything.
-  *(owner: "a detailed overview of what it created"; the fields are agreed)*
+  *(asked for by the owner: a detailed overview of what it created; the fields are agreed)*
 - **R7 — Destroy.** Say what `destroy` would remove, and then remove it. *(owner)*
 - **R8 — Show itself.** Optionally, give the UI its own detailed view of a plan. Without one, the
   UI shows the plan's changes. This arrives with the UI, in phase two. → [007](007-ui.md)
@@ -80,8 +80,8 @@ What the bundle needs, every plugin can then have.
 Sometimes a step feeds the bundle: it looks up a model version, and the bundle needs it as a
 variable. Sometimes a step needs something from the bundle: the id of a job it just created.
 Both are the same thing — one step's output is another step's input — and these rules are what
-make it impossible to be vague about which is which. *(owner: "how can we make sure that is
-clearly defined"; the principle is decided, the mechanics below are agreed where marked)*
+make it impossible to be vague about which is which. *(the owner asked how this could be
+made clearly defined; the principle is decided, the mechanics below are agreed where marked)*
 
 - **R14 — Outputs are declared.** A plugin lists what a step of it gives. Each output has a name
   and one of three answers to "when is it known?":
@@ -223,7 +223,7 @@ plan half exists in the code and is left as it is.
 - **One spelling for a reference** (was D4): always `${steps.<name>.<output>}` — R15a.
   *(owner, 2026-10-05)*
 - **The word in the config** (was D1): it stays "step" — `uses:`, `lely steps`, the entry-point
-  group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: go with the proposals)*
+  group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: as proposed)*
 
 ## As built
 
@@ -254,6 +254,17 @@ requirement:
 - **What a step is given (R22)** is also its own name, the workspace's host, the environment
   for a program it runs, and the Databricks CLI with this run's credentials — all "a way to
   reach the workspace", none another step's.
+- **A literal `${…}` is written `$${…}`** (R15a) *(2026-10-07)*. `${` always starts a
+  reference, so a shell's own `${HOME}` in a command could not be written at all. `$${` is
+  the escape, as in Terraform and Compose: it is no reference, and the step is handed `${`.
+  It is read from the left, so in `$$${` the first dollar is only a dollar; a `$$` before
+  anything but `{` is two dollars.
+- **A `${…}` that is no reference says how to write it** (R15a, R18): as a literal, and —
+  when a step above gives an output of that name, which is how a bundle's own file spells
+  `${var.catalog}` — as `${steps.<that step>.var.catalog}`, naming the step. No step is named
+  that isn't there: the message used to say "write `${steps.<bundle step>.…}`" in a project
+  without a bundle. The check reads what the steps above declare, so it knows no plugin by
+  name; `${bundle.target}` gets the plain message, because no step gives a `bundle.target`.
 - **A value from the environment is a `Secret`** (R13): it can go only where a plugin asked for
   one, which is what keeps it out of every plan and every line of output.
 - **The kit (R25)** has `check_plan`, `check_apply`, `check_destroy` and `check_overview`.
@@ -273,6 +284,11 @@ requirement:
   written is written as a string.
 - **What a plugin prints goes to stderr.** stdout is lely's — a plan or a result as JSON, a
   schema — and a `print` left in a plugin would land in the middle of it.
+- **What a program says while a step runs goes through the step's log** (R22), like a line
+  the plugin logs itself: `lely.process.run(…, said=…)` passes on each line as it comes, and
+  `lely.databricks.heard` does it for the Databricks CLI. What a step is given is unchanged —
+  `ctx.databricks.run(args, cwd)` still answers when the program is done — so a stand-in for
+  the CLI that keeps to that is heard when it is done, not while it runs.
 - **Only what a config can set is an option**: a field the `Options` class fills in itself is
   not one. A `Literal` option takes one of its members and of its kind — `true` is not `1`.
 - **A plugin's own view (R8)** is `StepPlan.view`: HTML, as text, made by `plan` (and by

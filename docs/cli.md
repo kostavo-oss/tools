@@ -35,13 +35,31 @@ read.
 | `--github` | `plan` `show` `apply` `destroy` | In a GitHub Actions run, keep the pull request's comment and the run's page current. → [On GitHub](GITHUB.md) |
 | `--open` / `--no-open` | `ui` | Open the page in a browser. |
 
+## `-o` and stdout
+
+`-o` writes a file; what stdout holds besides depends on the command and on `-f`.
+
+| | `-f rich` | `-f md` | `-f json` |
+| --- | --- | --- | --- |
+| `plan -o plan.json` | the plan, then "Wrote plan.json" | the Markdown, and nothing else | nothing: the JSON is what the file holds |
+| `apply -o`, `destroy -o` | the result | the Markdown, and nothing else | the JSON, and nothing else |
+
+The plan file is JSON whatever `-f` says, so `plan -f md -o plan.json` gives a job both: the
+file to apply, and the Markdown to post. With `-f md` and `-f json`, and for a run's record
+with any format, "Wrote …" goes to stderr.
+
 ## Exit codes
 
 | | |
 | --- | --- |
 | **0** | Done. |
 | **1** | Something failed. |
-| **2** | lely refused: nothing more will come of trying again — plan again. |
+| **2** | lely refused: nothing more will come of trying again — plan again. Or the command line is one lely can't make sense of. |
 
 `plan`, `status`, `validate` and `doctor` change nothing, so they have nothing to refuse:
-they end with 0 or 1.
+what goes wrong in them ends with 1.
+
+A command line lely can't make sense of ends with 2 whatever the command — a missing or an
+empty `-t`, an option it doesn't know, `lely apply` with neither a plan file nor `-t` — and
+before the project's config is read or a workspace reached. So 2 from `plan` or `status` is
+always that.

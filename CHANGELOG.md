@@ -6,6 +6,55 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`$${…}` writes a literal `${…}`.** `apply: [sh, -c, 'echo $${HOME}']` hands the shell
+  `${HOME}`; before, there was no way to write one. The error for a `${…}` that is no
+  reference says so, and names a step only when one above gives a value of that name.
+
+### Changed
+
+- **What a step's program says is shown while it runs.** `bundle deploy`, `bundle destroy`,
+  `bundle run` and a `command` step's apply and destroy commands are passed on a line at a
+  time, as they come, on stderr — what they write to stdout and to stderr. Before, a deploy
+  or a long job run was silent until it ended, and a warning from a program that succeeded
+  was never shown.
+- **The source package holds the code, its tests and the files that say what it is.** It
+  also carried the docs site, the specs, the workflows and the lock file, and was five times
+  the wheel's size. The wheel is as it was.
+
+### Removed
+
+- `lely.step.StderrLog` and `lely.planfile.outputs_json`: nothing used them.
+
+### Fixed
+
+- **A program that fails is quoted on both of its streams**, each under its name. One that
+  gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **The README's quickstart can be followed**: it shows the plugin file its config names. A
+  test checks every whole config in the README and the docs the way `lely validate` does.
+- **`lely doctor` looks for git**, as the docs said it did: git missing or refusing the
+  checkout, in a repository, is a failed check — `lely plan` fails there. It compares the
+  Databricks CLI's version with v1.3.0 and says when it is older, and says what bundles
+  need only to a project with a step that runs the CLI.
+- **`lely doctor` doesn't fail for a Databricks CLI no step runs.** In a project of
+  commands a missing CLI is said, and is no failed check.
+- **Why a run's record couldn't be written is shown, not obeyed**: the error's own words
+  went into the line as markup.
+- **`lely doctor` says a plugin that fails in one line**, with the step and the plugin, and
+  checks the rest. A plugin whose `programs` raised ended it in a traceback.
+- **A traceback never shows local values.** With a typer below 0.23, an error lely didn't
+  expect printed every frame's locals, and the frames of `plan` and `apply` hold the run's
+  token and the environment.
+- **`lely apply` with neither a plan file nor `-t` is refused at once**, with 2. It reached
+  the workspace first, so without credentials it failed with 1 instead.
+- **Every `--help` names `[tool.lely]` again.** It read "a pyproject.toml with . Found from
+  here up": the brackets were taken for markup. So did what `lely schema -o` says of a
+  `pyproject.toml`.
+- **lely asks for a typer it works with**: `typer>=0.17.5`, where 0.1.0 said `>=0.12`. With
+  an older one every `--help` could end in a traceback, or a command given no `-t` could run
+  without one. CI now runs the tests on the oldest version of every dependency.
+
 ## [0.1.0] - 2026-10-07
 
 The first release, as alpha: this is what is built.

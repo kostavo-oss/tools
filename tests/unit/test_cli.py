@@ -14,9 +14,11 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import typer
 from typer.testing import CliRunner, Result
 
 import fake_github
@@ -24,6 +26,7 @@ import project
 from fake_github import FakeGitHub
 from fakes import FakeDatabricks
 from lely import cli, planfile
+from lely.errors import LelyError
 from lely.model import Workspace
 
 runner = CliRunner()
@@ -183,6 +186,66 @@ def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> 
     assert "gives  version (at plan)" in text
 
 
+def _commands() -> dict[str, Any]:
+    group: Any = typer.main.get_command(cli.app)
+    return dict(group.commands)
+
+
+@pytest.mark.parametrize("name", sorted(_commands()))
+def test_help_shows_every_bracket_it_was_written_with(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Help is read as Rich markup, where `[tool.lely]` is a style nobody
+    defined: it was dropped, and every `--help` said "a pyproject.toml with .
+    Found from here up". Nor is what stops that shown: a typer that didn't
+    read help as markup (before 0.20.1) showed the backslash."""
+    monkeypatch.setenv("COLUMNS", "200")
+    result = runner.invoke(cli.app, [name, "--help"])
+    assert result.exit_code == 0, result.output
+    shown = " ".join(_ANSI.sub("", result.output).split())
+    command = _commands()[name]
+    written = [command.help or ""]
+    written += [getattr(param, "help", None) or "" for param in command.params]
+    for text in written:
+        for bracket in re.findall(r"\[[^\[\]]*\]", text.replace("\\[", "[")):
+            assert bracket in shown, f"`lely {name} --help` lost {bracket}"
+    assert "\\[" not in shown
+    if any(param.name == "path" for param in command.params):
+        assert "a pyproject.toml with [tool.lely]. Found from here up" in shown
+
+
+def test_what_schema_says_of_a_pyproject_names_its_section(lely: Lely) -> None:
+    """The same bracket, lost the same way: "a `` section in pyproject.toml"."""
+    (lely.root / "lely.yml").unlink()
+    project.write(lely.root, toml=True)
+    result = lely("schema", "-o", "lely.schema.json")
+    assert result.exit_code == 0, said(result)
+    assert (
+        "a `[tool.lely]` section in pyproject.toml has no schema of its own"
+    ) in " ".join(said(result).split())
+
+
+def test_the_commands_help_is_read_for_are_all_of_them() -> None:
+    assert sorted(_commands()) == [
+        "apply",
+        "destroy",
+        "doctor",
+        "plan",
+        "schema",
+        "show",
+        "status",
+        "steps",
+        "ui",
+        "validate",
+    ]
+    with_a_config = [
+        name
+        for name, command in _commands().items()
+        if any(param.name == "path" for param in command.params)
+    ]
+    assert len(with_a_config) == 8  # all but `show` and `ui`: they read a file
+
+
 def test_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
     assert result.output.startswith("lely ")
@@ -294,11 +357,22 @@ def test_at_a_terminal_apply_shows_the_plan_and_asks(ready: Lely) -> None:
     assert "deploy" in ready.fake.verbs
 
 
-def test_apply_without_a_file_needs_a_target(ready: Lely) -> None:
-    """R37."""
+def test_apply_without_a_file_needs_a_target(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R37 — and it is refused before anything is reached: the workspace was
+    asked who is running first, so the refusal waited on a sign-in, and
+    without credentials the command failed with 1 instead."""
+
+    def reached(profile: str | None) -> Workspace:
+        raise AssertionError("the workspace was reached")
+
+    monkeypatch.setattr(cli, "WHOAMI", reached)
+    (ready.root / "lely.yml").write_text("not: [a config")  # not read either
     result = ready("apply", "--yes")
     assert result.exit_code == 2
     assert "Give the target: `lely apply -t <target>`." in said(result)
+    assert ready.fake.calls == []
 
 
 def test_a_destructive_change_is_refused_without_the_flag(ready: Lely) -> None:
@@ -570,6 +644,7 @@ def test_destroy_cant_be_handed_a_plan_to_apply(lely: Lely) -> None:
     result = lely("destroy", "plan.json", "-t", "dev", "--yes")
     assert result.exit_code == 2
     assert "`lely destroy` only destroys" in said(result)
+    assert "Run it with `lely apply plan.json`." in said(result)
 
 
 def test_destroying_what_isnt_deployed_says_so_and_ends_as_done(
@@ -612,7 +687,9 @@ def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> 
     result = lely("doctor")
     assert result.exit_code == 0, said(result)
     text = said(result)
-    assert "the Databricks CLI: Databricks CLI v1.18.0" in text
+    assert "✓ the Databricks CLI: Databricks CLI v1.18.0" in text
+    assert "✓ bundles need the direct engine (GA in CLI v1.3.0): this CLI has it" in text
+    assert "✓ git: git version " in text
     assert "the workspace: https://dbc-example.cloud.databricks.com as jane" in text
     assert "not a workspace admin" in text
     assert "credentials that can read and nothing more" in text
@@ -630,6 +707,141 @@ def test_doctor_fails_when_a_tool_is_missing(
     assert result.exit_code == 1
     assert "`no-such-databricks` isn't on PATH" in said(result)
     assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
+
+
+def test_doctor_doesnt_fail_for_a_cli_no_step_runs(
+    lely: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project of commands needs no Databricks CLI: one that is missing is
+    said, and is no failed check."""
+    project.write(
+        lely.root,
+        "steps:\n  - name: seed\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh]}\n",
+    )
+    monkeypatch.setattr(cli, "DATABRICKS", ("no-such-databricks",))
+    result = lely("doctor")
+    told = " ".join(said(result).split())
+    assert result.exit_code == 0, said(result)
+    assert (
+        "! the Databricks CLI: `no-such-databricks` isn't on PATH. No step here" in told
+    )
+
+
+def test_doctor_compares_the_clis_version_with_the_one_bundles_need(lely: Lely) -> None:
+    """It printed the version and "GA in CLI v1.3.0" side by side, and left
+    the comparing to the reader."""
+    (lely.fake.world / "version").write_text("Databricks CLI v1.2.9\n")
+    older = " ".join(said(lely("doctor")).split())
+    assert "✓ the Databricks CLI: Databricks CLI v1.2.9" in older
+    assert (
+        "! bundles need the direct engine (GA in CLI v1.3.0): this CLI is older"
+    ) in older
+    (lely.fake.world / "version").write_text("Databricks CLI v1.3.0\n")
+    assert "(GA in CLI v1.3.0): this CLI has it" in " ".join(said(lely("doctor")).split())
+    (lely.fake.world / "version").write_text("a build of today\n")
+    unread = " ".join(said(lely("doctor")).split())
+    assert (
+        "! bundles need the direct engine (GA in CLI v1.3.0); lely couldn't read "
+        "this CLI's version"
+    ) in unread
+
+
+def test_doctor_speaks_of_bundles_only_where_a_step_runs_the_cli(
+    lely: Lely, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project of commands was told what bundles need."""
+    project.write(
+        lely.root,
+        "steps:\n  - name: seed\n    uses: command\n"
+        "    with: {apply: [./ops/notify.sh]}\n",
+    )
+    result = lely("doctor")
+    assert result.exit_code == 0, said(result)
+    assert "the Databricks CLI: Databricks CLI v1.18.0" in said(result)
+    assert "bundles need" not in said(result)
+    # with no project at all, nobody knows yet what it will hold
+    monkeypatch.chdir(tmp_path_factory.mktemp("empty"))
+    nowhere_ = said(lely("doctor"))
+    assert "no project checked" in nowhere_
+    assert "bundles need the direct engine" in nowhere_
+
+
+def test_doctor_says_whether_git_is_there_and_can_say_what_a_plan_is_made_on(
+    lely: Lely, git_is_gone: Callable[[], None]
+) -> None:
+    """The docs said `doctor` reports git; it didn't look. Without git, in a
+    repository, `lely plan` fails — and outside one nothing needs it."""
+    git_is_gone()
+    outside = lely("doctor")
+    assert outside.exit_code == 0, said(outside)
+    assert "! git: `git` isn't on PATH. Nothing here needs it" in said(outside)
+    (lely.root / ".git").mkdir()
+    inside = lely("doctor")
+    assert inside.exit_code == 1
+    text = " ".join(said(inside).split())
+    assert "✗ git: This is a git repository, and git couldn't be run" in text
+
+
+def test_doctor_says_when_git_refuses_the_checkout(
+    lely: Lely, git_refuses: Callable[[], None]
+) -> None:
+    """As in many containers: there `lely plan` fails, so `doctor` does."""
+    git_refuses()
+    result = lely("doctor")
+    assert result.exit_code == 1
+    assert "✗ git: " in said(result) and "dubious ownership" in said(result)
+
+
+def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> None:
+    """`programs` is a plugin's own code. One that raised ended `lely doctor`
+    in a traceback; so did one that named something that isn't text."""
+    (lely.root / "ops" / "odd.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from pathlib import Path\n"
+        "class Odd:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options: pass\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        raise RuntimeError('no programs \\x1b[2Ktoday')\n"
+        "    def plan(self, ctx): pass\n    def apply(self, ctx, plan): pass\n"
+        "class NoText(Odd):\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        return (Path('ops/notify.sh'),)\n"
+        "class Ends(Odd):\n"
+        "    @staticmethod\n"
+        "    def programs(written):\n"
+        "        raise SystemExit(3)\n"
+    )
+    project.write(
+        lely.root,
+        "steps:\n  - name: a\n    uses: ./ops/odd.py:Odd\n"
+        "  - name: b\n    uses: ./ops/odd.py:NoText\n"
+        "  - name: c\n    uses: ./ops/odd.py:Ends\n"
+        "  - name: seed\n    uses: command\n    with: {apply: [./ops/notify.sh]}\n",
+    )
+    result = lely("doctor")
+    assert result.exit_code == 1
+    text = " ".join(said(result).split())
+    assert (
+        "✗ step `a` (./ops/odd.py:Odd): its `programs` failed: RuntimeError: "
+        "no programs �[2Ktoday"
+    ) in text
+    assert "✗ step `b` (./ops/odd.py:NoText): its `programs` failed: " in text
+    assert "names a program as PosixPath, not as text" in text
+    assert "✗ step `c` (./ops/odd.py:Ends): its `programs` failed: " in text
+    assert "ended the program" in text
+    assert "✓ step `seed` runs `./ops/notify.sh`" in text  # the rest is still checked
+    assert "Traceback" not in text
+
+
+def test_an_error_lely_didnt_expect_shows_no_frames_locals() -> None:
+    """typer prints a traceback for one, and below 0.23 every frame's local
+    values with it — and the frames of `plan` and `apply` hold the run's token
+    and the whole environment."""
+    assert cli.app.pretty_exceptions_show_locals is False
 
 
 # -- found in review ---------------------------------------------------------------
@@ -1004,6 +1216,56 @@ def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:
         "host": project.WORKSPACE.host,
         "identity": project.WORKSPACE.identity,
     }
+
+
+def test_what_a_program_says_while_a_step_runs_is_shown_never_obeyed(
+    ready: Lely,
+) -> None:
+    """A warning the Databricks CLI or a step's command writes on stderr while
+    it succeeds was never shown. It is a line of the step's progress now — on
+    lely's stderr, so stdout still holds the result and nothing else — and
+    what it holds for a terminal to obey is made visible."""
+    (ready.fake.world / "warn-deploy").write_text(
+        "Warning: jobs.bar has no owner\n\x1b[2Kgone\n"
+    )
+    (ready.fake.world / "warn-run").write_text("Run URL: https://x/run/1\n")
+    (ready.root / "ops" / "notify.sh").write_text(
+        "#!/bin/sh\necho 'WARNING: 3 rows were rejected' >&2\n"
+    )
+    result = ready("apply", "-t", "dev", "--yes", "-f", "json")
+    assert result.exit_code == 0, said(result)
+    assert json.loads(result.stdout)["outcome"] == "done"
+    progress = _ANSI.sub("", result.stderr)
+    for line in (
+        "… app: Deployment complete!",
+        "… app: Warning: jobs.bar has no owner",
+        "… app: �[2Kgone",
+        "… notify: WARNING: 3 rows were rejected",
+        "… backfill: Run of jobs.backfill finished: SUCCESS",
+        "… backfill: Run URL: https://x/run/1",
+    ):
+        assert line in progress
+    assert "\x1b[2K" not in result.stderr
+
+
+def test_what_o_leaves_on_stdout_is_what_the_docs_say(ready: Lely) -> None:
+    """`docs/cli.md`, "`-o` and stdout". A plan file is JSON whatever `-f`
+    says: with `-f json` the file is all there is to print, and with `-f md`
+    stdout has the Markdown beside it — each on purpose, and now said."""
+    rich = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert "lely plan · target dev" in rich.stdout and "Wrote plan.json" in rich.stdout
+    as_json = ready("plan", "-t", "dev", "-o", "plan.json", "-f", "json")
+    assert (as_json.stdout, "Wrote plan.json" in as_json.stderr) == ("", True)
+    as_md = ready("plan", "-t", "dev", "-o", "plan.json", "-f", "md")
+    assert as_md.stdout.startswith("<!-- lely:plan:dev -->")
+    assert "Wrote" not in as_md.stdout and "Wrote plan.json" in as_md.stderr
+    # a run's record changes nothing about stdout, in any format
+    shown = {(): "lely apply", ("-f", "md"): "### lely apply", ("-f", "json"): "{"}
+    for extra, starts in shown.items():
+        ran = ready("apply", "-t", "dev", "--yes", "-o", "result.json", *extra)
+        assert ran.exit_code == 0, said(ran)
+        assert _ANSI.sub("", ran.stdout).lstrip().startswith(starts)
+        assert "Wrote" not in ran.stdout and "Wrote result.json" in ran.stderr
 
 
 def test_escape_sequences_in_a_plan_file_dont_reach_the_terminal(ready: Lely) -> None:
@@ -1439,6 +1701,22 @@ def test_a_run_that_never_started_leaves_a_record_of_that(ready: Lely) -> None:
     assert "Pass --yes to run without asking." in page
 
 
+def test_why_a_record_cant_be_written_is_shown_and_never_obeyed(
+    ready: Lely, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The error's own words went into the line as they were: markup in them
+    was markup, and an escape was an escape."""
+
+    def refuses(*_: object, **__: object) -> None:
+        raise ValueError("[bold red]not markup[/] \x1b[2Jnor a command")
+
+    monkeypatch.setattr(cli, "_write", refuses)
+    applied = ready("apply", "-t", "dev", "--yes", "-o", "result.json")
+    assert applied.exit_code == 0
+    assert "[bold red]not markup[/]" in applied.stderr
+    assert "\x1b[2J" not in applied.stderr
+
+
 def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely) -> None:
     applied = ready("apply", "-t", "dev", "--yes", "-o", "no/such/folder/result.json")
     assert applied.exit_code == 0
@@ -1601,11 +1879,16 @@ def test_with_github_no_line_lely_says_holds_the_token(
     token and succeeds put it in lely's own progress lines; a plan command
     that fails with it put it in the error."""
     leaking(ready, apply="apply", destroy="destroy")
+    # the Databricks CLI can print it too, while it deploys
+    (ready.fake.world / "warn-deploy").write_text(f"auth: {fake_github.TOKEN}\n")
     applied = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)
     assert applied.exit_code == 0
     destroyed = ready("destroy", "-t", "dev", "--yes", "--github", *extra)
     assert destroyed.exit_code == 0
     nowhere(ready, hub, applied, destroyed)
+    # what each program wrote was passed on, on both streams: hidden, not dropped
+    for line in ("seed: signed in with ***", "seed: and on stderr ***", "app: auth: ***"):
+        assert f"… {line}" in _ANSI.sub("", applied.stderr)
 
     leaking(ready, apply="apply-fails")
     failed = ready("apply", "-t", "dev", "--yes", "--github", "-o", "r.json", *extra)
@@ -1768,3 +2051,99 @@ def test_a_file_made_again_is_for_the_same_group_or_for_nobody_else(
     plan.chmod(0o4755)
     cli._write(plan, "newest")
     assert plan.stat().st_mode & 0o7777 == 0o755
+
+
+# -- the SDK edge ------------------------------------------------------------------------
+#
+# Every test above puts a fake where lely asks the workspace who is running.
+# These hold the three functions themselves, with a client that stands in for
+# `databricks.sdk.WorkspaceClient` and answers in the SDK's own classes — so
+# the names lely reads off them are the SDK's, on whichever version is
+# installed, and nothing reaches a network.
+
+
+class Client:
+    """What lely asks of a `WorkspaceClient`: who is running, and where."""
+
+    made: list[str | None] = []
+    groups: tuple[str, ...] | None = ("users",)
+    host: str | None = project.WORKSPACE.host
+    fails: Exception | None = None
+
+    def __init__(self, *, profile: str | None = None) -> None:
+        type(self).made.append(profile)
+        if self.fails is not None:
+            raise self.fails
+        self.config = SimpleNamespace(host=self.host)
+        self.current_user = self
+
+    def me(self) -> Any:
+        from databricks.sdk.service import iam
+
+        listed = self.groups
+        return iam.User(
+            user_name=project.WORKSPACE.identity,
+            groups=None
+            if listed is None
+            else [iam.ComplexValue(display=name) for name in listed],
+        )
+
+
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> type[Client]:
+    class Here(Client):
+        made: list[str | None] = []
+
+    monkeypatch.setattr("databricks.sdk.WorkspaceClient", Here)
+    return Here
+
+
+def test_who_is_running_is_asked_of_the_sdk_with_the_profile(
+    client: type[Client],
+) -> None:
+    """005/R35: the host and the identity, from the profile that was named."""
+    assert cli._whoami("dev") == project.WORKSPACE
+    assert cli._whoami(None) == project.WORKSPACE
+    assert client.made == ["dev", None]
+    client.host = None  # nothing the SDK is sure of: said, not guessed
+    assert cli._whoami(None).host == "?"
+
+
+def test_a_workspace_that_cant_be_reached_is_said_with_what_to_do(
+    client: type[Client],
+) -> None:
+    client.fails = ValueError("default auth: cannot configure default credentials")
+    with pytest.raises(LelyError) as caught:
+        cli._whoami(None)
+    assert str(caught.value) == (
+        "Can't reach a workspace: default auth: cannot configure default credentials\n"
+        "Pass --profile, or set the variables the Databricks CLI reads. `lely doctor` "
+        "shows what lely sees."
+    )
+
+
+def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -> None:
+    connected = cli._connect("dev")
+    assert isinstance(connected, client)
+    assert client.made == ["dev"]
+
+
+@pytest.mark.parametrize(
+    ("groups", "said_"),
+    [
+        (("users", "admins"), "a workspace admin: these credentials can change anything"),
+        (("users", "data-admins"), "not a workspace admin; lely can't tell what else"),
+        ((), "not a workspace admin"),
+        (None, "not a workspace admin"),
+    ],
+)
+def test_a_member_of_admins_is_a_workspace_admin(
+    client: type[Client], groups: tuple[str, ...] | None, said_: str
+) -> None:
+    """002/R13a. `admins` is the system group of a workspace's administrators:
+    https://docs.databricks.com/aws/en/admin/users-groups/groups — and the one
+    thing about what credentials may do that lely reads off. Assumed, not
+    seen: that the SDK's `current_user.me()` lists it under that name."""
+    client.groups = groups
+    assert cli._powers("dev").startswith(said_)
+    assert client.made == ["dev"]

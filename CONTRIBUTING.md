@@ -10,7 +10,8 @@ code disagrees with either, that is a bug in one of them — please say which.
 
 Every change is a pull request against `main`, merged by a maintainer once its checks pass.
 
-- **`ci`** — lint, format, types, and the tests on Python 3.11–3.13. Required.
+- **`ci`** — lint, format, types, and the tests on Python 3.11–3.14; and once more on 3.11
+  with every dependency at the oldest version `pyproject.toml` allows. Required.
 - Small commits with [conventional](https://www.conventionalcommits.org) messages. New
   behaviour comes with a test; a fix comes with the test that would have caught it.
 - A change to what lely shows, asks or refuses updates the spec's "As built" and, where a
@@ -58,9 +59,11 @@ been seen — a `TODO(verify)`.
 
 `CLAUDE.md` lists them. The ones a contributor trips over first:
 
-- The core is pure. I/O lives at the edges: the plugins, the Databricks CLI runner, `git`,
-  GitHub, the command line.
-- No module outside `src/lely/steps/` knows a plugin by name — the bundle included.
+- The core does no I/O of its own. I/O lives at the edges: reading the config file, loading
+  a plugin, the plugins themselves, the Databricks CLI runner, `git`, GitHub, the command
+  line.
+- No module outside `src/lely/steps/` imports a plugin or asks which plugin a step uses — the
+  bundle included.
 - Nothing that changes a workspace runs unasked, and nothing destructive without
   `--allow-destructive`.
 - Nothing a plan says is obeyed where it is shown — a terminal, Markdown, the page.

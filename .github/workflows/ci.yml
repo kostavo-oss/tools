@@ -10,6 +10,10 @@ jobs:
   # Kostavo tool, kept in one place.
   python:
     uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
+    with:
+      # every Python pyproject.toml's classifiers name, said here so that the
+      # claim and the gate are read side by side
+      python-versions: '["3.11", "3.12", "3.13", "3.14"]'
 
   # `mise run check` also runs ty, which the shared gate doesn't: so here it is,
   # and the gate in CI is the gate at a desk.
@@ -23,3 +27,16 @@ jobs:
       - run: uv sync
       - name: Type check (ty)
         run: uv run ty check
+
+  # A floor in pyproject.toml is a promise: here every direct dependency is at
+  # its oldest, on the oldest Python, and the unit tests still pass.
+  lowest:
+    name: test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - name: Tests (pytest)
+        run: uv run --resolution lowest-direct --python 3.11 pytest tests/unit

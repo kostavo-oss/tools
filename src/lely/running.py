@@ -34,6 +34,7 @@ from lely.model import (
     Outcome,
     Overview,
     Plan,
+    PlanKind,
     PlannedStep,
     Result,
     RunOutcome,
@@ -74,11 +75,7 @@ def apply(
     `at_waiting` is `None` for a plan that was reviewed as a file: it stops at
     a waiting step. Raises `Refused` when nothing may start at all.
     """
-    if approved.kind != "apply":
-        raise Refused(
-            "This is a plan to destroy, and `lely apply` only applies. Run it with "
-            f"`lely destroy <file> -t {approved.target}`."
-        )
+    check_kind(approved, "apply")
     target = approved.target
     check_from(config, target, from_step)
     check_applies(config, target)
@@ -181,11 +178,7 @@ def destroy(
     from_step: str | None = None,
 ) -> Result:
     """Run `approved`, a plan to destroy: from the bottom of the list up."""
-    if approved.kind != "destroy":
-        raise Refused(
-            "This is a plan to apply, and `lely destroy` only destroys. Run it with "
-            "`lely apply <file>`."
-        )
+    check_kind(approved, "destroy")
     target = approved.target
     planning.runs_for(config, target)
     check_from(config, target, from_step)
@@ -300,6 +293,24 @@ def status(
 
 
 # -----------------------------------------------------------------------------
+
+
+def check_kind(approved: Plan, kind: PlanKind, file: str = "<file>") -> None:
+    """Refuse a plan of the other kind, and name the command that takes it: a
+    file can't smuggle a destroy into `apply`. `file` is the plan's, where the
+    caller has one — the command line asks this before it shows or asks
+    anything, and `apply` and `destroy` ask it again before anything runs."""
+    if approved.kind == kind:
+        return
+    if kind == "apply":
+        raise Refused(
+            "This is a plan to destroy, and `lely apply` only applies. Run it with "
+            f"`lely destroy {file} -t {approved.target}`."
+        )
+    raise Refused(
+        "This is a plan to apply, and `lely destroy` only destroys. Run it with "
+        f"`lely apply {file}`."
+    )
 
 
 def check_applies(config: Config, target: str) -> None:

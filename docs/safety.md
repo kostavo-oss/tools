@@ -57,3 +57,6 @@ A plugin in the repo, and a `command` step's plan command, run when a plan is ma
 - **Whether credentials are read-only.** `lely doctor` says what it can see: which workspace,
   as whom, and whether that is a workspace admin.
 - **What a `command` step's commands really do.** The plan shows the command line.
+- **What a step's program prints.** A deploy, a job run and a step's command are passed on
+  while they run. lely hides the run's GitHub token in what they print and knows no other
+  secret there: a command that prints a secret it was given prints it to the log.

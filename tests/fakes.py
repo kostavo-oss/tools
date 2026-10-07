@@ -1,4 +1,4 @@
-"""Fakes for the edges: the Databricks CLI, in process.
+"""Fakes for the edges: the Databricks CLI, in process, and a step's log.
 
 `FakeDatabricks` is `fake_databricks.py` called as a function: the same
 answers the program gives, without a process per call. Its world is a folder,
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +98,16 @@ class FakeDatabricks:
 
     def clear_calls(self) -> None:
         (self.world / "calls.jsonl").unlink(missing_ok=True)
+
+
+@dataclass
+class Heard:
+    """A step's log, kept, so a test can read what was passed on."""
+
+    lines: list[str] = field(default_factory=list)
+
+    def info(self, message: str) -> None:
+        self.lines.append(message)
 
 
 def write_bundle(folder: Path, bundle: Mapping[str, Any]) -> None:

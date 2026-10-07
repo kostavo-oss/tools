@@ -1,12 +1,13 @@
 # 000 — what lely is
 
-**Status:** agreed, 2026-10-05; phase one is built, and was run on a real workspace once. The direction is the
+**Status:** agreed, 2026-10-05; phases one and two are built, and lely has run on a real
+workspace twice and once through the three GitHub workflows (2026-10-06). The direction is the
 owner's. Two questions about what comes *after* phase one are still open, under
 [To decide](#to-decide).
 
 Requirements are marked *(owner)* where they come from that direction, *(design)* where
 `docs/DESIGN.md` already says them, and *(agreed)* where the spec's author proposed them and the
-owner accepted them with "go with the proposals".
+owner accepted them, as a whole, on 2026-10-05.
 
 ## In one line
 
@@ -137,8 +138,8 @@ No longer excluded: `bundle destroy` and teardown.
 ## Phases
 
 1. **The Asset Bundle, as a plugin, with steps around it** — built as one piece, and called
-   usable only when all of it is there. *(owner: "start with asset bundles"; and, 2026-10-05,
-   "all of phase one, then use it")* The order it is built in, each on the one before:
+   usable only when all of it is there. *(decided by the owner: asset bundles come first; and,
+   2026-10-05, all of phase one is built before it is used)* The order it is built in, each on the one before:
    1. the contract, and the bundle moved out of the core with every test still passing —
       [002](002-plugins.md)
    2. the config as one list — [003](003-config.md)

@@ -1,7 +1,7 @@
 """The Databricks CLI, run with this run's credentials.
 
 `DatabricksCli` is the edge: a subprocess. What a plugin asks it for is the
-plugin's business — the bundle plugin asks for `bundle validate`, `plan` and
+plugin's business — the bundle plugin asks for `bundle summary`, `plan` and
 the rest — so nothing here knows a verb. Tests put a fake in its place.
 
 The workspace comes from `--profile` or from the variables the CLI and the SDK
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from lely.errors import LelyError
 from lely.model import Json
-from lely.process import failure, run
+from lely.process import Said, failure, run
 from lely.step import Cli
 
 INSTALL = (
@@ -36,20 +36,41 @@ class DatabricksCli:
     profile: str | None = None
     env: Mapping[str, str] | None = None
 
-    def run(self, args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    def run(
+        self, args: Sequence[str], cwd: Path, *, said: Said | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """`said` is given each line the CLI writes, as it comes (`heard`)."""
         command = [*self.executable, *args]
         if self.profile is not None:
             # before a `--`: what follows one is the job's, not the CLI's
             at = command.index("--") if "--" in command else len(command)
             command[at:at] = ["--profile", self.profile]
-        return run(command, cwd, env=self.env, hint=INSTALL)
+        return run(command, cwd, env=self.env, hint=INSTALL, said=said)
+
+
+def heard(
+    cli: Cli, args: Sequence[str], cwd: Path, said: Said
+) -> subprocess.CompletedProcess[str]:
+    """Run `databricks <args>` and pass on what it writes, a line at a time.
+
+    For a call that changes a workspace and takes its time — a deploy, a
+    destroy, a job run. The CLI itself is heard while it runs. Whatever else
+    stands in for it is run as the contract has it (`Cli.run(args, cwd)`, which
+    answers when the program is done) and is heard then.
+    """
+    if isinstance(cli, DatabricksCli):
+        return cli.run(args, cwd, said=said)
+    result = cli.run(args, cwd)
+    for line in (*result.stdout.splitlines(), *result.stderr.splitlines()):
+        said(line)
+    return result
 
 
 def answer(cli: Cli, args: Sequence[str], cwd: Path) -> dict[str, Json]:
     """What `databricks <args> --output json` prints, as a JSON object.
 
-    The exit code decides success, not the output: a failed `bundle validate`
-    still prints JSON.
+    The exit code decides success, not the output: the CLI can fail and still
+    print JSON — a failed `bundle validate` does, in its own recordings.
     """
     what = f"`databricks {' '.join(args[:2])}`"
     result = cli.run([*args, "--output", "json"], cwd)

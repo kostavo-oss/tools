@@ -51,6 +51,7 @@ from lely.model import (
 #: Bumped when the shape changes in a way a reader has to know about.
 #: 2: one list of steps, the bundle among them; the workspace; the git tree.
 #: 3: which project of the repository; read strictly.
+#: 4: a step's plan may carry its plugin's own view.
 FORMAT_VERSION = 4
 
 _SECRET = "$secret"
@@ -714,8 +715,3 @@ def _optional_str(doc: Mapping[str, Json], key: str, where: str) -> str | None:
     if value is not None and not isinstance(value, str):
         raise PlanFileError(f"{where}: `{key}` must be a string or null")
     return value
-
-
-def outputs_json(outputs: Outputs) -> dict[str, Json]:
-    """Outputs as they are shown: secrets as `***`."""
-    return {k: ("***" if isinstance(v, Secret) else v) for k, v in outputs.items()}
