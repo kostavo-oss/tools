@@ -53,8 +53,8 @@ goes straight there. Otherwise the page asks:
 
 1. **A bundle** — the workspace of a `databricks.yml` in the current folder, picked for you.
 2. **`~/.databrickscfg`** — every profile.
-3. **An address** — sign in through the browser, as `databricks auth login` does. No
-   token; keep it as a profile if you want to come back by name.
+3. **An address** — sign in through the browser. No token to paste; keep it as a profile
+   if you want to come back by name.
 
 ```sh
 caland prod               # straight to a workspace by name
@@ -105,8 +105,10 @@ Everything has a key, and everything can be clicked. `?` on the page lists them 
 - **Nothing is deleted without a `y`**, and `--read-only` changes nothing in the workspace.
   On your own machine it may still write what it always may: your two preferences, and a
   profile if you sign in to an address and ask to keep it.
-- **No credentials of its own.** It signs in the way the Databricks CLI does. A profile it
-  saves holds an address and how to sign in, never a token.
+- **No credentials of its own.** Caland stores no token. It signs in through the Databricks
+  SDK, which keeps a browser sign-in in its own folder
+  (`~/.config/databricks-sdk-py/oauth/`). A profile Caland saves holds an address and how
+  to sign in, never a token.
 
 More, and what it cannot defend against, in
 [the docs](https://kostavo-oss.github.io/caland/page/#how-it-is-kept-yours).

@@ -23,7 +23,7 @@ meant.
   or the only target, or the top-level `workspace.host`. A host that still holds a `${…}`
   variable is not a host, and is passed over. *(built, 0.2.0)*
 - **R3 — Sign in with a URL, in the browser.** *Add by URL* signs in through the browser
-  (OAuth, as `databricks auth login` does). No token is asked for. *(built, 0.2.0)*
+  (OAuth, done by the Databricks SDK). No token is asked for. *(built, 0.2.0)*
 - **R4 — Keep a sign-in as a profile.** Ticking *save as profile* writes the host and
   `auth_type = external-browser` to `~/.databrickscfg`, and nothing else. *(built, 0.2.0)*
 - **R5 — The picker opens with nothing to show.** With no bundle and no profiles it is empty
@@ -58,7 +58,9 @@ meant.
 - **Finding workspaces through an account** — a cloud and an account id. It was built and
   removed: a round-trip of its own for little gain.
 - **Tokens.** caland never asks for one and never stores one; a profile that holds one is
-  the Databricks SDK's to read.
+  the Databricks SDK's to read. A sign-in through the browser is kept by the SDK, in its
+  own folder (`~/.config/databricks-sdk-py/oauth/`), not by caland. A profile caland keeps
+  (R4) is one the SDK for Python reads; it is not what `databricks auth login` writes.
 
 ## To decide
 

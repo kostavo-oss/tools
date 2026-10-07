@@ -94,7 +94,8 @@ class DatabricksCfgProfileStore:
 
     def add(self, name: str, host: str) -> None:
         """Keep an address under a new name: the address and that signing in is
-        through the browser, as `databricks auth login` writes it. No secret.
+        through the browser, as the Databricks SDK for Python reads it — which
+        is not what `databricks auth login` writes. No secret.
 
         Raises `Exists` when the file has a profile of that name, whatever its
         case and whether it has an address or not — and nothing is written."""

@@ -6,10 +6,14 @@
   Databricks SDK (`get_secret`) and held only in memory for the current session.
 - **Reveal is lazy.** Values are fetched only when you explicitly reveal or copy
   one — they are not bulk-pulled during the startup cache warm.
-- **Saved profiles store no secrets.** When you save a connection, Caland
-  writes only a `host` and `auth_type = external-browser` to `~/.databrickscfg`
-  (the same thing `databricks auth login` does). Authentication is delegated to
-  the Databricks SDK's unified auth / OAuth token cache.
+- **Caland stores no token.** Signing in through the browser is the Databricks
+  SDK's work, and the SDK keeps that sign-in — a token it can renew — in a
+  folder of its own, `~/.config/databricks-sdk-py/oauth/`. Deleting what is in
+  that folder signs you out.
+- **A profile Caland keeps holds no secret**: only a `host` and
+  `auth_type = external-browser`, in `~/.databrickscfg`. It is a profile for
+  tools built on the Databricks SDK for Python; it is not what
+  `databricks auth login` writes.
 - **The SDK boundary is isolated.** Only the `infrastructure/` layer touches the
   Databricks SDK or the network.
 

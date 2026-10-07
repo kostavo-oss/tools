@@ -22,9 +22,15 @@ as firm as what it does.
   machine: there Caland may still write your two preferences
   (`~/.config/caland/settings.json`), and a profile in `~/.databrickscfg` if you sign in
   to an address and ask to keep it.
-- **No credentials of its own.** Caland signs in the way the Databricks CLI does and stores
-  no token. A profile it keeps holds an address and that you sign in through the browser —
-  and it never writes over a profile that is there.
+- **No credentials of its own.** Caland asks for no token and stores none. Signing in
+  through the browser is the Databricks SDK's work, and the SDK keeps that sign-in — a
+  token it can renew, so that you are not asked every time — in a folder of its own:
+  `~/.config/databricks-sdk-py/oauth/`. Stopping Caland does not remove it; deleting what
+  is in that folder signs you out.
+- **A profile Caland keeps holds an address and that you sign in through the browser**
+  (`auth_type = external-browser`), and no token. It is a profile for tools built on the
+  Databricks SDK for Python, as Caland is; it is not what `databricks auth login` writes.
+  Caland never writes over a profile that is there.
 - **`~/.databrickscfg` is written whole or not at all.** A new file is yours alone; one
   that is there keeps who may read it — that is yours to say, not Caland's. Where it is a
   link, the file it points to is written and the link stays.

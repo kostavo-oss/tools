@@ -8,7 +8,7 @@ folder, or your only profile. Otherwise the page asks.
 
 Every row says where it was found. ++up++ ++down++ or ++j++ ++k++ pick, ++enter++ goes
 there. A profile connects at once; a bundle's workspace, or an address, signs you in through
-the browser, as `databricks auth login` does. No token is asked for.
+the browser. No token is asked for.
 
 To go straight to one, name it:
 
@@ -70,9 +70,14 @@ Type a workspace's address into the field under the list and press ++enter++: yo
 signed in through the browser. An address is `https`, a host, and nothing after it.
 
 Tick *keep it as a profile* and give it a name to come back to it by. What is written to
-`~/.databrickscfg` is the address and that you sign in through the browser — no token. The
+`~/.databrickscfg` is the address and that you sign in through the browser
+(`auth_type = external-browser`) — no token. That is a profile for tools built on the
+Databricks SDK for Python, as Caland is; it is not what `databricks auth login` writes. The
 name has to be a new one: a profile that is there keeps its own way of signing in, and
 Caland will not point it at another address.
+
+The sign-in itself is kept by the Databricks SDK, not by Caland, so that you are not asked
+every time: in `~/.config/databricks-sdk-py/oauth/`. [Security](security.md) says more.
 
 ### With no profile: `DATABRICKS_HOST`
 
