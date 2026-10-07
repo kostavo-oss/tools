@@ -32,6 +32,6 @@ plan as they are in your repository.
 Please report security issues **privately**:
 
 - Open a [GitHub Security Advisory](https://github.com/kostavo-oss/stevin/security/advisories/new), or
-- email **misja@prorexconsultancy.nl**.
+- email **info@kostavo.com**.
 
 Do not open a public issue for security reports.
