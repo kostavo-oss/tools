@@ -20,6 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or a long job run was silent until it ended, and a warning from a program that succeeded
   was never shown.
 
+### Removed
+
+- `lely.step.StderrLog` and `lely.planfile.outputs_json`: nothing used them.
+
 ### Fixed
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that

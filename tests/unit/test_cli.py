@@ -644,6 +644,7 @@ def test_destroy_cant_be_handed_a_plan_to_apply(lely: Lely) -> None:
     result = lely("destroy", "plan.json", "-t", "dev", "--yes")
     assert result.exit_code == 2
     assert "`lely destroy` only destroys" in said(result)
+    assert "Run it with `lely apply plan.json`." in said(result)
 
 
 def test_destroying_what_isnt_deployed_says_so_and_ends_as_done(

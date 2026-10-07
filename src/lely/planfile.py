@@ -714,8 +714,3 @@ def _optional_str(doc: Mapping[str, Json], key: str, where: str) -> str | None:
     if value is not None and not isinstance(value, str):
         raise PlanFileError(f"{where}: `{key}` must be a string or null")
     return value
-
-
-def outputs_json(outputs: Outputs) -> dict[str, Json]:
-    """Outputs as they are shown: secrets as `***`."""
-    return {k: ("***" if isinstance(v, Secret) else v) for k, v in outputs.items()}

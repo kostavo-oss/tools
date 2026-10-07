@@ -526,8 +526,9 @@ def test_a_failing_destroy_stops_and_leaves_the_rest(tmp_path: Path) -> None:
 
 def test_destroy_refuses_a_plan_to_apply(tmp_path: Path) -> None:
     p = Project(tmp_path, READY)
-    with pytest.raises(Refused, match="`lely destroy` only destroys"):
+    with pytest.raises(Refused, match="`lely destroy` only destroys") as caught:
         p.destroy(p.plan("apply"))
+    assert "Run it with `lely apply <file>`." in str(caught.value)
 
 
 # -- status ------------------------------------------------------------------------

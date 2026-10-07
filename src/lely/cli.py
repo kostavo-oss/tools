@@ -1104,11 +1104,7 @@ def apply(
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
             known.target = approved.target
-            if approved.kind != "apply":
-                raise Refused(
-                    "This is a plan to destroy, and `lely apply` only applies. Run it "
-                    f"with `lely destroy {plan_file} -t {approved.target}`."
-                )
+            running.check_kind(approved, "apply", str(plan_file))
             if target is not None and target != approved.target:
                 raise Refused(
                     f"The plan was made for target `{approved.target}`, and the "
@@ -1174,11 +1170,7 @@ def destroy(
         running.check_from(run.config, target, from_step)
         if plan_file is not None:
             approved = _read_plan(plan_file, to_run=True)
-            if approved.kind != "destroy":
-                raise Refused(
-                    "This is a plan to apply, and `lely destroy` only destroys. Run "
-                    f"it with `lely apply {plan_file}`."
-                )
+            running.check_kind(approved, "destroy", str(plan_file))
             if target != approved.target:
                 raise Refused(
                     f"The plan was made for target `{approved.target}`, and the "
