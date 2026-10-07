@@ -78,4 +78,4 @@ notices the new version on `main`, runs the gate, publishes to PyPI with Trusted
 no token — and makes the GitHub release and its tag. A change to `pyproject.toml` that isn't a
 new version releases nothing.
 
-The first release was 0.1.0, on 2026-10-07.
+The first release was 0.1.0, on 2026-10-07; `CHANGELOG.md` has every one since.

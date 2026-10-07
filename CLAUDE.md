@@ -74,7 +74,7 @@ code of `tail`.
 
 ## Status
 
-**Phases one and two are built, and 0.1.0 is released (2026-10-07, on PyPI).** lely was run
+**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07).** lely was run
 on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
 `validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
 `bundle`, `command` and `bundle.run` plugins and plugins from a repo file; the config in
