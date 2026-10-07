@@ -16,6 +16,7 @@ from helpers import col, table
 from stevin import cli
 from stevin.connect import Connection
 from stevin.history import MemoryHistory
+from stevin.introspect import IntrospectionError
 from stevin.model.table import Grant
 
 runner = CliRunner()
@@ -59,6 +60,43 @@ def test_import_plan_apply_from_nothing(workspace: FakeWarehouse, tmp_path: Path
     applied = runner.invoke(cli.app, ["apply", "--yes"])
     assert applied.exit_code == 0, applied.output
     assert "No changes." in runner.invoke(cli.app, ["plan"]).output
+
+
+class NoSuchCatalog:
+    """A warehouse that refuses the first read, the way a real one does for a
+    catalog that isn't there."""
+
+    def query(self, statement: str) -> tuple[dict[str, str | None], ...]:
+        raise IntrospectionError(
+            f"[NO_SUCH_CATALOG_EXCEPTION] Catalog 'mian'\n  {statement}"
+        )
+
+
+def test_a_first_import_that_cannot_read_leaves_nothing_behind(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The bug: `stevin.yml` was written before the schema was read. A typo in
+    the catalog left a project file for a catalog that isn't there — and the
+    next `import`, finding a project, no longer behaved like a first one."""
+    monkeypatch.setattr(
+        cli, "_connect", lambda *_a, **_k: Connection(runner=NoSuchCatalog())
+    )
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["import", "mian.crm"])
+    assert result.exit_code == 1, result.output
+    assert "NO_SUCH_CATALOG_EXCEPTION" in result.output
+    assert "+ stevin.yml" not in result.output
+    assert list(tmp_path.iterdir()) == [], "no project file, no specs directory"
+
+
+def test_the_project_file_is_written_once_the_schema_is_read(
+    workspace: FakeWarehouse, tmp_path: Path
+) -> None:
+    imported = runner.invoke(cli.app, ["import", "main.crm"])
+    assert imported.exit_code == 0, imported.output
+    lines = [line for line in imported.output.splitlines() if line.startswith("+")]
+    assert lines[0].startswith("+ stevin.yml"), "still the first thing it says it wrote"
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["stevin.yml", "tables"]
 
 
 def test_an_existing_project_is_left_as_it_is(

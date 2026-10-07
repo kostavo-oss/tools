@@ -57,7 +57,7 @@ schemas:                               # per-schema overrides of the target's mo
 A schema that doesn't exist yet is created — once, just before the first table or view
 that needs it — so a fresh target plans from nothing. stevin creates schemas but never
 catalogs, and never drops a schema. A schema an
-[Asset Bundle declares](#the-catalogs-schemas-and-volumes-a-bundle-declares) is the
+[Asset Bundle declares](bundles.md#what-stevin-wont-touch) is the
 bundle's: stevin leaves that one alone too.
 
 `history_schema` and the `schemas:` keys may use the target's variables, like a spec
@@ -410,6 +410,14 @@ plain columns only: no structs, arrays or maps. An empty CSV cell is `NULL`.
     A seed loads at most 1000 rows, because it becomes a `VALUES` list in one
     statement. Past that it belongs in a pipeline — `COPY INTO` from a volume — with
     stevin keeping the table's shape.
+
+!!! warning "Not yet run on a workspace"
+    The statement a seed loads with — `INSERT OVERWRITE … (columns) VALUES …` — is the
+    documented grammar, and stevin's offline suite applies it to a fake warehouse. No
+    Databricks workspace has taken one from stevin yet. Before you rely on a seed, run
+    [`stevin verify`](cli.md#verify) in your workspace: the probe *a seed's INSERT
+    OVERWRITE with a column list is accepted* settles it there.
+    [What is and isn't verified](testing.md#what-the-live-suite-has-not-settled).
 
 Taking a seed out of a spec doesn't empty the table; it stops managing what is in it.
 

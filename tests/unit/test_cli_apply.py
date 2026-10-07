@@ -200,6 +200,57 @@ def test_a_destructive_plan_needs_the_flag(
     assert live is not None and "cust_id" not in live.table.column_names
 
 
+DROPS_A_COLUMN = (
+    "table: ${catalog}.sales.orders\n"
+    "comment: Order facts\n"
+    "columns:\n"
+    "  - {name: order_id, type: bigint, nullable: false}\n"
+    "  - {name: amount, type: 'decimal(10,2)'}\n"
+)
+
+
+def test_a_risky_step_shows_its_restore_point(
+    project: Path, warehouse: FakeWarehouse
+) -> None:
+    """`RESTORE TABLE … TO VERSION AS OF n` is one command only for someone who
+    was told n."""
+    (project / "tables" / "orders.yml").write_text(DROPS_A_COLUMN)
+    warehouse.versions[NAME] = 41
+    result = apply_now(project, "--yes", "--allow-destructive")
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0, result.output
+    assert "[destructive] ok (restore point: version 4" in said
+    assert "[feature] ok (" not in said, "only the step that took one"
+
+
+def test_a_step_with_no_restore_point_says_so_and_still_runs(
+    project: Path, warehouse: FakeWarehouse, tmp_path: Path
+) -> None:
+    """The bug: silence. The step ran, and nothing said that the one thing
+    that would undo it had not been taken."""
+    (project / "tables" / "orders.yml").write_text(DROPS_A_COLUMN)
+    plan_file = tmp_path / "plan.json"
+    write_plan(project, plan_file)
+    # Between the plan and the apply, the table's history stops being readable.
+    warehouse.failures["DESCRIBE HISTORY"] = "PERMISSION_DENIED: no SELECT on orders"
+    result = runner.invoke(
+        app,
+        [
+            "apply",
+            str(plan_file),
+            "--config",
+            str(project / "stevin.yml"),
+            "--allow-destructive",
+        ],
+    )
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0, result.output
+    assert "[destructive] ok (no restore point: " in said
+    assert "PERMISSION_DENIED" in said
+    live = Introspector(warehouse).table(NAME)
+    assert live is not None and "cust_id" not in live.table.column_names
+
+
 def test_a_stale_plan_is_refused(
     project: Path, warehouse: FakeWarehouse, tmp_path: Path
 ) -> None:
@@ -255,6 +306,30 @@ def test_apply_without_a_history_schema_says_what_that_costs(
     assert "No history_schema" in result.output
     assert "takes no lock" in result.output
     assert not [name for name in fake.schemas if "stevin" in name]
+
+
+def test_a_failed_step_without_a_history_schema_is_not_said_to_resume(
+    project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Nothing recorded which steps ran, so there is no run to pick up — and the
+    plan was made for the tables as they were before the steps that did run."""
+    fake = FakeWarehouse.of(LIVE)
+    monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+    plan_file = tmp_path / "plan.json"
+    write_plan(project, plan_file)
+    (project / "stevin.yml").write_text(
+        CONFIG.replace("history_schema: main.stevin\n", "")
+    )
+    fake.failures["RENAME COLUMN"] = "connection reset"
+
+    result = runner.invoke(
+        app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
+    )
+    said = " ".join(result.output.split())
+    assert result.exit_code == 1
+    assert "Failed at step 5 of 5" in said
+    assert "plan again" in said and "no run to resume" in said
+    assert "it resumes" not in said
 
 
 def test_force_unlock_without_a_history_schema_has_nothing_to_unlock(
@@ -433,4 +508,5 @@ def test_a_selection_that_names_nothing_is_an_error(
     config = ["--config", str(project / "stevin.yml")]
     result = runner.invoke(app, ["plan", *config, "--select", "ordrs"])
     assert result.exit_code == 1
-    assert "--select ordrs matches no spec." in result.output
+    assert "'ordrs' matches no spec" in result.output
+    assert warehouse.statements == []

@@ -3,19 +3,27 @@
 ```
 stevin validate            # spec lint, no connection needed
 stevin import <schema>     # live tables -> YAML specs
-stevin plan -t <target> [-o plan.json] [--select <name>] [--format rich|md|json]
+stevin plan -t <target> [-o plan.json] [--select <name>] [--format rich|md|json|html]
 stevin apply [-t <target>] [--select <name>] [--yes]   # plan, show, ask, run
 stevin apply plan.json     # run a saved plan, as CI does
-stevin show plan.json [--format rich|md|json]
+stevin show plan.json [--format rich|md|json|html]
+stevin ui [plan.json]      # the plan as a page in a browser
 stevin drift -t <target>   # exit code 2 on drift, for CI
+stevin adopt [<name>...]   # drift, written back into the specs
+stevin doctor              # check the setup; changes nothing
+stevin verify --schema <catalog.schema>   # run the Databricks assumptions
 stevin force-unlock
+stevin schema [spec|project]   # the JSON Schema editors use
+stevin version
 ```
 
-Every command takes `--config` to point at a `stevin.yml`, and `-t/--target` to pick
-the target whose variables are substituted — without it, the only target or the one
-marked `default: true` (in `stevin.yml` or the [bundle](spec.md#next-to-an-asset-bundle)).
-`plan` and `import` also take `--warehouse-id`, which otherwise comes from the target
-or `$DATABRICKS_WAREHOUSE_ID`.
+Every command that works on a project takes `--config` to point at a `stevin.yml`, and
+`-t/--target` to pick the target whose variables are substituted — without it, the only
+target or the one marked `default: true` (in `stevin.yml` or the
+[bundle](spec.md#next-to-an-asset-bundle)). That is all of them but `show`, `schema` and
+`version`, which take neither. Every command that talks to a workspace — all but those
+three and `validate` — also takes `--warehouse-id`, which otherwise comes from the
+target or `$DATABRICKS_WAREHOUSE_ID`, and `--profile`.
 
 ## `validate`
 
@@ -26,9 +34,11 @@ stevin validate tables/orders.yml # just these
 
 Lints specs offline: unknown keys, type strings, duplicate columns and nested fields,
 `cluster_by` and primary-key columns that don't exist, nullable primary-key columns,
-contradictory `renamed_from` hints, and type names that look misspelled. No credentials,
-no network — ideal for a pre-commit hook or the fast lane of CI. Exits non-zero if
-anything is wrong.
+contradictory `renamed_from` hints, and type names that look misspelled. And what is
+wrong between specs: two files that describe the same name — whatever its case, once
+the variables are filled in — and objects that read each other in a cycle. No
+credentials, no network — ideal for a pre-commit hook or the fast lane of CI. Exits
+non-zero if anything is wrong.
 
 ## `schema`
 
@@ -273,6 +283,10 @@ anything — the quickest way from a spec to a table:
 that destroys something is refused before the question, unless you pass
 `--allow-destructive`.
 
+Planning this way takes `--select` and nothing else of `plan`'s: there is no `--clone`
+and no `--check-order` here. For a plan made with either, save it —
+`stevin plan --clone -o plan.json` — and apply the file.
+
 With a plan file, `apply` runs exactly that plan — what CI does after a plan was
 reviewed on a pull request. Either way it prints each step as it resolves:
 
@@ -296,9 +310,13 @@ running, updated every half minute in a terminal and once every five minutes in 
   3. REPLACE TABLE                [rewrite]  running 12m 30s
 ```
 
-There is no time limit on a step: it takes as long as it takes. **Ctrl-C** cancels the
-statement on the warehouse, releases the lock, and leaves the run resumable — the next
-`apply` of the same plan continues from that step.
+There is no time limit on a step: it takes as long as it takes. **Ctrl-C** asks the
+warehouse to cancel the statement that is running, releases the lock, and leaves the run
+resumable — the next `apply` of the same plan continues from that step. `apply` then
+says what became of the statement. It can only be cancelled once the warehouse has
+answered with its id: interrupted before that, or when the warehouse refuses the cancel,
+`apply` says the statement may still be running, and the workspace's Query History is
+where to find it.
 
 Four promises, and no others — DDL is not transactional across statements, so there is
 no rollback:
@@ -306,7 +324,8 @@ no rollback:
 - **Nothing runs from a stale plan.** Before a fresh run, `apply` re-reads every table
   the plan was built from and recomputes the state fingerprint. If anything moved, it
   refuses and tells you to plan again. (Which is also why applying the same file twice
-  is refused: the second time, it *is* stale.)
+  is refused: the second time, it *is* stale.) It reads them holding the lock, so
+  another `apply` can't move a table between the check and the first step.
 - **Steps don't repeat themselves.** Before each step, stevin asks whether the change
   it implements is already true of the live table, and skips it if so.
 - **A failed run resumes.** Every step's outcome is written to the history table, so
@@ -328,8 +347,10 @@ orphans, and never dropped, even in a strict schema.
 `apply` refuses before running anything at all. A plan containing a step stevin
 couldn't generate — a conversion it won't invent, a change a generated column
 blocks — is refused the same way, naming the step and what it needs. A restore point —
-the table's Delta version before the step — is recorded for every destructive step, so `RESTORE TABLE …
-TO VERSION AS OF n` is one command.
+the table's Delta version before the step — is recorded for every destructive step and
+every rewrite when it can be taken, and shown on the step's line, so `RESTORE TABLE … TO
+VERSION AS OF n` is one command. When the version can't be read the step still runs — it
+was reviewed and allowed — and its line says `no restore point`, with the reason.
 
 ### History
 
@@ -345,7 +366,7 @@ TO VERSION AS OF n` is one command.
 ## `drift`
 
 ```sh
-stevin drift -t prod [-f rich|md|json] [-o file]
+stevin drift -t prod [-f rich|md|json|html] [-o file]
 ```
 
 Asks whether `apply` would do anything, and exits accordingly:

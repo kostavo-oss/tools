@@ -31,7 +31,6 @@ from stevin.bundle import (
     BundleTarget,
     ask_cli,
     read_bundle,
-    resolve_target,
 )
 from stevin.errors import StevinError
 from stevin.manage import ASPECT_OF, EVERYTHING, MANAGEABLE, Manage, strip
@@ -91,6 +90,9 @@ FOUND_AS = (*CONFIG_NAMES, *formerly.CONFIG_NAMES)
 VARIABLE = re.compile(
     r"\$\{(?:var\.)?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\}"
 )
+
+#: Why a bundle's unknowns stay unknown to `validate`, which runs nothing.
+NOT_ASKED = "`validate` reads the bundle file and doesn't ask the Databricks CLI"
 
 Mode: TypeAlias = Literal["additive", "strict"]
 Severity: TypeAlias = Literal["error", "warning"]
@@ -345,6 +347,7 @@ class Project:
             diagnostics.extend(validate_spec(relation, str(path)))
         if failures:
             raise SpecErrors(failures)
+        diagnostics.extend(shared_names(files))
         return Specs(tuple(files), tuple(diagnostics))
 
     def history_schema_for(self, target: Target) -> str | None:
@@ -401,6 +404,8 @@ def substitute(
             reason = unresolved[name]
             if not name.startswith("resources."):
                 advice = "set it under this target's vars in stevin.yml"
+            elif NOT_ASKED in reason:
+                advice = "`stevin plan` does ask it — or write the name out here"
             elif "Databricks CLI" in reason:
                 # The CLI already said what went wrong; don't talk over it.
                 advice = "fix that, or write the name out here"
@@ -437,11 +442,28 @@ class _Ctx:
         return dict(self.variables)
 
 
+def not_utf8(path: Path, error: UnicodeDecodeError) -> SpecError:
+    """A file that isn't UTF-8, as an error on the line its first bad byte is on.
+
+    An editor that saved a file as Latin-1 made a mistake in a file, and it
+    reads like any other: where, and what to do.
+    """
+    data, at = error.object, error.start
+    line = data.count(b"\n", 0, at) + 1
+    column = at - data.rfind(b"\n", 0, at)
+    return SpecError(
+        f"this file isn't UTF-8 (byte 0x{data[at]:02x} here isn't): save it as UTF-8",
+        Loc(path, line, column),
+    )
+
+
 def _compose(path: Path) -> Node | None:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise SpecError(f"cannot read spec: {error}", Loc(path, 1, 1)) from error
+    except UnicodeDecodeError as error:
+        raise not_utf8(path, error) from error
     return _compose_text(text, path)
 
 
@@ -936,6 +958,8 @@ def load_spec(
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise SpecError(f"cannot read spec: {error}", Loc(path, 1, 1)) from error
+    except UnicodeDecodeError as error:
+        raise not_utf8(path, error) from error
     return load_spec_text(text, path, variables, unresolved, manage)
 
 
@@ -1254,6 +1278,11 @@ def _seed_from_file(ctx: _Ctx, node: Node, columns: tuple[Column, ...]) -> Seed:
         raise SpecError(
             f"cannot read the seed {where}: {error}", ctx.loc(node)
         ) from error
+    except UnicodeDecodeError as error:
+        raise SpecError(
+            f"cannot read the seed {where}: it isn't UTF-8 — save it as UTF-8",
+            ctx.loc(node),
+        ) from error
     reader = csv.reader(io.StringIO(text))
     try:
         header = next(reader)
@@ -1533,22 +1562,28 @@ def as_deployed(
 
     A bundle's real values are the CLI's: it fills in every `${var.…}`, runs
     `lookup:` variables against the workspace, and names each object the way a
-    deploy would. So it is asked first, once per command, and what stevin
-    read from the file stands in only when it can't answer — without the CLI, or
-    without credentials for it to look anything up with.
+    deploy would. So it is asked first, once per command.
+
+    Raises `BundleError`, with the CLI's own words, when the CLI is there and
+    fails — without credentials, say: a bundle that doesn't resolve has no
+    names to plan against. What stevin read from the file stands in only on
+    a machine with no CLI at all. `Project.resolve` is the same thing, and
+    says more about it.
 
     `stevin.yml` keeps the last word either way: its `vars`, `profile` and
     `mode` go on top of whatever the bundle says.
     """
-    if project.bundle is None:
-        return target
-    answer = resolve_target(
-        project.bundle, target.name, profile=target.profile, executable=executable
-    )
-    if answer is None:
-        return target
-    own = next((t for t in project.own_targets if t.name == target.name), None)
-    return _from_bundle(answer, own)
+    return project.resolve(target, executable=executable)
+
+
+def as_written(target: Target) -> Target:
+    """`target` as the bundle *file* has it — for `validate`, which runs nothing.
+
+    Asking the Databricks CLI is a workspace and a network. So what only the
+    CLI could settle stays unknown here, and a spec that uses it is told that
+    this command didn't ask, rather than to install something.
+    """
+    return _because(target, NOT_ASKED)
 
 
 def _because(target: Target, reason: str | None) -> Target:
@@ -1694,6 +1729,35 @@ def load_specs(project: Project, target: Target) -> tuple[LoadedSpec, ...]:
 # (DELTA_CLUSTER_BY_INVALID_NUM_COLUMNS). The limit has moved before.
 # https://docs.databricks.com/aws/en/delta/clustering
 MAX_CLUSTER_COLUMNS = 4
+
+
+def shared_names(
+    files: Sequence[LoadedSpec], shown: Callable[[Path], str] = Path.as_posix
+) -> tuple[Diagnostic, ...]:
+    """Two files that describe one name: an error on the later, naming the first.
+
+    Two specs for one table planned two creates — the second a no-op — and then,
+    once the table was there, a drop of every column the second file lacked.
+    Names are compared the way the catalog compares them, whatever their case
+    and after variables, and across kinds: Unity Catalog lets a function share
+    a table's name, but a plan is keyed by name, so stevin doesn't.
+    """
+    first: dict[str, Path] = {}
+    found: list[Diagnostic] = []
+    for loaded in files:
+        name = loaded.table.name.lower()
+        if name not in first:
+            first[name] = loaded.path
+            continue
+        found.append(
+            Diagnostic(
+                "error",
+                f"{name} is described here and in {shown(first[name])}. stevin keys "
+                "a plan by name, so one name takes one spec: remove one, or rename it",
+                shown(loaded.path),
+            )
+        )
+    return tuple(found)
 
 
 def validate_spec(spec: Relation, where: str) -> tuple[Diagnostic, ...]:

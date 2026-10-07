@@ -5,7 +5,7 @@ that CI shouldn't need credentials to check. The suite is built in four layers, 
 each one is honest about what it can and cannot prove.
 
 ```sh
-uv run pytest tests/unit        # layers 1, 2 and 3 — fast, offline, every PR
+uv run pytest tests/unit        # layers 1 and 2, and 3 once it is recorded — offline, every PR
 uv run pytest -m integration    # layer 4 — real workspace, nightly
 ```
 
@@ -13,7 +13,7 @@ uv run pytest -m integration    # layer 4 — real workspace, nightly
 |---|---|
 | Unit tests | the pure middle of the pipeline does what it says |
 | The fake warehouse | stevin's SQL matches **stevin's reading** of the manual |
-| Transcripts | what **Databricks answered**, on the day they were recorded |
+| Transcripts | what **Databricks answered**, on the day they were recorded — built, and **empty until a live run records them** |
 | The live suite | that it still does |
 
 <hr class="dp-rule">
@@ -68,6 +68,13 @@ The layer above proves that stevin's SQL matches stevin's reading of the manual.
 Where that reading is wrong, the fake is wrong in the same direction and the offline
 suite agrees with the mistake. A transcript is the answer to that.
 
+!!! warning "Built, and empty"
+    No transcript has been recorded yet: `tests/transcripts/` holds its README and
+    nothing else. The recorder and the replay are there and tested, and the test that
+    replays the recordings skips itself while there are none — so today this layer
+    proves nothing about Databricks. What follows is how it works once a live run has
+    written them.
+
 One live run writes down every statement it sent and the rows or the error that came
 back, per assumption. `tests/unit/test_transcripts.py` then replays each recording
 through the probe it was recorded for — offline, with no credentials — so an assumption
@@ -113,6 +120,29 @@ They assert the things nothing else can:
 Every Databricks behaviour stevin relies on should have a test here and a link to the
 documentation in its docstring. Where a behaviour is assumed but unverified, the code
 says `TODO(verify)` rather than pretending.
+
+### What the live suite has not settled
+
+Most of what stevin assumes about Databricks has been run against a workspace: the
+`TODO(verify)` list was settled on 2026-09-19. These are still open, and each says so in
+the source:
+
+- **A seed's load.** `INSERT OVERWRITE … (columns) VALUES …` is the documented grammar and
+  a Databricks parser reads it, but no workspace has taken one from stevin
+  (`planner._load_seed`). `tests/integration/test_live_seeds.py` and the probe *a seed's
+  INSERT OVERWRITE with a column list is accepted* settle it the next time the live suite
+  runs.
+- **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
+  was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
+  and reads back* answers it for the workspace in front of you.
+- **Sending a step without waiting for it** — not done yet. `apply` waits up to 30
+  seconds for a statement's first answer, and an interrupt in that time has no statement
+  id to cancel by; `apply` says so when it happens. Sending with `wait_timeout="0s"` is
+  the Statement Execution API's documented way to get the id at once
+  (`introspect.WarehouseRunner`). It changes how every step is sent, so it waits for a
+  run against a workspace.
+
+`stevin verify` runs the first two as probes in a workspace of your own.
 
 ### The assumptions live in `src/`, not here
 

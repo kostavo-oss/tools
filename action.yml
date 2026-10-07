@@ -1,5 +1,5 @@
 name: stevin
-description: Plan Databricks SQL table changes, comment the plan on the pull request, and apply it on merge.
+description: Safe plan/apply migrations for Unity Catalog tables and schemas
 author: Misja Pronk
 branding:
   icon: layers
@@ -19,7 +19,7 @@ inputs:
     description: Where the stevin project lives.
     default: .
   clone:
-    description: "`plan` only: add a SHALLOW CLONE of each table before a step that risks its data."
+    description: "`plan` and `apply`: add a SHALLOW CLONE of each table before a step that risks its data."
     default: "false"
   comment:
     description: On a pull request, post the result as a comment — updating stevin's previous one rather than adding another.
@@ -77,6 +77,15 @@ runs:
         mkdir -p "$out"
         markdown="$out/$COMMAND.md"
 
+        # The outputs and the job summary, written as soon as there is a result
+        # to show — before anything is applied, so a run that fails halfway
+        # still has its plan in the summary and its outputs for a later step.
+        publish() {
+          echo "has-changes=$has_changes" >> "$GITHUB_OUTPUT"
+          echo "markdown-file=$markdown" >> "$GITHUB_OUTPUT"
+          cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
+        }
+
         if [ "$COMMAND" != drift ]; then
           plan_file="$out/plan.json"
           args=(plan -t "$TARGET")
@@ -91,12 +100,25 @@ runs:
             'import json, sys; print(str(bool(json.load(open(sys.argv[1]))["steps"])).lower())' \
             "$plan_file")
           echo "plan-file=$plan_file" >> "$GITHUB_OUTPUT"
+          publish
           if [ "$COMMAND" = apply ] && [ "$has_changes" = true ]; then
             # The same plan the summary shows, run by the same version.
             args=(apply "$plan_file")
             if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
             if [ "$ALLOW_DESTRUCTIVE" = true ]; then args+=(--allow-destructive); fi
+            set +e
             stevin "${args[@]}"
+            code=$?
+            set -e
+            if [ "$code" -ne 0 ]; then
+              # Under the plan it was running, so the two are read together.
+              {
+                echo
+                echo "**\`stevin apply\` failed** (exit $code) while running the plan above. The job log has the step that stopped it."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::stevin apply failed (exit $code). The plan it was running is in the job summary."
+              exit "$code"
+            fi
           fi
         else
           # drift exits 2 when there is drift; anything else non-zero is a failure.
@@ -113,11 +135,8 @@ runs:
             *) exit "$code" ;;
           esac
           echo "plan-file=" >> "$GITHUB_OUTPUT"
+          publish
         fi
-
-        echo "has-changes=$has_changes" >> "$GITHUB_OUTPUT"
-        echo "markdown-file=$markdown" >> "$GITHUB_OUTPUT"
-        cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
 
     - if: inputs.comment == 'true' && github.event.pull_request
       shell: bash

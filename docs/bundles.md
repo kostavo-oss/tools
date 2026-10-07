@@ -61,8 +61,8 @@ A catalog, schema or volume the bundle declares is the bundle's:
 
 - **It is never created or managed by stevin.** Two tools creating the same schema is
   how a later `databricks bundle deploy` meets an object it didn't make.
-- **A stevin spec for one is an error**, naming the bundle's resource, so you find out
-  at `validate` rather than halfway through an apply.
+- **A stevin spec for one is an error**, naming the bundle's resource. `plan` is where
+  you find out — before anything is applied.
 - **`import` writes no spec for it.**
 - **A table whose schema isn't deployed yet** stops the plan and says what to run:
 
@@ -90,7 +90,8 @@ looked up, and `${workspace.current_user.short_name}` becomes a user.
 There are two of those, and they mean different things.
 
 **No CLI on your `PATH`** is a machine that was never going to answer — a laptop, a CI
-job that only lints. stevin reads the bundle file itself and resolves what a file can:
+job that only lints. stevin reads the bundle file itself, says that it did, and resolves
+what a file can:
 variable defaults, target overrides, `BUNDLE_VAR_<name>` from the environment, and
 `${var.…}`, `${bundle.name}` and `${bundle.target}` references. What it won't do is guess
 the rest: a lookup, a complex variable, a current user, and every name a renaming target
@@ -108,6 +109,12 @@ Its words, not stevin's. Carrying on from the file would mean planning against n
 a deploy would never use — and being told to install something you already have helps
 nobody. The [Databricks CLI](https://docs.databricks.com/aws/en/dev-tools/cli/) needs to
 be logged in for this: it resolves nothing at all without credentials.
+
+**`validate` never asks.** It promises no workspace and no network, and the CLI is both,
+so `stevin validate` reads the bundle file on every machine, with or without a CLI. A
+spec that uses a name only the CLI could settle — what a `mode: development` target
+deploys a schema under — is linted with a name standing in for it, and `validate` says
+which names it left unsettled. That is nothing wrong with the spec: `plan` asks.
 
 ## stevin.yml has the last word
 

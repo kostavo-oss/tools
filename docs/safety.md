@@ -203,7 +203,8 @@ makes narrower ones instead:
 - **Resume, don't restart.** Every step's outcome goes to the history table, and the next
   `apply` of the same plan continues from where it stopped.
 - **A restore point before every rewrite.** The Delta version is recorded first
-  (`delta_version_before`), so `RESTORE` is one command.
+  (`delta_version_before`), so `RESTORE` is one command. If the version can't be read,
+  the step runs anyway and `apply` says, on that step's line, that it had none.
 - **A clone, if you want one.** `stevin plan --clone` adds a `SHALLOW CLONE` of each
   table just before the first step that could lose its data — a copy of the table as
   it was that you can query side by side with the new one. A shallow clone copies no
@@ -221,7 +222,9 @@ makes narrower ones instead:
   running — a statement that outlives a budget is cancelled on the warehouse first.
 - **Ctrl-C cancels.** Interrupting `apply` asks the warehouse to stop the statement that
   is running, releases the lock, and leaves the run resumable: the next `apply` of the
-  same plan continues from that step.
+  same plan continues from that step. When the statement couldn't be cancelled — the
+  interrupt came before the warehouse had said which statement it was — `apply` says
+  that it may still be running, instead of saying it was stopped.
 
 ## Honest about Databricks
 

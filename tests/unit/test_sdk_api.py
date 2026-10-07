@@ -139,6 +139,66 @@ def test_select_takes_names_as_well_as_a_predicate(
     assert [diff.table for diff in by_predicate.diffs] == ["main.sales.customers"]
 
 
+@pytest.fixture
+def two_tables(project_dir: Path) -> stevin.Project:
+    (project_dir / "tables" / "customers.yml").write_text(
+        "table: ${catalog}.sales.customers\ncolumns:\n  - {name: id, type: bigint}\n"
+    )
+    return stevin.Project.find(project_dir)
+
+
+@pytest.mark.parametrize(
+    ("select", "planned"),
+    [
+        ("orders", ["main.sales.orders"]),
+        ("sales.orders", ["main.sales.orders"]),
+        ("MAIN.Sales.Orders", ["main.sales.orders"]),
+        ("sales.cust*", ["main.sales.customers"]),
+        (["orders", "customers"], ["main.sales.customers", "main.sales.orders"]),
+        ("sales.*", ["main.sales.customers", "main.sales.orders"]),
+    ],
+)
+def test_select_reads_names_the_way_the_command_line_does(
+    two_tables: stevin.Project,
+    fake: FakeWarehouse,
+    select: str | list[str],
+    planned: list[str],
+) -> None:
+    """The bug: `select="orders"` matched nothing here — only a full name did —
+    and came back as an empty plan, where `--select orders` plans the table."""
+    target = two_tables.resolve(two_tables.default)
+    plan = stevin.plan(two_tables, target, Connection(runner=fake), select=select)
+    assert sorted(diff.table for diff in plan.diffs) == planned
+
+
+@pytest.mark.parametrize("select", ["ordrs", ["orders", "sales.nope*"]])
+def test_a_selection_that_matches_nothing_raises(
+    two_tables: stevin.Project, fake: FakeWarehouse, select: str | list[str]
+) -> None:
+    """A typo is not an empty plan: 'nothing to do' would be believed."""
+    target = two_tables.resolve(two_tables.default)
+    connection = Connection(runner=fake)
+    with pytest.raises(stevin.PlanningError, match="matches no spec"):
+        stevin.plan(two_tables, target, connection, select=select)
+    with pytest.raises(stevin.PlanningError, match="matches no spec"):
+        stevin.drift(two_tables, target, connection, select=select)
+    with pytest.raises(stevin.PlanningError, match="matches no spec"):
+        stevin.adopt(two_tables, target, connection, select=select)
+    assert fake.statements == [], "said before the workspace is asked anything"
+
+
+def test_a_predicate_is_taken_as_it_is(
+    two_tables: stevin.Project, fake: FakeWarehouse
+) -> None:
+    """A host that selects with its own function has its own idea of a match,
+    and of what matching nothing means."""
+    target = two_tables.resolve(two_tables.default)
+    plan = stevin.plan(
+        two_tables, target, Connection(runner=fake), select=lambda _name: False
+    )
+    assert plan.empty
+
+
 def test_drift_is_the_same_question_asked_differently(
     project_dir: Path, fake: FakeWarehouse
 ) -> None:

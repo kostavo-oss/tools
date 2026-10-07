@@ -15,9 +15,13 @@ then apply it.
 
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
 > included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
-> views, SQL functions). It is tested offline against a fake warehouse, and every
-> assumption it makes about Databricks is checked by a live suite against a real
-> workspace. Try it on a dev catalog before production.
+> views, SQL functions). It is tested offline against a fake warehouse, and a live suite
+> runs what it assumes about Databricks against a real workspace. That suite has settled
+> most of those assumptions and not all of them: loading reference data (`seed:`) has
+> never run on a workspace, for one.
+> [How it is tested](https://kostavo-oss.github.io/stevin/testing/) says what each layer
+> proves and lists what is still open, and `stevin verify` runs the same assumptions in a
+> workspace of your own. Try it on a dev catalog before production.
 
 ## Named after
 
@@ -182,7 +186,9 @@ Plan on pull requests, apply on merge, catch drift nightly — see
 stevin is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
 Each does one job and none needs another: Terraform sets up the platform, an Asset
 Bundle deploys the code, and stevin changes the data model — the part of a deploy that
-can't simply be run again.
+can't simply be run again. Kostavo is the company behind them: it builds
+[a governance platform for Databricks workspaces](https://kostavo.com), and the tools
+are complete without it.
 
 Community project, not affiliated with or endorsed by Databricks.
 

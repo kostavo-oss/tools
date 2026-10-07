@@ -943,6 +943,34 @@ class Progress:
     waiting: str | None = None
 
 
+#: What `_cancel` says when the warehouse took the request.
+CANCELLED = "cancelled it"
+
+
+class Interrupted(KeyboardInterrupt):
+    """Ctrl-C while a statement was with the warehouse, and what became of it.
+
+    Still a `KeyboardInterrupt`, so whatever catches one catches this. It
+    carries what only the runner knows, so whoever reports the interrupt can
+    say what is true. `statement_id` is None when the interrupt came before the
+    warehouse had answered with one: nothing could be cancelled then, and the
+    statement may still be running. Otherwise `outcome` is what the cancel
+    came to, in words, and `cancelled` whether the warehouse took it.
+    """
+
+    def __init__(
+        self, statement: str, statement_id: str | None = None, outcome: str | None = None
+    ) -> None:
+        super().__init__()
+        self.statement = statement
+        self.statement_id = statement_id
+        self.outcome = outcome
+
+    @property
+    def cancelled(self) -> bool:
+        return self.outcome == CANCELLED
+
+
 @dataclass(slots=True)
 class WarehouseRunner:
     """Runs statements on a SQL warehouse via the Statement Execution API.
@@ -952,11 +980,18 @@ class WarehouseRunner:
     while it is still running. Reads have a budget, because a read that takes
     five minutes has gone wrong; the runner `apply` uses has none
     (`Connection.patient()`), because a rewrite of a big table takes as long as
-    it takes. Ctrl-C while a statement runs cancels it the same way.
+    it takes. Ctrl-C while a statement runs cancels it the same way, once the
+    warehouse has said which statement it is; either way the interrupt goes on
+    as `Interrupted`, which says what happened.
     """
 
     client: WorkspaceClient
     warehouse_id: str
+    # TODO(verify): the request that sends a statement waits this long for it,
+    # and its id only comes back in the answer — so an interrupt in that time
+    # can cancel nothing, and `apply` says so. "0s" is the API's documented way
+    # to get the id at once and poll for the rest. It would change how every
+    # step is sent, and no workspace has taken it from stevin yet.
     wait_timeout: str = "30s"
     poll_seconds: float = 1.0
     #: How long a statement may run before it is cancelled. None waits for as
@@ -992,6 +1027,11 @@ class WarehouseRunner:
                     format=Format.JSON_ARRAY,
                 )
                 break
+            except KeyboardInterrupt as interrupt:
+                # The request waits up to `wait_timeout` for the statement, and
+                # the statement's id is in its answer. Without the answer there
+                # is nothing to cancel by, and the statement may be running.
+                raise Interrupted(statement) from interrupt
             except Exception as error:  # noqa: BLE001 - whatever the SDK raised
                 # A refusal from the platform rather than from the statement:
                 # nothing ran. A warehouse that is starting says this until it
@@ -1040,11 +1080,11 @@ class WarehouseRunner:
                     last_beat = now
                 time.sleep(self.poll_seconds)
                 response = api.get_statement(statement_id)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as interrupt:
             # Whoever pressed it wants the statement stopped, not just the
             # waiting: a REPLACE left running would finish behind their back.
-            self._cancel(statement_id)
-            raise
+            cancelled = self._cancel(statement_id)
+            raise Interrupted(statement, statement_id, cancelled) from interrupt
 
         state = response.status.state if response.status else None
         if state is not StatementState.SUCCEEDED:
@@ -1100,7 +1140,7 @@ class WarehouseRunner:
             self.client.statement_execution.cancel_execution(statement_id)
         except Exception as error:  # noqa: BLE001 - whatever the SDK raised
             return f"could not cancel it ({error})"
-        return "cancelled it"
+        return CANCELLED
 
 
 def duration(seconds: float) -> str:

@@ -5,7 +5,8 @@ It makes narrower ones, and they are what the design asks for:
 
 * **Nothing runs from a stale plan.** A fresh run recomputes the state
   fingerprint over exactly the tables the plan was built from, and refuses if the
-  world has moved.
+  world has moved. It does so holding the lock, so no other run moves it between
+  the check and the first step.
 * **Steps are idempotent.** Before each one the executor asks whether the change
   it implements is already true of the live table (`differ.is_applied`). That is
   the design's precheck, asked of the model rather than of a bespoke query —
@@ -15,7 +16,8 @@ It makes narrower ones, and they are what the design asks for:
 * **One run at a time.** A lock row, taken with a conditional update and
   confirmed by reading it back, with a TTL so a dead run can't block forever.
 * **A restore point before anything destructive.** The table's Delta version is
-  recorded first, so `RESTORE` is one command.
+  recorded first, so `RESTORE` is one command — when it can be read. When it
+  can't, the step still runs, and the run says that it ran without one.
 """
 
 from __future__ import annotations
@@ -86,6 +88,9 @@ class ExecutionResult:
     #: ran. With no history schema this is the only place they are kept, so a
     #: `RESTORE TABLE … TO VERSION AS OF` is still one command away.
     restore_points: tuple[tuple[str, int], ...] = ()
+    #: `(table, why)` for every risky step that ran with none, because the
+    #: table's version couldn't be read. The run goes on; this is where it says so.
+    without_restore_point: tuple[tuple[str, str], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -128,6 +133,10 @@ class Executor:
     _live: dict[str, Relation | None] = field(default_factory=dict)
     #: `(table, version)` for every restore point this run took.
     _restore_points: list[tuple[str, int]] = field(default_factory=list)
+    #: `(table, why)` for every risky step that ran without one.
+    _unrestorable: list[tuple[str, str]] = field(default_factory=list)
+    #: What the step that just ran has to say about its restore point.
+    _restore_note: str | None = None
     #: The step whose statement is running, for the heartbeat to report on.
     _current: Step | None = None
     _lock: tuple[str, str] | None = None
@@ -143,10 +152,6 @@ class Executor:
         resumed = self.history.resumable_run(plan_hash, plan.target)
         run_id = resumed or self.new_run_id()
 
-        self._live = self.introspector.tables(_read_from(plan), _kinds(plan))
-        if resumed is None:
-            self._refuse_stale(plan)
-
         if not self.history.acquire_lock(plan.target, run_id, self.lock_minutes):
             holder = self.history.lock_holder(plan.target)
             raise ExecutionError(
@@ -156,6 +161,12 @@ class Executor:
 
         self._lock = (plan.target, run_id)
         try:
+            # Read under the lock, not before it: a run that finished between a
+            # check and the lock would have changed the tables behind a check
+            # that had already passed.
+            self._live = self.introspector.tables(_read_from(plan), _kinds(plan))
+            if resumed is None:
+                self._refuse_stale(plan)
             with self._watching():
                 if resumed is None:
                     self.history.start_run(
@@ -243,12 +254,11 @@ class Executor:
                     error=lost,
                     resumed=resumed,
                     restore_points=tuple(self._restore_points),
+                    without_restore_point=tuple(self._unrestorable),
                 )
             failure = self._run_step(step, run_id)
             self._observe(
-                step,
-                "failed" if failure else "succeeded",
-                failure or _taken(self._restore_points, step),
+                step, "failed" if failure else "succeeded", failure or self._restore_note
             )
             if failure is not None:
                 return ExecutionResult(
@@ -260,6 +270,7 @@ class Executor:
                     error=failure,
                     resumed=resumed,
                     restore_points=tuple(self._restore_points),
+                    without_restore_point=tuple(self._unrestorable),
                 )
             ran.append(step.id)
 
@@ -270,15 +281,21 @@ class Executor:
             skipped=tuple(skipped),
             resumed=resumed,
             restore_points=tuple(self._restore_points),
+            without_restore_point=tuple(self._unrestorable),
         )
 
     def _run_step(self, step: Step, run_id: str) -> str | None:
         """Run one step. Returns the error, or None when it worked."""
-        version = self._restore_point(step)
+        version, missing = self._restore_point(step)
+        self._restore_note = None
         if version is not None:
             # Kept on the run as well as in the history: without a history
             # schema this is where a restore point lives.
             self._restore_points.append((step.table, version))
+            self._restore_note = f"restore point: version {version}"
+        elif missing is not None:
+            self._unrestorable.append((step.table, missing))
+            self._restore_note = f"no restore point: {missing}"
         try:
             blocked = self._blocked(step)
         except Exception as error:  # noqa: BLE001 - the precheck's own query failed
@@ -344,13 +361,23 @@ class Executor:
                 step.failure or "the statement ran but the postcheck says it didn't take"
             )
 
-    def _restore_point(self, step: Step) -> int | None:
+    def _restore_point(self, step: Step) -> tuple[int | None, str | None]:
+        """The table's version before a risky step — or why there isn't one.
+
+        A restore point that can't be taken doesn't stop the run: the step was
+        reviewed and allowed, and a table whose history can't be read is no
+        safer for being left as it is. But it is said, never skipped quietly.
+        """
         if step.risk not in RECORD_VERSION_FOR:
-            return None
+            return None, None
         try:
-            return self.introspector.latest_version(step.table)
-        except Exception:  # noqa: BLE001 - a missing restore point must not stop a run
-            return None
+            version = self.introspector.latest_version(step.table)
+        except Exception as error:  # noqa: BLE001 - a missing restore point must not stop a run
+            said = (str(error).strip().splitlines() or [type(error).__name__])[0]
+            return None, f"the table's version couldn't be read ({said})"
+        if version is None:
+            return None, "the table has no version to go back to"
+        return version, None
 
     def _refuse_unrunnable(self, plan: Plan, *, allow_destructive: bool) -> None:
         missing = [step for step in plan.steps if step.sql is None]
@@ -426,14 +453,6 @@ def _moved(plan: Plan, live: Mapping[str, Relation | None]) -> tuple[str, ...]:
         if fingerprint([diff.live])
         != fingerprint([live.get(diff.live.name if diff.live else diff.table)])
     )
-
-
-def _taken(points: list[tuple[str, int]], step: Step) -> str | None:
-    """The restore point this step took, as a note for whoever is watching."""
-    for table, version in reversed(points):
-        if table == step.table:
-            return f"restore point: {table} version {version}"
-    return None
 
 
 def _kinds(plan: Plan) -> dict[str, str]:

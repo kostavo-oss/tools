@@ -5,6 +5,7 @@ loader, differ, planner and renderers — only the network is replaced.
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -126,9 +127,31 @@ def test_version_prints_the_package_version(args: list[str]) -> None:
     assert result.stdout == f"stevin {package_version()}\n"
 
 
+def test_a_traceback_never_prints_local_variables() -> None:
+    """A crash is pasted into an issue as it is. Typer below 0.23 prints every
+    frame's locals unless it is told not to — a connection, a token.
+    https://typer.tiangolo.com/tutorial/exceptions/#disable-local-variables-for-security
+    """
+    assert app.pretty_exceptions_show_locals is False
+
+
+@pytest.mark.parametrize("command", ["import", "show"])
+def test_a_command_without_what_it_needs_is_refused(command: str) -> None:
+    """Typer 0.16.0 to 0.17.4, with the Click they resolve to, don't hold a
+    required argument to being there: the command was entered with nothing,
+    and ended in a traceback. The floor in pyproject.toml is above them, and
+    the job that installs the lowest of everything runs this."""
+    result = runner.invoke(app, [command])
+    assert result.exit_code == 2, result.output
+    assert "Missing argument" in re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
 def test_bare_invocation_shows_help() -> None:
     result = runner.invoke(app, [])
-    assert "Declarative plan/apply for Databricks SQL tables." in result.stdout
+    assert "Safe plan/apply migrations for Unity Catalog tables and schemas." in (
+        result.stdout
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +197,35 @@ def test_validate_fails_on_a_lint_error(project: Path) -> None:
     result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
     assert result.exit_code == 1
     assert "must be declared nullable: false" in result.output
+
+
+@pytest.mark.parametrize("name", ["orders.yml", "orders.sql"])
+def test_a_spec_that_is_not_utf8_is_one_line_naming_the_file(
+    project: Path, name: str
+) -> None:
+    """The bug: a traceback ending in UnicodeDecodeError. A file saved as
+    Latin-1 by an editor is a mistake in a file, and reads like one — with the
+    line the byte is on."""
+    (project / "tables" / "orders.yml").unlink()
+    (project / "tables" / name).write_bytes(
+        b"-- Order facts\n-- caf\xe9\n"
+        if name.endswith(".sql")
+        else b"table: main.sales.orders\ncomment: caf\xe9\ncolumns: []\n"
+    )
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, UnicodeDecodeError)
+    assert f"{name}:2:" in result.output
+    assert "UTF-8" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_a_project_file_that_is_not_utf8_says_so_too(project: Path) -> None:
+    (project / "stevin.yml").write_bytes(b"# caf\xe9\nversion: 1\n")
+    result = runner.invoke(app, ["validate", "--config", str(project / "stevin.yml")])
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, UnicodeDecodeError)
+    assert "stevin.yml:1:6" in result.output and "UTF-8" in result.output
 
 
 def test_validate_takes_explicit_paths(project: Path) -> None:

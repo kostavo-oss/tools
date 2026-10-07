@@ -5,7 +5,7 @@ the job summary, and — on a pull request — posts it as a comment, updating i
 comment on every push instead of adding another.
 
 `uses: kostavo-oss/stevin@v0` follows the newest 0.x release; pin a release tag
-(`@v0.1.0a6`) to hold one still. The action runs the stevin of its own version, so the
+(`@v0.3.0a1`) to hold one still. The action runs the stevin of its own version, so the
 two never disagree.
 
 ## Credentials
@@ -96,7 +96,10 @@ jobs:
           target: prod
 ```
 
-`command: apply` plans, puts the plan in the job summary, and runs exactly that plan. It
+`command: apply` plans, puts the plan in the job summary, and runs exactly that plan.
+The summary and the outputs are written before anything is applied, so a run that fails
+halfway still shows the plan it was running, with a line under it saying that it
+failed. It
 is made fresh at merge time, so it is always against the tables as they are now; `apply`
 refuses it anyway if they move in between. Set `allow-destructive: true` only if you
 mean it — without it, a plan that drops anything stops before running a single
@@ -147,7 +150,7 @@ On the command line, `stevin drift` exits `0` when live tables match their specs
 | `command` | `plan` | `plan`, `apply` or `drift`. |
 | `config` | *(found)* | The project file, relative to `working-directory`. Left out, it is looked for there and above. |
 | `working-directory` | `.` | Where the project lives. |
-| `clone` | `false` | `SHALLOW CLONE` before risky steps. |
+| `clone` | `false` | `plan` and `apply`: `SHALLOW CLONE` before risky steps. |
 | `allow-destructive` | `false` | `apply` only: let the plan drop something. |
 | `comment` | `true` | Comment on the pull request, if there is one. |
 | `fail-on-drift` | `true` | `drift` only: fail the job on drift. |

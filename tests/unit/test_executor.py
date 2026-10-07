@@ -10,7 +10,13 @@ import pytest
 
 from fake_warehouse import FakeSqlError, FakeWarehouse
 from helpers import col, plan_against, table
-from stevin.executor import DestructiveRefused, ExecutionError, Executor, plan_identity
+from stevin.executor import (
+    DestructiveRefused,
+    ExecutionError,
+    Executor,
+    StalePlan,
+    plan_identity,
+)
 from stevin.history import MemoryHistory, StepOutcome
 from stevin.introspect import Introspector
 from stevin.model.plan import Plan, Step, TableDiff, TableFacts
@@ -201,12 +207,56 @@ def test_a_stale_plan_is_refused() -> None:
     ]
 
 
+def test_a_stale_plan_gives_the_lock_back() -> None:
+    fake, plan = planned()
+    history = MemoryHistory()
+    fake.query("ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)")
+    with pytest.raises(StalePlan):
+        executor(fake, history).apply(plan)
+    assert history.locks == {}, "refused under the lock, and the lock released"
+    assert history.runs == {}, "a refusal is not a run"
+
+
 def test_a_locked_target_is_refused() -> None:
     fake, plan = planned()
     history = MemoryHistory()
     history.acquire_lock("test", "someone-else", 60)
     with pytest.raises(ExecutionError, match="locked by run someone-else"):
         executor(fake, history).apply(plan)
+
+
+def test_a_locked_target_is_refused_before_anything_is_read() -> None:
+    """Locked is the whole answer: what the tables look like while another run
+    is changing them says nothing about this plan."""
+    fake, plan = planned()
+    history = MemoryHistory()
+    history.acquire_lock("test", "someone-else", 60)
+    before = len(fake.statements)
+    with pytest.raises(ExecutionError, match="locked by run someone-else"):
+        executor(fake, history).apply(plan)
+    assert fake.statements[before:] == []
+
+
+def test_staleness_is_settled_under_the_lock() -> None:
+    """The bug: live state was read and compared first, and the lock taken
+    after. A run that finished in between had changed the tables behind a
+    check that had already passed, and this run went on to apply a plan made
+    for tables that were no longer there."""
+    fake, plan = planned()
+
+    class TheOtherRunFinishesJustNow(MemoryHistory):
+        def acquire_lock(self, target: str, run_id: str, minutes: int) -> bool:
+            # The run that held the lock made its last change, and let go.
+            fake.query(
+                "ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)"
+            )
+            return super().acquire_lock(target, run_id, minutes)
+
+    history = TheOtherRunFinishesJustNow()
+    with pytest.raises(StalePlan, match="changed since this plan was made"):
+        executor(fake, history).apply(plan)
+    assert len(fake.ddl) == 1, "nothing of this plan ran"
+    assert history.locks == {}
 
 
 def test_a_blocked_precheck_stops_the_step() -> None:
@@ -335,6 +385,60 @@ def test_a_destructive_step_records_a_restore_point() -> None:
     assert drop.delta_version_before == fake.versions[NAME] - 1
     mapping = next(o for o in history.steps["run1"] if o.sql and "TBLPROPERTIES" in o.sql)
     assert mapping.delta_version_before is None, "only risky steps need one"
+
+
+def _drops_a_column() -> tuple[FakeWarehouse, Plan]:
+    desired = table(
+        *[c for c in LIVE.columns if c.name != "legacy_flag"],
+        name=NAME,
+        comment=LIVE.comment,
+    )
+    return planned(desired)
+
+
+def test_a_restore_point_that_cannot_be_taken_is_said_and_the_run_goes_on() -> None:
+    """The bug: the table's version couldn't be read, and the step ran with no
+    restore point and no word about it. Going on is on purpose — the step was
+    reviewed and allowed — but whoever is watching, and the run, must say so."""
+    fake, plan = _drops_a_column()
+    fake.failures["DESCRIBE HISTORY"] = "PERMISSION_DENIED: no SELECT on orders"
+    history = MemoryHistory()
+    heard: list[tuple[str, str, str | None]] = []
+    run = Executor(
+        runner=fake,
+        introspector=Introspector(fake),
+        history=history,
+        new_run_id=lambda: "run1",
+        observer=lambda step, status, note: heard.append((step.title, status, note)),
+    )
+    result = run.apply(plan, allow_destructive=True)
+
+    assert result.ok, "the run goes on"
+    assert any("DROP COLUMN" in sql for sql in fake.ddl)
+    [note] = [note for title, _, note in heard if title == "DROP COLUMN"]
+    assert note is not None and note.startswith("no restore point")
+    assert "PERMISSION_DENIED" in note, "and why"
+    assert result.restore_points == ()
+    [(where, why)] = result.without_restore_point
+    assert where == NAME and "PERMISSION_DENIED" in why
+    drop = next(o for o in history.steps["run1"] if o.sql and "DROP COLUMN" in o.sql)
+    assert (drop.status, drop.delta_version_before) == ("succeeded", None)
+
+
+def test_a_restore_point_is_said_on_the_step_that_took_it_and_no_other() -> None:
+    fake, plan = _drops_a_column()
+    heard: dict[str, str | None] = {}
+    run = Executor(
+        runner=fake,
+        introspector=Introspector(fake),
+        history=MemoryHistory(),
+        observer=lambda step, _status, note: heard.update({step.title: note}),
+    )
+    result = run.apply(plan, allow_destructive=True)
+    [(_, version)] = result.restore_points
+    assert heard["DROP COLUMN"] == f"restore point: version {version}"
+    assert heard["enable columnMapping"] is None, "a step that risks nothing has none"
+    assert result.without_restore_point == ()
 
 
 def test_a_postcheck_that_fails_fails_the_run() -> None:

@@ -337,6 +337,114 @@ def test_validate_uses_the_bundle_default_target(
     assert "1 spec OK" in result.output
 
 
+def test_validate_never_runs_the_databricks_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`validate` promises no workspace and no network, and the Databricks CLI
+    is both: `bundle validate` looks things up. So the bundle file is read, and
+    nothing is run — not even a CLI that is there and would fail."""
+    bundle_project(tmp_path)
+    asked = tmp_path / "asked.txt"
+    monkeypatch.setenv(
+        "PATH", fake_databricks(tmp_path, stderr="Error: boom\n", code=1, asked=asked)
+    )
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["validate"])
+    assert result.exit_code == 0, result.output
+    assert "1 spec OK" in result.output
+    assert not asked.exists(), asked.read_text()
+
+
+def test_validate_lints_around_what_only_the_cli_would_know(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A development target deploys another name than the file's. `validate`
+    can't know it and doesn't ask: it lints the spec with a name standing in,
+    says which name it left unsettled — and that is no problem with the spec."""
+    write(tmp_path, "databricks.yml", RENAMING)
+    write(tmp_path, "stevin.yml", "specs: [tables]\nbundle: databricks.yml\n")
+    write(
+        tmp_path,
+        "tables/orders.yml",
+        "table: main.${resources.schemas.sales.name}.orders\n"
+        "columns:\n  - {name: id, type: bigint}\n",
+    )
+    asked = tmp_path / "asked.txt"
+    monkeypatch.setenv("PATH", fake_databricks(tmp_path, "{}\n", asked=asked))
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["validate"])
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0, result.output
+    assert "1 spec OK." in said
+    assert "Not settled here: ${resources.schemas.sales.name}." in said
+    assert "`validate` reads the bundle file" in said and "`stevin plan` does" in said
+    assert "install the Databricks CLI" not in said
+    assert not asked.exists()
+
+    # what is wrong with the spec itself is still found, around the stand-in
+    write(
+        tmp_path,
+        "tables/orders.yml",
+        "table: main.${resources.schemas.sales.name}.orders\n"
+        "columns:\n  - {name: id, type: bigint}\n  - {name: id, type: string}\n",
+    )
+    result = runner.invoke(cli.app, ["validate"])
+    assert result.exit_code == 1, result.output
+    assert "duplicate column 'id'" in result.output
+    assert not asked.exists()
+
+    # and a name the bundle doesn't declare at all is still a mistake
+    write(
+        tmp_path,
+        "tables/orders.yml",
+        "table: main.${resources.schemas.slaes.name}.orders\n"
+        "columns:\n  - {name: id, type: bigint}\n",
+    )
+    result = runner.invoke(cli.app, ["validate"])
+    assert result.exit_code == 1, result.output
+    assert "slaes" in result.output
+
+
+def test_plan_stops_when_the_cli_is_there_and_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bug: the command carried on from the bundle file, planning against
+    names a deploy would never use. Its words, and nothing is read."""
+    from fake_warehouse import FakeWarehouse
+
+    bundle_project(tmp_path)
+    monkeypatch.setenv(
+        "PATH",
+        fake_databricks(tmp_path, stderr="Error: two profiles match this host\n", code=1),
+    )
+    fake = FakeWarehouse()
+    monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["plan", "-t", "prod"])
+    said = " ".join(result.output.split())
+    assert result.exit_code == 1, result.output
+    assert "doesn't resolve for target 'prod'" in said
+    assert "two profiles match this host" in said
+    assert fake.statements == []
+
+
+def test_plan_without_a_cli_reads_the_file_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fake_warehouse import FakeWarehouse
+
+    bundle_project(tmp_path)
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    fake = FakeWarehouse()
+    monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["plan", "-t", "prod"])
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0, result.output
+    assert "No Databricks CLI" in said and "databricks.yml" in said
+    assert "CREATE TABLE" in said
+
+
 @dataclass
 class _Warehouse:
     id: str | None
@@ -734,10 +842,27 @@ def test_a_cli_that_fails_is_not_an_answer(
     assert resolve_target(path, "dev") is None
 
 
-def test_a_failed_cli_leaves_the_names_unknown(
+def test_a_failed_cli_stops_rather_than_reading_the_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Falling back must not plan against the name in the file: a development
+    """A CLI that is there and fails is a bundle that doesn't resolve. Carrying
+    on from the file would plan against names a deploy would never use."""
+    write(tmp_path, "databricks.yml", RENAMING)
+    write(
+        tmp_path,
+        "stevin.yml",
+        "specs: [tables]\nbundle: databricks.yml\n",
+    )
+    monkeypatch.setenv("PATH", stub_cli(tmp_path, "boom", code=1))
+    project = load_project(tmp_path / "stevin.yml")
+    with pytest.raises(BundleError, match="doesn't resolve for target 'dev': .*boom"):
+        as_deployed(project, project.target("dev"))
+
+
+def test_without_a_cli_the_names_stay_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading the file must not plan against the name in it: a development
     target deploys another one, and a spec that uses it has to say so."""
     write(tmp_path, "databricks.yml", RENAMING)
     write(
@@ -751,7 +876,7 @@ def test_a_failed_cli_leaves_the_names_unknown(
         "table: main.${resources.schemas.sales.name}.orders\n"
         "columns:\n  - {name: id, type: bigint}\n",
     )
-    monkeypatch.setenv("PATH", stub_cli(tmp_path, "boom", code=1))
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     project = load_project(tmp_path / "stevin.yml")
     target = as_deployed(project, project.target("dev"))
     with pytest.raises(SpecError, match="development"):

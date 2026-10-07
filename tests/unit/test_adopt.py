@@ -295,6 +295,24 @@ def test_a_spec_that_already_says_it_is_not_rewritten(
     assert path.read_text() == before
 
 
+def test_whatever_stevin_refuses_is_a_line_not_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`adopt` used to catch two kinds of error by name. Any refusal of
+    stevin's own is a sentence to print."""
+    from stevin.planning import PlanningError
+
+    def refuses(*_args: object, **_kwargs: object) -> None:
+        raise PlanningError("these objects depend on each other in a cycle: a, b")
+
+    at(tmp_path)
+    monkeypatch.setattr(cli.api, "adopt", refuses)
+    output, code = run(tmp_path, IN_SYNC, monkeypatch)
+    assert code == 1
+    assert "depend on each other in a cycle" in output
+    assert "Traceback" not in output
+
+
 def test_a_name_that_matches_no_spec_says_so(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

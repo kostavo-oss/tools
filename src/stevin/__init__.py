@@ -1,4 +1,4 @@
-"""stevin: declarative plan and apply for Databricks tables.
+"""stevin: safe plan/apply migrations for Unity Catalog tables and schemas.
 
 Two ways in, the same code underneath. The command line is the one most people
 meet:

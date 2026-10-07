@@ -34,7 +34,7 @@ from rich.text import Text
 from typer.testing import CliRunner
 
 from fake_warehouse import FakeWarehouse
-from helpers import path_without
+from helpers import offline_environment
 from stevin import api, cli
 from stevin.connect import Connection
 from stevin.executor import Executor
@@ -154,8 +154,9 @@ def _console() -> Console:
 def _patched(studio: Studio, console: Console) -> Iterator[None]:
     """Point the CLI at the scene's warehouse and console.
 
-    And take the Databricks CLI off `PATH`: a picture must show what stevin
-    does, not what happens to be installed on the machine that took it.
+    And take the Databricks CLI and workspace out of the environment: a
+    picture must show what stevin does, not what happens to be installed or
+    logged in on the machine that took it.
     """
     replacements: dict[str, object] = {
         "out": console,
@@ -175,12 +176,11 @@ def _patched(studio: Studio, console: Console) -> Iterator[None]:
         setattr(cli, name, value)
     for name, value in library.items():
         setattr(api, name, value)
-    path = os.environ.get("PATH", "")
-    os.environ["PATH"] = path_without("databricks")
+    offline = offline_environment(dict(os.environ), studio.root / "no-databrickscfg")
     try:
-        yield
+        with unittest.mock.patch.dict(os.environ, offline, clear=True):
+            yield
     finally:
-        os.environ["PATH"] = path
         for name, value in saved.items():
             setattr(cli, name, value)
         for name, value in saved_library.items():

@@ -1,5 +1,8 @@
 # Transcripts
 
+**None are recorded yet.** This folder is where they go; until a live run has
+written them, the replay test skips and this layer proves nothing.
+
 What the workspace actually answered, kept — one file per assumption
 (`stevin.probes.PROBES`), each carrying the date it was recorded and the
 runtime that answered.

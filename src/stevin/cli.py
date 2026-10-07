@@ -9,9 +9,9 @@ workspace.
 import json
 import os
 import webbrowser
-from collections.abc import Callable, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from enum import StrEnum
-from fnmatch import fnmatch
 from functools import partial
 from pathlib import Path
 from typing import Annotated
@@ -24,31 +24,36 @@ from rich.status import Status
 from rich.text import Text
 
 from stevin import api, formerly, probes
-from stevin.adopt import CannotAdopt
-from stevin.bundle import BundleError
-from stevin.connect import Connection, NotConnected
+from stevin.bundle import BundleError, find_cli
+from stevin.connect import Connection, NotConnected, workspace_named
 from stevin.doctor import look, worst
 from stevin.errors import StevinError
 from stevin.executor import DestructiveRefused, ExecutionError, ExecutionResult
 from stevin.history import HistoryStore, NoHistory
 from stevin.history import Status as StepStatus
-from stevin.introspect import IntrospectionError
+from stevin.introspect import Interrupted, IntrospectionError
 from stevin.loader import (
+    NOT_ASKED,
+    VARIABLE,
     Diagnostic,
+    LoadedSpec,
     Project,
     SpecError,
     SpecErrors,
     Specs,
     Target,
     as_deployed,
+    as_written,
     find_project_file,
     load_project,
     load_spec,
+    shared_names,
     spec_files,
     validate_spec,
 )
 from stevin.manage import EVERYTHING
 from stevin.model.plan import Plan, Step
+from stevin.planning import cycles
 from stevin.probes import Result
 from stevin.render.html import render_html
 from stevin.render.json import PlanFileError
@@ -63,9 +68,12 @@ from stevin.sqlspec import sql_cannot_say
 
 app = typer.Typer(
     name="stevin",
-    help="Declarative plan/apply for Databricks SQL tables.",
+    help="Safe plan/apply migrations for Unity Catalog tables and schemas.",
     no_args_is_help=True,
     add_completion=False,
+    # A traceback is a bug report people paste. With locals in it, it is also
+    # whatever was in scope: a connection, a token, a row of someone's data.
+    pretty_exceptions_show_locals=False,
 )
 
 out = Console(highlight=False)
@@ -190,10 +198,10 @@ def validate(
         # stevin and other tools holds for these files too.
         found = _optional_project(config)
         if target and found:
-            chosen = _target(found, target)
+            chosen = _target(found, target, from_file=True)
     else:
         found = _project(config)
-        chosen = _target(found, target)
+        chosen = _target(found, target, from_file=True)
         try:
             files = spec_files(found)
         except SpecError as error:
@@ -207,7 +215,20 @@ def validate(
         err.print("[yellow]No specs found.[/]")
         raise typer.Exit(1)
 
+    # What only the bundle's CLI settles — the name a development target deploys
+    # a schema under, a `lookup:` — is not asked for here. A spec that uses one
+    # is linted with a name standing in for it, and told so at the end: that is
+    # nothing wrong with the spec, and `plan` settles it.
+    standing_in = {
+        name: name.replace(".", "_")
+        for name in unresolved
+        if name.startswith("resources.")
+    }
+    variables = {**variables, **standing_in}
+    unresolved = {n: why for n, why in unresolved.items() if n not in standing_in}
+
     problems = 0
+    read: list[LoadedSpec] = []
     for path in files:
         try:
             table = load_spec(path, variables, unresolved, manage)
@@ -215,14 +236,39 @@ def validate(
             err.print(f"[red]{escape(str(error))}[/]")
             problems += 1
             continue
+        read.append(LoadedSpec(path, table))
         for diagnostic in validate_spec(table, _shown(path)):
             _print_diagnostic(diagnostic)
             problems += diagnostic.severity == "error"
+    # What is wrong between specs rather than in one: two files for one name,
+    # and objects that name each other in a circle.
+    for diagnostic in (*shared_names(read, _shown), *cycles(read, _shown)):
+        _print_diagnostic(diagnostic)
+        problems += 1
 
+    unsettled = _mentioned(files, standing_in)
+    if unsettled:
+        names = ", ".join(f"${{{name}}}" for name in unsettled)
+        err.print(
+            f"[dim]Not settled here: {escape(names)}. {NOT_ASKED} what it deploys "
+            "under; `stevin plan` does.[/]"
+        )
     if problems:
         err.print(f"[red]{count(problems, 'problem')} in {count(len(files), 'spec')}.[/]")
         raise typer.Exit(1)
     out.print(f"[green]{count(len(files), 'spec')} OK.[/]")
+
+
+def _mentioned(files: Sequence[Path], names: Mapping[str, str]) -> list[str]:
+    """Which of `names` the spec files use as `${name}`."""
+    found: set[str] = set()
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue  # said already, where the spec was read
+        found.update(match.group(1) for match in VARIABLE.finditer(text))
+    return sorted(found & names.keys())
 
 
 def _print_diagnostic(diagnostic: Diagnostic) -> None:
@@ -294,10 +340,28 @@ def import_schema(
     manage = project.manage if project else EVERYTHING
     connection = _connect(warehouse_id, chosen, profile)
 
-    if project is None and config is None and output is None:
-        # A first import is a first project: write the file that makes
-        # `plan` and `apply` work next, once reading the schema has worked.
-        # With -o the caller has a layout in mind, so nothing is added to it.
+    # A first import is a first project: it gets the file that makes `plan` and
+    # `apply` work next, with the catalog as its one variable. With -o the
+    # caller has a layout in mind, so nothing is added to it.
+    first = project is None and config is None and output is None
+    variable = STARTER_VARIABLE if first else _catalog_variable(chosen, parts[0])
+    # Read before anything is written: a schema that can't be read leaves no
+    # project file and no directory behind.
+    try:
+        found = api.import_schema(
+            connection,
+            schema,
+            manage=manage,
+            catalog_variable=variable,
+            owned_elsewhere=chosen.owned_by_the_bundle() if chosen else None,
+            spec_format=spec_format.value,
+            parallel=parallel,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+
+    if first:
         project_file = Path(PROJECT_FILE)
         project_file.write_text(
             starter_project(
@@ -312,25 +376,9 @@ def import_schema(
             f"[green]+[/] {PROJECT_FILE} [dim](target dev: catalog {escape(parts[0])})[/]"
         )
         project = _project(project_file)
-        chosen = _target(project, None)
 
     directory = output or (project.spec_paths[0] if project else Path("tables"))
     directory.mkdir(parents=True, exist_ok=True)
-
-    variable = _catalog_variable(chosen, parts[0])
-    try:
-        found = api.import_schema(
-            connection,
-            schema,
-            manage=manage,
-            catalog_variable=variable,
-            owned_elsewhere=chosen.owned_by_the_bundle() if chosen else None,
-            spec_format=spec_format.value,
-            parallel=parallel,
-        )
-    except StevinError as error:
-        err.print(f"[red]{escape(str(error))}[/]")
-        raise typer.Exit(1) from error
 
     for spec in found:
         path = directory / spec.filename
@@ -360,6 +408,8 @@ def import_schema(
 
 
 PROJECT_FILE = "stevin.yml"
+#: The variable a first project keeps its catalog in, so its specs say `${catalog}`.
+STARTER_VARIABLE = "catalog"
 
 
 def starter_project(
@@ -385,12 +435,12 @@ version: 1
 specs: [{specs.as_posix()}]
 
 # Where `apply` records its runs and holds its lock; created on first use.
-history_schema: ${{catalog}}.stevin
+history_schema: ${{{STARTER_VARIABLE}}}.stevin
 
 targets:
   dev:
     vars:
-      catalog: {catalog}
+      {STARTER_VARIABLE}: {catalog}
 {connection}"""
 
 
@@ -497,12 +547,16 @@ def doctor(
     """
     project = _optional_project(config)
     chosen: Target | None = None
-    if project is not None:
+    # Several targets and no default is a finding of its own, with its remedy:
+    # there is no name to look up, so none is.
+    name = target or (project.default_target if project else None)
+    if project is not None and name is not None:
         try:
-            chosen = _named(project, target or str(project.default_target))
-        except (KeyError, BundleError) as error:
+            chosen = _named(project, name)
+        except KeyError as error:
+            err.print(f"[red]{escape(str(error.args[0]))}[/]")
+        except BundleError as error:
             err.print(f"[red]{escape(str(error))}[/]")
-            chosen = None
 
     def connect() -> Connection:
         return (
@@ -795,17 +849,16 @@ def adopt(
     specs = _load(project, chosen)
     _abort_on_lint_errors(specs)
     connection = _connect(warehouse_id, chosen, profile)
-    select = _selection(names, [spec.table.name for spec in specs.files])
     try:
         adoptions = api.adopt(
             project,
             chosen,
             connection,
-            select=select,
+            select=names or None,
             specs=specs,
             parallel=parallel,
         )
-    except (CannotAdopt, IntrospectionError) as error:
+    except StevinError as error:
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error
 
@@ -949,13 +1002,14 @@ def _plan(
     parallel: int = 8,
     select: list[str] | None = None,
 ) -> Plan:
-    """`stevin.plan`, with this command line's reading of `--select`."""
+    """`stevin.plan`, or a red line and exit 1. `--select` goes over as it
+    was typed: what it matches is the library's to say, so both say the same."""
     try:
         return api.plan(
             project,
             target,
             connection,
-            select=_selection(select, [r.name for r in specs.relations]),
+            select=select or None,
             check_order=check_order,
             clone=clone,
             parallel=parallel,
@@ -964,29 +1018,6 @@ def _plan(
     except StevinError as error:
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error
-
-
-def _selection(
-    patterns: list[str] | None, names: list[str]
-) -> Callable[[str], bool] | None:
-    """What `--select` accepts: a name from its last part up to all three —
-    `orders`, `sales.orders`, `dev.sales.orders` — or a pattern (`sales.*`).
-    A pattern that names nothing is an error, not an empty plan."""
-    if not patterns:
-        return None
-    wanted = [pattern.lower() for pattern in patterns]
-
-    def matches(name: str, pattern: str) -> bool:
-        parts = name.lower().split(".")
-        return any(
-            fnmatch(".".join(parts[start:]), pattern) for start in range(len(parts))
-        )
-
-    for pattern in wanted:
-        if not any(matches(name, pattern) for name in names):
-            err.print(f"[red]--select {escape(pattern)} matches no spec.[/]")
-            raise typer.Exit(1)
-    return lambda name: any(matches(name, pattern) for pattern in wanted)
 
 
 # ---------------------------------------------------------------------------
@@ -1085,20 +1116,88 @@ def apply(
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error
     except KeyboardInterrupt as interrupted:
-        # The runner has already asked the warehouse to stop the statement, and
-        # the executor has released the lock. What is left to say is that the
-        # run can be picked up where it stopped.
+        # The executor has released the lock on its way out. What became of the
+        # statement is the runner's to say — it knows whether there was one,
+        # and whether the warehouse took the cancel — and is said as it is.
         _running.stop()
-        err.print(
-            "\n[yellow]Stopped.[/] The statement that was running was cancelled on "
-            "the warehouse and the lock is released; `stevin apply` again "
-            "resumes from this step."
+        said = " ".join(
+            part
+            for part in (
+                _statement_after(interrupted),
+                "" if isinstance(history, NoHistory) else "This run's lock is released.",
+                _next_apply(plan_file, history),
+            )
+            if part
         )
+        err.print(f"\n[yellow]Stopped.[/] {escape(said)}")
         raise typer.Exit(130) from interrupted
 
-    _report(result, built, plan_file)
+    _report(result, built, plan_file, history)
     if not result.ok:
         raise typer.Exit(1)
+
+
+def _statement_after(interrupted: KeyboardInterrupt) -> str:
+    """What became of the statement that was running when Ctrl-C came.
+
+    Only what is known. An interrupt that isn't the runner's came between
+    statements, or from a runner that doesn't say, and nothing is claimed.
+    """
+    if not isinstance(interrupted, Interrupted):
+        return ""
+    if interrupted.statement_id is None:
+        # Which statement, so it can be found: a step's, or one of the reads
+        # and bookkeeping writes around the steps.
+        sent = " ".join(interrupted.statement.split())
+        sent = sent if len(sent) <= 80 else sent[:79] + "…"
+        return (
+            f"A statement had just been sent ({sent}) and the warehouse hadn't "
+            "yet said which statement it was, so nothing could be cancelled: it "
+            "may still be running. Look for it in the workspace's Query History, "
+            "and let it finish or cancel it there before you apply again."
+        )
+    if interrupted.cancelled:
+        return (
+            "The statement that was running was cancelled on the warehouse "
+            f"(statement {interrupted.statement_id})."
+        )
+    return (
+        f"stevin asked the warehouse to stop the statement that was running and "
+        f"{interrupted.outcome}: it may still be running. Look for statement "
+        f"{interrupted.statement_id} in the workspace's Query History before you "
+        "apply again."
+    )
+
+
+def _after_a_failure(plan_file: Path | None, history: HistoryStore) -> str:
+    """What to do once the cause of a failed step is fixed."""
+    if plan_file is None:
+        return (
+            "Fix the cause and run `stevin apply` again — it plans from where the "
+            "tables are now."
+        )
+    if isinstance(history, NoHistory):
+        # Nothing recorded which steps ran, and the plan was made for the tables
+        # as they were before them.
+        return (
+            "Fix the cause and plan again: with no history schema there is no run "
+            "to resume, and this plan was made for the tables as they were."
+        )
+    return (
+        f"Fix the cause and run `stevin apply {plan_file}` again — it resumes "
+        "from here rather than starting over."
+    )
+
+
+def _next_apply(plan_file: Path | None, history: HistoryStore) -> str:
+    """What running `apply` again does after an interrupted run."""
+    if plan_file is None:
+        return "`stevin apply` again plans from where the tables are now."
+    if isinstance(history, NoHistory):
+        # No record, so no run to resume — and a plan whose first steps ran is
+        # stale by its own doing.
+        return "With no history schema there is no run to resume: plan again."
+    return f"`stevin apply {plan_file}` again resumes from this step."
 
 
 def _confirm(built: Plan) -> bool:
@@ -1133,6 +1232,11 @@ def _show_step(
     )
     if status == "skipped" and note:
         line += f" [dim]({escape(note)})[/]"
+    if status == "succeeded" and note:
+        # What the step has to say for itself: the restore point it took — or,
+        # in yellow, that it ran without one.
+        colour = "yellow" if note.startswith("no restore point") else "dim"
+        line += f" [{colour}]({escape(note)})[/]"
     out.print(line)
     if status == "failed" and note:
         err.print(f"     [red]{escape(note)}[/]")
@@ -1190,7 +1294,9 @@ def _seconds(shown: str) -> float:
     return total
 
 
-def _report(result: ExecutionResult, built: Plan, plan_file: Path | None) -> None:
+def _report(
+    result: ExecutionResult, built: Plan, plan_file: Path | None, history: HistoryStore
+) -> None:
     ran, skipped = len(result.ran), len(result.skipped)
     if result.ok:
         out.print(
@@ -1200,14 +1306,7 @@ def _report(result: ExecutionResult, built: Plan, plan_file: Path | None) -> Non
         return
     err.print(
         f"\n[red]Failed at step {result.failed} of {len(built.steps)}[/] · run "
-        f"[bold]{result.run_id}[/]\n"
-        + (
-            f"Fix the cause and run `stevin apply {plan_file}` again — it resumes "
-            "from here rather than starting over."
-            if plan_file is not None
-            else "Fix the cause and run `stevin apply` again — it plans from where "
-            "the tables are now."
-        )
+        f"[bold]{result.run_id}[/]\n" + _after_a_failure(plan_file, history)
     )
 
 
@@ -1323,13 +1422,17 @@ def _shown(path: Path) -> str:
     return _from_here(path).as_posix()
 
 
-def _target(project: Project, name: str | None) -> Target:
+def _target(project: Project, name: str | None, *, from_file: bool = False) -> Target:
+    """The target a command works on. `from_file` is for `validate`, which
+    promises to run nothing: the bundle file as written, and no CLI."""
     if name is None and project.default_target is None:
         known = ", ".join(t.name for t in project.targets) or "none defined"
         err.print(f"[red]Pick a target with -t (known: {known}).[/]")
         raise typer.Exit(1)
     try:
-        return _named(project, name or str(project.default_target))
+        if from_file:
+            return as_written(project.target(name or str(project.default_target)))
+        chosen = _named(project, name or str(project.default_target))
     except KeyError as error:
         err.print(f"[red]{escape(str(error.args[0]))}[/]")
         raise typer.Exit(1) from error
@@ -1337,15 +1440,23 @@ def _target(project: Project, name: str | None) -> Target:
         # The Databricks CLI answered with an error; it is the error.
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error
+    if project.bundle is not None and find_cli() is None:
+        # The one case that carries on from the file, so it is said.
+        err.print(
+            f"[dim]No Databricks CLI found: {escape(project.bundle.name)} is read "
+            "as written, and what only the CLI can settle stays unknown.[/]"
+        )
+    return chosen
 
 
 def _named(project: Project, name: str) -> Target:
     """The target, as the Databricks CLI resolves its bundle.
 
     Variables, lookups and the names a deploy really uses are the CLI's to
-    settle, so it is asked once per command. Without it — not installed, or no
-    credentials for it to look anything up with — what stevin read from the
-    bundle file stands in, and says *unknown* rather than guessing.
+    settle, so it is asked once per command. A CLI that is there and fails is
+    a bundle that doesn't resolve, and that stops the command (`BundleError`).
+    Only without a CLI at all does what stevin read from the bundle file
+    stand in, saying *unknown* rather than guessing.
     """
     return as_deployed(project, project.target(name))
 
@@ -1374,10 +1485,14 @@ def _connect(
     warehouse_id: str | None, target: Target | None, profile: str | None = None
 ) -> Connection:
     """A workspace and a warehouse, or a red line and exit 1."""
+    where = workspace_named(target, profile)
     try:
-        if target is None:
-            return Connection(profile=profile, warehouse_id=warehouse_id)
-        return Connection.from_target(target, profile=profile, warehouse_id=warehouse_id)
+        with _waiting_for(f"Connecting to the Databricks workspace ({where})…"):
+            if target is None:
+                return Connection(profile=profile, warehouse_id=warehouse_id)
+            return Connection.from_target(
+                target, profile=profile, warehouse_id=warehouse_id
+            )
     except NotConnected as error:
         err.print(f"[red]{escape(str(error))}[/]")
         if "no SQL warehouse" in str(error):
@@ -1391,6 +1506,23 @@ def _connect(
                 "DATABRICKS_HOST and a token."
             )
         raise typer.Exit(1) from error
+
+
+@contextmanager
+def _waiting_for(what: str) -> Iterator[None]:
+    """Say what is being waited for, before the wait.
+
+    Making a workspace client can take minutes: the Databricks SDK looks the
+    host up, and keeps trying one that doesn't answer. Silence for that long
+    reads as a hang. In a terminal this is a spinner that leaves nothing
+    behind; in a log it is a line.
+    """
+    if err.is_terminal:
+        with err.status(f"[dim]{escape(what)}[/]"):
+            yield
+    else:
+        err.print(f"[dim]{escape(what)}[/]")
+        yield
 
 
 def main() -> None:

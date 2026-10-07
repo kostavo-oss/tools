@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -28,6 +29,7 @@ from stevin.connect import Connection
 from stevin.executor import Executor, Heartbeating
 from stevin.history import MemoryHistory
 from stevin.introspect import (
+    Interrupted,
     IntrospectionError,
     Introspector,
     Progress,
@@ -86,6 +88,8 @@ class SlowClient:
     then: str = "SUCCEEDED"
     cancel_fails: bool = False
     interrupt_at: int | None = None
+    #: Ctrl-C while the first request is still out: no statement id has come back.
+    interrupt_the_request: bool = False
     asked: int = 0
     cancelled: list[str] = field(default_factory=list)
 
@@ -96,6 +100,8 @@ class SlowClient:
     def execute_statement(self, **_kwargs: object) -> _Response:
         from databricks.sdk.service.sql import StatementState
 
+        if self.interrupt_the_request:
+            raise KeyboardInterrupt
         return _Response(StatementState.RUNNING)
 
     def get_statement(self, statement_id: str) -> _Response:
@@ -167,11 +173,41 @@ def test_ctrl_c_cancels_the_statement_and_still_interrupts() -> None:
     """Whoever pressed it wants the statement stopped, not just the waiting: a
     REPLACE left running would finish behind their back."""
     client = SlowClient(polls=1_000_000, interrupt_at=3)
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(KeyboardInterrupt) as raised:
         patient(client, timeout_seconds=None).query(
             "CREATE OR REPLACE TABLE t AS SELECT 1"
         )
     assert client.cancelled == ["01ef-abc"]
+    # And the interrupt says so, for whoever reports it.
+    assert isinstance(raised.value, Interrupted)
+    assert (raised.value.statement_id, raised.value.cancelled) == ("01ef-abc", True)
+
+
+def test_ctrl_c_before_the_statement_has_an_id_cancels_nothing_and_says_so() -> None:
+    """The request that sends a statement waits up to `wait_timeout` for it to
+    finish, and the statement id is in its answer. Interrupted before the
+    answer, there is no id to cancel by — so the interrupt must not pass for one
+    that cancelled: the statement may be running.
+    https://docs.databricks.com/api/workspace/statementexecution/executestatement
+    """
+    client = SlowClient(polls=1_000_000, interrupt_the_request=True)
+    with pytest.raises(KeyboardInterrupt) as raised:
+        patient(client, timeout_seconds=None).query(
+            "CREATE OR REPLACE TABLE t AS SELECT 1"
+        )
+    assert client.cancelled == [], "there was nothing to cancel by"
+    assert isinstance(raised.value, Interrupted)
+    assert raised.value.statement_id is None
+    assert not raised.value.cancelled
+
+
+def test_ctrl_c_with_a_cancel_the_warehouse_refused_says_that_too() -> None:
+    client = SlowClient(polls=1_000_000, interrupt_at=3, cancel_fails=True)
+    with pytest.raises(Interrupted) as raised:
+        patient(client, timeout_seconds=None).query("SELECT 1")
+    assert raised.value.statement_id == "01ef-abc"
+    assert not raised.value.cancelled
+    assert "could not cancel it" in (raised.value.outcome or "")
 
 
 def test_the_heartbeat_hears_how_long_it_has_been() -> None:
@@ -331,13 +367,18 @@ def test_a_running_step_is_a_line_a_log_reader_can_follow(
     assert lines[-1].rstrip().endswith("ok")
 
 
-def test_ctrl_c_during_apply_says_what_state_things_are_in(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from pathlib import Path
-
+def _interrupt_apply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt: KeyboardInterrupt,
+    *args: str,
+    history: bool = False,
+) -> str:
+    """`stevin apply`, interrupted the way `interrupt` says; what it printed."""
     (tmp_path / "stevin.yml").write_text(
-        "version: 1\nspecs: [tables]\ntargets:\n  dev:\n    default: true\n"
+        "version: 1\nspecs: [tables]\n"
+        + ("history_schema: ${catalog}.stevin\n" if history else "")
+        + "targets:\n  dev:\n    default: true\n"
         "    vars: {catalog: main}\n    warehouse_id: w1\n"
     )
     (tmp_path / "tables").mkdir()
@@ -347,13 +388,84 @@ def test_ctrl_c_during_apply_says_what_state_things_are_in(
     fake = FakeWarehouse()
     fake.schemas.add("main.sales")
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
-    monkeypatch.chdir(Path(tmp_path))
+    monkeypatch.chdir(tmp_path)
 
     def interrupted(*_args: object, **_kwargs: object) -> None:
-        raise KeyboardInterrupt
+        raise interrupt
 
     monkeypatch.setattr(cli.api, "apply", interrupted)
-    result = runner.invoke(cli.app, ["apply", "--yes"])
+    result = runner.invoke(cli.app, ["apply", *args])
     assert result.exit_code == 130, result.output
-    assert "cancelled on the warehouse" in result.output
-    assert "resumes from this step" in result.output
+    return " ".join(result.output.split())
+
+
+def test_ctrl_c_during_apply_says_the_statement_was_cancelled_when_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    said = _interrupt_apply(
+        tmp_path,
+        monkeypatch,
+        Interrupted("REPLACE TABLE t", "01ef-abc", "cancelled it"),
+        "--yes",
+    )
+    assert "was cancelled on the warehouse" in said
+    assert "01ef-abc" in said
+    assert "plans from where the tables are now" in said
+
+
+def test_ctrl_c_before_the_statement_had_an_id_does_not_claim_a_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bug: 'cancelled on the warehouse', for a statement nothing was sent
+    to cancel. It may be running, and Query History is where to look.
+    https://docs.databricks.com/aws/en/sql/user/queries/query-history
+    """
+    said = _interrupt_apply(
+        tmp_path, monkeypatch, Interrupted("REPLACE TABLE t"), "--yes"
+    )
+    assert "was cancelled" not in said
+    assert "may still be running" in said
+    assert "Query History" in said
+    assert "(REPLACE TABLE t)" in said, "which statement, so it can be found"
+
+
+def test_ctrl_c_with_a_refused_cancel_does_not_claim_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    said = _interrupt_apply(
+        tmp_path,
+        monkeypatch,
+        Interrupted("REPLACE TABLE t", "01ef-abc", "could not cancel it (gone)"),
+        "--yes",
+    )
+    assert "was cancelled" not in said
+    assert "could not cancel it (gone)" in said
+    assert "may still be running" in said
+
+
+def test_ctrl_c_between_statements_claims_nothing_about_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    said = _interrupt_apply(tmp_path, monkeypatch, KeyboardInterrupt(), "--yes")
+    assert "Stopped." in said
+    assert "cancelled" not in said
+    # No history schema in this project: there is no lock to speak of.
+    assert "lock" not in said.split("Stopped.")[1]
+
+
+def test_ctrl_c_on_a_saved_plan_says_the_lock_is_released_and_how_to_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from stevin.render.json import dumps
+
+    _fake, plan = _plan_and_fake()
+    (tmp_path / "plan.json").write_text(dumps(plan))
+    said = _interrupt_apply(
+        tmp_path,
+        monkeypatch,
+        Interrupted("REPLACE TABLE t", "01ef-abc", "cancelled it"),
+        "plan.json",
+        history=True,
+    )
+    assert "This run's lock is released" in said
+    assert "`stevin apply plan.json` again resumes from this step" in said

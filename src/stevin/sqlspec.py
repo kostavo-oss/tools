@@ -38,6 +38,7 @@ from stevin.loader import (
     VARIABLE,
     Loc,
     SpecError,
+    not_utf8,
     spec_properties,
     with_catalog_variable,
 )
@@ -80,6 +81,8 @@ def load_sql_spec(
         raw = path.read_text(encoding="utf-8")
     except OSError as error:
         raise SpecError(f"cannot read spec: {error}", Loc(path, 1, 1)) from error
+    except UnicodeDecodeError as error:
+        raise not_utf8(path, error) from error
     text = _substitute(path, raw, variables or {}, unresolved or {})
     return _Reader(path, text).read()
 

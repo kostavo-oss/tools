@@ -10,8 +10,13 @@ it; a notebook; a policy check that refuses a plan with a `destructive` step in
 it.
 
 ```sh
-pip install stevin            # no extras: the library is the package
+pip install --pre stevin      # no extras: the library is the package
 ```
+
+!!! warning "Not on PyPI under this name yet"
+    The first release as `stevin` is being prepared. Until this notice is gone, do not
+    install a `stevin` from PyPI — it is not ours. [Installation](installation.md) says
+    how to get it meanwhile.
 
 Everything below is exported from `stevin` itself. Names reached through a
 submodule are the implementation, and move without notice.
@@ -55,6 +60,12 @@ if not plan.empty:
 if not stevin.drift(project, target, conn).empty:
     print("the workspace no longer matches the specs")
 ```
+
+`plan`, `drift` and `adopt` take `select=` to narrow the work to some specs, and
+read it the way the command line reads `--select`: a name as short as `"orders"`
+or as full as `"dev.sales.orders"`, a pattern like `"sales.*"`, or a list of
+them, in any case. One that matches no spec raises `PlanningError` — a typo is
+not an empty plan. A function is taken as your own predicate over full names.
 
 ## A bundle you have already resolved
 
@@ -142,7 +153,12 @@ step takes is then on the result:
 run = stevin.apply(plan, conn, project=project, target=target)
 for table, version in run.restore_points:
     print(f"RESTORE TABLE {table} TO VERSION AS OF {version}")
+for table, why in run.without_restore_point:
+    print(f"{table} was changed with no restore point: {why}")
 ```
+
+A restore point that can't be taken — the table's version couldn't be read — doesn't
+stop the run; the step's `observer` note and `run.without_restore_point` say so.
 
 Before you ask a person to confirm, `stevin.is_stale(plan, conn)` says
 whether the world has moved under the plan.
@@ -205,7 +221,9 @@ Every error stevin raises on purpose descends from `StevinError`, so one
 | `StalePlan` | the world moved; `.tables` names it | plan again |
 | `DestructiveRefused` | it would destroy something; `.tables` names it | ask a person |
 | `ExecutionError` | anything else that stops a run | show it |
-| `NoHistory` | nowhere to record the run | set `history_schema` |
 
 A step that fails while it is running doesn't raise: the result says which one
 (`run.failed_step`, `run.error`), so the rest of the run stays on record.
+
+`NoHistory` is not in this table: it was an error once, and is now the store a project
+with no `history_schema` [applies with](#applying).

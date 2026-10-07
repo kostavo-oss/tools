@@ -48,7 +48,8 @@ rather than picking one silently. Beyond that:
   environment. Everything outside the loader, introspector and executor must be
   unit-testable without a workspace.
 - **The domain model is frozen, slotted stdlib dataclasses holding tuples**, so it stays
-  hashable. Pydantic or msgspec live in the loader and nowhere else.
+  hashable. There is no Pydantic or msgspec: the loader validates by hand, so every
+  error carries its file, line and column.
 - **All SQL goes through `quote_ident()`.** No identifier is ever concatenated raw.
 - **Nothing unmodelled is diffed away.** Unknown features on a live table are reported
   as unmanaged.
@@ -58,11 +59,13 @@ rather than picking one silently. Beyond that:
 
 ## Tests
 
-- `tests/unit/` — differ and planner against golden plan snapshots (syrupy). Fast,
+- `tests/unit/` — the differ and planner against golden plan snapshots (syrupy), and
+  everything else against a fake warehouse that interprets stevin's own SQL. Fast,
   offline, and the bar for every PR.
 - `tests/integration/` — marked `@pytest.mark.integration`, skipped without credentials,
   and run nightly against a real workspace in an ephemeral schema.
-- Every discovered Databricks limitation becomes a test.
+- Every discovered Databricks limitation becomes a test. [Testing](testing.md) says
+  what each layer proves, and what none of them has settled yet.
 
 ## Commits & PRs
 

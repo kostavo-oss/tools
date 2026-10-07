@@ -175,10 +175,17 @@ def test_the_comment_script_is_where_the_action_looks_for_it() -> None:
 
 
 def run_script(
-    action: dict[str, Any], tmp_path: Path, command: str, *, steps: int, **env: str
+    action: dict[str, Any],
+    tmp_path: Path,
+    command: str,
+    *,
+    steps: int,
+    apply_exits: int = 0,
+    **env: str,
 ) -> list[str]:
     """Run the action's main script with `uvx` recording what it was asked to do,
-    and `stevin plan` answering with a plan of `steps` steps."""
+    and `stevin plan` answering with a plan of `steps` steps. `stevin apply`
+    exits with `apply_exits`, and the script is expected to exit with it too."""
     import os
     import subprocess
 
@@ -202,6 +209,7 @@ def run_script(
         'case "$1" in\n'
         f'  plan) cp {planned} "$out" ;;\n'
         '  show|drift) echo "# plan" > "$out" ;;\n'
+        f"  apply) exit {apply_exits} ;;\n"
         "esac\n"
     )
     (bin_dir / "uv").write_text('#!/usr/bin/env bash\nexec python3 "${@:4}"\n')
@@ -221,7 +229,8 @@ def run_script(
         "ACTION_PATH": "/action",
         **env,
     }
-    subprocess.run(["bash", "-c", step["run"]], env=environment, check=True)
+    done = subprocess.run(["bash", "-c", step["run"]], env=environment, check=False)
+    assert done.returncode == apply_exits
     return calls.read_text().splitlines()
 
 
@@ -268,6 +277,50 @@ def test_apply_passes_allow_destructive_only_when_asked(
 ) -> None:
     calls = run_script(action, tmp_path, "apply", steps=1, ALLOW_DESTRUCTIVE="true")
     assert calls[-1].endswith("--allow-destructive")
+
+
+def test_a_failed_apply_still_leaves_the_plan_and_the_outputs(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    """The bug: the summary and two of the outputs were written after `apply`,
+    so the run that most needs its plan read — the one that failed halfway —
+    had no plan in its summary and nothing for a later step to pick up."""
+    calls = run_script(action, tmp_path, "apply", steps=2, apply_exits=1)
+    assert calls[-1].startswith("apply "), "it did get as far as applying"
+    markdown = tmp_path / "stevin" / "apply.md"
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert f"plan-file={tmp_path / 'stevin' / 'plan.json'}" in outputs
+    assert "has-changes=true" in outputs
+    assert f"markdown-file={markdown}" in outputs
+    summary = (tmp_path / "summary").read_text()
+    assert summary.startswith("# plan\n"), "the plan first"
+    assert "apply` failed" in summary.split("# plan\n", 1)[1], "then that it failed"
+
+
+def test_a_successful_apply_says_nothing_about_failing(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    run_script(action, tmp_path, "apply", steps=2)
+    assert (tmp_path / "summary").read_text() == "# plan\n"
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert sorted(line.split("=")[0] for line in outputs) == [
+        "has-changes",
+        "markdown-file",
+        "plan-file",
+    ], "each output once"
+
+
+def test_drift_writes_its_outputs_and_summary_once(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    run_script(action, tmp_path, "drift", steps=0)
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert outputs == [
+        "plan-file=",
+        "has-changes=false",
+        f"markdown-file={tmp_path / 'stevin' / 'drift.md'}",
+    ]
+    assert (tmp_path / "summary").read_text() == "# plan\n"
 
 
 def test_plan_never_applies(action: dict[str, Any], tmp_path: Path) -> None:

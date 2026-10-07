@@ -213,4 +213,8 @@ def test_stevin_does_not_ship_it() -> None:
     root = SHIM.parent
     build = tomllib.loads((root / "pyproject.toml").read_text())["tool"]["hatch"]["build"]
     assert build["targets"]["wheel"]["packages"] == ["src/stevin"]
-    assert SHIM.name in build["targets"]["sdist"]["exclude"]
+    # The sdist names what it holds, so what isn't named isn't shipped: every
+    # entry is one path from the root, and none of them is the shim.
+    included = build["targets"]["sdist"]["include"]
+    assert included and all(entry.startswith("/") for entry in included)
+    assert not any(entry.strip("/") in ("", SHIM.name) for entry in included)

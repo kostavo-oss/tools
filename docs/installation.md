@@ -12,6 +12,9 @@ stevin is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/stevi
     uv tool install --prerelease allow deltaplan                # the last release, 0.2.0a4
     ```
 
+    If `deltaplan` is already installed as a uv tool, the first of these stops until it
+    is uninstalled — see [coming from deltaplan](#coming-from-deltaplan).
+
 !!! warning "Alpha"
     Every release so far is a pre-release (`0.1.0a1`, …), which installers skip unless
     asked — hence the flags below. Try it on a dev catalog before a production one.
@@ -103,11 +106,22 @@ did not change anything in a workspace.
 
 | Before | Now | If you do nothing |
 |---|---|---|
-| `uv tool install deltaplan` | `uv tool install --prerelease allow stevin` | — |
+| `uv tool install deltaplan` | `uv tool uninstall deltaplan`, then `uv tool install --prerelease allow stevin` | — |
 | `deltaplan plan` | `stevin plan` | `deltaplan` still runs: it says its new name on stderr, then does what `stevin` does |
 | `deltaplan.yml` | `stevin.yml` | The old file is still found, and the command line says it can be renamed |
 | `uses: misja-pronk/deltaplan@v0` | `uses: kostavo-oss/stevin@v0` | — |
 | `import deltaplan`, `DeltaplanError` | `import stevin`, `StevinError` | — |
+
+**With `uv tool`, uninstall deltaplan first.** stevin brings a `deltaplan` command of its
+own — the one in the table above — so uv won't install it beside the old package, which
+has a command of that name too. The install stops with `Executable already exists:
+deltaplan`. Take the old one out, then install stevin the way the top of this page says:
+
+```sh
+uv tool uninstall deltaplan
+```
+
+Nothing is lost by it: the `deltaplan` command comes with stevin from then on.
 
 **What is on your tables stays.** A table deltaplan made carries the property
 `deltaplan.managed`, a seeded one `deltaplan.seed`, and a rewrite stages its data in

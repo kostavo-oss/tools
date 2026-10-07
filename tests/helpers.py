@@ -159,7 +159,7 @@ def run(plan: Plan, fake: FakeWarehouse) -> None:
         fake.query(step.sql)
 
 
-def path_without(executable: str) -> str:
+def path_without(executable: str, path: str | None = None) -> str:
     """`PATH`, minus every directory that has this program in it.
 
     Offline tests must not shell out to whatever a machine happens to have
@@ -171,28 +171,65 @@ def path_without(executable: str) -> str:
     names = [executable] + [
         f"{executable}{ext}" for ext in os.environ.get("PATHEXT", "").split(os.pathsep)
     ]
-    parts = os.environ.get("PATH", "").split(os.pathsep)
+    if path is None:
+        path = os.environ.get("PATH", "")
     return os.pathsep.join(
         part
-        for part in parts
+        for part in path.split(os.pathsep)
         if part and not any((Path(part) / name).exists() for name in names if name)
     )
 
 
+def offline_environment(environ: dict[str, str], nowhere: Path) -> dict[str, str]:
+    """`environ` with nothing left in it that finds a real CLI or workspace.
+
+    `PATH` loses every directory with a `databricks` in it. Every
+    `DATABRICKS_*` variable goes: `DATABRICKS_CLI_PATH` is looked at *before*
+    `PATH` (`stevin.find_cli`), and the rest are how the Databricks SDK finds
+    a workspace on its own — a host, a token, a profile, a warehouse id. And
+    `DATABRICKS_CONFIG_FILE` comes back pointing at `nowhere`, a file that
+    isn't there, so the DEFAULT profile of whoever runs the tests isn't found
+    either.
+    https://docs.databricks.com/aws/en/dev-tools/auth/unified-auth
+    """
+    kept = {
+        name: value
+        for name, value in environ.items()
+        if not name.upper().startswith("DATABRICKS_")
+    }
+    kept["PATH"] = path_without("databricks", environ.get("PATH", ""))
+    kept["DATABRICKS_CONFIG_FILE"] = str(nowhere)
+    return kept
+
+
 def fake_databricks(
-    directory: Path, stdout: str = "", *, stderr: str = "", code: int = 0
+    directory: Path,
+    stdout: str = "",
+    *,
+    stderr: str = "",
+    code: int = 0,
+    asked: Path | None = None,
 ) -> str:
     """A `databricks` on PATH that answers with this, and the PATH to find it on.
 
     A Python script rather than a shell one, with a launcher beside it: on
     Windows `shutil.which` only finds what `PATHEXT` names, and a bash heredoc
     is no use there anyway. The launcher runs the interpreter running the tests.
+
+    With `asked`, every run adds its arguments to that file as a line — so a
+    test can say the CLI was never run at all.
     """
     bin_dir = directory / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     script = bin_dir / "databricks.py"
+    record = (
+        f"open({str(asked)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+        if asked is not None
+        else ""
+    )
     script.write_text(
         "import sys\n"
+        f"{record}"
         f"sys.stdout.write({stdout!r})\n"
         f"sys.stderr.write({stderr!r})\n"
         f"sys.exit({code})\n",

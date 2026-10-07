@@ -2,6 +2,10 @@
 
 `stevin` (designed under the working name `deltaplan`). Declarative, Terraform-style `plan` / `apply` for Databricks SQL (Unity Catalog, Delta) tables.
 
+This is the design the tool was built from, kept as it was written. Where the code has
+since gone another way, the sentence is corrected in place and marked **(since)**; what
+the design never had is listed in [Since the design](#since-the-design) at the end.
+
 ## Goals
 
 - Desired state in YAML → diff against live Unity Catalog → reviewable plan → safe apply.
@@ -12,8 +16,12 @@
 
 ## Non-goals (v1)
 
-- Views, grants, masks, row filters, volumes, functions (later milestones).
-- Data backfills beyond simple pre/post SQL hooks.
+- Views, grants, masks, row filters, volumes, functions (later milestones). **(since)**
+  All of these are built: views, grants, column masks, row filters, SQL functions,
+  schemas and managed volumes are specs like tables are.
+- Data backfills beyond simple pre/post SQL hooks. **(since)** A `using:` expression
+  backfills a new `NOT NULL` column, and a `seed:` loads reference data; anything
+  larger still belongs in a pipeline.
 - ~~Parsing SQL DDL as the source of truth.~~ **Changed 2026-09-18, by the owner:**
   a spec may be a `.sql` `CREATE` statement, parsed with sqlglot into the same model
   as YAML. SQL specs support exactly what sqlglot parses into structure; YAML stays
@@ -29,12 +37,12 @@ live (UC) ───┘                                        │
                                                       └─> executor ─> history
 ```
 
-1. **Loader** — YAML → frozen dataclasses. Validation at this edge only (Pydantic `TypeAdapter` or msgspec). Variables per target (`${catalog}`).
-2. **Introspector** — live state from `information_schema`, `DESCRIBE TABLE EXTENDED`, `DESCRIBE DETAIL` into the same dataclasses. Type strings are parsed into the type tree.
+1. **Loader** — YAML → frozen dataclasses. Validation at this edge only. Variables per target (`${catalog}`). **(since)** Not Pydantic or msgspec: a hand-written validator over the YAML node tree, so every error carries `file:line:column`. A `.sql` spec is read by `sqlspec.py` (sqlglot) into the same model.
+2. **Introspector** — live state from `information_schema`, `DESCRIBE DETAIL`, `DESCRIBE HISTORY` and `SHOW CREATE TABLE` into the same dataclasses. Type strings are parsed into the type tree. **(since)** `DESCRIBE TABLE EXTENDED` is not used; identity, generated and default columns are read from `SHOW CREATE TABLE`, because `information_schema.columns` doesn't report them.
 3. **Differ** — pure function `(desired, actual) -> list[Change]`.
 4. **Planner** — pure function `list[Change] -> Plan`. Expands changes into ordered steps, inserts prerequisite steps, classifies risk, resolves dependencies.
-5. **Renderer** — Rich CLI, Markdown (PR comments), JSON. All from the same plan object.
-6. **Executor** — runs steps on a SQL warehouse (Statement Execution API via `databricks-sdk`). Precheck → SQL → postcheck → history row.
+5. **Renderer** — Rich CLI, Markdown (PR comments), JSON. All from the same plan object. **(since)** And HTML: one page, served on localhost by `stevin ui`.
+6. **Executor** — runs steps on a SQL warehouse (Statement Execution API via `databricks-sdk`). Precheck → SQL → postcheck → history row. **(since)** The per-step precheck and postcheck queries became `differ.is_applied()`, which asks the model whether a change is already true of the live table; `precheck` survives as a precondition guard (`SET NOT NULL` on a column that still holds nulls).
 
 Differ and planner do no I/O. Everything outside loader, introspector and executor must be unit-testable without a workspace.
 
@@ -55,6 +63,10 @@ Field(name, type, nullable=True, comment=None, renamed_from=None)  # hints: comp
 Column  = Field at top level
 Table(name, columns, comment, cluster_by, properties, tags, constraints)
 ```
+
+**(since)** A table also carries grants, a row filter, an owner, partitioning, a seed and
+hooks, and a column a mask, an identity, a generation expression or a default. Beside
+`Table` there are `View`, `Function`, `Schema` and `Volume`; `Relation` is any of the five.
 
 - **Change** (semantic, rendered): `path` (e.g. `address.element.zip`), `kind`, `before`, `after`.
 - **Step** (executable): `id`, `sql`, `risk`, `precheck`, `postcheck`, `est_bytes`, `undo_hint`.
@@ -98,7 +110,7 @@ There is no state file; Unity Catalog is the state.
 - Tables created by the tool get the property `deltaplan.managed = true`.
 - Only managed tables can ever become drop candidates.
 - Anything else is reported as **unmanaged** and left untouched.
-- Per-schema mode: `additive` (never drop, default) or `strict`.
+- Per-schema mode: `additive` (never drop, default) or `strict`. **(since)** `stevin.yml` has a per-schema `schemas:` map, and a target's `mode` is the default for schemas it doesn't list.
 - `import` generates specs from existing tables and marks them managed on first apply.
 - Features seen on a live table that the model does not cover are shown as "unmanaged feature, left untouched" — never diffed away.
 
@@ -108,7 +120,7 @@ There is no state file; Unity Catalog is the state.
 |---|---|---|
 | `meta` | add column, comment, tags, properties, constraints, add nested field | Runs directly |
 | `feature` | rename/drop column → column mapping; int→bigint → type widening | Planner inserts `SET TBLPROPERTIES` step; warns about streaming readers |
-| `rewrite` | incompatible type change, kind change (struct→array), partitioning | `CREATE OR REPLACE TABLE … AS SELECT`; shows table size; records restore point |
+| `rewrite` | incompatible type change, kind change (struct→array), partitioning | `CREATE OR REPLACE TABLE … AS SELECT`; shows table size; records restore point. **(since)** Staged in two statements — the converted data into a staging table, then the table replaced from it — so the expensive step can be repeated and checked before the table is touched |
 | `destructive` | drop column, drop table | Requires `--allow-destructive` |
 
 Nested-field rules to verify against current Databricks docs and encode as tests: add nested field (meta), rename/drop nested (feature), widen nested (feature), reorder (meta, opt-in diff), `SET NOT NULL` on nested (unsupported → rewrite or error), map key change (rewrite).
@@ -119,7 +131,7 @@ Nested-field rules to verify against current Databricks docs and encode as tests
 
 DDL is not transactional across statements. No rollback promise.
 
-- Every step is idempotent via precheck/postcheck.
+- Every step is idempotent via precheck/postcheck. **(since)** Via `differ.is_applied()`, as above.
 - `apply` resumes from the history table.
 - Before any rewrite: record Delta version (`delta_version_before`) so `RESTORE` is one command. Optional `SHALLOW CLONE`.
 - Stale plan protection: `apply` recomputes the state fingerprint and refuses if it differs.
@@ -130,7 +142,9 @@ Delta tables in a dedicated schema (configurable).
 
 - `runs`: run_id, plan_hash, target, user, tool_version, status, started_at, ended_at
 - `steps`: run_id, step_id, table, sql, status, started_at, ended_at, error, delta_version_before
-- `lock`: conditional `UPDATE … WHERE holder IS NULL`, check affected rows. TTL + `force-unlock`.
+- `lock`: conditional `UPDATE … WHERE holder IS NULL`, check affected rows. TTL + `force-unlock`. **(since)** The update is confirmed by reading the row back rather than by its affected-row count, and it also takes a lock whose TTL has run out. `apply` takes the lock before it checks the plan is not stale.
+
+**(since)** The history schema is optional. A project that names none applies anyway: no lock, no resume, no record, and the restore points are on the run's result instead.
 
 ## CLI
 
@@ -142,6 +156,22 @@ stevin apply plan.json [--allow-destructive]
 stevin drift -t <target>   # exit code != 0 on drift, for CI
 stevin force-unlock
 ```
+
+**(since)** Thirteen commands. The six above, and:
+
+```
+stevin apply [-t <target>]   # no plan file: plan, show, ask, run
+stevin show plan.json        # render a saved plan, no warehouse
+stevin ui [plan.json]        # the plan as a page on localhost
+stevin adopt [<name>…]       # drift, written back into the spec files
+stevin doctor                # check the setup; changes nothing
+stevin verify --schema <s>   # run the Databricks assumptions in a scratch schema
+stevin schema spec|project   # the JSON Schema editors use
+stevin version
+```
+
+`plan`, `apply`, `ui` take `--select`; `plan`, `show` and `drift` also render `html`;
+`drift` exits 2 on drift and 1 on failure. [Commands](cli.md) is the reference.
 
 ## Plan output (target look)
 
@@ -169,6 +199,12 @@ Plan: 0 add, 1 change, 0 destroy · 6 steps · 0 rewrites · 1 warning
 - Integration: real workspace, ephemeral schema per run, nightly in CI. Marked `@pytest.mark.integration`, skipped without credentials.
 - Every discovered Databricks limitation becomes a test.
 
+**(since)** Two layers sit between those: a fake warehouse that interprets stevin's own
+SQL, so plan → apply → re-plan is asserted offline, and transcripts of what a workspace
+answered, replayed offline (built; none recorded yet). The Databricks assumptions are a
+list of probes (`probes.py`) that the live suite and `stevin verify` both run.
+[Testing](testing.md) says what each layer proves.
+
 ## Milestones
 
 1. **Read-only**: domain model, type parser, loader, introspector, differ, planner (classification only), Rich renderer, `validate`, `import`, `plan`.
@@ -179,6 +215,42 @@ Plan: 0 add, 1 change, 0 destroy · 6 steps · 0 rewrites · 1 warning
 
 Open-source after milestone 1.
 
+**(since)** All five are built.
+
 ## Stack
 
 Python ≥ 3.11 · uv · src layout · typer + rich · databricks-sdk · PyYAML · pytest (+ syrupy for snapshots) · ruff · pyright · GitHub Actions · Apache-2.0.
+
+**(since)** `ty` instead of pyright, `sqlglot` for SQL specs, and `mise` to pin Python and uv.
+
+## Since the design
+
+What the tool has that this page never planned, a line each. The user-facing pages are
+the reference for all of it.
+
+- **A project file.** `stevin.yml`: targets with their variables, profile, warehouse and
+  mode, where the specs are, the history schema, and `manage:` — what the project
+  leaves to another tool.
+- **SQL specs.** A spec may be a `CREATE` statement in a `.sql` file. It supports exactly
+  what sqlglot parses into structure; YAML is the complete format ([formats](formats.md)).
+- **More than tables.** Views, SQL functions, schemas and managed volumes; grants,
+  column tags, masks, row filters and owners. Functions, schemas and volumes are never
+  dropped: nothing on them records that stevin made them.
+- **One order over the objects.** Functions, tables and views are planned as one graph,
+  each after what it names; a cycle is an error, found at `validate`. Two specs for one
+  name are an error too.
+- **Asset Bundles.** A project can take its targets and variables from a
+  `databricks.yml`, resolved by asking the Databricks CLI. What a bundle declares is the
+  bundle's: stevin doesn't create or manage it ([bundles](bundles.md)).
+- **Seeds, hooks and backfills.** Reference data kept beside the spec; SQL before and
+  after an apply; `using:` to fill a new required column.
+- **The way back.** `adopt` writes live state into the spec file that describes it, by
+  editing the YAML text, so comments and `${var}` survive.
+- **Ownership claims.** A spec for a table stevin didn't create plans a visible claim
+  before anything else.
+- **A library.** Every command is a function in `stevin.api`; `import stevin` is a
+  supported way in ([as a library](sdk.md)).
+- **A GitHub Action**, a JSON Schema for editors, `doctor`, `verify`, and the `ui` page.
+- **The name.** Built and first released as `deltaplan`; `stevin` from 0.3.0a1. The
+  names written onto tables — `deltaplan.managed`, `deltaplan.seed` and the two
+  suffixes — did not change.

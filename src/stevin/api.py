@@ -21,17 +21,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
+from fnmatch import fnmatch
 
 from stevin.adopt import Adoption
 from stevin.connect import Connection
 from stevin.executor import ExecutionResult, Executor, Status
 from stevin.history import DeltaHistory, HistoryStore, NoHistory
-from stevin.loader import Diagnostic, Project, Specs, Target
+from stevin.loader import Diagnostic, Project, Specs, Target, shared_names
 from stevin.manage import EVERYTHING, Manage
 from stevin.model.plan import Plan, Step
 from stevin.model.view import Relation
 from stevin.model.volume import Volume
-from stevin.planning import PlanningError, plan_tables
+from stevin.planning import PlanningError, cycles, plan_tables
 from stevin.probes import Result
 
 
@@ -48,7 +49,11 @@ def plan(
 ) -> Plan:
     """What stevin would do to make the live objects match the specs.
 
-    `select` narrows it to some of them: a predicate, or the names themselves.
+    `select` narrows it to some of them, the way `--select` does: a name from
+    its last part up to all three — `orders`, `sales.orders`,
+    `dev.sales.orders` — or a pattern like `sales.*`, one or several, in any
+    case. One that matches no spec raises `PlanningError`; a typo is not an
+    empty plan. A predicate over full names is taken as it is.
     `check_order` also compares column order; `clone` takes a zero-copy backup
     of every table a risky step is about to touch.
 
@@ -56,11 +61,15 @@ def plan(
     say — so they aren't read twice.
 
     Raises `SpecErrors` if a spec can't be read, `PlanningError` if the specs
-    can't be planned together, and `IntrospectionError` if the workspace can't
-    be read.
+    can't be planned together — two files describing one name, say — and
+    `IntrospectionError` if the workspace can't be read.
     """
     specs = specs if specs is not None else project.load_specs(target)
-    chosen = _selector(select)
+    twice = shared_names(specs.files)
+    if twice:
+        # Refused here rather than in `plan_tables`, which has no files to name.
+        raise PlanningError("\n".join(f"{d.where}: {d.message}" for d in twice))
+    chosen = _selector(select, [relation.name for relation in specs.relations])
     return plan_tables(
         specs.relations,
         connection.introspector(project.manage, parallel),
@@ -95,8 +104,10 @@ def drift(
 
 def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:
     """Lint every spec, without a workspace. Raises `SpecErrors` if one can't
-    be read; what parses but is wrong comes back as diagnostics."""
-    return project.load_specs(target).diagnostics
+    be read; what parses but is wrong comes back as diagnostics — and so does
+    what is wrong between specs: two files for one name, objects in a cycle."""
+    specs = project.load_specs(target)
+    return (*specs.diagnostics, *cycles(specs.files))
 
 
 def apply(
@@ -113,9 +124,12 @@ def apply(
 
     `observer` is told about each step as it resolves — and, while one runs,
     every half minute with status `running` and how long it has been going, so
-    a long rewrite is never silence. Ctrl-C while a step runs cancels the
-    statement on the warehouse before the `KeyboardInterrupt` reaches you; the
-    run is left resumable.
+    a long rewrite is never silence. Ctrl-C while a step runs asks the
+    warehouse to cancel the statement before the `KeyboardInterrupt` reaches
+    you, and the run is left resumable. From stevin's own runner the interrupt
+    is a `stevin.introspect.Interrupted`, which says whether the statement was
+    cancelled — it can't be when the interrupt comes before the warehouse has
+    answered with the statement's id, and may then still be running.
 
     The run is written to the project's `history_schema`, unless a host passes
     its own `history` — `MemoryHistory` for a test, its own store otherwise. A
@@ -224,18 +238,19 @@ def adopt(
     with what changed in it. **Nothing is written** — call `adoption.write()`,
     or show the text and let someone decide.
 
-    `select` narrows it to some of the specs; without one, every spec the
-    project has is considered, and only the ones that moved come back.
+    `select` narrows it to some of the specs, as it does for `plan`; without
+    one, every spec the project has is considered, and only the ones that moved
+    come back.
 
     Raises `CannotAdopt` for a spec no file edit can express — a `.sql` spec, or
-    a live object of a different kind — and `IntrospectionError` if the
-    workspace can't be read.
+    a live object of a different kind — `PlanningError` for a selection that
+    matches no spec, and `IntrospectionError` if the workspace can't be read.
     """
     from stevin.adopt import adopt as adopt_spec
     from stevin.planning import live_schemas
 
     specs = specs if specs is not None else project.load_specs(target)
-    chosen = _selector(select)
+    chosen = _selector(select, [one.table.name for one in specs.files])
     loaded = [one for one in specs.files if chosen is None or chosen(one.table.name)]
     if not loaded:
         return ()
@@ -312,16 +327,35 @@ def history_for(
 
 def _selector(
     select: Callable[[str], bool] | Sequence[str] | str | None,
+    names: Sequence[str],
 ) -> Callable[[str], bool] | None:
-    """Names or a predicate, both meaning the same thing to the planner."""
+    """What a selection means — here and on the command line, which hands its
+    `--select` over as it was typed.
+
+    A name counts from its last part up to all three — `orders`,
+    `sales.orders`, `dev.sales.orders` — a pattern is a shell's (`sales.*`),
+    and neither minds case. One that matches none of `names` is an error, not
+    an empty plan. A predicate is the caller's own idea of a match, and is
+    taken as it is.
+    """
     if select is None:
         return None
     if isinstance(select, str):
         select = [select]
-    if isinstance(select, Sequence):
-        wanted = {name.casefold() for name in select}
-        return lambda name: name.casefold() in wanted
-    return select
+    if not isinstance(select, Sequence):
+        return select
+    wanted = [pattern.lower() for pattern in select]
+
+    def matches(name: str, pattern: str) -> bool:
+        parts = name.lower().split(".")
+        return any(
+            fnmatch(".".join(parts[start:]), pattern) for start in range(len(parts))
+        )
+
+    for pattern in wanted:
+        if not any(matches(name, pattern) for name in names):
+            raise PlanningError(f"the selection {pattern!r} matches no spec")
+    return lambda name: any(matches(name, pattern) for pattern in wanted)
 
 
 def package_version() -> str:

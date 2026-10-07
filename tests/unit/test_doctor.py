@@ -239,6 +239,28 @@ def test_the_command_exits_one_on_a_problem_and_prints_the_remedy(
     assert "→" in result.output, "a problem is followed by what to do"
 
 
+def test_several_targets_and_no_default_is_a_finding_not_a_target_called_none(
+    tmp_path: Path,
+) -> None:
+    """The bug: `unknown target 'None'` — the missing default, looked up by
+    name. The finding that says to pass -t was already there underneath."""
+    project_at(tmp_path, "specs: [tables]\ntargets:\n  dev: {}\n  prod: {}\n")
+    result = CliRunner().invoke(cli.app, ["doctor", "-c", str(tmp_path / "stevin.yml")])
+    assert result.exit_code == 1
+    assert "None" not in result.output
+    assert "no target chosen and no default" in result.output
+    assert "Pass -t" in result.output
+
+
+def test_a_target_that_does_not_exist_is_said_plainly(tmp_path: Path) -> None:
+    project_at(tmp_path)
+    result = CliRunner().invoke(
+        cli.app, ["doctor", "-t", "nope", "-c", str(tmp_path / "stevin.yml")]
+    )
+    assert "unknown target 'nope'" in result.output
+    assert '"unknown target' not in result.output, "the message, not its repr"
+
+
 def test_json_is_the_same_findings(tmp_path: Path) -> None:
     project_at(tmp_path)
     result = CliRunner().invoke(

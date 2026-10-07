@@ -1108,7 +1108,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13.7" },
     { name = "sqlglot", specifier = ">=30.18.0" },
-    { name = "typer", specifier = ">=0.12" },
+    { name = "typer", specifier = ">=0.17.5" },
 ]
 
 [package.metadata.requires-dev]

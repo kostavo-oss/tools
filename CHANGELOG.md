@@ -98,7 +98,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   statement a recording doesn't cover fails loudly, with the statement in the
   message, so a recording that has stopped being evidence says so instead of
   passing quietly. The suite now has four layers, and `docs/testing.md` says what
-  each can and cannot prove.
+  each can and cannot prove. **No transcript is recorded yet**: the layer is
+  built, and empty until a live run writes them.
 
 ### Changed
 
@@ -148,6 +149,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keeps a comment under GitHub's limit has a new rung — comparison, comparison
   without SQL, change list, table names — each saying what it left out.
 
+- **The source distribution holds the package and its tests.** It carried the
+  whole repository: the docs site, the Action, `CLAUDE.md`, `mise.toml`,
+  `uv.lock`. It now holds `src/`, `tests/`, the README, the licence, the
+  changelog and `pyproject.toml`. The wheel is the same, file for file.
+
 ### Fixed
 
 - **A step can take longer than five minutes.** Every statement had a
@@ -159,8 +165,96 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   takes five minutes has gone wrong), a step has none, and a statement that
   outlives a budget is **cancelled on the warehouse before it is reported** —
   stevin never says a statement failed while it is still running. Ctrl-C
-  during `apply` cancels the running statement the same way, releases the lock
+  during `apply` cancels the running statement the same way — once the
+  warehouse has said which statement it is; see below — releases the lock
   and leaves the run resumable. A long step keeps the lock alive while it runs.
+- **Two specs for one table are an error.** Two files that both said
+  `table: ${catalog}.sales.orders` passed `validate`. The plan then held two
+  `CREATE TABLE IF NOT EXISTS`, the second a no-op, and the plan after that
+  dropped the first file's columns to make the table look like the second.
+  Two specs that resolve to one name — whatever its case, once the variables
+  are filled in — are now refused by `validate` and before `plan` reads
+  anything, naming both files; `stevin.plan()` and `plan_tables()` raise
+  `PlanningError`. `validate` also finds objects that read each other in a
+  cycle, which only `plan` used to say.
+- **Ctrl-C says what happened to the statement.** `apply` printed "cancelled
+  on the warehouse" after every interrupt. An interrupt that came before the
+  warehouse had answered with the statement's id cancelled nothing — there was
+  no id to cancel by — and a cancel the warehouse refused was reported as one
+  that worked. `apply` now says which it was: cancelled, with the statement's
+  id; or possibly still running, and to look in the workspace's Query History
+  before applying again. It no longer speaks of a lock in a project that takes
+  none, or of resuming a run that was planned on the spot.
+- **A stale plan is looked for under the lock.** `apply` read the live tables,
+  compared them with the plan, and took the lock after — so a run that finished
+  in between had changed the tables behind a check that had already passed.
+  The lock is taken first now; a stale plan is refused while holding it, and
+  the lock is given back. A target that is locked says so before anything is
+  read.
+- **A Databricks CLI that fails stops the command, as the docs said.** In a
+  project with a `bundle:`, a `databricks` that was installed and failed — no
+  credentials, two profiles for one host — was treated like one that wasn't
+  there: `plan` and `apply` carried on from the bundle file, against names a
+  deploy would never use. They now stop with the CLI's own words. A machine
+  with no CLI at all still reads the file, and says so on stderr.
+- **`validate` runs nothing.** It said "no workspace, no network" and then ran
+  `databricks bundle validate`, which is both. It now reads the bundle file
+  and nothing else, on every machine. A spec that uses a name only the CLI
+  could settle — what a `mode: development` target deploys a schema as — is
+  linted with a name standing in for it, and `validate` says which names it
+  left unsettled; `plan` asks.
+- **`select=` in the library is `--select`.** `stevin.plan(…, select="orders")`
+  matched full names only, so `"orders"`, `"sales.*"` or a typo came back as an
+  empty plan and no error, where the command line plans the table or refuses
+  the typo. There is one matcher now, in the library: a name from its last
+  part up, or a pattern, in any case — and one that matches no spec raises
+  `PlanningError` from `plan`, `drift` and `adopt`. On the command line the
+  refusal reads `the selection 'ordrs' matches no spec`.
+- **stevin needs Typer 0.17.5 or later, and says so.** The package asked for
+  `typer>=0.12`, and didn't start on it: 0.12 can't read `list[Path] | None`,
+  every release up to 0.15.3 fails on `--help`, and 0.16.0 to 0.17.4 don't
+  hold a command to its required argument — `stevin import` with no schema
+  ended in a traceback. The floor is now `typer>=0.17.5`, the lowest on which
+  every command and the test suite work, and CI installs the lowest version
+  of every dependency on Python 3.11 and runs the tests, so a floor can't go
+  false unnoticed again.
+- **A traceback no longer prints local variables.** Typer before 0.23 shows
+  every frame's locals when a command crashes, which can be a connection or a
+  token; stevin now turns that off whichever Typer is installed.
+- **The Action keeps the plan when `apply` fails.** With `command: apply` the
+  job summary and the `has-changes` and `markdown-file` outputs were written
+  after the apply, so the run that most needed its plan read — the one that
+  stopped halfway — had none. They are written before anything is applied
+  now, and a failed apply adds a line under the plan saying so.
+- **A first `import` that can't read the schema leaves nothing behind.** It
+  wrote `stevin.yml` and made the specs directory first, and read the schema
+  after — so a typo in the catalog left a project for a catalog that isn't
+  there, and the next `import` no longer started one. The schema is read
+  first now; the project file is written once that has worked.
+- **A restore point that can't be taken is said.** Before a destructive step
+  or a rewrite, `apply` reads the table's Delta version; when that failed, the
+  step ran with no restore point and no word about it. The run still goes on —
+  that is on purpose — but the step's line now says `no restore point` and
+  why, and `run.without_restore_point` holds it for a program. The restore
+  point a step did take is on its line too: `apply` said they were "printed
+  below" and printed none.
+- **A command says which workspace it is connecting to.** The Databricks SDK
+  looks a host up when a client is made, and keeps trying one that doesn't
+  answer — for minutes, during which `import` or `plan` printed nothing at
+  all. They now say `Connecting to the Databricks workspace (profile 'dev')…`
+  first: a spinner in a terminal, a line in a log. The wait itself is the
+  SDK's, and is as long as it was.
+- **A spec that isn't UTF-8** was a `UnicodeDecodeError` traceback. It is a
+  one-line error now, with the file and the line the byte is on; the project
+  file and a seed's CSV say so the same way.
+- **`doctor` in a project with several targets and no default** said
+  `unknown target 'None'`. It now leaves that to the finding underneath, which
+  says to pass `-t` or mark one `default: true`.
+- **`adopt` reports whatever stevin refuses as one line.** It caught two
+  kinds of error by name; any other was a traceback.
+- **A failed `apply plan.json` without a history schema** was told to run it
+  again and that it "resumes". Nothing recorded the run, and the plan was made
+  for the tables as they were: it now says to plan again.
 
 ## [0.2.0a4] - 2026-09-23
 

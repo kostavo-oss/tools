@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
+from pathlib import Path
 from typing import TypeAlias, TypeVar
 
 from stevin.differ import (
@@ -38,7 +39,7 @@ from stevin.differ import (
 )
 from stevin.errors import StevinError
 from stevin.introspect import Introspector, LiveSchema, LiveTable
-from stevin.loader import Mode
+from stevin.loader import Diagnostic, LoadedSpec, Mode
 from stevin.manage import EVERYTHING, Manage, strip
 from stevin.model.change import Change
 from stevin.model.function import Function
@@ -52,6 +53,14 @@ from stevin.planner import build_plan
 
 class PlanningError(StevinError):
     """A spec that can't be planned, for a reason the loader couldn't see."""
+
+
+class Cycle(PlanningError):
+    """Objects that name each other in a circle: no order could create them."""
+
+    def __init__(self, what: str, names: Sequence[str]) -> None:
+        self.names = tuple(names)
+        super().__init__(f"these {what} in a cycle: {', '.join(self.names)}")
 
 
 def plan_tables(
@@ -89,6 +98,7 @@ def plan_tables(
     tool declares — a Databricks Asset Bundle — to what declares it. stevin
     neither creates nor manages those; the tables inside them are its business.
     """
+    _refuse_described_twice(specs)
     # Functions have a namespace of their own; only tables and views can clash.
     described = {spec.name for spec in specs if isinstance(spec, Table | View)}
     if select is not None:
@@ -374,12 +384,30 @@ def _order(
             i for i in items if i.name not in placed and depends_on[i.name] <= placed
         ]
         if not ready:
-            stuck = sorted(name for name in names if name not in placed)
-            raise PlanningError(f"these {what} in a cycle: {', '.join(stuck)}")
+            raise Cycle(what, sorted(name for name in names if name not in placed))
         for item in ready:
             ordered.append(item)
             placed.add(item.name)
     return ordered
+
+
+def cycles(
+    files: Sequence[LoadedSpec], shown: Callable[[Path], str] = str
+) -> tuple[Diagnostic, ...]:
+    """A circle among these specs, as `validate` says it.
+
+    The order a plan puts objects in is worked out from the specs' own text, so
+    the cycle a plan would stop at can be found with no workspace — and is, on
+    the first file that is part of it.
+    """
+    try:
+        order_relations([loaded.table for loaded in files])
+    except Cycle as error:
+        where = next(
+            shown(loaded.path) for loaded in files if loaded.table.name in error.names
+        )
+        return (Diagnostic("error", str(error), where),)
+    return ()
 
 
 def _reads(query: str, name: str) -> bool:
@@ -418,6 +446,25 @@ def _refuse_bundle_conflicts(
                 f"{spec.schema} is the bundle's {declares}, and isn't there yet — "
                 "run `databricks bundle deploy` first; stevin won't create it"
             )
+
+
+def _refuse_described_twice(specs: Sequence[Relation]) -> None:
+    """One object, one spec — refused before anything is read.
+
+    Tables and views share a namespace, so one of each under a name is the same
+    object twice. A function or a volume with a table's name is a different
+    object, and `_refuse_shared_names` says so in its own words.
+    """
+    seen: set[tuple[str, str]] = set()
+    for spec in specs:
+        kind = "relation" if isinstance(spec, Table | View) else type(spec).__name__
+        key = (kind, spec.name.lower())
+        if key in seen:
+            raise PlanningError(
+                f"{spec.name} is described by two specs. One object takes one "
+                "spec; remove one."
+            )
+        seen.add(key)
 
 
 def _refuse_shared_names(

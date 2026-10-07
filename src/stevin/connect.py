@@ -164,16 +164,29 @@ def _client(profile: str | None, host: str | None) -> WorkspaceClient:
             return WorkspaceClient(host=host)
         return WorkspaceClient()
     except Exception as error:  # the SDK raises ValueError for most config problems
-        where = (
-            f"profile {profile!r}"
-            if profile
-            else f"host {host}"
-            if host
-            else "the environment or the DEFAULT profile"
-        )
+        where = _where(profile, host)
         raise NotConnected(
             with_advice(f"can't connect to a Databricks workspace using {where}: {error}")
         ) from error
+
+
+def _where(profile: str | None, host: str | None) -> str:
+    """What a client is made from, in words."""
+    if profile:
+        return f"profile {profile!r}"
+    if host:
+        return f"host {host}"
+    return "the environment or the DEFAULT profile"
+
+
+def workspace_named(target: Target | None, profile: str | None = None) -> str:
+    """What `Connection.from_target` would connect with, before it does.
+
+    For a line that says what is being waited for: the Databricks SDK looks a
+    host up when a client is made, and keeps trying one that doesn't answer.
+    """
+    profile = profile or (target.profile if target else None)
+    return _where(profile, None if profile or target is None else target.host)
 
 
 def _by_name(client: WorkspaceClient, name: str) -> str:

@@ -4,7 +4,7 @@
 version: 1
 
 # Files or directories holding specs, relative to this file. Directories are
-# searched recursively for *.yml / *.yaml.
+# searched recursively for *.yml, *.yaml and *.sql.
 specs: [tables]
 
 # Where `apply` keeps its run history and lock. stevin creates the schema
