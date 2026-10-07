@@ -10,6 +10,10 @@ jobs:
   # Kostavo tool, kept in one place.
   python:
     uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
+    with:
+      # every Python pyproject.toml's classifiers name, said here so that the
+      # claim and the gate are read side by side
+      python-versions: '["3.11", "3.12", "3.13", "3.14"]'
 
   # `mise run check` also runs ty, which the shared gate doesn't: so here it is,
   # and the gate in CI is the gate at a desk.
