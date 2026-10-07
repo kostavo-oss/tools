@@ -38,8 +38,8 @@ The numbers are names, not an order; the order of work is in
 - **Requirements** — numbered (`R1`, `R2`, …), each one a thing you can check. Refer to one as
   `004/R7`. Each says where it comes from:
   - *(owner)* — the owner said it, or chose it from options put to them;
-  - *(agreed)* — the spec's author proposed it, and the owner accepted it with "go with the
-    proposals" on 2026-10-05. Accepted in one go, not one by one: if one of these turns out to be
+  - *(agreed)* — the spec's author proposed it, and the owner accepted the proposals as a
+    whole on 2026-10-05. Accepted in one go, not one by one: if one of these turns out to be
     wrong while it is being built, say so before building around it;
   - *(design)* — `docs/DESIGN.md` already said it;
   - *(built)* — the code already does it.
@@ -106,7 +106,7 @@ All on 2026-10-05, by the owner.
   unverified. → [004, Run on a workspace](004-asset-bundle.md#run-on-a-workspace-2026-10-06)
 - **stevin is out of this for now.** → [006](006-stevin.md)
 
-**Agreed as proposed** — "go with the proposals", in one go
+**Agreed as proposed**, in one go
 
 Everything the spec's author had proposed, including what came out of the review of the spec.
 The ones worth remembering:

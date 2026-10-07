@@ -12,8 +12,8 @@ people have to go and fetch from a log.
 
 ## Requirements
 
-The owner's "a way to update GitHub Actions" means: **update what GitHub shows** (decided
-2026-10-05). So:
+The owner asked for a way to update GitHub Actions. That means: **update what GitHub shows**
+(decided 2026-10-05). So:
 
 - **R1** — `lely plan -f md` and `lely show plan.json -f md` render a plan as Markdown, from the
   same plan the terminal, the JSON file and the page show. A destroy plan renders the same way.
@@ -59,14 +59,14 @@ Also not here: CI systems other than GitHub Actions; a lock of lely's own.
 - **What "update GitHub Actions" means** (was D1): what GitHub shows — the pull-request comment
   and the job summary. *(owner, 2026-10-05)*
 - **How a project asks for it** (was D4): a `--github` flag — R4.
-  *(owner, 2026-10-05: go with the proposals)*
+  *(owner, 2026-10-05: as proposed)*
 - **A pull request from a fork** (was D3): no plan, and the job summary says so — R4a.
-  *(owner, 2026-10-05: go with the proposals)*
+  *(owner, 2026-10-05: as proposed)*
 
 - **Which plan `apply` runs on merge** (was D2): the file the pull request produced, kept as
   an artifact — what runs is exactly what was reviewed, and a stale one is refused. A first
   deploy with a waiting step takes two runs ([005/R27](005-plan-apply-destroy.md)).
-  *(owner, 2026-10-06: "okay do it", to the builder's proposal of the reviewed file)*
+  *(decided by the owner, 2026-10-06, as the builder proposed: the reviewed file)*
 
 ## To decide
 

@@ -159,7 +159,7 @@ Two sentences carry most of what follows: **a plan reaches as far as lely can se
 
 - **R37 — `-t <target>` is always given** to a command that touches a workspace: `plan`, `apply`,
   `destroy`, `status`. There is no default target. With a plan file the target is the file's,
-  and for a destroy it is said again (R19). *(owner, 2026-10-05: go with the proposals; before
+  and for a destroy it is said again (R19). *(owner, 2026-10-05: as proposed; before
   this was built the bundle's own default target was used when `-t` was left out)*
 
 ### On demand
@@ -225,9 +225,9 @@ All by the owner, on 2026-10-05.
   unverified — in the code, and in the README where a user would rely on it — until a real run
   is done. The list of what is assumed is
   [004, To verify](004-asset-bundle.md#to-verify-on-a-workspace).
-- **Whether `-t` is always needed** (was D8): yes — R37. *(go with the proposals)*
+- **Whether `-t` is always needed** (was D8): yes — R37. *(as proposed)*
 - **How strict the approval check is** (was D9): every change in the new plan must be one that
-  was shown; changes that are gone are fine — R7. *(go with the proposals)*
+  was shown; changes that are gone are fine — R7. *(as proposed)*
 
 ## As built
 

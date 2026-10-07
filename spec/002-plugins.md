@@ -39,7 +39,7 @@ What the bundle needs, every plugin can then have.
 - **R6 — Overview.** Say what exists because of this step, one line per thing: its kind, its key
   and its name, always; its id and a link, where the system has them; and whether it is deployed.
   Available right after an apply and on its own, without changing anything.
-  *(owner: "a detailed overview of what it created"; the fields are agreed)*
+  *(asked for by the owner: a detailed overview of what it created; the fields are agreed)*
 - **R7 — Destroy.** Say what `destroy` would remove, and then remove it. *(owner)*
 - **R8 — Show itself.** Optionally, give the UI its own detailed view of a plan. Without one, the
   UI shows the plan's changes. This arrives with the UI, in phase two. → [007](007-ui.md)
@@ -80,8 +80,8 @@ What the bundle needs, every plugin can then have.
 Sometimes a step feeds the bundle: it looks up a model version, and the bundle needs it as a
 variable. Sometimes a step needs something from the bundle: the id of a job it just created.
 Both are the same thing — one step's output is another step's input — and these rules are what
-make it impossible to be vague about which is which. *(owner: "how can we make sure that is
-clearly defined"; the principle is decided, the mechanics below are agreed where marked)*
+make it impossible to be vague about which is which. *(the owner asked how this could be
+made clearly defined; the principle is decided, the mechanics below are agreed where marked)*
 
 - **R14 — Outputs are declared.** A plugin lists what a step of it gives. Each output has a name
   and one of three answers to "when is it known?":
@@ -223,7 +223,7 @@ plan half exists in the code and is left as it is.
 - **One spelling for a reference** (was D4): always `${steps.<name>.<output>}` — R15a.
   *(owner, 2026-10-05)*
 - **The word in the config** (was D1): it stays "step" — `uses:`, `lely steps`, the entry-point
-  group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: go with the proposals)*
+  group `lely.steps`. A step uses a plugin. *(owner, 2026-10-05: as proposed)*
 
 ## As built
 

@@ -75,7 +75,7 @@ plan.
 
 - **How a `command` step says what it gives** (was D1): the step lists them — `outputs:
   [version]` in its options. `lely validate` can then check references to them, and a name it
-  lists and gives in neither way is a failed step. *(owner, 2026-10-05: go with the proposals)*
+  lists and gives in neither way is a failed step. *(owner, 2026-10-05: as proposed)*
 
 ## As built
 

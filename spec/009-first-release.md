@@ -31,20 +31,20 @@ between the repository and `uvx lely`.
 
 ## Decided
 
-By the owner, on 2026-10-06, to the builder's proposals:
+Decided by the owner, 2026-10-06, each as the builder proposed:
 
 - **How a release is made** (was D1): the same way for all three tools — merging a version
-  bump to `main` is the release, as stevin and caland do it. *(owner: "i want them all to
-  use the same")* `.github/workflows/release.yml` is that workflow: it notices a version on
+  bump to `main` is the release, as stevin and caland do it.
+  `.github/workflows/release.yml` is that workflow: it notices a version on
   `main` that isn't out, checks that `CHANGELOG.md` has a section for it, runs the gate,
   publishes with Trusted Publishing and makes the GitHub release and its tag. A change to
   `pyproject.toml` that isn't a new version releases nothing.
-- **A docs site** (was D2): yes. *(owner: "make a nice docs site")* → R6.
-- **The recorded CLI outputs** (was D3): they stay as they are. *(owner: "i dont think i
-  care")* `tests/fixtures/cli/README.md` says where each came from.
-- **The author's email in the package** (was D4): name only. *(owner: "sounds good")*
-- **The first version** (was D5): `0.1.0`, as alpha. *(owner: "sounds good")* The name was
-  free on PyPI on 2026-10-06.
+- **A docs site** (was D2): yes. → R6.
+- **The recorded CLI outputs** (was D3): they stay as they are.
+  `tests/fixtures/cli/README.md` says where each came from.
+- **The author's email in the package** (was D4): name only.
+- **The first version** (was D5): `0.1.0`, as alpha. The name was free on PyPI on
+  2026-10-06.
 
 ## To decide
 
@@ -74,8 +74,8 @@ nothing.
 
 ## As released, 2026-10-07
 
-The owner registered the publisher on PyPI and said to release ("i done lely and stevins pypi
-do the meres release"). The release is the one pull request this page said it would be:
+Decided by the owner, 2026-10-07: release. The owner had registered the publisher on PyPI.
+The release is the one pull request this page said it would be:
 `version = "0.1.0"`, the classifier *Alpha*, the name alone under `authors`, the changelog's
 notes under `## [0.1.0]`, and **R5** — the README, the installation page and the GitHub guide
 say `uv add --dev lely` where they said to install from the repository. The words
