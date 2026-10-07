@@ -71,7 +71,8 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# a marker or an option that is misspelt is an error, not something passed over
+addopts = "-q --strict-markers --strict-config"
 
 [tool.ruff]
 line-length = 90
