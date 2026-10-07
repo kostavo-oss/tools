@@ -97,3 +97,19 @@ def test_it_is_said_to_run_where_it_is_run() -> None:
     assert systems == ["Operating System :: MacOS", "Operating System :: POSIX :: Linux"]
     page = (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
     assert "Windows is\n  untried" in page
+
+
+def test_the_security_policy_says_what_the_docs_say() -> None:
+    """It was behind them: a value read "only when you explicitly reveal or
+    copy", and not a word of the server that serves the page."""
+    policy = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+    for said in (
+        "to move or copy its secret, to delete its secret",
+        "a `.env` export with values",
+        "`127.0.0.1` only",
+        "never a cookie",
+        "~/.config/databricks-sdk-py/oauth/",
+    ):
+        assert said in policy, said
+    for gone in ("explicitly reveal or copy", "databricks auth login` does"):
+        assert gone not in policy, gone
