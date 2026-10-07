@@ -13,3 +13,8 @@ docs/redesign/*.svg
 
 # mkdocs build output
 site/
+
+# what a tool writes while it runs: a report can hold the environment of the
+# machine it was written on
+*_report.html
+.claude/

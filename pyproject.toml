@@ -53,6 +53,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/caland"]
 
+# A source package holds what is listed here and nothing else — not whatever
+# happens to lie in the folder when it is built.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

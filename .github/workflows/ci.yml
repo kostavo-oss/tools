@@ -61,6 +61,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv build
+      - name: The source package holds what is listed, and nothing else
+        run: |
+          have=$(tar tzf dist/*.tar.gz | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          want=".gitignore CHANGELOG.md LICENSE PKG-INFO README.md pyproject.toml src tests "
+          echo "$have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::the source package holds something that is not on the list in pyproject.toml"
+            exit 1
+          fi
       - name: Smoke-test the built wheel on 3.11
         run: |
           uv venv /tmp/smoke -p 3.11
