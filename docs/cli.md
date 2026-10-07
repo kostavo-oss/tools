@@ -35,6 +35,19 @@ read.
 | `--github` | `plan` `show` `apply` `destroy` | In a GitHub Actions run, keep the pull request's comment and the run's page current. → [On GitHub](GITHUB.md) |
 | `--open` / `--no-open` | `ui` | Open the page in a browser. |
 
+## `-o` and stdout
+
+`-o` writes a file; what stdout holds besides depends on the command and on `-f`.
+
+| | `-f rich` | `-f md` | `-f json` |
+| --- | --- | --- | --- |
+| `plan -o plan.json` | the plan, then "Wrote plan.json" | the Markdown, and nothing else | nothing: the JSON is what the file holds |
+| `apply -o`, `destroy -o` | the result | the Markdown, and nothing else | the JSON, and nothing else |
+
+The plan file is JSON whatever `-f` says, so `plan -f md -o plan.json` gives a job both: the
+file to apply, and the Markdown to post. With `-f md` and `-f json`, and for a run's record
+with any format, "Wrote …" goes to stderr.
+
 ## Exit codes
 
 | | |

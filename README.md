@@ -90,6 +90,38 @@ A step takes a value from another step in one way only: `${steps.<name>.<output>
 options, and only from a step above it. Reading a step's `with:` is enough to know everything
 it depends on.
 
+`bundle` and `command` come with lely. `./ops/steps.py:LatestModel` is a plugin of your own —
+a class in a file in the repo. This one runs as it stands; your lookup goes where the `14` is:
+
+```python
+# ops/steps.py
+from dataclasses import dataclass
+
+from lely.model import Output, StepPlan
+
+
+class LatestModel:
+    """Looks up the version a serving endpoint should get. Changes nothing."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        model: str
+        alias: str = "candidate"
+
+    outputs = (Output("version"),)
+
+    def plan(self, ctx):
+        # a lookup changes nothing, so it belongs here; `ctx.workspace` is the
+        # Databricks SDK's client, for `ctx.options.model` and `.alias`
+        return StepPlan(outputs={"version": 14})
+
+    def apply(self, ctx, plan):
+        return plan.outputs  # nothing to do: what it gives was known at plan
+```
+
+The rest is yours too: a bundle beside `lely.yml` with a variable `model_version` and a job
+`backfill`, and the script `./ops/backfill.sh`.
+
 ```sh
 lely schema -o lely.schema.json  # for your editor: completes and checks `with:` as you type
 lely validate                    # config, options, references — offline; prints the wiring

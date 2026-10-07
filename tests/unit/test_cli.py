@@ -1228,6 +1228,26 @@ def test_what_a_program_says_while_a_step_runs_is_shown_never_obeyed(
     assert "\x1b[2K" not in result.stderr
 
 
+def test_what_o_leaves_on_stdout_is_what_the_docs_say(ready: Lely) -> None:
+    """`docs/cli.md`, "`-o` and stdout". A plan file is JSON whatever `-f`
+    says: with `-f json` the file is all there is to print, and with `-f md`
+    stdout has the Markdown beside it — each on purpose, and now said."""
+    rich = ready("plan", "-t", "dev", "-o", "plan.json")
+    assert "lely plan · target dev" in rich.stdout and "Wrote plan.json" in rich.stdout
+    as_json = ready("plan", "-t", "dev", "-o", "plan.json", "-f", "json")
+    assert (as_json.stdout, "Wrote plan.json" in as_json.stderr) == ("", True)
+    as_md = ready("plan", "-t", "dev", "-o", "plan.json", "-f", "md")
+    assert as_md.stdout.startswith("<!-- lely:plan:dev -->")
+    assert "Wrote" not in as_md.stdout and "Wrote plan.json" in as_md.stderr
+    # a run's record changes nothing about stdout, in any format
+    shown = {(): "lely apply", ("-f", "md"): "### lely apply", ("-f", "json"): "{"}
+    for extra, starts in shown.items():
+        ran = ready("apply", "-t", "dev", "--yes", "-o", "result.json", *extra)
+        assert ran.exit_code == 0, said(ran)
+        assert _ANSI.sub("", ran.stdout).lstrip().startswith(starts)
+        assert "Wrote" not in ran.stdout and "Wrote result.json" in ran.stderr
+
+
 def test_escape_sequences_in_a_plan_file_dont_reach_the_terminal(ready: Lely) -> None:
     planned(ready)
     path = ready.root / "plan.json"

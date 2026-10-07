@@ -24,6 +24,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A program that fails is quoted on both of its streams**, each under its name. One that
   gave its reason on stdout and a notice on stderr was quoted for the notice alone.
+- **The README's quickstart can be followed**: it shows the plugin file its config names. A
+  test checks every whole config in the README and the docs the way `lely validate` does.
 - **`lely doctor` looks for git**, as the docs said it did: git missing or refusing the
   checkout, in a repository, is a failed check — `lely plan` fails there. It compares the
   Databricks CLI's version with v1.3.0 and says when it is older, and says what bundles
