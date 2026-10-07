@@ -1,7 +1,10 @@
-# 007 — the name and the next release
+# 007 — the name and the releases under it
 
-**Status:** prepared on a branch (pull request #15), not merged, not released. Written
-2026-10-06.
+**Status:** done. The rename was merged on 2026-10-06 (pull request #15) and released the
+same day as caland 0.5.0, the first release under the name; 0.5.1 and 0.5.2 followed that
+day, and 0.6.0 on 2026-10-07. Of what the rename first set out to do, R2–R4 were undone in
+0.6.0 ([below](#changed-on-2026-10-07-the-old-name-is-isolinears-again)). One question is
+open: D4. Written 2026-10-06, and brought up to where things stand on 2026-10-07.
 
 ## Why
 
@@ -12,8 +15,8 @@ first under a name nobody has registered yet.
 ## Requirements
 
 - **R1 — One name.** The command, the package, the repository and the docs are `caland`.
-  *(prepared, #15)*
-- **R2 — The old name still answers.** *(prepared, #15)*
+  *(built, 0.5.0)*
+- **R2 — The old name still answers.** *(built, 0.5.0; undone in 0.6.0)*
     - `isolinear` and `iso` are installed beside `caland`. They say the new name on stderr
       and then are caland.
     - The settings in `~/.config/isolinear/` are read until a preference is changed; that
@@ -22,15 +25,15 @@ first under a name nobody has registered yet.
     - A profile caland saved as `[isolinear]` in `~/.databrickscfg` is found as before.
 - **R3 — The old name is spelled in one place.** `src/caland/formerly.py`, and a test keeps
   it so. When the old name is let go, that module goes and nothing else changes.
-  *(prepared, #15)*
+  *(built, 0.5.0; undone in 0.6.0)*
 - **R4 — `isolinear` gets one last release.** `isolinear-shim/` is a package with no code:
   it depends on caland and says where it went. It is published once, by hand, after caland
-  is on PyPI; no workflow builds it. *(prepared; not published)*
+  is on PyPI; no workflow builds it. *(written, never published; undone in 0.6.0)*
 - **R5 — Released the way stevin and lely are.** A change to `version` in `pyproject.toml`,
   merged to `main`, is the release: the workflow builds, publishes to PyPI through a Trusted
   Publisher, and makes the tag and the GitHub release from the changelog. A push that leaves
   the version alone releases nothing. *(built)*
-- **R6 — Apache-2.0**, as every Kostavo tool. *(prepared, #15)*
+- **R6 — Apache-2.0**, as every Kostavo tool. *(built, 0.5.0)*
 
 ## Changed on 2026-10-07: the old name is isolinear's again
 
@@ -49,18 +52,18 @@ What that leaves: **isolinear 0.4.1 has two bugs caland fixed** — a rename tha
 changes the case deletes the secret, and a `.env` value quoted over several lines is
 mis-read. They are fixed in caland only ([To decide](#to-decide)).
 
-## What only the owner can do
+## What only the owner could do
 
-- Merge #15.
-- Register a Trusted Publisher for `caland` on PyPI — a *pending* one, since the project
-  does not exist there yet (checked 2026-10-06: the name is free): owner `kostavo-oss`,
-  repository `caland`, workflow `release.yml`, environment `pypi`.
+- Merge #15. *Done, 2026-10-06.*
+- Register a Trusted Publisher for `caland` on PyPI: owner `kostavo-oss`, repository
+  `caland`, workflow `release.yml`, environment `pypi`. *Done, 2026-10-06, before 0.5.0.*
 - ~~Publish the shim.~~ Not any more (see above).
-- Whatever is to happen to `isolinear` on PyPI.
+- Whatever is to happen to `isolinear` on PyPI. *Open: D4.*
 
 ## Not in this spec
 
-- **Dropping the old commands.** Not before there has been a release with them.
+- **Dropping the old commands** was not part of the rename. It came with the decision of
+  2026-10-07 above, after three releases that had them.
 - **What the tool should do next.** → [008](008-the-page.md)
 
 ## Decided
@@ -68,22 +71,27 @@ mis-read. They are fixed in caland only ([To decide](#to-decide)).
 - **The name.** *(owner, 2026-10-06)*
 - **All three tools release the same way.** *(owner, 2026-10-06, for lely; taken to hold
   here — say if not)*
+- **The first caland is 0.5.0**: a new name with nothing lost is a minor release.
+  *(Decided by the owner, 2026-10-06, by merging the release as proposed; was D1.)*
+- **The author is given by name, without an address**, as for lely. *(Decided by the
+  owner, 2026-10-06, by merging the release as proposed; was D2.)*
+- **The rename was not released on its own.** `main` already had the first part of the
+  page when the release was made, so 0.5.0 carried it as a preview. *(Decided by the
+  owner, 2026-10-06, by merging the release as proposed; was D3.)*
 
-## As prepared — 0.5.0 (2026-10-06)
+## 0.5.0 (2026-10-06)
 
-The owner registered the Trusted Publisher and said to go on; the release is a pull request
-of its own, and merging it is what publishes. In it, the writer's proposals for D1–D3, for
-the owner to take by merging or to change first:
+The owner registered the Trusted Publisher and said to go on. The release was a pull
+request of its own (#18), and merging it published it. With it the owner took the writer's
+proposals for D1–D3:
 
-- **0.5.0.** The shim was written for it.
+- **0.5.0.**
 - **The author by name, without an address** — as the owner chose for lely.
-- **Not the rename on its own any more:** `main` already had the first part of the page
-  ([008](008-the-page.md)) when the release was prepared, so 0.5.0 carries `caland --page`
-  as a preview beside the terminal version, which is unchanged and still the whole tool.
-- The notices that `caland` is not on PyPI yet — in the README and two docs pages, put there
-  when the rename reached `main` before the name was registered — go with this release.
-
-After it is on PyPI: the shim, once, by hand, by the owner (R4).
+- **Not the rename on its own:** `main` already had the first part of the page
+  ([008](008-the-page.md)) when the release was prepared, so 0.5.0 carried `caland --page`
+  as a preview beside the terminal version, which was unchanged and still the whole tool.
+- The notices that `caland` was not on PyPI yet — in the README and two docs pages, put
+  there when the rename reached `main` before the name was registered — went with it.
 
 ## 0.5.1 (2026-10-06)
 
@@ -114,12 +122,3 @@ things away: whoever typed `caland` for a terminal app gets a browser tab, and
 - **D4 — isolinear's two bugs.** Left as it is, isolinear 0.4.1 goes on deleting a secret
   renamed to another case of its own name. *The writer's view:* either yank it soon, or
   say so on its PyPI page; both are the owner's to do, with isolinear's credentials.
-
-- **D1 — Which version is the first caland?** The shim is written for `0.5.0`.
-  *Proposal:* 0.5.0 — a new name with nothing lost is a minor release.
-- **D2 — The address in the package.** `pyproject.toml` gives a personal work address as
-  the author's, and PyPI shows it. For lely the owner chose a name without an address.
-  *Proposal:* the same here.
-- **D3 — When.** *Proposal:* release the rename on its own, soon, before the page: a
-  name on PyPI belongs to whoever publishes first, and the people on `isolinear` hear about
-  the move from the shim, not from a README they will not read.

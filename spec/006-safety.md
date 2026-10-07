@@ -71,7 +71,7 @@ it will not do has to be as firm as what it does.
   lift it.
 - **D3 — Where a vulnerability is reported.** `SECURITY.md` and `docs/security.md` give a
   GitHub advisory link and a personal work address. *Proposal:* the advisory link only, as
-  for lely. → [007, D2](007-name-and-release.md#to-decide)
+  for lely. → [007, Decided](007-name-and-release.md#decided)
 
 ## Done when
 
