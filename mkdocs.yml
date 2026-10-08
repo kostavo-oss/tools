@@ -59,3 +59,10 @@ extra:
 
 nav:
   - Home: index.md
+  - A project: project.md
+  - Start a project: start.md
+  - Where a run loads: run.md
+  - Secrets: secrets.md
+  - Notebook and own commands: notebook.md
+  - Troubleshooting: troubleshooting.md
+  - Tried, and not yet: tried.md

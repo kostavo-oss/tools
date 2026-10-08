@@ -19,9 +19,9 @@ A project is two files: an app, and a pipeline that makes its dlt pipeline with
 `leeghwater.create_pipeline` and runs it with `leeghwater.run`. On a laptop that loads into
 a local DuckDB file; the same command is the entry point of a Databricks job.
 
-The [README](https://github.com/kostavo-oss/leeghwater#readme) has the rest: the options
-of every run, how schema names reach dlt, the three ways to give a pipeline a secret, and
-troubleshooting.
+Read on: [a project](project.md), [where a run loads](run.md) and the options of every
+run, [secrets](secrets.md), [a notebook and commands of your own](notebook.md),
+[troubleshooting](troubleshooting.md), and [what was tried for real](tried.md).
 
 ## Named after
 
