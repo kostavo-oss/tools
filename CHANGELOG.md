@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
+A breaking release: the `command` plugin is gone, and a step runs on its own.
+
 ### Added
 
 - **A step on its own** (`spec/011`). A step that inherits `lely.step.Step` and ends with

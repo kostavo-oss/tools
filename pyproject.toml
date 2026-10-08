@@ -1,6 +1,6 @@
 [project]
 name = "lely"
-version = "0.2.0"
+version = "0.3.0"
 description = "One plan for your whole Databricks deploy: the bundle and the steps around it, reviewed before anything runs"
 readme = "README.md"
 requires-python = ">=3.11"
