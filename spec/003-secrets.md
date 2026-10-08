@@ -98,6 +98,19 @@ The owner asked for "a custom secrets provider for databricks secrets".
   - **Anything else** — the network, the sign-in: raised as it came.
 - **R11 — Registering twice changes nothing.** A second `prepare()` with the same scope
   finds the provider that is there and adds none. *(decided)*
+- **R12 — An Azure Key Vault can be read directly.** *(owner, 2026-10-08: "can we also add a
+  keyvault provider"; asked which of a Key Vault-backed scope or the vault itself, chose
+  "B only": the vault itself)* A second vault provider, as the `keyvault` extra, named in
+  the app (`key_vaults=`) or per run (`--key-vault <url>`), asked after the scopes. A secret
+  is named as in a scope, with every underscore a dash, because a Key Vault allows letters,
+  digits and dashes only: `sources-github-access-token`. Listed once; only what is there is
+  fetched; only secret-typed values. Whoever `DefaultAzureCredential` finds reads it, on a
+  laptop with `az login`; it needs no Databricks workspace, so a laptop without `--profile`
+  may read one. A missing or refused secret is "not here"; nobody signed in, a vault that
+  refuses listing and a vault that isn't there are each an error naming the vault and the
+  next step. The README says what a job needs to reach a vault, and that a Key Vault-backed
+  Databricks scope is read as a scope and needs none of it. Tested against a stand-in
+  client; **not tried against a real Key Vault**.
 
 ## Not in this spec
 
@@ -120,7 +133,9 @@ In the tests, with a scope that is a dictionary — all of these pass:
 - a value that isn't a secret is never asked of a scope;
 - a run lists each scope once and reads only secrets that exist;
 - no value appears in anything a run or `doctor` prints;
-- a missing scope, a refused scope and a pointer at nothing are each an error with a name.
+- a missing scope, a refused scope and a pointer at nothing are each an error with a name;
+- a Key Vault fills a real source's argument, is asked after a scope, and names itself in
+  every error.
 
 And on a workspace *(run)*: a throwaway secret in a throwaway scope was read by a source in a
 serverless wheel task, and printing it showed `[REDACTED]`; the same scope was read from a

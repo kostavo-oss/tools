@@ -22,8 +22,8 @@ Each is from the spec, and as open as the requirement it comes from.
   `dlt.pipeline()` or `pipeline.run()`: where a run loads is the run's to say. Examples and
   docs show it that way. `spec/001`, R2.
 - Importing `leeghwater` changes nothing and does not import dlt: everything happens in
-  `prepare()`. `spec/002`, R2. `leeghwater.secrets` and `leeghwater._dlt` are the modules
-  that import dlt at their top.
+  `prepare()`. `spec/002`, R2. `leeghwater.secrets`, `leeghwater.keyvault` and
+  `leeghwater._dlt` are the modules that import dlt at their top.
 - A run's options live in the `Setup` that `prepare()` returns, and `create_pipeline`
   sets them on the dlt destination it makes. Only `DATABRICKS_CONFIG_PROFILE`,
   `DLT_PROJECT_DIR`, `RUNTIME__LOG_LEVEL` and `--set` go through the environment, because

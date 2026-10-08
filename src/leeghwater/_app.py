@@ -174,6 +174,7 @@ class _Options:
     staging_schema: str | None = None
     secret_scope: list[str] = field(default_factory=list)
     secret: list[str] = field(default_factory=list)
+    key_vault: list[str] = field(default_factory=list)
     warehouse: str | None = None
     limit: int | None = None
     log_level: str | None = None
@@ -197,6 +198,8 @@ _HELP = {
     " May be given more than once.",
     "secret": "Where one secret is: <dlt's name>=<scope>/<key>. May be given more than"
     " once.",
+    "key_vault": "An Azure Key Vault to read dlt's secrets from, after the scopes:"
+    " https://<name>.vault.azure.net. May be given more than once.",
     "warehouse": "The id of the SQL warehouse to load through.",
     "limit": "At most this many pages from each resource; 0, the default, for all. A"
     " pull-request environment runs with 1: dlt makes every table with its real columns"
@@ -255,6 +258,8 @@ class App:
         secret_scopes: Secret scopes to read dlt's secrets from, asked in this order.
         secrets: Secrets under another name: dlt's path to `scope/key`. A run's
             `--secret` adds to these, and wins on the same name.
+        key_vaults: Azure Key Vaults to read dlt's secrets from, after the scopes
+            (`leeghwater[keyvault]`). A run's `--key-vault` names others.
         catalog: The catalog to load into, when a run names none.
         warehouse: The SQL warehouse to load through, when a run names none.
         destination: Where pipelines load on Databricks, or with `--profile`. None
@@ -271,6 +276,7 @@ class App:
         *,
         secret_scopes: Sequence[str] = (),
         secrets: dict[str, str] | None = None,
+        key_vaults: Sequence[str] = (),
         catalog: str | None = None,
         warehouse: str | None = None,
         destination: str | None = "databricks",
@@ -281,6 +287,7 @@ class App:
         self.pipelines = pipelines
         self.secret_scopes = list(secret_scopes)
         self.secrets = dict(secrets or {})
+        self.key_vaults = list(key_vaults)
         self.catalog = catalog
         self.warehouse = warehouse
         self.destination = destination
@@ -419,6 +426,7 @@ class App:
             self._setup,
             secret_scopes=options.secret_scope or self.secret_scopes,
             secrets={**self.secrets, **_pairs(options.secret, "--secret")},
+            key_vaults=options.key_vault or self.key_vaults,
             profile=options.profile,
             catalog=options.catalog or self.catalog,
             schema=options.schema,
@@ -556,6 +564,16 @@ class App:
 
         for path, ref in setup.pointed_secrets.items():
             check(f"secret {path}", functools.partial(pointed, path, ref))
+
+        for url in setup.key_vaults:
+
+            def listed_vault(url: str = url) -> str:
+                from leeghwater.keyvault import Vault
+
+                names = Vault(url, None).names()
+                return ", ".join(sorted(names)) or "no secrets in it"
+
+            check(f"key vault {url}", listed_vault)
 
         if setup.warehouse:
 

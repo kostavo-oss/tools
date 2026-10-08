@@ -48,6 +48,7 @@ class Setup:
     limit: int = 0
     secret_scopes: list[str] = field(default_factory=list)
     pointed_secrets: dict[str, str] = field(default_factory=dict)
+    key_vaults: list[str] = field(default_factory=list)
     config: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -77,6 +78,7 @@ class Setup:
                     f"{path} is {ref}" for path, ref in self.pointed_secrets.items()
                 ),
             ),
+            ("key vaults", ", ".join(self.key_vaults)),
             ("config set", ", ".join(self.config)),
         ]
         width = max(len(label) for label, _ in rows)
@@ -124,6 +126,8 @@ def prepare(
     destination: str | None = "databricks",
     local_destination: str | None = "duckdb",
     workspace_client: Any | None = None,
+    key_vaults: Sequence[str] = (),
+    key_vault_client: Any | None = None,
 ) -> Setup:
     """Set the process up for dlt, and say what was decided.
 
@@ -153,6 +157,10 @@ def prepare(
         local_destination: Where they load on a laptop without a profile.
         workspace_client: A `databricks.sdk.WorkspaceClient` to read secrets with, in
             place of the SDK's default sign-in.
+        key_vaults: Azure Key Vaults to read dlt's secrets from, after the scopes. Needs
+            the `keyvault` extra; works wherever `DefaultAzureCredential` finds a sign-in.
+        key_vault_client: A `SecretClient` to read the vaults with, in place of one made
+            with `DefaultAzureCredential`.
     """
     setup = prepare_process(project=project)
     return prepare_run(
@@ -170,6 +178,8 @@ def prepare(
         destination=destination,
         local_destination=local_destination,
         workspace_client=workspace_client,
+        key_vaults=key_vaults,
+        key_vault_client=key_vault_client,
     )
 
 
@@ -210,6 +220,8 @@ def prepare_run(
     local_destination: str | None = "duckdb",
     require_warehouse: bool = False,
     workspace_client: Any | None = None,
+    key_vaults: Sequence[str] = (),
+    key_vault_client: Any | None = None,
 ) -> Setup:
     """The part that depends on a run's options. Needs `prepare_process` first."""
     global _current
@@ -253,6 +265,14 @@ def prepare_run(
             "no secret scope is read on a laptop without --profile; dlt takes its secrets"
             " from the environment or .dlt/secrets.toml"
         )
+    if key_vaults:
+        # After the scopes, and read anywhere: a vault has a sign-in of its own.
+        from leeghwater.keyvault import register_key_vault
+
+        for url in key_vaults:
+            provider = register_key_vault(url, client=key_vault_client)
+            if provider.url not in setup.key_vaults:
+                setup.key_vaults.append(provider.url)
     _current = setup
     return setup
 

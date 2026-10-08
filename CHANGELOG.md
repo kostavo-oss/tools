@@ -17,3 +17,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fails its run.
 - `prepare()`: sets the process up for dlt, for a notebook or a script.
 - `leeghwater.secrets`: dlt config providers that read Databricks secret scopes.
+- `leeghwater.keyvault`: a dlt config provider that reads an Azure Key Vault, as the
+  `keyvault` extra; `--key-vault` and `App(key_vaults=...)`.

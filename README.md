@@ -113,6 +113,7 @@ Every run also takes these:
 | `--warehouse <id>` | The SQL warehouse to load through. |
 | `--secret-scope <name>` | A secret scope to read, in place of the app's. May be repeated. |
 | `--secret <name>=<scope>/<key>` | Where one secret is, when it isn't under dlt's name. May be repeated. |
+| `--key-vault <url>` | An Azure Key Vault to read, after the scopes. May be repeated. |
 | `--limit <n>` | At most `n` pages from each resource; `0`, the default, for all. |
 | `--log-level <level>` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, for dlt. |
 | `--set <key>=<value>` | Any dlt config value, by dlt's name: `--set sources.github.page_size=50`. |
@@ -216,9 +217,26 @@ names. Three ways to give it one, and when to use each:
    `--secret sources.github.access_token=platform-shared/github-token`.
    Use it when somebody else fills the scope.
 
-A scope is listed once in a run and only the secrets that are there are read. Only values a
-source marks as secret are looked up. No value is printed, logged, written to a file or put
-in the environment. To make, change or rotate a secret, use the Databricks CLI.
+4. **An Azure Key Vault**, for a team whose secrets live there and not in a scope. Needs
+   the extra, `uv add "leeghwater[keyvault]"`, and a vault named in the app or per run:
+
+   ```python
+   app = App(..., key_vaults=["https://kv-ingest.vault.azure.net"])
+   ```
+
+   A vault is asked after the scopes. Its secrets are named like a scope's, with dashes
+   where a Key Vault allows no underscore: `sources-github-access-token`. Whoever
+   `DefaultAzureCredential` finds reads it: `az login` on a laptop; a service principal's
+   variables or a managed identity elsewhere. A Databricks job has no identity in Azure by
+   itself, so there a vault is reachable only through a service principal whose secret
+   comes from somewhere else — in practice a Databricks scope — and only when the job's
+   network reaches `vault.azure.net`. A Key Vault-backed Databricks scope needs none of
+   this: it is a scope, read as in 1.
+
+A scope or a vault is listed once in a run and only the secrets that are there are read.
+Only values a source marks as secret are looked up. No value is printed, logged, written to
+a file or put in the environment. To make, change or rotate a secret, use the Databricks
+CLI or the Azure portal.
 
 In a job a secret is read through `dbutils`, so Databricks redacts it: if your own code
 prints one, the job's output shows `[REDACTED]`.

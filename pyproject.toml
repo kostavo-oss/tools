@@ -35,6 +35,12 @@ Repository = "https://github.com/kostavo-oss/leeghwater"
 Issues = "https://github.com/kostavo-oss/leeghwater/issues"
 Changelog = "https://github.com/kostavo-oss/leeghwater/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+keyvault = [
+    "azure-identity>=1.15",
+    "azure-keyvault-secrets>=4.8",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -48,7 +54,9 @@ exclude = [".github"]
 
 [dependency-groups]
 dev = [
+    "azure-identity>=1.15",
     # The tests load into a local DuckDB file.
+    "azure-keyvault-secrets>=4.8",
     "dlt[duckdb]>=1.30,<2",
     "pytest>=8.0",
     "ruff>=0.6",
