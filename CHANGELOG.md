@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- typer 0.17.5 or newer, as for the other Kostavo tools: older typers mis-declare the
+  `--json` flag. Found by the new lowest-dependencies CI job.
+
 ## [0.1.0] — 2026-10-08
 
 The first release. Run against a workspace on 2026-10-07; what was tried and what was not

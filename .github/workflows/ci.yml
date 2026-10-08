@@ -10,3 +10,26 @@ jobs:
   # Kostavo tool, kept in one place
   python:
     uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
+
+  lowest:
+    name: test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      # Every `>=` in pyproject.toml says the version it names works. This
+      # installs exactly those — the lowest each dependency allows, on the oldest
+      # Python — so a floor that has gone false fails here and not on someone's
+      # machine. The test tools go in afterwards at whatever is current: it is
+      # the package's floors that are on trial, not pytest's. `mise run
+      # test:lowest` does the same at a desk.
+      - name: Install with the lowest direct dependencies
+        run: |
+          uv venv --python 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e .
+          uv pip install --python /tmp/lowest/bin/python --group dev
+          uv pip freeze --python /tmp/lowest/bin/python
+      - name: Tests (pytest)
+        run: PATH="/tmp/lowest/bin:$PATH" /tmp/lowest/bin/python -m pytest

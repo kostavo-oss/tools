@@ -696,7 +696,7 @@ requires-dist = [
     { name = "azure-keyvault-secrets", marker = "extra == 'keyvault'", specifier = ">=4.8" },
     { name = "databricks-sdk", specifier = ">=0.50" },
     { name = "dlt", specifier = ">=1.30,<2" },
-    { name = "typer", specifier = ">=0.12" },
+    { name = "typer", specifier = ">=0.17.5" },
 ]
 provides-extras = ["keyvault"]
 

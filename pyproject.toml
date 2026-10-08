@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 # Installed on compute it doesn't own, beside a project's own dlt: few, with low bounds.
 dependencies = [
@@ -25,7 +26,7 @@ dependencies = [
     # dlt does not promise to keep as it is. Which extras (databricks, duckdb) is the
     # project's to say.
     "dlt>=1.30,<2",
-    "typer>=0.12",
+    "typer>=0.17.5",
 ]
 
 [project.urls]
@@ -48,9 +49,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/leeghwater"]
 
+# A source package holds what is listed here and nothing else — not whatever
+# happens to lie in the folder when it is built.
 [tool.hatch.build.targets.sdist]
-# CI configuration is the repo's, not the package's.
-exclude = [".github"]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
 
 [dependency-groups]
 dev = [
