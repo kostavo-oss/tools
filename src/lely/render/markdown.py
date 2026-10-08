@@ -18,7 +18,7 @@
     -     replace  pipelines.ingest  destructive
               replaced: storage (immutable)
           run      uploads the bundle's files
-      notify  command
+      notify  ./ops/steps.py:Notify
           waiting for app.resources.jobs.backfill.id
     ```
 

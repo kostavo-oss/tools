@@ -43,7 +43,7 @@ with `uv run`.
 ## Three rules these workflows keep
 
 1. **The plan job can only read the workspace.** Planning runs the pull request's own code —
-   a plugin in the repo, a `command` step — so it gets credentials that can't change the
+   a step in the repo — so it gets credentials that can't change the
    workspace: a service principal of its own, in a GitHub environment of its own
    (`dev-plan`). **The environment with the credentials that can change it (`dev`) must be
    limited to the `main` branch** in the repository's settings ("deployment branches").

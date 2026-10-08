@@ -17,21 +17,33 @@ steps:
         model_version: ${steps.model.version}     # … and the bundle says what it takes
 
   - name: backfill               # needs something from the bundle: it is below it …
-    uses: command
-    with:
-      apply: [./ops/backfill.sh, "${steps.app.resources.jobs.backfill.id}"]   # … and says what
+    uses: ./ops/steps.py:Backfill
+    with: {job: "${steps.app.resources.jobs.backfill.id}"}   # … and says what
 
   - name: warm
-    uses: command
+    uses: ./ops/warm.py:Warm
     targets: [prod]              # only for this target; skipped, visibly, for any other
-    with: {apply: [./ops/warm.sh]}
+```
+
+`LatestModel` and `Backfill` are classes in the repo ([Your first plan](getting-started.md)
+shows `Backfill`); `Warm` is a program as a step, and the whole of its file:
+
+```python
+# ops/warm.py
+from lely.step import Program
+
+
+class Warm(Program):
+    """Warms the cache after a production deploy."""
+
+    command = ["./ops/warm.sh"]
 ```
 
 ## A step
 
 | Key | |
 | --- | --- |
-| `uses` | The plugin that does the step: a built-in (`bundle`, `command`, `bundle.run`), a class in the repo (`./path/file.py:Class`), or one in an installed package. Required. |
+| `uses` | The plugin that does the step: a built-in (`bundle`, `bundle.run`), a class in the repo (`./path/file.py:Class`), or one in an installed package. Required. |
 | `name` | What other steps call it. A plain plugin name doubles as one (`uses: bundle` is named `bundle`); a class needs a name of its own. |
 | `with` | The step's options: whatever its plugin declares. `lely steps` lists them. |
 | `targets` | The targets the step runs for, compared with `-t` as written. Without it, every target. |
@@ -67,16 +79,31 @@ resource *of a bundle step*:
 
 `${env.NAME}` is the other reference. It is **always a secret**: shown as `***`, never
 written to a plan file, a comment or a page, and fetched again when the step is planned at
-apply. It may go where a plugin takes a secret — a `command` step's `env:`, for one — and
-never into a command's arguments, which every process on the machine can see.
+apply. It may go only into an option of type `Secret` — never into a program's arguments,
+which every process on the machine can see — and `lely validate` says so offline.
 
 ```yaml
   - name: seed
-    uses: command
+    uses: ./ops/seed.py:Seed
     with:
-      apply: [./ops/seed.sh]
-      env:
-        SEED_TOKEN: ${env.SEED_TOKEN}
+      token: ${env.SEED_TOKEN}
+```
+
+```python
+# ops/seed.py
+from dataclasses import dataclass
+
+from lely.model import Secret
+from lely.step import Step
+
+
+class Seed(Step):
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        #: Shown as `***`, written to no file; `token.reveal()` is its value.
+        token: Secret
+
+    ...  # plan and apply: see Writing a step
 ```
 
 ## A literal `${…}`
@@ -87,9 +114,25 @@ reference.
 
 ```yaml
   - name: report
-    uses: command
+    uses: ./ops/report.py:Report
     with:
-      apply: [sh, -c, 'echo "$${HOME}" > where.txt']     # the shell reads ${HOME}
+      script: 'echo "$${HOME}" > where.txt'     # the shell reads ${HOME}
+```
+
+```python
+# ops/report.py
+from dataclasses import dataclass
+
+from lely.step import Program
+
+
+class Report(Program):
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        script: str
+
+    def command(self, ctx):  # built from the options, never through a shell of lely's
+        return ["sh", "-c", ctx.options.script]
 ```
 
 A `${…}` that is no reference is an error, and the error says how to write it either way: as

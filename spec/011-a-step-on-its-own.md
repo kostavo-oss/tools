@@ -1,8 +1,8 @@
 # 011 — a step on its own
 
 **Status:** built, 2026-10-08, the same day — the owner said "sound good build the thing"
-after reading it; see [As built](#as-built). `command`'s removal follows in a change of its
-own.
+after reading it; see [As built](#as-built). `command` was removed the same day, in the
+change after.
 
 Markers: *(owner)* the owner said it or chose it on 2026-10-08; *(proposal)* the writer's,
 not yet decided; *(002)* already the contract of [002](002-plugins.md).
@@ -231,10 +231,13 @@ into a config block) and `src/lely/solo.py` (the five commands); tested in
 - **The plan file is given as `--plan-file`**, not as a positional argument: a step's own
   flags are positional-free, and a file beside `-t` was ambiguous.
 - **The step's name on its own** is the class's, in lower case (R7).
-- **`command` stays installed in this release**, deprecated in the docs and the changelog;
-  its removal and the rewrite of the shared test scenario are a change of their own, so
-  this one stays readable. [010](010-command-and-bundle-run.md) is superseded for its
-  `command` half when that lands.
+- **`command` is removed, 2026-10-08**, in the change after this one, so this one stays
+  readable: the plugin, its entry point, its docs and its tests are gone, and the shared
+  test scenario's programs are `Program` steps. A config that still names `command` is told
+  by `lely validate` that no plugin of that name is installed. The changelog says so under
+  Removed, and [010](010-command-and-bundle-run.md) is superseded for its `command` half.
+  Two things that change found in `Program`: `lely doctor` asks `programs` of the class, so
+  it is a classmethod; and what the program prints is logged under the step's name.
 - **D1, D2, D3 as proposed**: an option of another type is refused with the list; a
   `Program`'s outputs are the JSON on the last line; `apply -t` asks, `--yes` skips.
 - **Not run on a workspace yet.** The marker step of the tests makes a file; a step that

@@ -3,11 +3,11 @@
   '''
   lely destroy plan · target dev · https://dbc-example.cloud.databricks.com as jane@example.com
   
-    warm  command
+    warm  ./ops/steps.py:Warm
       – skipped: not for target `dev`
     backfill  bundle.run
       – skipped: `bundle.run` has nothing to destroy
-    notify  command
+    notify  ./ops/steps.py:Notify
       – skipped: it needs app.resources.jobs.bar.id, which isn't there
     app  bundle
       model_version = 14  ← model.version
@@ -35,12 +35,12 @@
       ± pipelines.foo  destructive
           replaced: storage (immutable)
       ▶ uploads the bundle's files
-    notify  command
+    notify  ./ops/steps.py:Notify
       ⏸ waiting for app.resources.jobs.bar.id
     backfill  bundle.run
       bundle  ← app
       ▶ runs jobs.backfill
-    warm  command
+    warm  ./ops/steps.py:Warm
       – skipped: not for target `dev`
   
   Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
@@ -62,12 +62,12 @@
       + jobs.bar
       + pipelines.foo
       ▶ uploads the bundle's files
-    notify  command
+    notify  ./ops/steps.py:Notify
       ⏸ waiting for app.resources.jobs.bar.id
     backfill  bundle.run
       bundle  ← app
       ▶ runs jobs.backfill
-    warm  command
+    warm  ./ops/steps.py:Warm
       – skipped: not for target `dev`
   
   Plan: 2 changes · 2 runs · 0 destructive · 1 waiting
@@ -86,16 +86,16 @@
         + jobs.bar
         + pipelines.foo
         ▶ uploads the bundle's files
-    ✗ notify  command  failed
+    ✗ notify  ./ops/steps.py:Notify  failed
     · backfill  bundle.run  not started
-    – warm  command  not for target `dev`
+    – warm  ./ops/steps.py:Warm  not for target `dev`
   
   ran: app
   failed: notify
   never started: backfill
   Nothing was rolled back.
   
-  step `notify` (command): step `notify`'s apply command failed (exit 7):
+  step `notify` (./ops/steps.py:Notify): `./ops/notify.sh 1001` failed (exit 7):
   no route
   
   '''
@@ -116,11 +116,11 @@
         pipeline  pipelines.foo  pipeline foo  1002  created
             https://dbc-example.cloud.databricks.com/pipelines/1002
         as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev
-    ✓ notify  command
+    ✓ notify  ./ops/steps.py:Notify
         ▶ runs ./ops/notify.sh 1001
     ✓ backfill  bundle.run
         ▶ runs jobs.backfill
-    – warm  command  not for target `dev`
+    – warm  ./ops/steps.py:Warm  not for target `dev`
   
   Applied: 3 steps.
   
@@ -130,11 +130,11 @@
   '''
   lely destroy plan · target dev · https://dbc-example.cloud.databricks.com as jane@example.com
   
-    warm  command
+    warm  ./ops/steps.py:Warm
       – skipped: not for target `dev`
     backfill  bundle.run
       – skipped: `bundle.run` has nothing to destroy
-    notify  command
+    notify  ./ops/steps.py:Notify
       – skipped: it needs app.resources.jobs.bar.id, which isn't there
     app  bundle
       model_version = 14  ← model.version
@@ -159,11 +159,11 @@
       job       jobs.bar       job bar       not deployed
       pipeline  pipelines.foo  pipeline foo  not deployed
       as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev
-    notify  command
+    notify  ./ops/steps.py:Notify
       can't be listed: it needs app.resources.jobs.bar.id, which isn't there
     backfill  bundle.run
       nothing to list
-    warm  command
+    warm  ./ops/steps.py:Warm
       skipped: not for target `dev`
   
   '''
@@ -175,7 +175,7 @@
               gives  target, name, workspace.<field>, var.<name>, resources.<type>.<key>.<field> (at 
   plan)
               gives  resources.<type>.<key>.id, resources.<type>.<key>.url (once it exists)
-    notify    takes  ← app.resources.jobs.bar.id
+    notify    takes  job ← app.resources.jobs.bar.id
     backfill  takes  bundle ← app
     warm      takes and gives nothing
   

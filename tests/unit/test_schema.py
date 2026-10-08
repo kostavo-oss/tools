@@ -31,7 +31,12 @@ def schema_for(root: Path) -> dict[str, Any]:
     if not (root / "ops" / "steps.py").exists():
         root.mkdir(parents=True, exist_ok=True)
         project.write(root)
-    names = [*sorted(registry.installed()), "./ops/steps.py:LatestModel"]
+    names = [
+        *sorted(registry.installed()),
+        "./ops/steps.py:LatestModel",
+        "./ops/steps.py:Notify",
+        "./ops/steps.py:Warm",
+    ]
     plugins = [registry.find(name, root) for name in names]
     docs = {found.uses: registry.option_docs(found.options) for found in plugins}
     return schema.build(plugins, docs)
@@ -59,17 +64,16 @@ TWO_BUNDLES = (
     "  - name: api\n    uses: bundle\n    targets: [dev, prod]\n    with:\n"
     "      path: .\n      vars: {job: '${steps.data.resources.jobs.backfill.id}'}\n"
 )
-COMMANDS = (
+PROGRAMS_AND_STEVIN = (
     "steps:\n"
-    "  - name: seed\n    uses: command\n    with:\n      plan: [./p.sh, --plan]\n"
-    "      apply: [./a.sh]\n      destroy: [./d.sh]\n      outputs: [count]\n"
-    "      env: {TOKEN: '${env.TOKEN}', PORT: 8080}\n"
+    "  - name: warm\n    uses: ./ops/steps.py:Warm\n    targets: [prod]\n"
+    "  - name: tell\n    uses: ./ops/steps.py:Notify\n    with: {job: deployed}\n"
     "  - uses: stevin\n"
     "    with: {config: stevin.yml, target: null, select: ['sales.*']}\n"
 )
 
 
-@pytest.mark.parametrize("text", [project.LELY_YML, TWO_BUNDLES, COMMANDS])
+@pytest.mark.parametrize("text", [project.LELY_YML, TWO_BUNDLES, PROGRAMS_AND_STEVIN])
 def test_a_config_lely_reads_fits_the_schema(tmp_path: Path, text: str) -> None:
     assert lely_reads(tmp_path, text)
     assert errors(yaml.safe_load(text), schema_for(tmp_path)) == []
@@ -104,12 +108,13 @@ def test_a_config_lely_reads_fits_the_schema(tmp_path: Path, text: str) -> None:
             "'name' is a required property",
         ),
         (
-            "steps:\n  - name: a.b\n    uses: command\n    with: {apply: [x]}\n",
+            "steps:\n  - name: a.b\n    uses: ./ops/steps.py:Warm\n",
             "'a.b' does not match",
         ),
         (
-            "steps:\n  - name: s\n    uses: command\n    with: {apply: ./x.sh}\n",
-            "'./x.sh' is not of type 'array'",
+            "steps:\n  - name: s\n    uses: ./ops/steps.py:Notify\n"
+            "    with: {job: [x]}\n",
+            "['x'] is not of type 'string'",
         ),
         (
             "steps:\n  - name: m\n    uses: ./ops/steps.py:LatestModel\n"
@@ -268,8 +273,8 @@ def test_the_schema_says_what_a_plugin_does_and_gives(tmp_path: Path) -> None:
         "resources.<type>.<key>.<field>.\n"
         "Gives once it exists: resources.<type>.<key>.id, resources.<type>.<key>.url."
     )
-    assert described["command"].endswith("Gives: what the step lists, by its options.")
     assert described["./ops/steps.py:LatestModel"].endswith("Gives at plan: version.")
+    assert described["./ops/steps.py:Notify"].startswith("Tells the channel")
     bundle = next(
         when["then"]["properties"]["with"]["properties"]
         for when in step["allOf"]
@@ -321,7 +326,7 @@ def test_lely_schema_works_without_a_project(
     assert result.exit_code == 0, result.output
     step = json.loads(result.stdout)["definitions"]["step"]
     known = [c["const"] for c in step["properties"]["uses"]["anyOf"] if "const" in c]
-    assert known == ["bundle", "bundle.run", "command", "stevin"]
+    assert known == ["bundle", "bundle.run", "stevin"]
 
 
 # -- found in the third review -------------------------------------------------------

@@ -17,10 +17,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`Program`**: a program as a step, in ten lines — one `run` every apply, destructive if
   it says so, outputs from the JSON on its last line. What `command` did, under the rules.
 
-### Deprecated
+### Removed
 
-- **`command`**: retired by steps on their own and `Program`. Still installed in this
-  release; removed in the next. → [011](https://github.com/kostavo-oss/lely/blob/main/spec/011-a-step-on-its-own.md)
+- **`command`**: a program is a `Program` (ten lines, see Writing a step); a config that
+  names `command` is told by `lely validate` that no plugin of that name is installed.
+  → [011](https://github.com/kostavo-oss/lely/blob/main/spec/011-a-step-on-its-own.md)
 
 ## [0.2.0] - 2026-10-07
 

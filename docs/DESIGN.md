@@ -109,7 +109,7 @@ module), the Databricks CLI runner, the workspace client, `git`, and the command
 | `planfile` | the plan and the result, to JSON and back |
 | `schema` | the config's shape as JSON Schema, built from the plugins, for editors |
 | `render` | the terminal |
-| `steps/` | the plugins lely ships: `bundle`, `bundle.run`, `command`, and `stevin`'s plan half |
+| `steps/` | the plugins lely ships: `bundle`, `bundle.run`, and `stevin`'s plan half |
 | `databricks`, `source`, `process` | the Databricks CLI, `git`, any other program |
 | `cli` | the commands, consent, exit codes |
 
@@ -137,9 +137,8 @@ steps:
         model_version: ${steps.model.version}     # … and the bundle says what it takes
 
   - name: backfill               # needs something from the bundle: it is below it …
-    uses: command
-    with:
-      apply: [./ops/backfill.sh, "${steps.app.resources.jobs.backfill.id}"]
+    uses: ./ops/steps.py:Backfill
+    with: {job: "${steps.app.resources.jobs.backfill.id}"}
     targets: [dev]               # skipped, visibly, for any other target
 ```
 
@@ -261,15 +260,14 @@ states: running a job, running a script, uploading a bundle's files. A plan that
 - **`apply` does what the plan says, and no more.** For a plugin that converges, planning again
   right after gives no changes.
 - **Only what the options name.** Anything else is not its own, and never changed.
-- **It destroys only what it can show is its own.** `command` is the exception by its nature, and
-  its destroy plan shows the command line in full.
+- **It destroys only what it can show is its own.**
 - **Destructive is declared.** A change the plugin's tool reports and the plugin doesn't recognise
   is destructive.
 - **Outputs are as declared.** Nothing undeclared is given; nothing declared *at plan* is missing.
 - **No secret in a plan.** A secret output is a `Secret`; a payload holds none.
 
 **Planning runs the project's own code.** A plugin that is a file in the repo is loaded even by
-`validate`; a `command` step's plan command is run by `plan`. On a pull request, `plan` must be
+`validate`, and its `plan` is run by `plan`. On a pull request, `plan` must be
 given credentials that can read and nothing more. lely can't enforce that; `lely doctor` and the
 docs say it.
 
@@ -309,35 +307,24 @@ It gives: `target` and `name`; `workspace.<field>`; `var.<name>`;
 `resources.<type>.<key>.id` and `.url`, *once it exists*. The id of a resource this deploy creates
 or replaces is `later`.
 
-### `command`
+### A program as a step: `Program`
 
-Runs commands the project gives it. Each is a list — a program and its arguments — never passed
-through a shell.
+Not a plugin lely ships but a base in `lely.step`, for the run-only case. A class with a
+`command` — a list, or a method that builds one from the options — never passed through a shell.
 
-```yaml
-- name: seed
-  uses: command
-  with:
-    plan: [./ops/seed.sh, --plan]      # optional; prints the step's plan as JSON on stdout
-    apply: [./ops/seed.sh]
-    destroy: [./ops/seed.sh, --drop]   # optional
-    outputs: [count]                   # optional; what the step gives
-```
+- **plan**: one `run` line that shows the command, destructive if the class says so.
+- **apply**: the program, from the project's directory, with the environment lely was run in,
+  the class's `env`, `LELY_TARGET` and `LELY_STEP`; a failing program fails the step. What it
+  prints is logged under the step's name as it comes.
+- **outputs**: the ones the class declares, all *after every run*, read from the JSON object on
+  the last line the program printed.
+- **destroy**: none; a run has nothing to take down, and `lely destroy` skips it visibly. Nothing
+  to list either.
+- No secret in its arguments: they would be visible to every process on the machine. `env` may
+  hold one.
 
-- **plan**: with a plan command, what it prints. Without one, a single `run` line that shows the
-  command.
-- **apply**: the apply command, from the project's directory. It is given the environment lely was
-  run in, the step's `env`, `LELY_TARGET` and `LELY_STEP`, and on apply `LELY_PLAN` (a file holding
-  the plan that was approved for this step) and `LELY_OUTPUTS` (a file it writes outputs to, one
-  `name=value` to a line).
-- **outputs**: the step lists them. One the plan command prints is known at plan; one the apply
-  command writes is known after the run. Without a plan command they are all *after every run*;
-  with one, lely can't know before running it which it prints, so they are *once it exists*. A name
-  it lists and gives in neither way is a failed step.
-- **destroy**: with a destroy command, the plan shows that command line in full, marked
-  destructive. Without one the step is skipped, visibly.
-- No secret in its arguments: they would be visible to every process on the machine. `env` may hold
-  one.
+It replaced the `command` plugin on 2026-10-08 ([spec 011](https://github.com/kostavo-oss/lely/blob/main/spec/011-a-step-on-its-own.md)):
+a program that wants a plan of its own, or a destroy, is a class under the contract above.
 
 ### `bundle.run`
 
@@ -449,12 +436,12 @@ lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@exam
     ± pipelines.foo  destructive
         replaced: storage (immutable)
     ▶ uploads the bundle's files
-  notify  command
+  notify  ./ops/steps.py:Notify
     ⏸ waiting for app.resources.jobs.bar.id
   backfill  bundle.run
     bundle  ← app
     ▶ runs jobs.backfill
-  warm  command
+  warm  ./ops/steps.py:Warm
     – skipped: not for target dev
 
 Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
@@ -607,8 +594,6 @@ Each is the builder's call where the spec left room; none is the owner's yet.
   already means "happens on every apply", is never "nothing to do", and is not counted as a change.
 - **An option of type `Linked` names a whole step.** `bundle.run` has to run the CLI exactly as its
   bundle step does — same directory, same `--var`s — and a step is given nothing but its options.
-- **A `command` step's outputs are *once it exists* when it has a plan command.** Which ones the
-  plan command prints can't be known before running it.
 - **An environment value is a `Secret`.** It is the one way to keep it out of every plan, file and
   line of output wherever it flows.
 - **"Made from" is two things**: a hash of each step's options as written, and the value of every

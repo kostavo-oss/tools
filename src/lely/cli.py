@@ -957,9 +957,8 @@ def doctor(path: ConfigOption = None, profile: ProfileOption = None) -> None:
             line(None, f"what these credentials may do couldn't be read: {error}")
     line(
         None,
-        "planning runs the project's own code — a plugin in the repo, a `command` "
-        "step's plan command. On a pull request, give `lely plan` credentials that "
-        "can read and nothing more.",
+        "planning runs the project's own code — a step in the repo. On a pull "
+        "request, give `lely plan` credentials that can read and nothing more.",
     )
     if loaded is None:
         line(None, f"no project checked: {unread}")

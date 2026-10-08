@@ -47,7 +47,6 @@ lely = "lely.cli:main"
 # The plugins lely ships register exactly as anyone's would.
 [project.entry-points."lely.steps"]
 bundle = "lely.steps.bundle:Bundle"
-command = "lely.steps.command:Command"
 stevin = "lely.steps.stevin:Stevin"
 "bundle.run" = "lely.steps.bundle_run:BundleRun"
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ import pytest
 from fakes import Heard
 from lely.errors import LelyError
 from lely.model import Change, Output, Secret
-from lely.step import Program, destroys, lists
+from lely.step import Context, Program, destroys, lists
 from lely.testing import check_apply, check_plan, context
 
 PYTHON = sys.executable
@@ -120,4 +121,28 @@ def test_an_empty_command_is_an_error(tmp_path: Path) -> None:
 
 
 def test_doctor_is_told_the_program() -> None:
+    """Asked of the class, as `lely doctor` asks every plugin."""
+    assert Notify.programs({}) == (PYTHON,)
     assert Notify().programs({}) == (PYTHON,)
+
+
+class Told(Program):
+    """A command built from the options."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        #: What to say.
+        word: str
+
+    def command(self, ctx: Context) -> list[str]:
+        return [PYTHON, "-c", f"print({ctx.options.word!r})"]
+
+
+def test_a_command_may_be_built_from_the_options(tmp_path: Path) -> None:
+    ctx = context(Told.Options(word="hi"), name="told", root=tmp_path)
+
+    plan = check_plan(Told(), ctx)
+
+    assert "hi" in plan.changes[0].summary
+    assert Told().programs({}) == ()  # not known without the options
+    check_apply(Told(), ctx)

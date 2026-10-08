@@ -87,23 +87,24 @@ steps:
         model_version: ${steps.model.version}     # … and the bundle says what it takes
 
   - name: backfill               # needs something from the bundle: it is below it …
-    uses: command
-    with:
-      apply: [./ops/backfill.sh, "${steps.app.resources.jobs.backfill.id}"]   # … and says what
+    uses: ./ops/steps.py:Backfill
+    with: {job: "${steps.app.resources.jobs.backfill.id}"}   # … and says what
 ```
 
 A step takes a value from another step in one way only: `${steps.<name>.<output>}`, in its own
 options, and only from a step above it. Reading a step's `with:` is enough to know everything
 it depends on.
 
-`bundle` and `command` come with lely. `./ops/steps.py:LatestModel` is a plugin of your own —
-a class in a file in the repo. This one runs as it stands; your lookup goes where the `14` is:
+`bundle` comes with lely; the other two are yours — classes in a file in the repo.
+`LatestModel` runs as it stands, and your lookup goes where the `14` is; `Backfill` is a
+program as a step, one run every apply:
 
 ```python
 # ops/steps.py
 from dataclasses import dataclass
 
 from lely.model import Output, StepPlan
+from lely.step import Program
 
 
 class LatestModel:
@@ -123,6 +124,17 @@ class LatestModel:
 
     def apply(self, ctx, plan):
         return plan.outputs  # nothing to do: what it gives was known at plan
+
+
+class Backfill(Program):
+    """Backfills the job this deploy made."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        job: str
+
+    def command(self, ctx):
+        return ["./ops/backfill.sh", ctx.options.job]
 ```
 
 The rest is yours too: a bundle beside `lely.yml` with a variable `model_version` and a job
@@ -156,7 +168,7 @@ lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@exam
     ± pipelines.foo  destructive
         replaced: storage (immutable)
     ▶ uploads the bundle's files
-  notify  command
+  notify  ./ops/steps.py:Notify
     ⏸ waiting for app.resources.jobs.bar.id
   backfill  bundle.run
     bundle  ← app
@@ -223,17 +235,15 @@ what they can do.
 - **`bundle`** — an Asset Bundle: planned, deployed, listed and destroyed through the
   Databricks CLI. It gives the bundle's variables, its resources' names, and their ids and
   links once they exist.
-- **`command`** — commands you give it: `apply`, and optionally `plan`, `destroy` and the
-  `outputs` it gives. No shell, and no secrets in arguments.
 - **`bundle.run`** — runs a job, pipeline or app from a bundle step.
 - **Your own** — a class in a file in your repo (`uses: ./ops/steps.py:LatestModel`), or a
-  package that registers one under the `lely.steps` entry point. `lely.testing` checks it
-  against the same rules as the ones above.
+  package that registers one under the `lely.steps` entry point. A program is a `Program`,
+  in ten lines. `lely.testing` checks it against the same rules as the ones above.
 - **`stevin`** — tables, planned by [stevin](https://github.com/kostavo-oss/stevin). Parked:
   it can plan, and can't apply yet.
 
-Planning runs your project's own code — a plugin in the repo, a `command` step's plan command.
-On a pull request, give `lely plan` credentials that can read and nothing more.
+Planning runs your project's own code — a step in the repo. On a pull request, give
+`lely plan` credentials that can read and nothing more.
 
 ## What has been tried
 

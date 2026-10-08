@@ -122,7 +122,7 @@ def test_no_module_outside_steps_imports_a_plugin() -> None:
     another."""
     assert imports_a_plugin("from lely.steps.bundle import Bundle")
     assert imports_a_plugin("def f():\n    from lely import steps")
-    assert imports_a_plugin("import lely.steps.command as c")
+    assert imports_a_plugin("import lely.steps.bundle_run as r")
     assert not imports_a_plugin("from lely import step as contract\nimport lely.step")
     package = ROOT / "src" / "lely"
     core = [path for path in package.rglob("*.py") if path.parent.name != "steps"]

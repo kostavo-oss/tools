@@ -1,11 +1,11 @@
-"""Running another program: the Databricks CLI, stevin, a `command` step.
+"""Running another program: the Databricks CLI, stevin, a step's program.
 
 One place, so every step that shells out fails the same way: a missing program
 says so, and a failing one is shown in its own words — what it wrote on both of
 its streams.
 
 A program that only answers a question is run to its end and its output taken.
-One that changes something — a deploy, a job run, a step's apply command — can
+One that changes something — a deploy, a job run, a step's program — can
 take minutes, so its caller may ask to hear it (`said`): each line is passed on
 as it comes, and still kept for whoever reads the result.
 """

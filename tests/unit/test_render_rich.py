@@ -122,10 +122,9 @@ def test_a_step_that_waits_on_every_deploy_says_a_file_never_gets_past_it(
     """005/R27: `plan` says so before anyone is surprised."""
     text_ = (
         "steps:\n"
-        "  - name: seed\n    uses: command\n"
-        "    with: {apply: [./ops/warm.sh], outputs: [count]}\n"
-        "  - name: tell\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+        "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
+        "  - name: tell\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${steps.seed.count}'}\n"
     )
     config = load(project.write(tmp_path, text_))
     shown = " ".join(

@@ -105,7 +105,7 @@ def test_a_plugin_from_a_file_needs_a_name() -> None:
 
 
 def test_names_are_one_reference_part() -> None:
-    [problem] = problems("steps:\n  - name: warm.cache\n    uses: command\n")
+    [problem] = problems("steps:\n  - name: warm.cache\n    uses: bundle\n")
     assert problem.startswith("lely.yml:2:11: step name `warm.cache` must be")
 
 
@@ -123,7 +123,7 @@ def test_every_problem_is_reported_at_once() -> None:
 
 
 def test_a_duplicate_key_is_an_error() -> None:
-    assert problems("steps:\n  - uses: bundle\n    uses: command\n") == [
+    assert problems("steps:\n  - uses: bundle\n    uses: stevin\n") == [
         "lely.yml:3:5: `uses` appears twice"
     ]
 
@@ -176,13 +176,13 @@ def test_pyproject_keeps_positions() -> None:
     assert isinstance(version, Scalar)
     line = project.PYPROJECT_TOML.splitlines()[version.loc.line - 1]
     assert line[version.loc.column - 1 :].startswith('"${steps.model.version}"')
-    # a `with` written as its own table, and an item of a list in it
-    command = notify.options
-    assert isinstance(command, Map)
-    assert command.entries[0].key_loc.line == 20
+    # a `with` written as its own table, and a key in it
+    options = notify.options
+    assert isinstance(options, Map)
+    assert options.entries[0].key_loc.line == 20
     assert project.PYPROJECT_TOML.splitlines()[19][
-        command.entries[0].key_loc.column - 1 :
-    ].startswith("apply")
+        options.entries[0].key_loc.column - 1 :
+    ].startswith("job")
 
 
 def test_pyproject_problems_have_a_position() -> None:

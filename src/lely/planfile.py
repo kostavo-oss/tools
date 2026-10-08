@@ -11,9 +11,10 @@ A secret never reaches the file: a secret output is written as
 holding one is refused outright. Nothing in the file is kept for apply — every
 step is planned again, and gives its values again.
 
-A step's plan has the same shape here as a `command` step's plan command
-prints, so `step_plan_from_json` reads both. What a run leaves behind — a
-`Result`, a `Status` — is written here too, and never read back.
+A step's plan is written by `step_plan_to_json` and read back by
+`step_plan_from_json`; `lely.testing` holds a plugin's plan to that round trip.
+What a run leaves behind — a `Result`, a `Status` — is written here too, and
+never read back.
 """
 
 from __future__ import annotations
@@ -79,7 +80,7 @@ _CHANGE_KEYS = frozenset({"key", "action", "summary", "destructive", "detail"})
 
 
 class PlanFileError(LelyError):
-    """A plan file (or a plan command's output) that can't be read."""
+    """A plan file that can't be read."""
 
 
 #: The longest view a step's plan keeps, in characters: a view is a picture of

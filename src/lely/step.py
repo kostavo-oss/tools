@@ -248,8 +248,9 @@ class Program(Step):
     machine can see them. An option of type `Secret` goes in `env`.
     """
 
-    #: The program and its arguments, never passed through a shell.
-    command: Sequence[str] = ()
+    #: The program and its arguments, never passed through a shell. Either a
+    #: list, or a method `command(self, ctx)` that builds one from the options.
+    command: Sequence[str] | Callable[..., Sequence[str]] = ()
     #: Whether the run loses something: shown so in a plan.
     destructive: bool = False
     #: Extra environment for the program; may hold a secret.
@@ -278,17 +279,29 @@ class Program(Step):
             "LELY_TARGET": ctx.target,
             "LELY_STEP": ctx.name,
         }
-        result = process.run(command, ctx.root, env=env, said=ctx.log.info)
+        ctx.log.info(f"{ctx.name}: {shlex.join(command)}")
+        result = process.run(
+            command,
+            ctx.root,
+            env=env,
+            said=lambda line: ctx.log.info(f"{ctx.name}: {line}"),
+        )
         if result.returncode != 0:
             raise process.failure(f"`{shlex.join(command)}`", result)
         return self._outputs(result.stdout)
 
-    def programs(self, written: Mapping[str, Json]) -> tuple[str, ...]:
-        """For `lely doctor`: the program this step runs."""
-        return (self.command[0],) if self.command else ()
+    @classmethod
+    def programs(cls, written: Mapping[str, Json]) -> tuple[str, ...]:
+        """For `lely doctor`: the program this step runs, when it is known
+        without the options. Asked of the class, as doctor asks it."""
+        if callable(cls.command):
+            return ()
+        return (str(cls.command[0]),) if cls.command else ()
 
     def _command(self, ctx: Context[Any]) -> list[str]:
-        command = [str(part) for part in self.command]
+        source: Any = self.command
+        parts = source(ctx) if callable(source) else source
+        command = [str(part) for part in parts]
         if not command:
             raise LelyError(f"{type(self).__qualname__}: `command` is empty.")
         return command

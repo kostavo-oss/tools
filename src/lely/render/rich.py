@@ -10,9 +10,9 @@
         ± pipelines.ingest  destructive
             replaced: storage (immutable)
         ▶ uploads the bundle's files
-      notify  command
+      notify  ./ops/steps.py:Notify
         ⏸ waiting for app.resources.jobs.backfill.id
-      warm  command
+      warm  ./ops/steps.py:Warm
         – skipped: not for target `dev`
 
     Plan: 2 changes · 1 run · 1 destructive · 1 waiting

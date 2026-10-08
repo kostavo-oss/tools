@@ -93,7 +93,7 @@ def test_validate_prints_the_wiring(lely: Lely) -> None:
     assert result.exit_code == 0, said(result)
     assert "lely.yml: 5 steps" in said(result)
     assert "app       takes  model_version ← model.version" in said(result)
-    assert "notify    takes  ← app.resources.jobs.bar.id" in said(result)
+    assert "notify    takes  job ← app.resources.jobs.bar.id" in said(result)
     assert "model     gives  version (at plan)" in said(result)
     assert lely.fake.calls == []  # offline
 
@@ -175,15 +175,15 @@ def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> 
         "gives  resources.<type>.<key>.id, resources.<type>.<key>.url (once it exists)"
     ) in text
     assert "can    plan, apply, list, destroy\n" in text  # bundle
-    assert "can    plan, apply, destroy\n" in text  # command: nothing to list
     assert "bundle.run  built-in" in text
     assert "bundle: the name of a step  required" in text
     assert "can    plan, apply\n" in text
-    assert "gives  what a step lists, by its options" in text  # command
     assert "can    plan\n" in text  # stevin: parked
-    # and the plugin this project names
+    # and the plugins this project names
     assert "./ops/steps.py:LatestModel  file ./ops/steps.py" in text
     assert "gives  version (at plan)" in text
+    assert "./ops/steps.py:Notify  file ./ops/steps.py" in text
+    assert "job: a string  required" in text
 
 
 def _commands() -> dict[str, Any]:
@@ -693,7 +693,7 @@ def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> 
     assert "the workspace: https://dbc-example.cloud.databricks.com as jane" in text
     assert "not a workspace admin" in text
     assert "credentials that can read and nothing more" in text
-    assert "step `notify` runs `./ops/notify.sh`" in text
+    assert "step `warm` runs `./ops/warm.sh`" in text
     assert "step `app` runs `databricks`" in text
     assert lely.fake.verbs == []  # it changes nothing, and plans nothing
 
@@ -702,23 +702,21 @@ def test_doctor_fails_when_a_tool_is_missing(
     lely: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(cli, "DATABRICKS", ("no-such-databricks",))
-    (lely.root / "ops" / "notify.sh").unlink()
+    (lely.root / "ops" / "warm.sh").unlink()
     result = lely("doctor")
     assert result.exit_code == 1
     assert "`no-such-databricks` isn't on PATH" in said(result)
-    assert "step `notify` runs `./ops/notify.sh`: not found" in said(result)
+    assert "step `warm` runs `./ops/warm.sh`: not found" in said(result)
+    # a program built from the options isn't known without them: nothing to check
+    assert "step `notify` runs" not in said(result)
 
 
 def test_doctor_doesnt_fail_for_a_cli_no_step_runs(
     lely: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A project of commands needs no Databricks CLI: one that is missing is
+    """A project of programs needs no Databricks CLI: one that is missing is
     said, and is no failed check."""
-    project.write(
-        lely.root,
-        "steps:\n  - name: seed\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh]}\n",
-    )
+    project.write(lely.root, "steps:\n  - name: seed\n    uses: ./ops/steps.py:Warm\n")
     monkeypatch.setattr(cli, "DATABRICKS", ("no-such-databricks",))
     result = lely("doctor")
     told = " ".join(said(result).split())
@@ -750,12 +748,8 @@ def test_doctor_compares_the_clis_version_with_the_one_bundles_need(lely: Lely) 
 def test_doctor_speaks_of_bundles_only_where_a_step_runs_the_cli(
     lely: Lely, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A project of commands was told what bundles need."""
-    project.write(
-        lely.root,
-        "steps:\n  - name: seed\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh]}\n",
-    )
+    """A project of programs was told what bundles need."""
+    project.write(lely.root, "steps:\n  - name: seed\n    uses: ./ops/steps.py:Warm\n")
     result = lely("doctor")
     assert result.exit_code == 0, said(result)
     assert "the Databricks CLI: Databricks CLI v1.18.0" in said(result)
@@ -820,7 +814,7 @@ def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> 
         "steps:\n  - name: a\n    uses: ./ops/odd.py:Odd\n"
         "  - name: b\n    uses: ./ops/odd.py:NoText\n"
         "  - name: c\n    uses: ./ops/odd.py:Ends\n"
-        "  - name: seed\n    uses: command\n    with: {apply: [./ops/notify.sh]}\n",
+        "  - name: seed\n    uses: ./ops/steps.py:Warm\n",
     )
     result = lely("doctor")
     assert result.exit_code == 1
@@ -833,7 +827,7 @@ def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> 
     assert "names a program as PosixPath, not as text" in text
     assert "✗ step `c` (./ops/odd.py:Ends): its `programs` failed: " in text
     assert "ended the program" in text
-    assert "✓ step `seed` runs `./ops/notify.sh`" in text  # the rest is still checked
+    assert "✓ step `seed` runs `./ops/warm.sh`" in text  # the rest is still checked
     assert "Traceback" not in text
 
 
@@ -1016,10 +1010,29 @@ steps:
   - name: app
     uses: bundle
   - name: migrate
-    uses: command
-    with:
-      apply: [./ops/migrate.sh]
-      destroy: [./ops/migrate.sh, --drop]
+    uses: ./ops/steps.py:Migrate
+"""
+
+MIGRATE_PY = """\
+import subprocess
+from dataclasses import dataclass
+from lely.model import Change, StepPlan
+
+class Migrate:
+    '''Runs the team's migration, and drops it at destroy.'''
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    def plan(self, ctx):
+        return StepPlan((Change("m", "run", "runs ./ops/migrate.sh"),))
+    def apply(self, ctx, plan):
+        subprocess.run(["./ops/migrate.sh"], cwd=ctx.root, check=True)
+        return {}
+    def plan_destroy(self, ctx):
+        drop = Change("m", "run", "runs ./ops/migrate.sh --drop", destructive=True)
+        return StepPlan((drop,))
+    def destroy(self, ctx, plan):
+        subprocess.run(["./ops/migrate.sh", "--drop"], cwd=ctx.root, check=True)
 """
 
 
@@ -1033,6 +1046,7 @@ def two_teams(lely: Lely) -> None:
         folder = lely.root / name
         (folder / "ops").mkdir(parents=True)
         (folder / "lely.yml").write_text(TEAM)
+        (folder / "ops" / "steps.py").write_text(MIGRATE_PY)
         script = folder / "ops" / "migrate.sh"
         script.write_text(f'#!/bin/sh\necho "{name} $1" >> ../migrated.txt\n')
         script.chmod(0o755)
@@ -1531,19 +1545,24 @@ def test_a_saved_plan_is_not_posted_for_a_fork(
 def test_a_plan_that_holds_the_runs_token_is_not_written(
     ready: Lely, hub: FakeGitHub
 ) -> None:
-    """008/R6. A plan command that prints its environment puts the token in
+    """008/R6. A step whose plan quotes its environment puts the token in
     the plan: in the file, which is kept as an artifact, and on stdout."""
     ready("plan", "-t", "dev", "--github")
     printing = (
-        "import json, os\n"
-        "print(json.dumps({'changes': [{'key': 'k', 'action': 'run',"
-        " 'summary': 'with ' + os.environ['GITHUB_TOKEN']}]}))\n"
+        "from dataclasses import dataclass\n"
+        "from lely.model import Change, StepPlan\n"
+        "class Leak:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pass\n"
+        "    def plan(self, ctx):\n"
+        "        token = ctx.env['GITHUB_TOKEN']\n"
+        "        return StepPlan((Change('k', 'run', 'with ' + token),))\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
     )
     (ready.root / "ops" / "leak.py").write_text(printing)
-    leaking = READY + (
-        "  - name: seed\n    uses: command\n    with:\n"
-        f"      apply: ['true']\n      plan: [{sys.executable}, ops/leak.py]\n"
-    )
+    leaking = READY + "  - name: seed\n    uses: ./ops/leak.py:Leak\n"
     (ready.root / "lely.yml").write_text(leaking)
     for extra in ((), ("-f", "md"), ("-f", "json")):
         result = ready("plan", "-t", "dev", "--github", "-o", "plan.json", *extra)
@@ -1831,31 +1850,70 @@ def test_a_file_made_again_is_readable_by_whoever_could_read_it_before(
 # -- found when the sixth review's fixes were reviewed ---------------------------------
 
 
+#: `ops/leak.py`: a program that prints the run's token on both streams, and
+#: fails when its argument says so.
 LEAKING = (
-    "import json, os, sys\n"
+    "import os, sys\n"
     "token = os.environ['GITHUB_TOKEN']\n"
-    "how = sys.argv[1]\n"
-    "if how == 'plan':\n"
-    "    print(json.dumps({'changes': [{'key': 'k', 'action': 'run',"
-    " 'summary': 'job with ' + token}]}))\n"
-    "elif how == 'plan-fails':\n"
-    "    sys.exit('auth failed for ' + token)\n"
-    "else:\n"
-    "    print('signed in with ' + token)\n"
-    "    print('and on stderr ' + token, file=sys.stderr)\n"
-    "    sys.exit(1 if how.endswith('fails') else 0)\n"
+    "print('signed in with ' + token)\n"
+    "print('and on stderr ' + token, file=sys.stderr)\n"
+    "sys.exit(1 if sys.argv[1].endswith('fails') else 0)\n"
 )
 
+#: `ops/leaking.py`: a `Program` that runs `leak.py` — at apply, and at
+#: destroy when told — and whose plan holds the token, or fails with it, when
+#: told. What it does is in its options, so one module serves every case:
+#: a module imported once stays imported.
+LEAKING_STEP = """\
+import sys
+from dataclasses import dataclass
+from lely import process
+from lely.model import Change, Skip, StepPlan
+from lely.step import Program
 
-def leaking(ready: Lely, **commands: str) -> None:
-    """The scenario with a `seed` step whose commands print the run's token."""
+class Seed(Program):
+    @dataclass(frozen=True)
+    class Options:
+        apply: str
+        plan: str = ""
+        destroy: str = ""
+        job: str = ""
+
+    def command(self, ctx):
+        return [sys.executable, "ops/leak.py", ctx.options.apply]
+
+    def plan(self, ctx):
+        how = ctx.options.plan
+        if not how:
+            return super().plan(ctx)
+        token = ctx.env["GITHUB_TOKEN"]
+        if how == "plan-fails":
+            raise RuntimeError("auth failed for " + token)
+        return StepPlan((Change("k", "run", "job with " + token),))
+
+    def plan_destroy(self, ctx):
+        if not ctx.options.destroy:
+            return Skip("it has nothing to destroy")
+        return StepPlan((Change("k", "run", "runs ops/leak.py", destructive=True),))
+
+    def destroy(self, ctx, plan):
+        command = [sys.executable, "ops/leak.py", ctx.options.destroy]
+        said = lambda line: ctx.log.info(f"{ctx.name}: {line}")
+        result = process.run(command, ctx.root, env=dict(ctx.env), said=said)
+        if result.returncode:
+            raise process.failure("ops/leak.py", result)
+"""
+
+
+def leaking(ready: Lely, **how: str) -> None:
+    """The scenario with a `seed` step that prints the run's token, in the
+    ways `how` names: `apply`, `plan`, `destroy`."""
     (ready.root / "ops" / "leak.py").write_text(LEAKING)
-    lines = "".join(
-        f"      {verb}: [{sys.executable}, ops/leak.py, {how}]\n"
-        for verb, how in commands.items()
-    )
+    (ready.root / "ops" / "leaking.py").write_text(LEAKING_STEP)
+    options = ", ".join(f"{verb}: {way}" for verb, way in how.items())
     (ready.root / "lely.yml").write_text(
-        READY + "  - name: seed\n    uses: command\n    with:\n" + lines
+        READY
+        + f"  - name: seed\n    uses: ./ops/leaking.py:Seed\n    with: {{{options}}}\n"
     )
 
 
@@ -1875,9 +1933,9 @@ def nowhere(ready: Lely, hub: FakeGitHub, *results: Result) -> None:
 def test_with_github_no_line_lely_says_holds_the_token(
     ready: Lely, hub: FakeGitHub, extra: tuple[str, ...]
 ) -> None:
-    """008/R6. Searching the result was not enough: a command that prints the
-    token and succeeds put it in lely's own progress lines; a plan command
-    that fails with it put it in the error."""
+    """008/R6. Searching the result was not enough: a program that prints the
+    token and succeeds put it in lely's own progress lines; a plan that fails
+    with it put it in the error."""
     leaking(ready, apply="apply", destroy="destroy")
     # the Databricks CLI can print it too, while it deploys
     (ready.fake.world / "warn-deploy").write_text(f"auth: {fake_github.TOKEN}\n")
@@ -1928,9 +1986,8 @@ def test_a_plan_that_holds_the_token_is_shown_by_no_command(
 
     # a step that waits is planned only when the run gets to it — and shown then
     waiting = project.LELY_YML.replace(
-        'apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]',
-        f'apply: ["true"]\n      plan: [{sys.executable}, ops/leak.py, plan, '
-        '"${steps.app.resources.jobs.bar.id}"]',
+        "uses: ./ops/steps.py:Notify\n    with:\n",
+        "uses: ./ops/leaking.py:Seed\n    with:\n      apply: apply\n      plan: plan\n",
     )
     (ready.root / "lely.yml").write_text(waiting)
     stopped = ready("apply", "-t", "dev", "--yes", "--github")

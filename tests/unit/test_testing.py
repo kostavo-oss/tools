@@ -27,7 +27,6 @@ from lely.model import (
 from lely.step import Context
 from lely.steps.bundle import Bundle
 from lely.steps.bundle_run import BundleRun
-from lely.steps.command import Command
 from lely.testing import (
     NoDatabricks,
     ReadOnly,
@@ -244,9 +243,8 @@ def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
     assert isinstance(check_overview(Bundle(), ctx("four")), Overview)
 
 
-def test_command_and_bundle_run_pass_the_parts_that_apply(tmp_path: Path) -> None:
-    """010, done when. Neither converges — both are runs — and neither lists."""
-    check_plan(Command(), context(Command.Options(apply=("true",)), root=tmp_path))
+def test_bundle_run_passes_the_parts_that_apply(tmp_path: Path) -> None:
+    """010, done when. It doesn't converge — it is a run — and doesn't list."""
     write_bundle(tmp_path, project.BUNDLE)
     fake = project.databricks(tmp_path)
     app = Linked(

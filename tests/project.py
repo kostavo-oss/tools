@@ -3,8 +3,10 @@
 The scenario every planner, runner, renderer and CLI test shares, top to
 bottom: `model` looks up a model version and feeds it to the bundle; `app` is
 the bundle, which creates a job and a pipeline beside a job that is deployed
-already; `notify` needs the id of the job this deploy creates; `backfill` runs
-the job that was there; `warm` is for another target.
+already; `notify` is a program that needs the id of the job this deploy
+creates; `backfill` runs the job that was there; `warm` is a program for
+another target. `ops/steps.py` also holds `Seed`, a program that gives
+something only by running, for the tests that need one.
 """
 
 from __future__ import annotations
@@ -25,9 +27,11 @@ SOURCE = Source()
 STEPS_PY = '''\
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 
 from lely.model import Output, StepPlan
+from lely.step import Program
 
 
 class LatestModel:
@@ -46,6 +50,30 @@ class LatestModel:
 
     def apply(self, ctx, plan):
         return {"version": 14}
+
+
+class Notify(Program):
+    """Tells the channel which job this deploy made."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        job: str
+
+    def command(self, ctx):
+        return ["./ops/notify.sh", ctx.options.job]
+
+
+class Warm(Program):
+    """Warms a cache; for one target only."""
+
+    command = ["./ops/warm.sh"]
+
+
+class Seed(Program):
+    """Gives a count that is known only once it has run."""
+
+    command = [sys.executable, "-c", "print('{\\"count\\": 3}')"]
+    outputs = (Output("count", known="run"),)
 '''
 
 LELY_YML = """\
@@ -62,18 +90,17 @@ steps:
         model_version: ${steps.model.version}
 
   - name: notify
-    uses: command
+    uses: ./ops/steps.py:Notify
     with:
-      apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]
+      job: ${steps.app.resources.jobs.bar.id}
 
   - name: backfill
     uses: bundle.run
     with: {bundle: app, resource: jobs.backfill}
 
   - name: warm
-    uses: command
+    uses: ./ops/steps.py:Warm
     targets: [prod]
-    with: {apply: [./ops/warm.sh]}
 """
 
 #: The same project, as a `pyproject.toml` says it.
@@ -94,10 +121,10 @@ with = { vars = { model_version = "${steps.model.version}" } }
 
 [[tool.lely.steps]]
 name = "notify"
-uses = "command"
+uses = "./ops/steps.py:Notify"
 
 [tool.lely.steps.with]
-apply = ["./ops/notify.sh", "${steps.app.resources.jobs.bar.id}"]
+job = "${steps.app.resources.jobs.bar.id}"
 
 [[tool.lely.steps]]
 name = "backfill"
@@ -106,9 +133,8 @@ with = { bundle = "app", resource = "jobs.backfill" }
 
 [[tool.lely.steps]]
 name = "warm"
-uses = "command"
+uses = "./ops/steps.py:Warm"
 targets = ["prod"]
-with = { apply = ["./ops/warm.sh"] }
 """
 
 BUNDLE: dict[str, Any] = {

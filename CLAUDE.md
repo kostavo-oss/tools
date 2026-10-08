@@ -90,10 +90,10 @@ tool shares is changed there, not here.
 **Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07).** lely was run
 on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
 `validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
-`bundle`, `command` (deprecated) and `bundle.run` plugins and plugins from a repo file; the
-config in `lely.yml` or `pyproject.toml`. **A step on its own** (2026-10-08, `spec/011`):
-`lely.step.Step` gives a step its own command line (`src/lely/solo.py`), `Program` is a
-program as a step; `command` is retired and goes in the next change.
+`bundle` and `bundle.run` plugins and plugins from a repo file; the config in `lely.yml` or
+`pyproject.toml`. **A step on its own** (2026-10-08, `spec/011`): `lely.step.Step` gives a
+step its own command line (`src/lely/solo.py`), `Program` is a program as a step; the
+`command` plugin is removed (lely#20) — a program is a `Program`.
 
 Not built, or not proven:
 

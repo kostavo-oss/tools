@@ -26,7 +26,7 @@ lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@exam
     ± pipelines.foo  destructive
         replaced: storage (immutable)
     ▶ uploads the bundle's files
-  notify  command
+  notify  ./ops/steps.py:Notify
     ⏸ waiting for app.resources.jobs.bar.id
   backfill  bundle.run
     bundle  ← app

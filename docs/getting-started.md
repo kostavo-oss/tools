@@ -13,14 +13,33 @@ steps:
     uses: bundle
 
   - name: backfill               # needs something from the bundle: it stands below it
-    uses: command
-    with:
-      apply: [./ops/backfill.sh, "${steps.app.resources.jobs.backfill.id}"]
+    uses: ./ops/steps.py:Backfill
+    with: {job: "${steps.app.resources.jobs.backfill.id}"}
 ```
 
 The bundle is one step among the others. What stands above it runs before the deploy, what
 stands below runs after. `backfill` takes the id of a job the bundle deploys, and says so in
 its own options — that is the only way a step takes anything from another.
+
+`Backfill` is a program as a step, in ten lines of `ops/steps.py`:
+
+```python
+# ops/steps.py
+from dataclasses import dataclass
+
+from lely.step import Program
+
+
+class Backfill(Program):
+    """Backfills the job this deploy made."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        job: str
+
+    def command(self, ctx):
+        return ["./ops/backfill.sh", ctx.options.job]
+```
 
 ## 2. Check it, offline
 
@@ -33,7 +52,7 @@ lely validate
 
   app       gives  target, name, workspace.<field>, var.<name>, resources.<type>.<key>.<field> (at plan)
             gives  resources.<type>.<key>.id, resources.<type>.<key>.url (once it exists)
-  backfill  takes  ← app.resources.jobs.backfill.id
+  backfill  takes  job ← app.resources.jobs.backfill.id
 ```
 
 No workspace is asked: this checks the config, each step's options, and that every reference

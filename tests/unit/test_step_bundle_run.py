@@ -13,10 +13,9 @@ from fakes import FakeDatabricks, Heard, write_bundle
 from lely.errors import LelyError
 from lely.model import Change, Linked, Skip
 from lely.planning import Session
-from lely.step import Context, NullLog, destroys, lists
+from lely.step import Context, NullLog, Program, destroys, lists
 from lely.steps.bundle import Bundle
 from lely.steps.bundle_run import BundleRun
-from lely.steps.command import Command
 from lely.testing import check_plan, context
 
 APP = Linked(
@@ -62,7 +61,7 @@ def test_a_resource_the_bundle_doesnt_have_is_an_error(tmp_path: Path) -> None:
 
 
 def test_the_step_it_names_must_be_a_bundle_step(tmp_path: Path) -> None:
-    other = Linked("seed", "command", Command.Options(apply=("x",)))
+    other = Linked("seed", "./ops/steps.py:Warm", Program.Options())
     with pytest.raises(LelyError, match="must name a bundle step; step `seed` uses"):
         BundleRun().plan(ctx(tmp_path, bundle=other))
 

@@ -9,11 +9,11 @@
   **1 change · 0 runs · 1 destructive**
   
   ```diff
-    warm  command
+    warm  ./ops/steps.py:Warm
         skipped: not for target `dev`
     backfill  bundle.run
         skipped: `bundle.run` has nothing to destroy
-    notify  command
+    notify  ./ops/steps.py:Notify
         skipped: it needs app.resources.jobs.bar.id, which isn't there
     app  bundle
         model_version = 14  ← model.version
@@ -48,12 +48,12 @@
   -     replace  pipelines.foo  destructive
             replaced: storage (immutable)
         run      uploads the bundle's files
-    notify  command
+    notify  ./ops/steps.py:Notify
         waiting for app.resources.jobs.bar.id
     backfill  bundle.run
         bundle  ← app
         run      runs jobs.backfill
-    warm  command
+    warm  ./ops/steps.py:Warm
         skipped: not for target `dev`
   ```
   
@@ -80,12 +80,12 @@
   +     create   jobs.bar
   +     create   pipelines.foo
         run      uploads the bundle's files
-    notify  command
+    notify  ./ops/steps.py:Notify
         waiting for app.resources.jobs.bar.id
     backfill  bundle.run
         bundle  ← app
         run      runs jobs.backfill
-    warm  command
+    warm  ./ops/steps.py:Warm
         skipped: not for target `dev`
   ```
   
@@ -111,13 +111,13 @@
   +       create   jobs.bar
   +       create   pipelines.foo
           run      uploads the bundle's files
-    ✗ notify  command  failed
+    ✗ notify  ./ops/steps.py:Notify  failed
     · backfill  bundle.run  not started
-    – warm  command  not for target `dev`
+    – warm  ./ops/steps.py:Warm  not for target `dev`
   ```
   
   ```text
-  step `notify` (command): step `notify`'s apply command failed (exit 7):
+  step `notify` (./ops/steps.py:Notify): `./ops/notify.sh 1001` failed (exit 7):
   no route
   ```
   
@@ -137,11 +137,11 @@
   +       create   jobs.bar
   +       create   pipelines.foo
           run      uploads the bundle's files
-    ✓ notify  command
+    ✓ notify  ./ops/steps.py:Notify
           run      runs ./ops/notify.sh 1001
     ✓ backfill  bundle.run
           run      runs jobs.backfill
-    – warm  command  not for target `dev`
+    – warm  ./ops/steps.py:Warm  not for target `dev`
   ```
   
   #### What exists now

@@ -291,7 +291,7 @@ def test_the_first_failing_step_stops_the_run(tmp_path: Path) -> None:
     assert [s.name for s in result.failed] == ["notify"]
     assert result.refused == ()
     assert [s.name for s in result.not_started] == ["backfill"]
-    assert "apply command failed (exit 7)" in result.message
+    assert "`./ops/notify.sh 771` failed (exit 7)" in result.message
     assert "no route" in result.message
     assert p.fake.runs == []
     # nothing was rolled back: what was done, is done
@@ -400,35 +400,37 @@ def test_saying_no_at_a_waiting_step_stops_there(tmp_path: Path) -> None:
 
 def test_a_waiting_step_doesnt_get_past_the_other_rules(tmp_path: Path) -> None:
     """R30: a destructive change in a step that was waiting needs the flag."""
-    drops = {
-        "changes": [{"key": "cache", "action": "delete", "summary": "drops the cache"}]
-    }
-    plan_command = json.dumps([sys.executable, "-c", f"print({json.dumps(drops)!r})"])
+    (tmp_path / "drops.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import Change, StepPlan\n"
+        "class DropsCache:\n"
+        "    '''Takes the job's id, and plans to drop a cache.'''\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        job: str\n"
+        "    def plan(self, ctx):\n"
+        "        drop = Change('cache', 'delete', 'drops the cache', destructive=True)\n"
+        "        return StepPlan((drop,))\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+    )
     text = project.LELY_YML.replace(
-        'apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]',
-        'apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]\n'
-        f"      plan: {plan_command}",
+        "uses: ./ops/steps.py:Notify", "uses: ./drops.py:DropsCache"
     )
     p = Project(tmp_path, text)
     result = p.apply(at_waiting=run_it)
     assert result.outcome == "refused"
     assert "Step `notify` holds destructive changes — drops the cache" in result.message
-    assert p.notified() == []
     assert p.apply(at_waiting=run_it, allow_destructive=True).outcome == "done"
 
 
 def test_a_step_that_takes_an_output_of_a_run_gets_it_at_apply(tmp_path: Path) -> None:
-    """R26, 010/R5: what the apply command writes is known after the run."""
-    (tmp_path / "ops").mkdir()
-    seed = tmp_path / "ops" / "seed.sh"
-    seed.write_text('#!/bin/sh\necho "count=3" >> "$LELY_OUTPUTS"\n')
-    seed.chmod(0o755)
+    """R26: what a program gives by running is known after the run."""
     text = (
         "steps:\n"
-        "  - name: seed\n    uses: command\n"
-        "    with: {apply: [./ops/seed.sh], outputs: [count]}\n"
-        "  - name: notify\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+        "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
+        "  - name: notify\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${steps.seed.count}'}\n"
     )
     p = Project(tmp_path, text)
     approved = p.plan()
@@ -440,17 +442,43 @@ def test_a_step_that_takes_an_output_of_a_run_gets_it_at_apply(tmp_path: Path) -
 
 # -- destroy -----------------------------------------------------------------------
 
+DROP_PY = """\
+import subprocess
+from dataclasses import dataclass
+from lely.model import Change, StepPlan
+
+class Drop:
+    '''Nothing at apply; at destroy, tells notify.sh the job id it was given.'''
+    @dataclass(frozen=True)
+    class Options:
+        job: str
+    def plan(self, ctx):
+        return StepPlan()
+    def apply(self, ctx, plan):
+        return {}
+    def plan_destroy(self, ctx):
+        run = f"runs ./ops/notify.sh {ctx.options.job}"
+        return StepPlan((Change("drop", "run", run, destructive=True),))
+    def destroy(self, ctx, plan):
+        subprocess.run(["./ops/notify.sh", ctx.options.job], cwd=ctx.root, check=True)
+"""
+
 DROP = (
-    "  - name: drop\n    uses: command\n    with:\n"
-    "      apply: [./ops/warm.sh]\n"
-    '      destroy: [./ops/notify.sh, "${steps.app.resources.jobs.backfill.id}"]\n'
+    "  - name: drop\n    uses: ./drop.py:Drop\n"
+    "    with: {job: '${steps.app.resources.jobs.backfill.id}'}\n"
 )
+
+
+def with_drop(tmp_path: Path, text: str = READY) -> str:
+    """`text` with a `drop` step below it, whose plugin is in the folder."""
+    (tmp_path / "drop.py").write_text(DROP_PY)
+    return text + DROP
 
 
 def test_destroy_goes_from_the_bottom_up(tmp_path: Path) -> None:
     """R11, R12, 002/R21: a step below the bundle is destroyed while the
     bundle, and the id it needed, still exist."""
-    p = Project(tmp_path, READY + DROP)
+    p = Project(tmp_path, with_drop(tmp_path))
     result = p.destroy()
     assert result.outcome == "done"
     assert [(s.name, s.outcome) for s in result.steps] == [
@@ -503,7 +531,7 @@ def test_destroying_what_isnt_deployed_does_nothing_and_ends_as_done(
 
 def test_from_names_where_a_destroy_starts_going_up(tmp_path: Path) -> None:
     """R23."""
-    p = Project(tmp_path, READY + DROP)
+    p = Project(tmp_path, with_drop(tmp_path))
     result = p.destroy(from_step="app")
     assert [(s.name, s.outcome) for s in result.steps][:2] == [
         ("drop", "passed"),
@@ -515,7 +543,7 @@ def test_from_names_where_a_destroy_starts_going_up(tmp_path: Path) -> None:
 
 def test_a_failing_destroy_stops_and_leaves_the_rest(tmp_path: Path) -> None:
     """R21."""
-    p = Project(tmp_path, READY + DROP)
+    p = Project(tmp_path, with_drop(tmp_path))
     (tmp_path / "ops" / "notify.sh").write_text("#!/bin/sh\nexit 3\n")
     result = p.destroy()
     assert result.outcome == "failed"
@@ -532,13 +560,6 @@ def test_destroy_refuses_a_plan_to_apply(tmp_path: Path) -> None:
 
 
 # -- status ------------------------------------------------------------------------
-
-
-def test_status_says_of_a_command_that_it_has_nothing_to_list(tmp_path: Path) -> None:
-    """010/R7."""
-    p = Project(tmp_path, READY)
-    found = running.status(p.config, target="dev", **edges(p.fake))
-    assert found.steps[2].note == "runs a command; nothing to list"
 
 
 def test_status_shows_every_step_and_changes_nothing(tmp_path: Path) -> None:
@@ -608,7 +629,7 @@ def test_a_destroy_is_held_to_the_inputs_the_plan_showed(tmp_path: Path) -> None
     """R15, R5: a destroy acts on the values it is handed — `bundle destroy`
     with other variables, a destroy command with another id — so they have to
     be the ones that were shown. Checked before anything is removed."""
-    p = versioned(tmp_path, READY + DROP)
+    p = versioned(tmp_path, with_drop(tmp_path))
     approved = p.plan("destroy")
     (tmp_path / "version.txt").write_text("1500")
     with pytest.raises(Refused) as caught:
@@ -660,35 +681,6 @@ def test_a_destroy_that_finds_nothing_says_whose_view_that_is(tmp_path: Path) ->
     assert FakeDatabricks(world).deployed() == project.DEPLOYED
 
 
-def test_a_command_that_gives_something_only_by_running_plans_a_run(
-    tmp_path: Path,
-) -> None:
-    """A plan command with nothing to change, and an output only the apply
-    command writes: the step has to run to give it, and its plan says so.
-    Before this, the step had "nothing to do" and the one below it failed on
-    every run."""
-    (tmp_path / "ops").mkdir()
-    seed = tmp_path / "ops" / "seed.sh"
-    seed.write_text('#!/bin/sh\necho "count=3" >> "$LELY_OUTPUTS"\n')
-    seed.chmod(0o755)
-    nothing = json.dumps([sys.executable, "-c", "print('{}')"])
-    text = (
-        "steps:\n"
-        "  - name: seed\n    uses: command\n    with:\n"
-        f"      plan: {nothing}\n      apply: [./ops/seed.sh]\n      outputs: [count]\n"
-        "  - name: report\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
-    )
-    p = Project(tmp_path, text)
-    seed_plan = p.plan().steps[0].plan
-    assert [(c.action, c.summary, c.detail) for c in seed_plan.changes] == [
-        ("run", "runs ./ops/seed.sh", ("to give its outputs",))
-    ]
-    result = p.apply(at_waiting=run_it)
-    assert result.outcome == "done"
-    assert p.notified() == ["3"]
-
-
 IDLE = """\
 from dataclasses import dataclass
 from lely.model import Item, Output, Overview, StepPlan
@@ -721,8 +713,8 @@ def test_a_plugin_that_never_ran_is_named_when_what_it_gives_is_missed(
     text = (
         "steps:\n"
         "  - name: made\n    uses: ./idle.py:Idle\n"
-        "  - name: report\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.made.id}']}\n"
+        "  - name: report\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${steps.made.id}'}\n"
     )
     p = Project(tmp_path, text)
     result = p.apply(at_waiting=run_it)
@@ -854,66 +846,6 @@ def test_what_apply_gives_has_to_be_json_and_says_so(tmp_path: Path) -> None:
     assert "`apply`: an output holds a date, which isn't JSON" in result.message
 
 
-def test_a_command_that_failed_further_down_can_be_finished_from_the_same_file(
-    tmp_path: Path,
-) -> None:
-    """R22, and R7's "fewer changes is fine". The run that gives the step's
-    output is in every plan of it, beside its other changes — not only once
-    those are gone, when it would be a change the approved plan didn't show."""
-    (tmp_path / "ops").mkdir()
-    seed = tmp_path / "ops" / "seed.sh"
-    seed.write_text('#!/bin/sh\ntouch seeded\necho "count=3" >> "$LELY_OUTPUTS"\n')
-    seed.chmod(0o755)
-    seeding = (
-        "import json, os; print(json.dumps({'changes': [] if os.path.exists('seeded') "
-        "else [{'key': 'users', 'action': 'create', 'summary': 'seeds 3 users'}]}))"
-    )
-    text = (
-        "steps:\n"
-        "  - name: seed\n    uses: command\n    with:\n"
-        f"      plan: {json.dumps([sys.executable, '-c', seeding])}\n"
-        "      apply: [./ops/seed.sh]\n      outputs: [count]\n"
-        "  - name: after\n    uses: command\n    with: {apply: [./ops/notify.sh, x]}\n"
-    )
-    p = Project(tmp_path, text)
-    approved = p.plan()
-    assert [(c.key, c.action) for c in approved.steps[0].plan.changes] == [
-        ("users", "create"),
-        ("seed (apply)", "run"),
-    ]
-    (tmp_path / "ops" / "notify.sh").write_text("#!/bin/sh\nexit 9\n")
-    assert p.apply(approved).outcome == "failed"
-    project.write(tmp_path, text)  # the script is fixed
-    again = p.apply(approved)
-    assert again.outcome == "done", again.message
-    assert [c.key for c in again.steps[0].changes] == ["seed (apply)"]
-
-
-def test_a_value_the_plan_command_printed_and_the_apply_command_wrote_is_one_value(
-    tmp_path: Path,
-) -> None:
-    """The plan command prints JSON, the apply command writes text: `14` and
-    `"14"` are the same output, and the step below still takes what it took."""
-    (tmp_path / "ops").mkdir()
-    seed = tmp_path / "ops" / "seed.sh"
-    seed.write_text('#!/bin/sh\necho "count=14" >> "$LELY_OUTPUTS"\n')
-    seed.chmod(0o755)
-    printed = {"changes": [{"key": "k", "action": "run"}], "outputs": {"count": 14}}
-    plan_command = json.dumps([sys.executable, "-c", f"print({json.dumps(printed)!r})"])
-    text = (
-        "steps:\n"
-        "  - name: seed\n    uses: command\n    with:\n"
-        f"      plan: {plan_command}\n"
-        "      apply: [./ops/seed.sh]\n      outputs: [count]\n"
-        "  - name: after\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
-    )
-    p = Project(tmp_path, text)
-    result = p.apply()
-    assert result.outcome == "done", result.message
-    assert p.notified() == ["14"]
-
-
 def test_a_target_no_step_runs_for_is_refused(tmp_path: Path) -> None:
     """R37. lely keeps no list of targets, so a mistyped one is caught by a
     plugin that checks it — unless every step's `targets` leave it out, and no
@@ -970,15 +902,26 @@ def test_an_overview_line_says_whether_it_is_deployed_in_one_word(tmp_path: Path
     json.dumps(planfile.result_to_json(result))
 
 
-def test_a_literal_dollar_brace_reaches_the_command_as_it_is_meant(
+def test_a_literal_dollar_brace_reaches_the_program_as_it_is_meant(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """003: `$${…}` is a literal `${…}`, for the shell to read — no reference."""
     monkeypatch.setenv("LELY_TEST_HOME", "/home/jane")
+    (tmp_path / "shell.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.step import Program\n"
+        "class Shell(Program):\n"
+        "    '''Runs a line of shell.'''\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        script: str\n"
+        "    def command(self, ctx):\n"
+        "        return ['sh', '-c', ctx.options.script]\n"
+    )
     p = Project(
         tmp_path,
-        "steps:\n  - name: seed\n    uses: command\n    with:\n"
-        "      apply: [sh, -c, 'echo \"$${LELY_TEST_HOME}\" > home.txt']\n",
+        "steps:\n  - name: seed\n    uses: ./shell.py:Shell\n    with:\n"
+        "      script: 'echo \"$${LELY_TEST_HOME}\" > home.txt'\n",
     )
     given: dict[str, Any] = {**edges(p.fake), "env": dict(os.environ)}
     result = running.apply(p.config, p.plan(), **given)

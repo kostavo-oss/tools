@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -46,9 +44,26 @@ def plan(
     )
 
 
-def printer(document: object) -> str:
-    """A `plan:` command, as YAML, that prints `document`."""
-    return json.dumps([sys.executable, "-c", f"print({json.dumps(document)!r})"])
+#: The scenario's `notify` step, taking the job id the bundle gives.
+NOTIFY_TAKES = "job: ${steps.app.resources.jobs.bar.id}"
+
+#: The scenario's `model` step, as written.
+MODEL = "uses: ./ops/steps.py:LatestModel\n    with:\n      model: dev.ml.churn"
+
+TOKENED = """\
+from dataclasses import dataclass
+from lely.model import Secret, StepPlan
+
+class Tokened:
+    '''Takes a secret, as a `Secret` option.'''
+    @dataclass(frozen=True)
+    class Options:
+        token: Secret
+    def plan(self, ctx):
+        return StepPlan()
+    def apply(self, ctx, plan):
+        return {}
+"""
 
 
 # -- the scenario ------------------------------------------------------------------
@@ -60,9 +75,9 @@ def test_every_step_is_in_the_plan_in_the_order_written(tmp_path: Path) -> None:
     assert [(s.name, s.uses, s.state) for s in built.steps] == [
         ("model", "./ops/steps.py:LatestModel", "ready"),
         ("app", "bundle", "ready"),
-        ("notify", "command", "waiting"),
+        ("notify", "./ops/steps.py:Notify", "waiting"),
         ("backfill", "bundle.run", "ready"),
-        ("warm", "command", "skipped"),
+        ("warm", "./ops/steps.py:Warm", "skipped"),
     ]
     assert (built.kind, built.target) == ("apply", "dev")
     assert built.workspace == project.WORKSPACE
@@ -98,7 +113,9 @@ def test_a_step_that_takes_what_doesnt_exist_yet_is_waiting(tmp_path: Path) -> N
     assert notify.waits_for == ("app.resources.jobs.bar.id",)
     assert notify.waiting == "waiting for app.resources.jobs.bar.id"
     assert notify.plan.changes == ()  # nobody can know them
-    assert notify.inputs == (Input("", "app.resources.jobs.bar.id", None, known=False),)
+    assert notify.inputs == (
+        Input("job", "app.resources.jobs.bar.id", None, known=False),
+    )
 
 
 def test_what_is_deployed_already_is_known(tmp_path: Path) -> None:
@@ -107,7 +124,7 @@ def test_what_is_deployed_already_is_known(tmp_path: Path) -> None:
     notify = plan(tmp_path).steps[2]
     assert notify.state == "ready"
     assert notify.plan.changes[0].summary == "runs ./ops/notify.sh 771"
-    assert notify.inputs == (Input("", "app.resources.jobs.backfill.id", "771"),)
+    assert notify.inputs == (Input("job", "app.resources.jobs.backfill.id", "771"),)
 
 
 def test_a_step_that_names_a_bundle_step_takes_it(tmp_path: Path) -> None:
@@ -175,26 +192,25 @@ def test_made_from_follows_what_the_config_says_not_how(tmp_path: Path) -> None:
 
 def test_made_from_counts_the_environment_by_name(tmp_path: Path) -> None:
     """A rotated token isn't a new plan, and its value is in no plan file."""
-    text = project.LELY_YML.replace(
-        "with: {apply: [./ops/warm.sh]}",
-        "with: {apply: [./ops/warm.sh], env: {T: '${env.TOKEN}'}}",
-    ).replace("targets: [prod]", "targets: [dev]")
+    (tmp_path / "tokened.py").write_text(TOKENED)
+    text = (
+        "steps:\n  - name: hook\n    uses: ./tokened.py:Tokened\n"
+        "    with: {token: '${env.TOKEN}'}\n"
+    )
     project.write(tmp_path, text)
     one = plan(tmp_path, env={"TOKEN": "t0k-one"})
     two = plan(tmp_path, env={"TOKEN": "t0k-two"})
-    assert one.steps[-1].made_from == two.steps[-1].made_from
+    assert one.steps[0].made_from == two.steps[0].made_from
     assert "t0k-one" not in planfile.dumps(one)
 
 
 def test_a_value_from_the_environment_cant_reach_an_argument(tmp_path: Path) -> None:
-    """005/R34, 010/R8: a value from the environment is a secret, and a
-    command's arguments are visible to every process on the machine."""
-    text = project.LELY_YML.replace(
-        "with: {apply: [./ops/warm.sh]}",
-        "with: {apply: [./ops/warm.sh, '${env.TOKEN}']}",
-    ).replace("targets: [prod]", "targets: [dev]")
+    """005/R34: a value from the environment is a secret, and only a `Secret`
+    option may take one — a program's arguments are visible to every process
+    on the machine."""
+    text = project.LELY_YML.replace(NOTIFY_TAKES, "job: ${env.TOKEN}")
     project.write(tmp_path, text)
-    with pytest.raises(LelyError, match="`apply` would hold a secret"):
+    with pytest.raises(LelyError, match="`job` would hold a secret"):
         plan(tmp_path, env={"TOKEN": "t0k"})
 
 
@@ -205,11 +221,17 @@ def test_a_bundle_fed_by_a_run_waits_and_so_does_what_is_below_it(
     tmp_path: Path,
 ) -> None:
     """005/R26: one rule. A step that takes an *after every run* output waits —
-    here it is the bundle, above which a script produces its variable."""
-    text = project.LELY_YML.replace(
-        "uses: ./ops/steps.py:LatestModel\n    with:\n      model: dev.ml.churn",
-        "uses: command\n    with: {apply: [./ops/warm.sh], outputs: [version]}",
+    here it is the bundle, above which a program produces its variable."""
+    (tmp_path / "versioned.py").write_text(
+        "import sys\n"
+        "from lely.model import Output\n"
+        "from lely.step import Program\n"
+        "class RunVersion(Program):\n"
+        "    command = [sys.executable, '-c', "
+        "\"import json; print(json.dumps({'version': 15}))\"]\n"
+        "    outputs = (Output('version', known='run'),)\n"
     )
+    text = project.LELY_YML.replace(MODEL, "uses: ./versioned.py:RunVersion")
     project.write(tmp_path, text)
     fake = project.databricks(tmp_path)
     model, app, notify, backfill, _ = plan(tmp_path, fake).steps
@@ -221,25 +243,6 @@ def test_a_bundle_fed_by_a_run_waits_and_so_does_what_is_below_it(
     assert fake.calls == []  # the plugin isn't called with half its options
     assert notify.waits_for == ("app.resources.jobs.bar.id",)
     assert backfill.waits_for == ("app",)
-
-
-def test_a_plan_command_that_gives_the_value_keeps_the_bundle_ready(
-    tmp_path: Path,
-) -> None:
-    """010/R5: a command that feeds the bundle gives its value from its plan
-    command — a lookup changes nothing, and planning is where it belongs."""
-    command = (
-        "uses: command\n    with:\n      apply: [./ops/warm.sh]\n"
-        f"      plan: {printer({'outputs': {'version': 15}})}\n"
-        "      outputs: [version]"
-    )
-    text = project.LELY_YML.replace(
-        "uses: ./ops/steps.py:LatestModel\n    with:\n      model: dev.ml.churn", command
-    )
-    project.write(tmp_path, text)
-    app = plan(tmp_path).steps[1]
-    assert app.state == "ready"
-    assert app.inputs == (Input("model_version", "model.version", 15),)
 
 
 def test_a_resource_the_bundle_doesnt_have_is_refused_at_plan(tmp_path: Path) -> None:
@@ -311,20 +314,6 @@ def test_a_destroy_resolves_inputs_from_the_top_down(tmp_path: Path) -> None:
     assert all("--var=model_version=14" in call for call in fake.calls)
 
 
-def test_a_command_with_a_destroy_command_is_in_the_destroy_plan(
-    tmp_path: Path,
-) -> None:
-    text = project.LELY_YML.replace(
-        'apply: [./ops/notify.sh, "${steps.app.resources.jobs.bar.id}"]',
-        "apply: [./ops/notify.sh]\n      destroy: [./ops/warm.sh, --drop]",
-    )
-    project.write(tmp_path, text)
-    notify = plan(tmp_path, kind="destroy").steps[2]
-    assert notify.plan.changes == (
-        Change("notify", "run", "runs ./ops/warm.sh --drop", destructive=True),
-    )
-
-
 def test_nothing_deployed_is_a_destroy_plan_with_nothing_in_it(tmp_path: Path) -> None:
     project.write(tmp_path)
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
@@ -349,7 +338,7 @@ def test_check_passes_the_scenario_and_returns_the_wiring(tmp_path: Path) -> Non
     assert [(w.name, w.takes) for w in wires] == [
         ("model", ()),
         ("app", (("model_version", "model.version"),)),
-        ("notify", (("", "app.resources.jobs.bar.id"),)),
+        ("notify", (("job", "app.resources.jobs.bar.id"),)),
         ("backfill", (("bundle", "app"),)),
         ("warm", ()),
     ]
@@ -399,31 +388,36 @@ def test_check_says_how_a_bundles_own_spelling_is_written_here(tmp_path: Path) -
     """`${var.catalog}` is how a bundle's file says it. Below the bundle step
     the error names that step; where no step above gives such a thing — above
     the bundle, or in a project without one — it names none."""
-    below = project.LELY_YML.replace("./ops/warm.sh]", './ops/warm.sh, "${var.catalog}"]')
+    below = project.LELY_YML.replace(NOTIFY_TAKES, "job: ${var.catalog}")
     [problem] = problems(tmp_path, below)
     assert "unknown namespace `var`" in problem
     assert "Step `app` gives `var.catalog`" in problem
     assert "write `${steps.app.var.catalog}`" in problem
     above = project.LELY_YML.replace("model: dev.ml.churn", "model: ${var.catalog}")
-    for text in (above, "steps:\n  - uses: command\n    with: {apply: ['${var.x}']}\n"):
+    alone = (
+        "steps:\n  - name: tell\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${var.x}'}\n"
+    )
+    for text in (above, alone):
         [problem] = problems(tmp_path, text)
         assert "unknown namespace `var`; expected one of steps, env. For a" in problem
         assert "steps." not in problem
 
 
 def test_a_literal_dollar_brace_passes_check_and_is_written_out(tmp_path: Path) -> None:
-    """`apply: [bash, -c, 'echo ${HOME}']` could not be written: `$${HOME}`
-    failed like `${HOME}`, as an unknown namespace."""
+    """`job: 'echo ${HOME}'` could not be written: `$${HOME}` failed like
+    `${HOME}`, as an unknown namespace."""
     text = (
-        "steps:\n  - name: seed\n    uses: command\n"
-        "    with: {apply: [sh, -c, 'echo $${HOME} > home.txt']}\n"
+        "steps:\n  - name: seed\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: 'echo $${HOME} > home.txt'}\n"
     )
     project.write(tmp_path, text)
     [wire] = planning.check(load(tmp_path / "lely.yml"))
     assert wire.takes == ()  # no reference: nothing is taken
     [seed] = plan(tmp_path).steps
     assert seed.inputs == ()
-    assert seed.plan.changes[0].summary == "runs sh -c 'echo ${HOME} > home.txt'"
+    [change] = seed.plan.changes
+    assert change.summary == "runs ./ops/notify.sh 'echo ${HOME} > home.txt'"
 
 
 def test_check_refuses_a_step_that_runs_for_more_targets_than_what_it_takes(
@@ -456,10 +450,9 @@ def test_check_warns_about_a_step_that_waits_on_every_deploy(tmp_path: Path) -> 
     """002/R19: such a step can never be approved ahead of time."""
     text = (
         "steps:\n"
-        "  - name: seed\n    uses: command\n"
-        "    with: {apply: [./ops/warm.sh], outputs: [count]}\n"
-        "  - name: tell\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+        "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
+        "  - name: tell\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${steps.seed.count}'}\n"
     )
     project.write(tmp_path, text)
     seed, tell = planning.check(load(tmp_path / "lely.yml"))
@@ -470,12 +463,12 @@ def test_check_warns_about_a_step_that_waits_on_every_deploy(tmp_path: Path) -> 
     )
 
 
-def test_check_refuses_an_output_a_command_step_doesnt_list(tmp_path: Path) -> None:
+def test_check_refuses_an_output_a_step_doesnt_declare(tmp_path: Path) -> None:
     text = (
         "steps:\n"
-        "  - name: seed\n    uses: command\n    with: {apply: [./ops/warm.sh]}\n"
-        "  - name: tell\n    uses: command\n"
-        "    with: {apply: [./ops/notify.sh, '${steps.seed.count}']}\n"
+        "  - name: seed\n    uses: ./ops/steps.py:Warm\n"
+        "  - name: tell\n    uses: ./ops/steps.py:Notify\n"
+        "    with: {job: '${steps.seed.count}'}\n"
     )
     [problem] = problems(tmp_path, text)
     assert "step `seed` gives no output `count`; it gives nothing" in problem
@@ -617,16 +610,29 @@ def test_a_value_is_shown_under_its_own_options_name(tmp_path: Path) -> None:
 
 
 def test_a_yaml_alias_used_twice_keeps_both_names(tmp_path: Path) -> None:
+    (tmp_path / "pair.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import StepPlan\n"
+        "class Pair:\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        first: str\n"
+        "        second: str\n"
+        "    def plan(self, ctx):\n"
+        "        return StepPlan()\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+    )
     text = (
         "steps:\n"
         "  - name: model\n    uses: ./ops/steps.py:LatestModel\n"
         "    with: {model: dev.ml.churn}\n"
-        "  - name: seed\n    uses: command\n    with:\n      apply: [./ops/warm.sh]\n"
-        "      env: {FIRST: &v '${steps.model.version}', SECOND: *v}\n"
+        "  - name: pair\n    uses: ./pair.py:Pair\n"
+        "    with: {first: &v '${steps.model.version}', second: *v}\n"
     )
     project.write(tmp_path, text)
-    seed = planning.check(load(tmp_path / "lely.yml"))[1]
-    assert [label for label, _ in seed.takes] == ["FIRST", "SECOND"]
+    pair = planning.check(load(tmp_path / "lely.yml"))[1]
+    assert [label for label, _ in pair.takes] == ["first", "second"]
 
 
 def test_validate_already_knows_where_an_environment_value_may_not_go(
@@ -634,15 +640,13 @@ def test_validate_already_knows_where_an_environment_value_may_not_go(
 ) -> None:
     """002/R18: as much as can be is checked offline. A value from the
     environment is a secret whatever it turns out to be."""
-    text = project.LELY_YML.replace(
-        "with: {apply: [./ops/warm.sh]}",
-        "with: {apply: [./ops/warm.sh, '${env.TOKEN}']}",
-    )
+    text = project.LELY_YML.replace(NOTIFY_TAKES, "job: ${env.TOKEN}")
     [problem] = problems(tmp_path, text)
-    assert "`apply` would hold a secret; only a `Secret` option may" in problem
-    allowed = project.LELY_YML.replace(
-        "with: {apply: [./ops/warm.sh]}",
-        "with: {apply: [./ops/warm.sh], env: {T: '${env.TOKEN}'}}",
+    assert "`job` would hold a secret; only a `Secret` option may" in problem
+    (tmp_path / "tokened.py").write_text(TOKENED)
+    allowed = project.LELY_YML + (
+        "  - name: hook\n    uses: ./tokened.py:Tokened\n"
+        "    with: {token: '${env.TOKEN}'}\n"
     )
     project.write(tmp_path, allowed)
     planning.check(load(tmp_path / "lely.yml"))  # no environment needed to check it
@@ -824,13 +828,32 @@ def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
     """A pipeline the next deploy would replace: to a deploy its id is still to
     come. To a destroy it is the id of what is there — the step below was
     skipped for "an id that isn't there", three lines above the pipeline, and
-    its destroy command never run."""
+    its destroy never run."""
+    (tmp_path / "tables.py").write_text(
+        "from dataclasses import dataclass\n"
+        "from lely.model import Change, StepPlan\n"
+        "class Tables:\n"
+        "    '''Makes tables for a pipeline, and drops them by its id.'''\n"
+        "    @dataclass(frozen=True)\n"
+        "    class Options:\n"
+        "        pipeline: str\n"
+        "    def plan(self, ctx):\n"
+        "        made = Change('t', 'run', f'makes tables for {ctx.options.pipeline}')\n"
+        "        return StepPlan((made,))\n"
+        "    def apply(self, ctx, plan):\n"
+        "        return {}\n"
+        "    def plan_destroy(self, ctx):\n"
+        "        drop = Change('t', 'delete', f'drops the tables of "
+        "{ctx.options.pipeline}', destructive=True)\n"
+        "        return StepPlan((drop,))\n"
+        "    def destroy(self, ctx, plan):\n"
+        "        pass\n"
+    )
     text = (
         "steps:\n"
         "  - name: app\n    uses: bundle\n    with: {vars: {model_version: '14'}}\n"
-        "  - name: tables\n    uses: command\n    with:\n"
-        '      apply: [echo, made, "${steps.app.resources.pipelines.foo.id}"]\n'
-        '      destroy: [echo, drop, "${steps.app.resources.pipelines.foo.id}"]\n'
+        "  - name: tables\n    uses: ./tables.py:Tables\n"
+        "    with: {pipeline: '${steps.app.resources.pipelines.foo.id}'}\n"
     )
     project.write(tmp_path, text)
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
@@ -853,7 +876,7 @@ def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
     tables = plan(tmp_path, fake, kind="destroy").steps[1]
     assert tables.skipped is None
     assert tables.plan.changes == (
-        Change("tables", "run", "runs echo drop 900", destructive=True),
+        Change("t", "delete", "drops the tables of 900", destructive=True),
     )
     status = running.status(
         load(tmp_path / "lely.yml"),
@@ -864,7 +887,7 @@ def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
         log=NullLog(),
         connect=no_workspace,
     )
-    assert status.steps[1].note == "runs a command; nothing to list"
+    assert status.steps[1].note == "nothing to list"
 
 
 def test_a_view_has_a_size(tmp_path: Path) -> None:

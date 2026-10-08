@@ -39,7 +39,7 @@ nothing in one is trusted where it is shown:
 
 ## Planning runs your code
 
-A plugin in the repo, and a `command` step's plan command, run when a plan is made. So:
+A step in the repo runs when a plan is made: its `plan`, and whatever that does. So:
 
 - **On a pull request, give `lely plan` credentials that can read and nothing more.**
 - **A pull request from a fork gets no plan**: with `--github`, lely sees where the pull
@@ -56,7 +56,7 @@ A plugin in the repo, and a `command` step's plan command, run when a plan is ma
   plan.
 - **Whether credentials are read-only.** `lely doctor` says what it can see: which workspace,
   as whom, and whether that is a workspace admin.
-- **What a `command` step's commands really do.** The plan shows the command line.
-- **What a step's program prints.** A deploy, a job run and a step's command are passed on
+- **What a `Program`'s program really does.** The plan shows its command line.
+- **What a step's program prints.** A deploy, a job run and a step's program are passed on
   while they run. lely hides the run's GitHub token in what they print and knows no other
-  secret there: a command that prints a secret it was given prints it to the log.
+  secret there: a program that prints a secret it was given prints it to the log.

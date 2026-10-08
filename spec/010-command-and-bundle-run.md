@@ -1,7 +1,9 @@
 # 010 — the small plugins: `command` and `bundle.run`
 
-**Status:** built, 2026-10-05 — see [As built](#as-built). Phase one. `bundle.run`'s apply is
-tested against a fake CLI only.
+**Status:** built, 2026-10-05 — see [As built](#as-built). Phase one. **Superseded for its
+`command` half** by [011](011-a-step-on-its-own.md) on 2026-10-08: `command` is removed, and a
+program is a `Program`. The `bundle.run` half stands; its apply is tested against a fake CLI
+only.
 
 ## Why
 

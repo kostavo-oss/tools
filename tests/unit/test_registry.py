@@ -7,22 +7,28 @@ import pytest
 from lely.registry import StepNotFound, find, installed
 from lely.steps.bundle import Bundle
 from lely.steps.bundle_run import BundleRun
-from lely.steps.command import Command
 from lely.steps.stevin import Stevin
 
 
 def test_the_plugins_lely_ships_register_like_anyones() -> None:
-    assert {"bundle", "command", "stevin", "bundle.run"} <= set(installed())
+    assert {"bundle", "stevin", "bundle.run"} <= set(installed())
     assert find("bundle", Path.cwd()).cls is Bundle
     assert find("stevin", Path.cwd()).cls is Stevin
     assert find("bundle.run", Path.cwd()).cls is BundleRun
-    assert find("command", Path.cwd()).source == "built-in"
+    assert find("bundle.run", Path.cwd()).source == "built-in"
+
+
+def test_command_is_no_plugin_any_more() -> None:
+    """011/R12: a config that still names it is told there is no such plugin."""
+    assert "command" not in installed()
+    with pytest.raises(StepNotFound, match="No plugin named `command`"):
+        find("command", Path.cwd())
 
 
 def test_a_module_and_class() -> None:
-    found = find("lely.steps.command:Command", Path.cwd())
-    assert found.cls is Command
-    assert found.options is Command.Options
+    found = find("lely.steps.bundle_run:BundleRun", Path.cwd())
+    assert found.cls is BundleRun
+    assert found.options is BundleRun.Options
 
 
 def test_a_class_in_a_file_of_the_repo(tmp_path: Path) -> None:

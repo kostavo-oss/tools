@@ -34,14 +34,6 @@ when no resource changes, so a bundle step is never "nothing to do".
     the environment it goes to that host and presents the token. lely compares the two hosts
     and stops, but only after the CLI's first call. Know whose `databricks.yml` you run.
 
-## `command` — retired
-
-A step as commands that print JSON. **Retired with lely's steps on their own**
-([writing a step](writing-a-step.md)): a program that wants in is a class, and the base gives
-it a command line; lely has one mechanism to hold to the rules. For the run-only case —
-`dbt run`, a notification — `Program` is a step in ten lines. `command` is still installed
-in this release and goes in the next; a config that names it is told so.
-
 ## `bundle.run`
 
 Runs a job, pipeline or app from a bundle step, with `databricks bundle run`.
@@ -69,7 +61,8 @@ A class in a file in your repo, or one a package registers:
     uses: acme_deploy.steps:Audit          # a class in an installed package
 ```
 
-→ [Writing a step](writing-a-step.md).
+→ [Writing a step](writing-a-step.md). A program — `dbt run`, a notification — is a
+`Program`: a step in ten lines, there too.
 
 Planning runs your project's own code — a step in the repo. On a pull request, give
 `lely plan` credentials that can read and nothing more.
