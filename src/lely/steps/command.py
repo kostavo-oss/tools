@@ -65,8 +65,14 @@ _NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
 _RUN = "{step} (apply)"
 
 
+RETIRED = (
+    "`command` is retired: a step is a class with its own command line, and a program "
+    "is a `Program` — see Writing a step. It goes in the next release."
+)
+
+
 class Command:
-    """Runs commands you give it: apply, and optionally plan and destroy."""
+    """Retired — runs commands you give it: apply, and optionally plan and destroy."""
 
     @dataclass(frozen=True, slots=True)
     class Options:

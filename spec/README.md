@@ -30,7 +30,7 @@ The numbers are names, not an order; the order of work is in
 | [007 — a UI for plans](007-ui.md) | A plan as a page, each step with its own detail | 2 | built |
 | [008 — GitHub](008-github-actions.md) | The pull-request comment and the job summary | 2 | built; run once through the three workflows |
 | [009 — first release](009-first-release.md) | What the repo needs before `uvx lely` works | — | released: 0.1.0, 2026-10-07 |
-| [011 — a step on its own](011-a-step-on-its-own.md) | A step as a single script with its own command line; `command` retired; a `Program` base | 3 | draft, 2026-10-08; build later |
+| [011 — a step on its own](011-a-step-on-its-own.md) | A step as a single script with its own command line; `command` retired; a `Program` base | 3 | built, 2026-10-08; `command`'s removal to follow |
 
 ## How a spec is written
 

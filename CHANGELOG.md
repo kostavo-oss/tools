@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A step on its own** (`spec/011`). A step that inherits `lely.step.Step` and ends with
+  `Step.main()` is a command of its own: `plan`, `apply`, `destroy`, `status` and `check`,
+  its options as flags, with no `lely.yml`. A plan it writes is a one-step lely plan:
+  `lely apply plan.json` takes it, and the same checks are made before anything runs.
+  `check` holds the step to the rules from the command line; `--live` applies and destroys
+  on the target.
+- **`Program`**: a program as a step, in ten lines — one `run` every apply, destructive if
+  it says so, outputs from the JSON on its last line. What `command` did, under the rules.
+
+### Deprecated
+
+- **`command`**: retired by steps on their own and `Program`. Still installed in this
+  release; removed in the next. → [011](https://github.com/kostavo-oss/lely/blob/main/spec/011-a-step-on-its-own.md)
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

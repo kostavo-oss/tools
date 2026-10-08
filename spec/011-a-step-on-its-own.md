@@ -1,8 +1,8 @@
 # 011 — a step on its own
 
-**Status:** draft, 2026-10-08. The owner set the direction and answered seven questions the
-same day; the rest is the writer's proposal. **To be built later**, on the owner's word, not
-as the next piece of work.
+**Status:** built, 2026-10-08, the same day — the owner said "sound good build the thing"
+after reading it; see [As built](#as-built). `command`'s removal follows in a change of its
+own.
 
 Markers: *(owner)* the owner said it or chose it on 2026-10-08; *(proposal)* the writer's,
 not yet decided; *(002)* already the contract of [002](002-plugins.md).
@@ -210,3 +210,32 @@ With the `SecretScope` step from the docs, in the tests against a fake workspace
   so.
 
 And on a workspace: the step run alone, then under lely, on the owner's test workspace.
+
+## As built
+
+In `src/lely/step.py` (`Step`, `Program`), `src/lely/flags.py` (options as flags, and back
+into a config block) and `src/lely/solo.py` (the five commands); tested in
+`tests/unit/test_solo.py` and `tests/unit/test_step_program.py`.
+
+- **A step alone is a config of one step.** The flags become the `with:` block a `lely.yml`
+  would hold, and everything goes through lely's own `planning`, `running`, plan file and
+  approval. So R9 costs nothing: a standalone plan *is* a one-step lely plan, and a plan file
+  that holds other steps is refused by name.
+- **A flag not given is left out of the block**, so the option's own default applies and
+  `made_from` agrees with a config that doesn't write it. The default is said in the help.
+- **`check` is not offline** (R10's first half): `plan` needs the target to read, so `check`
+  takes `-t` and runs behind a Databricks CLI that refuses anything but a read, with the
+  workspace reached as it is. `--live` runs the cycle plan–apply–destroy–plan when the step
+  destroys, or plan–apply–plan when it doesn't. What a step does through the SDK is its own:
+  `check` cannot see a write made there, and the docs say so.
+- **The plan file is given as `--plan-file`**, not as a positional argument: a step's own
+  flags are positional-free, and a file beside `-t` was ambiguous.
+- **The step's name on its own** is the class's, in lower case (R7).
+- **`command` stays installed in this release**, deprecated in the docs and the changelog;
+  its removal and the rewrite of the shared test scenario are a change of their own, so
+  this one stays readable. [010](010-command-and-bundle-run.md) is superseded for its
+  `command` half when that lands.
+- **D1, D2, D3 as proposed**: an option of another type is refused with the list; a
+  `Program`'s outputs are the JSON on the last line; `apply -t` asks, `--yes` skips.
+- **Not run on a workspace yet.** The marker step of the tests makes a file; a step that
+  makes a secret scope on the owner's test workspace is the next proof.

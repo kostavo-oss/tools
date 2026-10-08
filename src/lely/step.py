@@ -39,7 +39,9 @@ The rules a plugin follows, which `lely.testing` checks:
 from __future__ import annotations
 
 import contextlib
+import json
 import os
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -48,7 +50,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TextIO, TypeVar
 
 from lely.errors import LelyError
-from lely.model import Json, Output, Outputs, StepPlan
+from lely.model import Change, Json, Output, Outputs, Secret, StepPlan
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
@@ -193,6 +195,129 @@ def _under_stdout() -> Iterator[None]:
                 sys.__stdout__.flush()  # the plugin's, written round `sys.stdout`
         os.dup2(saved, 1)
         os.close(saved)
+
+
+class Step:
+    """A base for a step that runs on its own as well as under lely.
+
+    Inheriting it changes nothing about the contract: a step is still its
+    `Options`, its `outputs`, `plan` and `apply`. What it adds is a command
+    line, from one line at the bottom of the file (`spec/011`):
+
+        if __name__ == "__main__":
+            SecretScope.main()
+
+    `uv run ops/scope.py plan -t dev --name x` then plans the step and shows
+    the plan; `apply`, `destroy`, `status` and `check` go with it. The flags
+    are the fields of `Options`. Under lely the same file is
+    `uses: ./ops/scope.py:SecretScope`, unchanged.
+    """
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        pass
+
+    outputs: tuple[Output, ...] = ()
+
+    @classmethod
+    def main(cls, argv: Sequence[str] | None = None) -> None:
+        """The step's own command line: `plan`, `apply`, `destroy`, `status`, `check`."""
+        from lely.solo import main
+
+        main(cls, argv)
+
+
+class Program(Step):
+    """A program as a step: one `run`, every apply.
+
+        class Notify(Program):
+            \"\"\"Tells the channel the deploy is done.\"\"\"
+
+            command = ["./ops/notify.sh", "deployed"]
+            destructive = False
+            outputs = (Output("sent", known="run"),)
+
+    Its plan is one `run` change, destructive if it says so; `apply` runs the
+    program in the project's directory, with the environment lely was given
+    and `LELY_TARGET` and `LELY_STEP`, and fails the step when the program
+    fails. Outputs, when it declares any, are what the program prints as JSON
+    on the last line of its output. A run has nothing to take down, so a
+    `Program` has no destroy and `lely destroy` skips it visibly.
+
+    A program may not be given a secret in its arguments: every process on the
+    machine can see them. An option of type `Secret` goes in `env`.
+    """
+
+    #: The program and its arguments, never passed through a shell.
+    command: Sequence[str] = ()
+    #: Whether the run loses something: shown so in a plan.
+    destructive: bool = False
+    #: Extra environment for the program; may hold a secret.
+    env: Mapping[str, str] = {}
+
+    def plan(self, ctx: Context[Any]) -> StepPlan:
+        command = self._command(ctx)
+        return StepPlan(
+            changes=(
+                Change(
+                    key=ctx.name,
+                    action="run",
+                    summary=f"runs {shlex.join(command)}",
+                    destructive=self.destructive,
+                ),
+            ),
+        )
+
+    def apply(self, ctx: Context[Any], plan: StepPlan) -> Outputs:
+        from lely import process
+
+        command = self._command(ctx)
+        env = {
+            **ctx.env,
+            **{k: _plain_env(v) for k, v in self.env.items()},
+            "LELY_TARGET": ctx.target,
+            "LELY_STEP": ctx.name,
+        }
+        result = process.run(command, ctx.root, env=env, said=ctx.log.info)
+        if result.returncode != 0:
+            raise process.failure(f"`{shlex.join(command)}`", result)
+        return self._outputs(result.stdout)
+
+    def programs(self, written: Mapping[str, Json]) -> tuple[str, ...]:
+        """For `lely doctor`: the program this step runs."""
+        return (self.command[0],) if self.command else ()
+
+    def _command(self, ctx: Context[Any]) -> list[str]:
+        command = [str(part) for part in self.command]
+        if not command:
+            raise LelyError(f"{type(self).__qualname__}: `command` is empty.")
+        return command
+
+    def _outputs(self, stdout: str) -> Outputs:
+        declared_names = [output.name for output in declared(type(self), {})]
+        if not declared_names:
+            return {}
+        lines = [line for line in stdout.splitlines() if line.strip()]
+        try:
+            document = json.loads(lines[-1]) if lines else None
+        except json.JSONDecodeError:
+            document = None
+        if not isinstance(document, dict):
+            raise LelyError(
+                f"{type(self).__qualname__} declares outputs "
+                f"({', '.join(declared_names)}), and the program's last line isn't "
+                "a JSON object holding them."
+            )
+        missing = [name for name in declared_names if name not in document]
+        if missing:
+            raise LelyError(
+                f"{type(self).__qualname__}: the program gave no `{missing[0]}`."
+            )
+        return {name: document[name] for name in declared_names}
+
+
+def _plain_env(value: Any) -> str:
+    return value.reveal() if isinstance(value, Secret) else str(value)
 
 
 def declared(cls: type, written: Mapping[str, Json]) -> tuple[Output, ...]:

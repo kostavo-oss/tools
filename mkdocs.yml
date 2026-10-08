@@ -88,7 +88,7 @@ nav:
       - The config: config.md
       - Plan, apply, destroy: plan-apply-destroy.md
       - Plugins: plugins.md
-      - Writing a plugin: writing-a-plugin.md
+      - Writing a step: writing-a-step.md
       - A plan as a page: page.md
       - On GitHub: GITHUB.md
       - Commands: cli.md

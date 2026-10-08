@@ -200,7 +200,7 @@ def test_the_documents_show_whole_configs_to_check() -> None:
         expected |= {
             "docs/config.md",
             "docs/getting-started.md",
-            "docs/writing-a-plugin.md",
+            "docs/writing-a-step.md",
         }
     assert {where.split(" #")[0] for where, _, _ in configs()} >= expected
 

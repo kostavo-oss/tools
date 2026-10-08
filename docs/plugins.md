@@ -34,41 +34,13 @@ when no resource changes, so a bundle step is never "nothing to do".
     the environment it goes to that host and presents the token. lely compares the two hosts
     and stops, but only after the CLI's first call. Know whose `databricks.yml` you run.
 
-## `command`
+## `command` — retired
 
-Commands you give it, for steps that don't need Python.
-
-```yaml
-  - name: seed
-    uses: command
-    with:
-      plan: [./ops/seed.sh, --plan]      # optional
-      apply: [./ops/seed.sh]
-      destroy: [./ops/seed.sh, --drop]   # optional
-      outputs: [count]                   # optional: what the step gives
-```
-
-Each command is a list — a program and its arguments — and is never passed through a shell.
-All run in the project's directory, with the environment lely was run in, the step's `env`,
-and `LELY_TARGET` and `LELY_STEP`.
-
-- **`plan`** prints the step's plan as JSON on stdout:
-
-    ```json
-    {"changes": [{"key": "users", "action": "create", "summary": "seed 3 users"}],
-     "outputs": {"count": 3}}
-    ```
-
-    Without a plan command the step's plan is a single `run`: it runs on every apply. lely
-    can't show what a script it has never run will do.
-
-- **`apply`** also gets `LELY_PLAN`, a file holding the plan that was approved for the step,
-  and `LELY_OUTPUTS`, a file it writes its outputs to, one `name=value` to a line.
-- **`destroy`** is shown in the destroy plan in full, marked destructive: lely can't vouch
-  for what it removes. Without one the step is skipped, visibly.
-- **`outputs`** lists what the step gives. One the plan command prints is known at plan; one
-  the apply command writes is known only after the run.
-- **`env`** is extra environment for every command, and may hold a secret. Arguments may not.
+A step as commands that print JSON. **Retired with lely's steps on their own**
+([writing a step](writing-a-step.md)): a program that wants in is a class, and the base gives
+it a command line; lely has one mechanism to hold to the rules. For the run-only case —
+`dbt run`, a notification — `Program` is a step in ten lines. `command` is still installed
+in this release and goes in the next; a config that names it is told so.
 
 ## `bundle.run`
 
@@ -97,10 +69,10 @@ A class in a file in your repo, or one a package registers:
     uses: acme_deploy.steps:Audit          # a class in an installed package
 ```
 
-→ [Writing a plugin](writing-a-plugin.md).
+→ [Writing a step](writing-a-step.md).
 
-Planning runs your project's own code — a plugin in the repo, a `command` step's plan
-command. On a pull request, give `lely plan` credentials that can read and nothing more.
+Planning runs your project's own code — a step in the repo. On a pull request, give
+`lely plan` credentials that can read and nothing more.
 
 ## `stevin`
 
