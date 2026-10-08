@@ -48,7 +48,7 @@ What the bundle needs, every plugin can then have.
   to list: a step that only *runs* a job deploys nothing. A plugin says which of R6 and R7 it
   supports, `lely steps` lists that, and `destroy` skips a step that can't destroy — visibly,
   with the reason. *(owner, 2026-10-05)*
-- **R8b — `command` can be given a destroy command,** beside its plan and apply commands. With
+- **R8b — (to be retired with `command`: [011/R12](011-a-step-on-its-own.md#what-goes-and-what-replaces-it).) `command` can be given a destroy command,** beside its plan and apply commands. With
   one, the step is destroyed by running it; without one, it is skipped as in R8a.
   *(owner, 2026-10-05)*
 
