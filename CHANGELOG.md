@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-08
+
+The first release. Run against a workspace on 2026-10-07; what was tried and what was not
+is in `spec/README.md`.
+
 ### Added
 
 - `App`: a project's command line, the same on a laptop and as a job's entry point, with

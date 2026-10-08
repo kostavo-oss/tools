@@ -4,7 +4,7 @@
 One command to run it, its secrets from a secret scope, and the things Databricks asks for
 kept out of your code.
 
-!!! warning "Not released"
+!!! note "Early"
 
     It has run as a serverless job and from a laptop against a real workspace. What was
     tried and what was not is in the

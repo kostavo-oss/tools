@@ -9,8 +9,8 @@ kept out of your code.
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> **Status: not released.** It has run as a serverless job and from a laptop against a real
-> workspace; what was tried and what was not is under [Tried, and not yet](#tried-and-not-yet).
+> **Early.** It has run as a serverless job and from a laptop against a real workspace;
+> what was tried and what was not is under [Tried, and not yet](#tried-and-not-yet).
 
 leeghwater is a package your [dlt](https://dlthub.com) project imports. Your sources stay
 ordinary dlt code. leeghwater gives the project a command line, and for each run it makes
@@ -309,7 +309,7 @@ Not yet:
   network of serverless compute, and dlt's upload to storage was refused. Everything before
   the upload ran;
 - a notebook and a classic cluster, which is where the name `dlt` is said to bite;
-- a release: `leeghwater` is not on PyPI, so a job installs it from a wheel for now.
+- the job's `ingest` task with leeghwater installed from PyPI, which 0.1.0 makes possible.
 
 ## Where it fits
 
