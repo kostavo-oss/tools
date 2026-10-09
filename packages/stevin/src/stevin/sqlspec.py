@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -271,7 +271,7 @@ def _substitute(
 
 
 @contextmanager
-def _quiet() -> Iterator[None]:
+def _quiet() -> Generator[None]:
     """sqlglot logs a warning when it falls back to an opaque Command; stevin
     turns that into an error of its own, so the warning is noise."""
     logger = logging.getLogger("sqlglot")

@@ -35,11 +35,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kostavo-oss/lely"
-Documentation = "https://kostavo-oss.github.io/lely/"
-Repository = "https://github.com/kostavo-oss/lely"
-Issues = "https://github.com/kostavo-oss/lely/issues"
-Changelog = "https://github.com/kostavo-oss/lely/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/tools"
+Documentation = "https://kostavo-oss.github.io/tools/lely/"
+Repository = "https://github.com/kostavo-oss/tools"
+Issues = "https://github.com/kostavo-oss/tools/issues"
+Changelog = "https://github.com/kostavo-oss/tools/blob/main/packages/lely/CHANGELOG.md"
 
 [project.scripts]
 lely = "lely.cli:main"
@@ -85,14 +85,6 @@ addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: needs a live workspace and the Databricks CLI",
 ]
-
-[tool.ruff]
-line-length = 90
-target-version = "py311"
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ty.environment]
 python-version = "3.11"

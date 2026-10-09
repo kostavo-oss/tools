@@ -25,7 +25,7 @@ import sys
 import tempfile
 import textwrap
 import unittest.mock
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -151,7 +151,7 @@ def _console() -> Console:
 
 
 @contextlib.contextmanager
-def _patched(studio: Studio, console: Console) -> Iterator[None]:
+def _patched(studio: Studio, console: Console) -> Generator[None]:
     """Point the CLI at the scene's warehouse and console.
 
     And take the Databricks CLI and workspace out of the environment: a

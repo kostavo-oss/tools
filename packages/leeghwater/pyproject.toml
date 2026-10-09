@@ -30,11 +30,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kostavo-oss/leeghwater"
-Documentation = "https://kostavo-oss.github.io/leeghwater/"
-Repository = "https://github.com/kostavo-oss/leeghwater"
-Issues = "https://github.com/kostavo-oss/leeghwater/issues"
-Changelog = "https://github.com/kostavo-oss/leeghwater/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/tools"
+Documentation = "https://kostavo-oss.github.io/tools/leeghwater/"
+Repository = "https://github.com/kostavo-oss/tools"
+Issues = "https://github.com/kostavo-oss/tools/issues"
+Changelog = "https://github.com/kostavo-oss/tools/blob/main/packages/leeghwater/CHANGELOG.md"
 
 [project.optional-dependencies]
 keyvault = [
@@ -71,10 +71,26 @@ docs = [
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
 
-[tool.ruff]
-line-length = 90
-target-version = "py311"
-src = ["src", "tests"]
+[tool.ty.environment]
+python-version = "3.11"
+root = ["src"]
+# tests import sibling modules the way pytest runs them
+extra-paths = ["tests"]
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# leeghwater was written without a type checker, and most of what ty objects to
+# is where it meets dlt's and click's untyped surfaces (65 diagnostics the day
+# it joined the workspace, none a bug). These rules warn rather than fail until
+# the package is typed on purpose; what ty can still fail on — a name that
+# doesn't resolve, an import that doesn't exist — it does.
+[tool.ty.rules]
+invalid-argument-type = "warn"
+invalid-method-override = "warn"
+invalid-return-type = "warn"
+not-subscriptable = "warn"
+unresolved-attribute = "warn"
+unsupported-base = "warn"
+unsupported-operator = "warn"
+
+[tool.ty.terminal]
+# the rules above are warnings; a warning is not a failed gate
+error-on-warning = false

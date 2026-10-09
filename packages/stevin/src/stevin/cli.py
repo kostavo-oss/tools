@@ -9,7 +9,7 @@ workspace.
 import json
 import os
 import webbrowser
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from enum import StrEnum
 from functools import partial
@@ -428,9 +428,9 @@ def starter_project(
         if value
     )
     return f"""\
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/project.json
 # Written by `stevin import`. Every key is explained at
-# https://kostavo-oss.github.io/stevin/spec/#the-project-file
+# https://kostavo-oss.github.io/tools/stevin/spec/#the-project-file
 version: 1
 specs: [{specs.as_posix()}]
 
@@ -1509,7 +1509,7 @@ def _connect(
 
 
 @contextmanager
-def _waiting_for(what: str) -> Iterator[None]:
+def _waiting_for(what: str) -> Generator[None]:
     """Say what is being waited for, before the wait.
 
     Making a workspace client can take minutes: the Databricks SDK looks the

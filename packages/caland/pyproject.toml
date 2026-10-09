@@ -37,11 +37,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kostavo-oss/caland"
-Documentation = "https://kostavo-oss.github.io/caland/"
-Repository = "https://github.com/kostavo-oss/caland"
-Issues = "https://github.com/kostavo-oss/caland/issues"
-Changelog = "https://github.com/kostavo-oss/caland/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/tools"
+Documentation = "https://kostavo-oss.github.io/tools/caland/"
+Repository = "https://github.com/kostavo-oss/tools"
+Issues = "https://github.com/kostavo-oss/tools/issues"
+Changelog = "https://github.com/kostavo-oss/tools/blob/main/packages/caland/CHANGELOG.md"
 
 [project.scripts]
 caland = "caland.app:main"
@@ -74,19 +74,9 @@ testpaths = ["tests"]
 # a marker or an option that is misspelt is an error, not something passed over
 addopts = "-q --strict-markers --strict-config"
 
-[tool.ruff]
-line-length = 90
-target-version = "py311"
-src = ["src", "tests"]
-
 [tool.ty.environment]
 python-version = "3.11"
 root = ["src"]
 # tests import sibling modules (e.g. `fakes`) the way pytest runs them
 extra-paths = ["tests"]
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B011"]

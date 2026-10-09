@@ -21,7 +21,7 @@ runs this same list, so an assumption is written down once.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, TypeAlias
@@ -153,7 +153,7 @@ class Bench:
             raise Disagrees(said)
 
     @contextmanager
-    def refuses(self, match: str) -> Iterator[None]:
+    def refuses(self, match: str) -> Generator[None]:
         """A statement stevin counts on being refused, and how."""
         try:
             yield
@@ -843,7 +843,7 @@ def scratch_name() -> str:
 @contextmanager
 def scratch(
     runner: SqlRunner, where: str, *, keeps_dropped: bool = False, keep: bool = False
-) -> Iterator[str]:
+) -> Generator[str]:
     """A schema for probes to work in, dropped with everything in it.
 
     `where` is either the `catalog.schema` to make — which must not already

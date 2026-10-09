@@ -1,0 +1,121 @@
+[tools]
+python = "3.14"
+uv = "latest"
+
+[env]
+# No secret stands here, and no file of them is loaded: what is under [env] is
+# shown to an assistant that asks mise for it (.mcp.json).
+# One virtualenv for the whole workspace, wherever a task runs from.
+UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
+# mkdocs-material's "MkDocs 2.0" advisory: mkdocs < 2 is pinned through
+# mkdocs-material, so what it warns about can't reach us.
+NO_MKDOCS_2_WARNING = "1"
+
+# ── tasks ──────────────────────────────────────────────────────────────────
+# Run with `mise run <name>`; list them with `mise tasks`. Everything goes
+# through uv, so the one .venv stays the source of truth. The names are the
+# ones every Kostavo tool had when each was a repo of its own; a task runs
+# for every package unless its name says which. An assistant reaches them
+# through mise's MCP server (.mcp.json).
+
+[tasks.lint]
+description = "Lint every package with ruff"
+run = "uv run ruff check ."
+
+[tasks.fmt]
+description = "Format every package with ruff"
+alias = "format"
+run = "uv run ruff format ."
+
+[tasks.fix]
+description = "Repair what ruff can repair: lint with --fix, then format"
+run = ["uv run ruff check --fix .", "uv run ruff format ."]
+
+[tasks.typecheck]
+description = "Type-check every package with ty, each from its own directory"
+alias = "types"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+for p in stevin lely leeghwater caland; do
+  echo "== $p"
+  (cd "packages/$p" && uv run ty check)
+done
+"""
+
+[tasks.test]
+description = "Run every package's unit tests (no workspace needed), then the workspace's own"
+alias = "t"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# stevin and lely keep a live suite beside their unit tests; the others don't
+(cd packages/stevin && uv run pytest tests/unit)
+(cd packages/lely && uv run pytest tests/unit)
+(cd packages/leeghwater && uv run pytest)
+(cd packages/caland && uv run pytest)
+uv run pytest tests
+"""
+
+[tasks."test:integration"]
+description = "Run stevin's live suite (needs DATABRICKS_HOST / token / warehouse id)"
+run = "cd packages/stevin && uv run pytest -m integration"
+
+[tasks."test:lowest"]
+description = "Run each package's tests on the lowest version of every dependency it allows, as ci does"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# Every `>=` in a package's pyproject.toml says the version it names works.
+# Each package goes into an environment of its own, outside the repo, with
+# exactly those versions; the test tools go in afterwards at whatever is
+# current — it is the package's floors that are on trial, not pytest's.
+declare -A target=([stevin]="tests/unit" [lely]="tests/unit" [leeghwater]="" [caland]="--ignore=tests/test_page_in_a_browser.py")
+for p in stevin lely leeghwater caland; do
+  echo "== $p"
+  lowest="${TMPDIR:-/tmp}/$p-lowest"
+  rm -rf "$lowest"
+  uv venv --quiet --python 3.11 "$lowest"
+  uv pip install --quiet --python "$lowest/bin/python" --resolution lowest-direct -e "packages/$p"
+  uv pip install --quiet --python "$lowest/bin/python" --group dev
+  # shellcheck disable=SC2086
+  (cd "packages/$p" && PATH="$lowest/bin:$PATH" "$lowest/bin/python" -m pytest ${target[$p]})
+done
+'''
+
+[tasks.check]
+description = "The gate before a commit: lint, format check, types, unit tests"
+run = [
+    "uv run ruff check .",
+    "uv run ruff format --check .",
+    { task = "typecheck" },
+    { task = "test" },
+]
+
+[tasks.build]
+description = "Build every package's wheel and source package into dist/"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+for p in stevin lely leeghwater caland; do uv build --package "$p"; done
+"""
+
+[tasks.docs]
+description = "Preview the docs site at localhost:8000"
+run = "uv run --group docs mkdocs serve"
+
+[tasks."docs:build"]
+description = "Build the docs site (strict)"
+run = "uv run --group docs mkdocs build --strict"
+
+[tasks.screens]
+description = "Remake stevin's terminal pictures from the real CLI"
+run = "cd packages/stevin && uv run python tests/screens.py docs/assets/screens"
+
+[tasks.ci]
+description = "Everything ci runs: the gate, the docs site and the packages"
+run = [{ task = "check" }, { task = "docs:build" }, { task = "build" }]
+
+[tasks.clean]
+description = "Remove what a build and the tools leave behind"
+run = "rm -rf dist site .pytest_cache .ruff_cache packages/*/dist packages/*/site packages/*/.pytest_cache packages/*/.ruff_cache"

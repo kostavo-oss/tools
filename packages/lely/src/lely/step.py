@@ -44,7 +44,7 @@ import os
 import shlex
 import subprocess
 import sys
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TextIO, TypeVar
@@ -127,7 +127,7 @@ class Plugin(Protocol[OptionsT_contra]):
 
 
 @contextlib.contextmanager
-def quietly(whose: str = "its plugin") -> Iterator[None]:
+def quietly(whose: str = "its plugin") -> Generator[None]:
     """Run a plugin's own code — its module, its options, its methods — with
     what it prints sent to stderr. `whose` names the plugin in an error.
 
@@ -177,7 +177,7 @@ def _for_prints() -> TextIO:
 
 
 @contextlib.contextmanager
-def _under_stdout() -> Iterator[None]:
+def _under_stdout() -> Generator[None]:
     """Point file descriptor 1 at stderr, and back."""
     try:
         if sys.__stdout__ is not None:
@@ -254,7 +254,7 @@ class Program(Step):
     #: Whether the run loses something: shown so in a plan.
     destructive: bool = False
     #: Extra environment for the program; may hold a secret.
-    env: Mapping[str, str] = {}
+    env: Mapping[str, str | Secret] = {}
 
     def plan(self, ctx: Context[Any]) -> StepPlan:
         command = self._command(ctx)

@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.DS_Store
+
+# tool caches
+.pytest_cache/
+.ruff_cache/
+
+# mkdocs build output
+site/
+
+# local plan artefacts (stevin, lely)
+plan.json
+
+# what caland writes while it runs: a report can hold the environment of the
+# machine it was written on
+*_report.html
+
+# editors and assistants
+.claude/
+.zed/

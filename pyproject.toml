@@ -1,0 +1,67 @@
+# The workspace: four tools, one lock file, one virtualenv. Each package under
+# packages/ is a PyPI project of its own with its own version and changelog;
+# this file only ties them together for development. Nothing here is published.
+[project]
+name = "kostavo-tools"
+version = "0"
+description = "Small tools for the ugly gaps on Databricks"
+requires-python = ">=3.11"
+# Every member, so one `uv sync` installs them all into the one .venv and
+# `uv run stevin` (or lely, caland) works from anywhere in the repo.
+dependencies = [
+    "stevin",
+    "lely",
+    "leeghwater[keyvault]",
+    "caland",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+# the last `deltaplan` release, a package of its own published by hand
+exclude = ["packages/stevin/deltaplan-shim"]
+
+[tool.uv.sources]
+stevin = { workspace = true }
+lely = { workspace = true }
+leeghwater = { workspace = true }
+caland = { workspace = true }
+
+# The union of what the packages' tests and docs need. A package's own floors
+# stay in its pyproject.toml; `mise run test:lowest` holds them package by package.
+[dependency-groups]
+dev = [
+    "dlt[duckdb]>=1.30,<2",
+    "jsonschema>=4.26.0",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "syrupy>=4.8",
+    "ty>=0.0.1a1",
+    "types-pyyaml>=6.0.12.20260518",
+]
+docs = [
+    "mkdocs-material>=9.7.5",
+    "mkdocs-monorepo-plugin>=1.1.2",
+]
+
+# One ruff configuration for every package: ruff finds this file from any
+# directory below it. Per-package differences go in per-file-ignores here.
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+src = ["packages/*/src", "packages/*/tests", "packages/stevin/action", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"packages/*/tests/*" = ["B011"]
+"tests/*" = ["B011"]
+
+[tool.pytest.ini_options]
+# the workspace's own tests: what holds across packages (no cross-imports, the
+# files every package has). A package's tests run from its own directory.
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"

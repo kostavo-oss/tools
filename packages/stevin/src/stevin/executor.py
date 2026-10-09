@@ -23,7 +23,7 @@ It makes narrower ones, and they are what the design asks for:
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
@@ -179,7 +179,7 @@ class Executor:
             self.history.release_lock(plan.target, run_id)
 
     @contextmanager
-    def _watching(self) -> Iterator[None]:
+    def _watching(self) -> Generator[None]:
         """Hear from the runner while a statement runs, if it can say.
 
         A `WarehouseRunner` calls its `heartbeat` every half minute with how

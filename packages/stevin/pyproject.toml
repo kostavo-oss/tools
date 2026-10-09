@@ -40,11 +40,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kostavo-oss/stevin"
-Documentation = "https://kostavo-oss.github.io/stevin/"
-Repository = "https://github.com/kostavo-oss/stevin"
-Issues = "https://github.com/kostavo-oss/stevin/issues"
-Changelog = "https://github.com/kostavo-oss/stevin/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kostavo-oss/tools"
+Documentation = "https://kostavo-oss.github.io/tools/stevin/"
+Repository = "https://github.com/kostavo-oss/tools"
+Issues = "https://github.com/kostavo-oss/tools/issues"
+Changelog = "https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CHANGELOG.md"
 
 [project.scripts]
 stevin = "stevin.cli:main"
@@ -93,17 +93,6 @@ addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: needs a live workspace (DATABRICKS_HOST / token / warehouse id)",
 ]
-
-[tool.ruff]
-line-length = 90
-target-version = "py311"
-src = ["src", "tests", "action"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B011"]
 
 [tool.ty.environment]
 python-version = "3.11"

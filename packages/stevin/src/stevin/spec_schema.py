@@ -32,7 +32,7 @@ from stevin.sql import (
     VOLUME_PRIVILEGES,
 )
 
-BASE_URL = "https://kostavo-oss.github.io/stevin/schema"
+BASE_URL = "https://kostavo-oss.github.io/tools/stevin/schema"
 SPEC_SCHEMA_URL = f"{BASE_URL}/spec.json"
 PROJECT_SCHEMA_URL = f"{BASE_URL}/project.json"
 #: The first line `import` writes, so an editor finds the schema by itself.
@@ -398,7 +398,7 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
         "title": "stevin spec",
         "description": (
             "A table, view, SQL function, schema or volume. "
-            "https://kostavo-oss.github.io/stevin/spec/"
+            "https://kostavo-oss.github.io/tools/stevin/spec/"
         ),
         "oneOf": [table, view, function, schema, volume],
         "definitions": defs,
@@ -422,7 +422,7 @@ def project_schema() -> Schema:
         "$schema": "http://json-schema.org/draft-07/schema#",
         "$id": PROJECT_SCHEMA_URL,
         "title": "stevin project",
-        "description": "stevin.yml. https://kostavo-oss.github.io/stevin/spec/#the-project-file",
+        "description": "stevin.yml. https://kostavo-oss.github.io/tools/stevin/spec/#the-project-file",
         **_object(
             loader.CONFIG_KEYS,
             {
