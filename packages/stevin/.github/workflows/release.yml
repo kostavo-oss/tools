@@ -1,0 +1,141 @@
+name: release
+
+# A release is a version. Bump `version` in pyproject.toml and move the
+# CHANGELOG's [Unreleased] notes under it, in a pull request — merging that pull
+# request is the release.
+#
+# This workflow notices a version on main that isn't out yet, runs the gate on
+# it, publishes to PyPI with Trusted Publishing (repository kostavo-oss/stevin,
+# workflow release.yml, environment pypi — no token), and creates the GitHub
+# release, which is what makes the `vX.Y.Z` tag. The Action's `v0` tag then moves
+# to it, so `uses: kostavo-oss/stevin@v0` follows the newest 0.x release.
+#
+# A version that is already tagged, or already on PyPI, is not a release: the
+# run says so and stops. So is a push that leaves the version as it was. A
+# pyproject.toml change that isn't a bump is free.
+
+on:
+  push:
+    branches: [main]
+    paths: ["pyproject.toml"]
+  workflow_dispatch: # to pick a release up again after a failure
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: is this a new version?
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      release: ${{ steps.read.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the tags, to tell what is already out
+          persist-credentials: false
+      - id: read
+        name: The version, and whether it is already released
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged — nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if curl -fsS -o /dev/null "https://pypi.org/pypi/stevin/$version/json"; then
+            echo "stevin $version is already on PyPI — nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A version can sit on main untagged and unpublished — before the first
+          # release under a name, or after a publish that failed — and then "not
+          # out yet" is true of every push. A push that leaves the version as it
+          # was is not a bump. (Started by hand, this is skipped: that is how a
+          # release is picked up again after a failure.)
+          if [ "$EVENT" = push ]; then
+            before=$(git show "HEAD^:pyproject.toml" 2>/dev/null | python3 -c "import sys, tomllib; print(tomllib.loads(sys.stdin.read())['project']['version'])" 2>/dev/null || true)
+            if [ "$before" = "$version" ]; then
+              echo "The version is $version, as it was — nothing to release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md says nothing about $version — move the [Unreleased] notes under a '## [$version] - <date>' heading"
+            exit 1
+          fi
+          echo "releasing $version"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+  gate:
+    name: gate
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run ty check
+      - run: uv run pytest tests/unit
+
+  release:
+    name: publish v${{ needs.check.outputs.version }}
+    needs: [check, gate]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: write # the GitHub release, its tag, and moving `v0`
+      id-token: write # PyPI Trusted Publishing (OIDC)
+    steps:
+      # The one checkout that keeps its credentials: the last step pushes `v0`.
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Build
+        run: uv build
+      - name: Publish to PyPI
+        # First, because it is the step that can't be undone: a tag without a
+        # release can be pushed again, a release without a tag can't.
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/
+      - name: Release notes from CHANGELOG
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { f=1; next }
+            f && index($0, "## [") == 1 { exit }
+            f { print }
+          ' CHANGELOG.md > notes.md || true
+      - name: Create the GitHub release, which makes the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          args=(--title "v$VERSION" --target "$GITHUB_SHA")
+          if [ -s notes.md ]; then args+=(--notes-file notes.md); else args+=(--generate-notes); fi
+          # 0.1.0a1, 0.2.0rc1 … are PEP 440 pre-releases: say so on GitHub too.
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then args+=(--prerelease); fi
+          gh release create "v$VERSION" dist/* "${args[@]}"
+      - name: Move the major-version tag the GitHub Action is used by
+        # `uses: kostavo-oss/stevin@v0` follows the newest 0.x release. While
+        # every release is an alpha, that is the newest alpha.
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          major="v${VERSION%%.*}"
+          git tag -f "$major" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$major"

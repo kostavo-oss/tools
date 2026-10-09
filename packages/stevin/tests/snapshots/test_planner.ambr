@@ -1,0 +1,171 @@
+# serializer version: 1
+# name: test_create_table
+  '''
+  CREATE TABLE IF NOT EXISTS `main`.`sales`.`orders` (
+    `order_id` BIGINT NOT NULL COMMENT 'Surrogate key',
+    `order_date` DATE NOT NULL,
+    `address` STRUCT<street:STRING,zip:STRING>,
+    CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)
+  )
+  USING DELTA
+  CLUSTER BY (`order_date`)
+  COMMENT 'Order facts'
+  TBLPROPERTIES (
+    'delta.enableChangeDataFeed' = 'true',
+    'deltaplan.managed' = 'true'
+  )
+  '''
+# ---
+# name: test_replace_table_sql
+  '''
+  CREATE OR REPLACE TABLE `main`.`sales`.`orders` (
+    `order_id` BIGINT NOT NULL COMMENT 'Surrogate key',
+    `amount` STRING,
+    CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)
+  )
+  USING DELTA
+  CLUSTER BY (`order_id`)
+  COMMENT 'Order facts'
+  TBLPROPERTIES (
+    'delta.enableChangeDataFeed' = 'true',
+    'deltaplan.managed' = 'true'
+  )
+  
+  CREATE OR REPLACE TABLE `main`.`sales`.`orders`
+  CLUSTER BY (`order_id`)
+  COMMENT 'Order facts'
+  TBLPROPERTIES (
+    'delta.enableChangeDataFeed' = 'true',
+    'deltaplan.managed' = 'true'
+  )
+  AS SELECT * FROM `main`.`sales`.`orders__deltaplan_rewrite`
+  '''
+# ---
+# name: test_the_design_documents_example_plan
+  tuple(
+    Step(
+      change=0,
+      est_bytes=None,
+      failure=None,
+      id=1,
+      note="raises the table's protocol version; older clients lose access",
+      path='amount',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='feature',
+      sql="ALTER TABLE `main`.`sales`.`orders` SET TBLPROPERTIES ('delta.enableTypeWidening' = 'true')",
+      table='main.sales.orders',
+      title='enable typeWidening',
+      undo_hint=None,
+      warnings=tuple(
+      ),
+    ),
+    Step(
+      change=0,
+      est_bytes=None,
+      failure=None,
+      id=2,
+      note=None,
+      path='amount',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='meta',
+      sql='ALTER TABLE `main`.`sales`.`orders` ALTER COLUMN `amount` TYPE DECIMAL(18,2)',
+      table='main.sales.orders',
+      title='ALTER COLUMN TYPE',
+      undo_hint=None,
+      warnings=tuple(
+      ),
+    ),
+    Step(
+      change=1,
+      est_bytes=None,
+      failure=None,
+      id=3,
+      note=None,
+      path='address.zip',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='meta',
+      sql='ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`address`.`zip` STRING)',
+      table='main.sales.orders',
+      title='ADD COLUMN address.zip',
+      undo_hint=None,
+      warnings=tuple(
+      ),
+    ),
+    Step(
+      change=2,
+      est_bytes=None,
+      failure=None,
+      id=4,
+      note='column mapping cannot be turned off again',
+      path='customer_ref',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='feature',
+      sql='''
+        ALTER TABLE `main`.`sales`.`orders` SET TBLPROPERTIES (
+          'delta.columnMapping.mode' = 'name',
+          'delta.minReaderVersion' = '2',
+          'delta.minWriterVersion' = '5')
+      ''',
+      table='main.sales.orders',
+      title='enable columnMapping',
+      undo_hint=None,
+      warnings=tuple(
+        'breaks streaming readers — they must be restarted from scratch',
+      ),
+    ),
+    Step(
+      change=2,
+      est_bytes=None,
+      failure=None,
+      id=5,
+      note=None,
+      path='customer_ref',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='meta',
+      sql='ALTER TABLE `main`.`sales`.`orders` RENAME COLUMN `cust_id` TO `customer_ref`',
+      table='main.sales.orders',
+      title='RENAME COLUMN',
+      undo_hint=None,
+      warnings=tuple(
+      ),
+    ),
+    Step(
+      change=3,
+      est_bytes=None,
+      failure=None,
+      id=6,
+      note=None,
+      path='legacy_flag',
+      postcheck=None,
+      precheck=None,
+      refusal=None,
+      risk='destructive',
+      sql='ALTER TABLE `main`.`sales`.`orders` DROP COLUMN `legacy_flag`',
+      table='main.sales.orders',
+      title='DROP COLUMN',
+      undo_hint=None,
+      warnings=tuple(
+      ),
+    ),
+  )
+# ---
+# name: test_the_projection
+  '''
+  `order_id` AS `order_id`,
+  CAST(`amount` AS STRING) AS `amount`,
+  `cust_id` AS `customer_ref`,
+  named_struct('street', `address`.`street`, 'zip', CAST(NULL AS STRING), 'country', CAST(NULL AS STRING)) AS `address`,
+  transform(`lines`, dp_item -> named_struct('sku', dp_item.`sku`, 'qty', CAST(dp_item.`qty` AS STRING))) AS `lines`,
+  CAST(NULL AS TIMESTAMP) AS `shipped_at`
+  '''
+# ---

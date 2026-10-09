@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# Written by `stevin import`. Every key is explained at
+# https://kostavo-oss.github.io/stevin/spec/#the-project-file
+version: 1
+specs: [tables]
+
+# Where `apply` records its runs and holds its lock; created on first use.
+history_schema: ${catalog}.stevin
+
+targets:
+  dev:
+    vars:
+      catalog: main

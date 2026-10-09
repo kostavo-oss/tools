@@ -1,0 +1,84 @@
+<!-- stevin:plan:dev -->
+<h3>🟠 stevin plan · <code>dev</code></h3>
+
+**Plan: 0 add, 1 change, 0 destroy · 11 steps · 1 rewrite · 2 warnings**
+
+!!! warning
+
+    Rewrites the data of `sales.orders` (412 GB). A restore point is recorded first.
+
+<details markdown open>
+<summary><b>sales.orders</b> · ~ update · 3 additions, 1 removal, 4 changes — rebuilt, 412 GB</summary>
+
+| | what | now | after | change |
+|---|---|---|---|---|
+| ~ | `customer_ref` | `string` | `string tags pii=true` | renamed from cust_id; tag pii = 'true' |
+| ~ | `amount` | `decimal(10,2)` | `decimal(18,2)` | DECIMAL(10,2) → (18,2) |
+| + | `status` | — | `string NOT NULL` |  |
+| ~ | `address` | `struct<street:string,zip:string>` | `struct<street:string,zip:string,country:string>` |  |
+| + | `address.country` | — | `string` |  |
+| - | `cust_id` | `string` | — | dropped |
+| ~ | `constraints` | `primary key (order_id)` | `primary key (order_id), check positive_amount` | constraint CHECK (amount >= 0) positive_amount |
+| + | `grants` | — | `analysts: SELECT` | grant SELECT to analysts |
+
+<sub>8 rows unchanged</sub>
+
+| # | Step | Risk | |
+|--:|---|---|---|
+| 1 | enable columnMapping | 🟡 feature | ⚠️ breaks streaming readers — they must be restarted from scratch<br>column mapping cannot be turned off again |
+| 2 | RENAME COLUMN | 🟢 meta |  |
+| 3 | SET COLUMN TAGS | 🟢 meta |  |
+| 4 | enable typeWidening | 🟡 feature | raises the table's protocol version; older clients lose access |
+| 5 | ALTER COLUMN TYPE | 🟢 meta |  |
+| 6 | ADD COLUMN status | 🟢 meta |  |
+| 7 | BACKFILL status | 🟠 rewrite | rewrites the files holding rows it fills; safe to repeat<br>undo: `` RESTORE TABLE `dev`.`sales`.`orders` TO VERSION AS OF 1 `` |
+| 8 | SET NOT NULL | 🟢 meta |  |
+| 9 | ADD COLUMN address.country | 🟢 meta |  |
+| 10 | ADD CONSTRAINT positive_amount CHECK | 🟢 meta | ⚠️ Databricks validates every existing row, which scans the table |
+| 11 | GRANT to analysts | 🟢 meta |  |
+
+<details markdown><summary>SQL</summary>
+
+```sql
+-- 1. enable columnMapping
+ALTER TABLE `dev`.`sales`.`orders` SET TBLPROPERTIES (
+  'delta.columnMapping.mode' = 'name',
+  'delta.minReaderVersion' = '2',
+  'delta.minWriterVersion' = '5');
+
+-- 2. RENAME COLUMN
+ALTER TABLE `dev`.`sales`.`orders` RENAME COLUMN `cust_id` TO `customer_ref`;
+
+-- 3. SET COLUMN TAGS
+ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `customer_ref` SET TAGS ('pii' = 'true');
+
+-- 4. enable typeWidening
+ALTER TABLE `dev`.`sales`.`orders` SET TBLPROPERTIES ('delta.enableTypeWidening' = 'true');
+
+-- 5. ALTER COLUMN TYPE
+ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `amount` TYPE DECIMAL(18,2);
+
+-- 6. ADD COLUMN status
+ALTER TABLE `dev`.`sales`.`orders` ADD COLUMNS (`status` STRING);
+
+-- 7. BACKFILL status
+UPDATE `dev`.`sales`.`orders` SET `status` = 'open' WHERE `status` IS NULL;
+
+-- 8. SET NOT NULL
+ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `status` SET NOT NULL;
+
+-- 9. ADD COLUMN address.country
+ALTER TABLE `dev`.`sales`.`orders` ADD COLUMNS (`address`.`country` STRING);
+
+-- 10. ADD CONSTRAINT positive_amount CHECK
+ALTER TABLE `dev`.`sales`.`orders` ADD CONSTRAINT `positive_amount` CHECK (amount >= 0);
+
+-- 11. GRANT to analysts
+GRANT SELECT ON TABLE `dev`.`sales`.`orders` TO `analysts`;
+```
+
+</details>
+
+</details>
+
+<sub>stevin 0.1.0 · specs `4459fb6631ea3805` · live state `3eb999d480608054`</sub>

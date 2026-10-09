@@ -1,0 +1,57 @@
+{
+  "languages": {
+    "Python": {
+      "language_servers": [
+        "ty",
+        "ruff"
+      ],
+      "format_on_save": "on",
+      "code_actions_on_format": {
+        "source.organizeImports.ruff": true
+      },
+      "formatter": {
+        "language_server": {
+          "name": "ruff"
+        }
+      }
+    }
+  },
+  "lsp": {
+    "ruff": {
+      "binary": {
+        "path": ".venv/bin/ruff",
+        "arguments": [
+          "server"
+        ]
+      }
+    },
+    "ty": {
+      "binary": {
+        "path": ".venv/bin/ty",
+        "arguments": [
+          "server"
+        ]
+      }
+    },
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "customTags": [
+            "tag:yaml.org,2002:python/name:material.extensions.emoji.twemoji",
+            "tag:yaml.org,2002:python/name:material.extensions.emoji.to_svg"
+          ]
+        }
+      }
+    }
+  },
+  "terminal": {
+    "detect_venv": {
+      "on": {
+        "directories": [
+          ".venv"
+        ],
+        "activate_script": "default"
+      }
+    }
+  }
+}

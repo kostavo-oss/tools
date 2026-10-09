@@ -1,0 +1,248 @@
+"""Small builders, so tests read as tables rather than as constructor calls."""
+
+import os
+import sys
+from pathlib import Path
+
+from fake_warehouse import FakeWarehouse
+from stevin.model.plan import Plan
+from stevin.model.table import Constraint, Grant, Table
+from stevin.model.types import Column, Field
+from stevin.typeparser import parse_type
+
+
+def col(
+    name: str,
+    type_text: str,
+    *,
+    nullable: bool = True,
+    comment: str | None = None,
+    renamed_from: str | None = None,
+) -> Column:
+    return Field(
+        name,
+        parse_type(type_text),
+        nullable=nullable,
+        comment=comment,
+        renamed_from=renamed_from,
+    )
+
+
+def table(
+    *columns: Column,
+    name: str = "main.sales.orders",
+    comment: str | None = None,
+    cluster_by: tuple[str, ...] = (),
+    properties: tuple[tuple[str, str], ...] = (),
+    tags: tuple[tuple[str, str], ...] = (),
+    constraints: tuple[Constraint, ...] = (),
+    grants: tuple[Grant, ...] = (),
+) -> Table:
+    return Table(
+        name=name,
+        columns=columns,
+        comment=comment,
+        cluster_by=cluster_by,
+        properties=properties,
+        tags=tags,
+        constraints=constraints,
+        grants=grants,
+    )
+
+
+Row = dict[str, str | None]
+
+#: Which query each canned result set answers, by a fragment of the statement.
+_FRAGMENTS = {
+    "tables": "information_schema.tables",
+    "columns": "information_schema.columns",
+    "tags": "information_schema.table_tags",
+    "constraints": "information_schema.table_constraints",
+    "keys": "information_schema.key_column_usage",
+    "detail": "DESCRIBE DETAIL",
+    "history": "DESCRIBE HISTORY",
+    "grants": "information_schema.table_privileges",
+    "schemata": "information_schema.schemata",
+    "routines": "information_schema.routines",
+    "parameters": "information_schema.parameters",
+    "routine_grants": "information_schema.routine_privileges",
+    "show_create": "SHOW CREATE TABLE",
+}
+
+
+class FakeRunner:
+    """A `SqlRunner` that answers by matching a fragment of the statement."""
+
+    def __init__(self, responses: dict[str, tuple[Row, ...]]) -> None:
+        self.responses = responses
+        self.statements: list[str] = []
+
+    def query(self, statement: str) -> tuple[Row, ...]:
+        self.statements.append(statement)
+        for fragment, rows in self.responses.items():
+            if fragment in statement:
+                return rows
+        return ()
+
+
+def fake_runner(**rows: tuple[Row, ...]) -> FakeRunner:
+    """`fake_runner(tables=..., columns=..., detail=...)` — see `_FRAGMENTS`."""
+    unknown = set(rows) - set(_FRAGMENTS)
+    if unknown:
+        raise ValueError(f"no query fragment for {sorted(unknown)}")
+    # Unless a test says otherwise, the schema being read exists.
+    rows.setdefault("schemata", ({"schema_name": "present"},))
+    # And SHOW CREATE TABLE answers with a statement that adds nothing, so the
+    # columns are what information_schema says. (Without an answer, a table is
+    # flagged as having a definition stevin couldn't read.)
+    rows.setdefault(
+        "show_create",
+        ({"createtab_stmt": "CREATE TABLE t (placeholder INT) USING delta"},),
+    )
+    return FakeRunner(
+        {fragment: rows.get(key, ()) for key, fragment in _FRAGMENTS.items()}
+    )
+
+
+def plan_against(
+    desired: Table,
+    live: Table | None = None,
+    *,
+    check_order: bool = False,
+    size_bytes: int | None = None,
+) -> tuple[FakeWarehouse, Plan]:
+    """Introspect a fake warehouse, diff a spec against it, and plan.
+
+    The same shape as the CLI's pipeline and the integration suite's, so an
+    offline test and a live one assert the same thing.
+    """
+    from stevin.differ import diff, unmanaged
+    from stevin.introspect import Introspector
+    from stevin.model.plan import TableDiff, TableFacts
+    from stevin.planner import build_plan
+
+    fake = FakeWarehouse.of(
+        *((live,) if live is not None else ()),
+        sizes={live.name: size_bytes} if live is not None and size_bytes else {},
+    )
+    found = Introspector(fake).table(desired.name)
+    live_now = found.table if found else None
+    return fake, build_plan(
+        [
+            TableDiff(
+                desired.name,
+                diff(desired, live_now, compare_order=check_order),
+                TableFacts(
+                    desired.name,
+                    exists=live_now is not None,
+                    properties=live_now.properties if live_now else (),
+                    size_bytes=found.size_bytes if found else None,
+                    features=found.features if found else (),
+                ),
+                unmanaged(desired, live_now) if live_now else (),
+                desired=desired,
+                live=live_now,
+            )
+        ],
+        target="test",
+        tool_version="0.1.0",
+        spec_hash="spec",
+        state_fingerprint="live",
+    )
+
+
+def run(plan: Plan, fake: FakeWarehouse) -> None:
+    """Run every statement in a plan against the fake, in order."""
+    for step in plan.steps:
+        if step.sql is None:
+            raise AssertionError(f"step {step.id} ({step.title}) has no SQL")
+        fake.query(step.sql)
+
+
+def path_without(executable: str, path: str | None = None) -> str:
+    """`PATH`, minus every directory that has this program in it.
+
+    Offline tests must not shell out to whatever a machine happens to have
+    installed: with the real `databricks` on PATH, stevin would ask it about
+    a bundle instead of reading the file, and the test would say different
+    things on different laptops. On Windows the program is `databricks.exe`, so
+    every extension `PATHEXT` names counts as it too.
+    """
+    names = [executable] + [
+        f"{executable}{ext}" for ext in os.environ.get("PATHEXT", "").split(os.pathsep)
+    ]
+    if path is None:
+        path = os.environ.get("PATH", "")
+    return os.pathsep.join(
+        part
+        for part in path.split(os.pathsep)
+        if part and not any((Path(part) / name).exists() for name in names if name)
+    )
+
+
+def offline_environment(environ: dict[str, str], nowhere: Path) -> dict[str, str]:
+    """`environ` with nothing left in it that finds a real CLI or workspace.
+
+    `PATH` loses every directory with a `databricks` in it. Every
+    `DATABRICKS_*` variable goes: `DATABRICKS_CLI_PATH` is looked at *before*
+    `PATH` (`stevin.find_cli`), and the rest are how the Databricks SDK finds
+    a workspace on its own — a host, a token, a profile, a warehouse id. And
+    `DATABRICKS_CONFIG_FILE` comes back pointing at `nowhere`, a file that
+    isn't there, so the DEFAULT profile of whoever runs the tests isn't found
+    either.
+    https://docs.databricks.com/aws/en/dev-tools/auth/unified-auth
+    """
+    kept = {
+        name: value
+        for name, value in environ.items()
+        if not name.upper().startswith("DATABRICKS_")
+    }
+    kept["PATH"] = path_without("databricks", environ.get("PATH", ""))
+    kept["DATABRICKS_CONFIG_FILE"] = str(nowhere)
+    return kept
+
+
+def fake_databricks(
+    directory: Path,
+    stdout: str = "",
+    *,
+    stderr: str = "",
+    code: int = 0,
+    asked: Path | None = None,
+) -> str:
+    """A `databricks` on PATH that answers with this, and the PATH to find it on.
+
+    A Python script rather than a shell one, with a launcher beside it: on
+    Windows `shutil.which` only finds what `PATHEXT` names, and a bash heredoc
+    is no use there anyway. The launcher runs the interpreter running the tests.
+
+    With `asked`, every run adds its arguments to that file as a line — so a
+    test can say the CLI was never run at all.
+    """
+    bin_dir = directory / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    script = bin_dir / "databricks.py"
+    record = (
+        f"open({str(asked)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+        if asked is not None
+        else ""
+    )
+    script.write_text(
+        "import sys\n"
+        f"{record}"
+        f"sys.stdout.write({stdout!r})\n"
+        f"sys.stderr.write({stderr!r})\n"
+        f"sys.exit({code})\n",
+        encoding="utf-8",
+    )
+    if os.name == "nt":
+        (bin_dir / "databricks.cmd").write_text(
+            f'@"{sys.executable}" "%~dp0databricks.py" %*\r\n', encoding="utf-8"
+        )
+    else:
+        launcher = bin_dir / "databricks"
+        launcher.write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n', encoding="utf-8"
+        )
+        launcher.chmod(0o755)
+    return os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])

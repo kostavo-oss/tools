@@ -1,0 +1,104 @@
+site_name: stevin
+site_description: Safe plan/apply migrations for Unity Catalog tables and schemas.
+site_author: Misja Pronk
+site_url: https://kostavo-oss.github.io/stevin/
+
+repo_name: kostavo-oss/stevin
+repo_url: https://github.com/kostavo-oss/stevin
+edit_uri: edit/main/docs/
+
+copyright: Apache-2.0 © Misja Pronk
+
+theme:
+  name: material
+  font: false # use the system font stack (SF on macOS) for a native, calm feel
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/table-arrow-right
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to light
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  # Quotes the files tests/screens.py writes next to its pictures, so the spec
+  # beside a plan is the spec that produced it.
+  - pymdownx.snippets:
+      base_path: [docs]
+      check_paths: true
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kostavo-oss/stevin
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/stevin/
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Your first project: getting-started.md
+      - Installation: installation.md
+  - Guide:
+      - A tour: tour.md
+      - Feature gallery: features.md
+      - With an Asset Bundle: bundles.md
+      - Writing a spec: spec.md
+      - As a library: sdk.md
+      - YAML and SQL specs: formats.md
+      - Editor support: editors.md
+      - Commands: cli.md
+      - Safety model: safety.md
+      - In CI: ci.md
+  - Security: security.md
+  - Develop:
+      - Design: DESIGN.md
+      - Contributing: contributing.md
+      - Testing: testing.md

@@ -1,0 +1,261 @@
+# Testing without a workspace
+
+stevin generates SQL for a system most contributors can't run on a laptop, and
+that CI shouldn't need credentials to check. The suite is built in four layers, and
+each one is honest about what it can and cannot prove.
+
+```sh
+uv run pytest tests/unit        # layers 1 and 2, and 3 once it is recorded — offline, every PR
+uv run pytest -m integration    # layer 4 — real workspace, nightly
+```
+
+| Layer | Proves |
+|---|---|
+| Unit tests | the pure middle of the pipeline does what it says |
+| The fake warehouse | stevin's SQL matches **stevin's reading** of the manual |
+| Transcripts | what **Databricks answered**, on the day they were recorded — built, and **empty until a live run records them** |
+| The live suite | that it still does |
+
+<hr class="dp-rule">
+
+## 1. Unit tests
+
+The type parser, loader, differ and planner are pure functions, so they are tested the
+ordinary way: inputs in, values out, with golden plans in `tests/snapshots/` for
+anything shaped like a document.
+
+This is where most of the tests live, and it is only possible because the middle of the
+pipeline does no I/O.
+
+## 2. Convergence against a fake warehouse
+
+`tests/fake_warehouse.py` is an in-memory Unity Catalog. It holds `Table` models,
+answers the introspector's `information_schema` and `DESCRIBE` queries by rendering
+them into the row shapes the real API returns, and **interprets the statements the
+planner generates** by mutating those models.
+
+That closes the loop offline:
+
+```python
+plan = build_plan(diff(desired, live))  # what we would do
+run(plan, fake)  # do it
+assert diff(desired, live_now(fake)) == ()  # nothing left to do
+```
+
+`tests/unit/test_convergence.py` makes that assertion for every kind of change —
+creates, nested adds, renames, widenings, drops, constraints, reordering — and
+`tests/unit/test_executor.py` uses the same fake to test skip, resume, failure,
+locking and the destructive gate.
+
+**What this proves.** That every statement stevin emits says what the change it came
+from meant; that a plan closes the diff it was built from; that `is_applied` — the
+executor's idempotency check — agrees with the differ; and that the executor's own
+machinery behaves. In milliseconds, with no credentials.
+
+!!! warning "What it does not prove"
+    The fake implements *stevin's* reading of the Databricks manual. If we have
+    misread it, the fake misreads it the same way and the tests still pass. It cannot
+    tell you that Databricks accepts a statement, that a widening is permitted, or that
+    a nested rename works.
+
+    Anything the fake doesn't recognise raises `FakeSqlError` rather than passing
+    quietly, so a new statement shape can't slip through untested — but a *wrong*
+    statement the fake also gets wrong will sail through. That is what layer 3 is for.
+
+## 3. Transcripts: what the workspace actually answered
+
+The layer above proves that stevin's SQL matches stevin's reading of the manual.
+Where that reading is wrong, the fake is wrong in the same direction and the offline
+suite agrees with the mistake. A transcript is the answer to that.
+
+!!! warning "Built, and empty"
+    No transcript has been recorded yet: `tests/transcripts/` holds its README and
+    nothing else. The recorder and the replay are there and tested, and the test that
+    replays the recordings skips itself while there are none — so today this layer
+    proves nothing about Databricks. What follows is how it works once a live run has
+    written them.
+
+One live run writes down every statement it sent and the rows or the error that came
+back, per assumption. `tests/unit/test_transcripts.py` then replays each recording
+through the probe it was recorded for — offline, with no credentials — so an assumption
+keeps being checked against **answers Databricks really gave**, between live runs.
+
+```sh
+STEVIN_RECORD=tests/transcripts \
+  uv run pytest -m integration tests/integration/test_live_assumptions.py
+```
+
+Only a probe that held is written: one that didn't is something to fix in the code, and
+a transcript of it would assert the mistake. What is masked is only what is new on every
+run — the schemas the run makes, and the principal a grant names — and nothing else is
+touched, so the diff of a transcript is the diff of what Databricks answers. Read it.
+
+A statement the transcript hasn't got **fails**, with the statement in the message: a
+recording that no longer covers what stevin sends has stopped being evidence about
+it, and needs recording again. See `tests/transcripts/README.md`.
+
+A transcript says what was true when it was recorded. That is one thing more than the
+fake can say, and one less than the live suite — which is why the live suite stays.
+
+## 4. Integration tests
+
+`tests/integration/` is the only source of truth about Databricks. Each test creates an
+ephemeral schema, does its work, and drops it. They are marked `@pytest.mark.integration`
+and skip themselves without credentials, so forks and laptops stay green, and they run
+nightly in CI.
+
+They assert the things nothing else can:
+
+- a table created from a spec reads back as that spec;
+- plan → apply → re-plan is empty, against the real thing;
+- `DROP COLUMN` really is refused until column mapping is on;
+- every widening `widens()` claims is one Databricks accepts;
+- the history and lock SQL — `MERGE`, `INTERVAL`, `current_user()` — is valid;
+- **dogfooding**: `tests/messy_schema.py` builds a schema the way a real team ends up
+  with one — years of `ALTER`s, masks, a Python UDF, legacy partitioning, awkward names —
+  and `test_live_dogfood.py` imports it, requires a plan of nothing but ownership
+  claims, adopts it, and changes it. When you meet a real-world table stevin
+  misreads, add its shape to the messy schema.
+
+Every Databricks behaviour stevin relies on should have a test here and a link to the
+documentation in its docstring. Where a behaviour is assumed but unverified, the code
+says `TODO(verify)` rather than pretending.
+
+### What the live suite has not settled
+
+Most of what stevin assumes about Databricks has been run against a workspace: the
+`TODO(verify)` list was settled on 2026-09-19. These are still open, and each says so in
+the source:
+
+- **A seed's load.** `INSERT OVERWRITE … (columns) VALUES …` is the documented grammar and
+  a Databricks parser reads it, but no workspace has taken one from stevin
+  (`planner._load_seed`). `tests/integration/test_live_seeds.py` and the probe *a seed's
+  INSERT OVERWRITE with a column list is accepted* settle it the next time the live suite
+  runs.
+- **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
+  was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
+  and reads back* answers it for the workspace in front of you.
+- **Sending a step without waiting for it** — not done yet. `apply` waits up to 30
+  seconds for a statement's first answer, and an interrupt in that time has no statement
+  id to cancel by; `apply` says so when it happens. Sending with `wait_timeout="0s"` is
+  the Statement Execution API's documented way to get the id at once
+  (`introspect.WarehouseRunner`). It changes how every step is sent, so it waits for a
+  run against a workspace.
+
+`stevin verify` runs the first two as probes in a workspace of your own.
+
+### The assumptions live in `src/`, not here
+
+The behaviour assumptions themselves are `stevin.probes.PROBES`: a list of named
+probes, each with its docs link, what stevin does because of it, and a check that
+makes its own objects in a scratch schema. `test_live_assumptions.py` is a thin
+parametrised caller of that list, and `stevin verify` runs the same list in a user's
+workspace. So an assumption is written down **once**, and a user can settle it on the
+runtime they actually have.
+
+A new Databricks assumption therefore goes in `probes.py`, not in a test of its own —
+unless what you are testing is stevin's own logic, which belongs in a test. The rule
+of thumb: if the sentence is about what *Databricks* does, it is a probe; if it is about
+what *stevin* plans, it is a test.
+
+Offline, `tests/unit/test_probes.py` runs the probe machinery against the fake
+warehouse. It deliberately asserts nothing about whether a probe *holds*: the fake
+interprets stevin's own SQL, so a ✓ from it would be stevin agreeing with itself.
+
+### Running the live suite
+
+Nothing in stevin has been verified against a real workspace until this has run. Every
+`TODO(verify)` in the source names an assumption one of these tests settles.
+
+You need:
+
+- a **catalog you can write to** — every test creates a schema called
+  `stevin_it_<random>` in it and drops it, with everything inside, when it finishes;
+- a **SQL warehouse** — the tests run a few dozen small statements; a 2X-Small
+  serverless warehouse is plenty;
+- a principal allowed to `CREATE SCHEMA` in that catalog and `CREATE FUNCTION` in its
+  schemas (the mask test creates a masking function);
+- optionally a principal to grant to — `account users` by default.
+
+```sh
+databricks auth login --host https://<workspace> --profile stevin-test
+
+DATABRICKS_CONFIG_PROFILE=stevin-test \
+DATABRICKS_WAREHOUSE_ID=<warehouse id> \
+STEVIN_TEST_CATALOG=<scratch catalog> \
+STEVIN_TEST_PRINCIPAL="account users" \
+  uv run pytest -m integration -v
+```
+
+A failure here is the point of the suite: an assumption about Databricks was wrong. Fix
+the code, keep the test, and remove the `TODO(verify)` it settled — and if the fake
+warehouse agreed with the wrong assumption, fix the fake too, so the offline suite stops
+agreeing with it.
+
+### Asking one question of the workspace
+
+A single live question doesn't need the whole forty-minute suite. Push a branch with the
+test on it and run the suite against it, filtered:
+
+```sh
+gh workflow run integration.yml --ref my-branch -f k=the_test_name
+```
+
+That's the honest way to settle a Databricks behaviour before building on it: probe it,
+read the answer, then write the code and the test that keeps it.
+
+### When the metastore says it is full
+
+`QUOTA_EXCEEDED.UC_RESOURCE_QUOTA_EXCEEDED` — *"Cannot create 1 Table(s) ... (estimated
+count: 523, limit: 500)"* — usually isn't. Unity Catalog
+[counts tables as they are created](https://docs.databricks.com/aws/en/data-governance/unity-catalog/resource-quotas)
+and catches up with deletions later, so a day of live runs leaves the count far above
+what is really there.
+
+Two things keep it from happening, and one says so when it does:
+
+- **A test schema keeps nothing it drops.** `ALTER SCHEMA … SET RETAIN DROPPED TO 0
+  HOURS` turns off the seven-day
+  [recovery period](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-undrop-table),
+  because a dropped table still counts against the quota for as long as `UNDROP` could
+  bring it back. Without this, a suite that makes a hundred tables a run fills a
+  500-table metastore in a couple of days while holding almost nothing.
+- **Schemas a cancelled run left behind are swept.** A new push cancels a running suite
+  mid-test, and its `stevin_it_*` schema is never dropped; anything older than half an
+  hour goes.
+- **Then the quota is read**, which is what asks Unity Catalog to recount it. If it is
+  still at the limit the suite skips rather than failing every test in it — with one
+  line saying why.
+
+If the count stays above what the catalogs really hold, it is dropped tables still inside
+their recovery period, from before the setting above. They age out; a metastore that
+needs to run this suite often is worth asking your Databricks account team to raise the
+table quota on.
+
+## The docs' pictures
+
+Every terminal on the docs site is stevin's own output. `tests/screens.py` writes a
+small project for each scene, applies its "before" specs through the CLI into the fake
+warehouse, runs the command the page shows, and records what the CLI printed as an SVG.
+The spec files a page quotes are written alongside, so the YAML next to a plan is the
+YAML that made it.
+
+`test_screens.py` fails when a picture no longer matches what the CLI prints. After
+changing anything a user sees, remake them and look at the diff:
+
+```sh
+mise run screens
+```
+
+A new feature earns a scene in the [feature gallery](features.md): add it to
+`tests/screens.py` and a section to `docs/features.md`.
+
+## Where a new test goes
+
+| You changed | Test it in |
+|---|---|
+| The type parser, loader, differ, planner | `tests/unit/`, with a snapshot if it shapes a plan |
+| The SQL a step generates | `tests/unit/test_convergence.py` — teach the fake the statement |
+| The executor, history, locking | `tests/unit/test_executor.py` with `MemoryHistory` |
+| An assumption about what Databricks does | a probe in `src/stevin/probes.py`, with the docs link — then record it |
+| Anything a user sees in the terminal | a scene in `tests/screens.py`, then `mise run screens` |

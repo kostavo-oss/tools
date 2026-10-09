@@ -1,0 +1,328 @@
+"""The GitHub Action: its comment logic, and the shape of action.yml.
+
+The comment script is tested against an in-memory stand-in for the GitHub API.
+`action.yml` itself can only run on GitHub, so what is checked here are the
+properties that matter and are easy to break: every input is wired through, no
+input is interpolated into a shell script, and every action it uses is pinned.
+"""
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+
+import upsert_comment
+
+ROOT = Path(__file__).resolve().parents[2]
+PLAN_MARKER = "<!-- stevin:plan:prod -->"
+
+
+class FakeGitHub:
+    """Just enough of the issue-comments API."""
+
+    def __init__(self, bodies: list[str] | None = None) -> None:
+        self.comments: list[dict[str, Any]] = [
+            {"id": 100 + index, "body": body} for index, body in enumerate(bodies or [])
+        ]
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, method: str, path: str, payload: dict[str, Any] | None) -> Any:
+        self.calls.append((method, path))
+        if method == "GET":
+            found = re.search(r"[?&]page=(\d+)", path)  # not the `page` in per_page
+            assert found is not None
+            page = int(found.group(1))
+            size = upsert_comment.PAGE_SIZE
+            return self.comments[(page - 1) * size : page * size]
+        assert payload is not None
+        if method == "POST":
+            self.comments.append({"id": 900, "body": payload["body"]})
+            return self.comments[-1]
+        comment_id = int(path.rsplit("/", 1)[1])
+        for comment in self.comments:
+            if comment["id"] == comment_id:
+                comment["body"] = payload["body"]
+                return comment
+        raise AssertionError(f"no comment {comment_id}")
+
+
+def body(marker: str = PLAN_MARKER, text: str = "the plan") -> str:
+    return f"{marker}\n### stevin plan\n{text}\n"
+
+
+def test_the_first_run_creates_a_comment() -> None:
+    github = FakeGitHub(["an unrelated comment"])
+    assert upsert_comment.upsert(github, "o/r", "7", body()) == "created"
+    assert github.comments[-1]["body"] == body()
+    assert github.calls[-1] == ("POST", "/repos/o/r/issues/7/comments")
+
+
+def test_a_later_run_updates_it_in_place() -> None:
+    github = FakeGitHub(["hello", body(text="old plan")])
+    result = upsert_comment.upsert(github, "o/r", "7", body(text="new plan"))
+    assert result == "updated comment 101"
+    assert github.comments[1]["body"] == body(text="new plan")
+    assert len(github.comments) == 2, "no second comment"
+
+
+def test_a_quoted_comment_is_not_mistaken_for_ours() -> None:
+    # A reply that quotes stevin carries the marker, but not at the start.
+    quoted = "> " + body().replace("\n", "\n> ") + "\nlooks risky?"
+    github = FakeGitHub([quoted])
+    assert upsert_comment.upsert(github, "o/r", "7", body()) == "created"
+    assert github.comments[0]["body"] == quoted, "the reply is left alone"
+
+
+def test_targets_and_commands_keep_their_own_comments() -> None:
+    drift = "<!-- stevin:drift:prod -->"
+    dev = "<!-- stevin:plan:dev -->"
+    github = FakeGitHub([body(drift, "drift"), body(dev, "dev plan")])
+    assert upsert_comment.upsert(github, "o/r", "7", body()) == "created"
+    assert github.comments[0]["body"] == body(drift, "drift")
+    assert github.comments[1]["body"] == body(dev, "dev plan")
+
+
+def test_it_looks_past_the_first_page() -> None:
+    filler = ["noise"] * upsert_comment.PAGE_SIZE
+    github = FakeGitHub([*filler, body(text="old")])
+    result = upsert_comment.upsert(github, "o/r", "7", body(text="new"))
+    assert result == f"updated comment {100 + upsert_comment.PAGE_SIZE}"
+    assert ("GET", "/repos/o/r/issues/7/comments?per_page=100&page=2") in github.calls
+
+
+def test_a_body_without_a_marker_is_refused() -> None:
+    with pytest.raises(ValueError, match="must start with a stevin marker"):
+        upsert_comment.upsert(FakeGitHub(), "o/r", "7", "### a plan\n")
+
+
+def test_the_markdown_renderer_writes_the_marker_the_script_reads() -> None:
+    # The two halves agree on the marker, or the comment would never be found.
+    from stevin.render.markdown import marker
+
+    assert marker("plan", "prod") == PLAN_MARKER
+    assert upsert_comment.marker_of(body(marker("plan", "prod"))) == PLAN_MARKER
+
+
+# ---------------------------------------------------------------------------
+# action.yml
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def action() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "action.yml").read_text())
+
+
+def test_it_is_a_composite_action(action: dict[str, Any]) -> None:
+    assert action["runs"]["using"] == "composite"
+    assert set(action["inputs"]) == {
+        "command",
+        "target",
+        "config",
+        "working-directory",
+        "clone",
+        "comment",
+        "allow-destructive",
+        "fail-on-drift",
+        "github-token",
+    }
+    assert action["inputs"]["target"]["required"] is True
+    assert set(action["outputs"]) == {"has-changes", "plan-file", "markdown-file"}
+
+
+def test_every_input_is_used(action: dict[str, Any]) -> None:
+    text = (ROOT / "action.yml").read_text()
+    for name in action["inputs"]:
+        assert f"inputs.{name}" in text, f"input {name!r} is declared but never used"
+
+
+def test_no_input_is_interpolated_into_a_script(action: dict[str, Any]) -> None:
+    """`${{ inputs.x }}` inside `run:` is a script-injection hole; use env instead.
+
+    https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+    """
+    for step in action["runs"]["steps"]:
+        script = step.get("run", "")
+        assert "${{" not in script, f"step {step.get('id', step)} interpolates into run:"
+
+
+def test_every_action_used_is_pinned(action: dict[str, Any]) -> None:
+    for step in action["runs"]["steps"]:
+        if "uses" in step:
+            assert re.search(r"@v\d+|@[0-9a-f]{40}$", step["uses"]), step["uses"]
+
+
+def test_every_run_step_names_its_shell(action: dict[str, Any]) -> None:
+    # Composite actions require it.
+    for step in action["runs"]["steps"]:
+        if "run" in step:
+            assert step.get("shell") == "bash"
+
+
+def test_the_comment_script_is_where_the_action_looks_for_it() -> None:
+    text = (ROOT / "action.yml").read_text()
+    assert '"$ACTION_PATH/action/upsert_comment.py"' in text
+    assert (ROOT / "action" / "upsert_comment.py").is_file()
+
+
+# ---------------------------------------------------------------------------
+# the script itself, with stevin stubbed out
+# ---------------------------------------------------------------------------
+
+
+def run_script(
+    action: dict[str, Any],
+    tmp_path: Path,
+    command: str,
+    *,
+    steps: int,
+    apply_exits: int = 0,
+    **env: str,
+) -> list[str]:
+    """Run the action's main script with `uvx` recording what it was asked to do,
+    and `stevin plan` answering with a plan of `steps` steps. `stevin apply`
+    exits with `apply_exits`, and the script is expected to exit with it too."""
+    import os
+    import subprocess
+
+    if sys.platform == "win32":
+        # The Action runs on GitHub's Linux runners. Its bash script, with
+        # bash stubs for uvx and uv, is not something a Windows job can say
+        # anything about.
+        pytest.skip("the Action's shell script runs on Linux runners")
+    [step] = [s for s in action["runs"]["steps"] if s.get("id") == "run"]
+    bin_dir, calls = tmp_path / "bin", tmp_path / "calls"
+    bin_dir.mkdir()
+    planned = tmp_path / "planned.json"
+    planned.write_text(json.dumps({"steps": [{}] * steps}))
+    (bin_dir / "uvx").write_text(
+        "#!/usr/bin/env bash\n"
+        f'shift 3; echo "$*" >> {calls}\n'  # drop `--from <path> stevin`
+        'args=("$@")\n'
+        'for i in "${!args[@]}"; do\n'
+        '  if [ "${args[$i]}" = -o ]; then out="${args[$((i+1))]}"; fi\n'
+        "done\n"
+        'case "$1" in\n'
+        f'  plan) cp {planned} "$out" ;;\n'
+        '  show|drift) echo "# plan" > "$out" ;;\n'
+        f"  apply) exit {apply_exits} ;;\n"
+        "esac\n"
+    )
+    (bin_dir / "uv").write_text('#!/usr/bin/env bash\nexec python3 "${@:4}"\n')
+    for stub in bin_dir.iterdir():
+        stub.chmod(0o755)
+    environment = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_OUTPUT": str(tmp_path / "output"),
+        "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
+        "COMMAND": command,
+        "TARGET": "prod",
+        "CONFIG": "stevin.yml",
+        "CLONE": "false",
+        "ALLOW_DESTRUCTIVE": "false",
+        "ACTION_PATH": "/action",
+        **env,
+    }
+    done = subprocess.run(["bash", "-c", step["run"]], env=environment, check=False)
+    assert done.returncode == apply_exits
+    return calls.read_text().splitlines()
+
+
+def test_apply_plans_then_runs_that_plan(action: dict[str, Any], tmp_path: Path) -> None:
+    calls = run_script(action, tmp_path, "apply", steps=2)
+    plan_file = tmp_path / "stevin" / "plan.json"
+    assert calls[0].startswith("plan -t prod --config stevin.yml -f json -o")
+    assert calls[-1] == f"apply {plan_file} --config stevin.yml"
+
+
+def test_without_a_config_the_project_file_is_left_to_be_found(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    """The default. A project still on the file name it had before the rename
+    is found by `stevin` itself; naming a file for it would miss it."""
+    calls = run_script(action, tmp_path, "apply", steps=1, CONFIG="")
+    plan_file = tmp_path / "stevin" / "plan.json"
+    assert calls[0].startswith("plan -t prod -f json -o")
+    assert calls[-1] == f"apply {plan_file}"
+    assert not any("--config" in call for call in calls)
+
+
+def test_drift_names_a_config_only_when_given_one(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    [named] = run_script(action, tmp_path, "drift", steps=0)
+    assert named.startswith("drift -t prod --config stevin.yml -f md -o")
+
+    (tmp_path / "bin").rename(tmp_path / "bin-before")
+    (tmp_path / "calls").unlink()
+    [found] = run_script(action, tmp_path, "drift", steps=0, CONFIG="")
+    assert found.startswith("drift -t prod -f md -o")
+
+
+def test_apply_with_nothing_to_do_runs_nothing(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    calls = run_script(action, tmp_path, "apply", steps=0)
+    assert not any(call.startswith("apply") for call in calls)
+
+
+def test_apply_passes_allow_destructive_only_when_asked(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    calls = run_script(action, tmp_path, "apply", steps=1, ALLOW_DESTRUCTIVE="true")
+    assert calls[-1].endswith("--allow-destructive")
+
+
+def test_a_failed_apply_still_leaves_the_plan_and_the_outputs(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    """The bug: the summary and two of the outputs were written after `apply`,
+    so the run that most needs its plan read — the one that failed halfway —
+    had no plan in its summary and nothing for a later step to pick up."""
+    calls = run_script(action, tmp_path, "apply", steps=2, apply_exits=1)
+    assert calls[-1].startswith("apply "), "it did get as far as applying"
+    markdown = tmp_path / "stevin" / "apply.md"
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert f"plan-file={tmp_path / 'stevin' / 'plan.json'}" in outputs
+    assert "has-changes=true" in outputs
+    assert f"markdown-file={markdown}" in outputs
+    summary = (tmp_path / "summary").read_text()
+    assert summary.startswith("# plan\n"), "the plan first"
+    assert "apply` failed" in summary.split("# plan\n", 1)[1], "then that it failed"
+
+
+def test_a_successful_apply_says_nothing_about_failing(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    run_script(action, tmp_path, "apply", steps=2)
+    assert (tmp_path / "summary").read_text() == "# plan\n"
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert sorted(line.split("=")[0] for line in outputs) == [
+        "has-changes",
+        "markdown-file",
+        "plan-file",
+    ], "each output once"
+
+
+def test_drift_writes_its_outputs_and_summary_once(
+    action: dict[str, Any], tmp_path: Path
+) -> None:
+    run_script(action, tmp_path, "drift", steps=0)
+    outputs = (tmp_path / "output").read_text().splitlines()
+    assert outputs == [
+        "plan-file=",
+        "has-changes=false",
+        f"markdown-file={tmp_path / 'stevin' / 'drift.md'}",
+    ]
+    assert (tmp_path / "summary").read_text() == "# plan\n"
+
+
+def test_plan_never_applies(action: dict[str, Any], tmp_path: Path) -> None:
+    calls = run_script(action, tmp_path, "plan", steps=3)
+    assert not any(call.startswith("apply") for call in calls)

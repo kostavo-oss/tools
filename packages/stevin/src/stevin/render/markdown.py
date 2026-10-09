@@ -1,0 +1,394 @@
+"""The plan as a pull-request comment.
+
+Same plan object, same words as the terminal (`render/labels.py`) and the same
+comparison as the page (`render/compare.py`), laid out for GitHub: a summary a
+reviewer can take in at a glance, an alert for anything destructive or expensive,
+then one collapsible block per object — what it is now beside what it becomes,
+the numbered steps, and the SQL that `apply` will run.
+
+A comment is the *changes only* lens by nature, so only the rows that moved are
+in the table and the rest are counted underneath. Where a comment would be too
+long for GitHub, the rendering steps down a ladder — comparison, then no SQL,
+then the change list, then table names — and says which rung it is on.
+
+The first line is a hidden marker. The GitHub Action uses it to find the comment
+it posted last time and update it, rather than adding a new one on every push.
+"""
+
+from __future__ import annotations
+
+import re
+
+from stevin.model.change import Change
+from stevin.model.plan import Plan, Step, TableDiff
+from stevin.render.compare import Comparison, Row, compare
+from stevin.render.labels import (
+    count,
+    describe,
+    display_name,
+    human_bytes,
+    listed,
+    table_verb,
+)
+
+#: GitHub refuses comments longer than 65,536 characters. Leave room.
+COMMENT_LIMIT = 60_000
+
+RISK_ICON = {"meta": "🟢", "feature": "🟡", "rewrite": "🟠", "destructive": "🔴"}
+RISK_BADGE = {risk: f"{icon} {risk}" for risk, icon in RISK_ICON.items()}
+
+
+def marker(heading: str, target: str) -> str:
+    """The hidden first line that identifies stevin's comment for a target."""
+    return f"<!-- stevin:{heading}:{target} -->"
+
+
+def render_markdown(
+    plan: Plan, *, heading: str = "plan", limit: int = COMMENT_LIMIT
+) -> str:
+    """A GitHub-flavoured Markdown rendering of a plan.
+
+    Rungs, in order, when the one above it would be too long for a comment: the
+    comparison with every statement; the comparison without them; the list of
+    changes; the table names. Each one says what it left out.
+    """
+    rungs = (
+        (True, True, None),
+        (True, False, _TRUNCATED_SQL),
+        (False, False, _TRUNCATED_ROWS),
+    )
+    for comparison, include_sql, note in rungs:
+        written = _render(
+            plan, heading, comparison=comparison, include_sql=include_sql, note=note
+        )
+        if len(written) <= limit:
+            return written
+    return _render_summary_only(plan, heading)
+
+
+_TRUNCATED_SQL = (
+    "SQL left out: the full plan is too long for a comment. "
+    "Run `stevin show plan.json` to see every statement."
+)
+
+_TRUNCATED_ROWS = (
+    "Shown as a list of changes rather than a comparison, and without the SQL: "
+    "the full plan is too long for a comment. Run `stevin show plan.json`, or "
+    "open it with `stevin ui`, to read it whole."
+)
+
+
+def _render(
+    plan: Plan,
+    heading: str,
+    *,
+    include_sql: bool,
+    comparison: bool = True,
+    note: str | None = None,
+) -> str:
+    lines = [marker(heading, plan.target), _title(plan, heading), ""]
+    changed = [diff for diff in plan.diffs if diff.changes]
+
+    if not changed:
+        lines += ["✅ **No changes.** Live tables match your specs.", ""]
+    else:
+        lines += [f"**{plan.summary}**", ""]
+        lines += _alerts(plan)
+
+    for diff in changed:
+        lines += _table_block(plan, diff, include_sql=include_sql, comparison=comparison)
+
+    lines += _left_alone(plan)
+    if note:
+        lines += [f"> [!NOTE]\n> {note}", ""]
+    lines += [_footer(plan)]
+    return "\n".join(lines) + "\n"
+
+
+def _render_summary_only(plan: Plan, heading: str) -> str:
+    lines = [marker(heading, plan.target), _title(plan, heading), ""]
+    lines += [f"**{plan.summary}**", ""]
+    lines += _alerts(plan)
+    lines += ["| Table | | Steps |", "|---|---|--:|"]
+    for diff in plan.diffs:
+        if diff.changes:
+            symbol, verb = table_verb({change.kind for change in diff.changes})
+            count = len(plan.steps_for(diff.table))
+            name = _code(_cell(display_name(diff.table)))
+            lines.append(f"| {name} | {symbol} {verb} | {count} |")
+    lines += [
+        "",
+        "> [!NOTE]\n> The full plan is too long for a comment. "
+        "Run `stevin show plan.json` to see it.",
+        "",
+        _footer(plan),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+
+
+def _title(plan: Plan, heading: str) -> str:
+    status = RISK_ICON[plan.highest_risk] if plan.steps else "✅"
+    return f"### {status} stevin {heading} · {_code(_cell(plan.target))}"
+
+
+def _alerts(plan: Plan) -> list[str]:
+    """GitHub alert blocks for what a reviewer must not miss."""
+    lines: list[str] = []
+    destructive = [step for step in plan.steps if step.risk == "destructive"]
+    if destructive:
+        listed = ", ".join(
+            f"{step.id} ({step.title} on {_code(display_name(step.table))})"
+            for step in destructive
+        )
+        lines += [
+            "> [!CAUTION]",
+            f"> This plan destroys something — step {listed}. "
+            "`apply` refuses it without `--allow-destructive`.",
+            "",
+        ]
+    rewritten = sorted({step.table for step in plan.steps if step.risk == "rewrite"})
+    if rewritten:
+        sizes = []
+        for name in rewritten:
+            size = next(
+                (
+                    human_bytes(step.est_bytes)
+                    for step in plan.steps_for(name)
+                    if step.est_bytes
+                ),
+                None,
+            )
+            sizes.append(_code(display_name(name)) + (f" ({size})" if size else ""))
+        lines += [
+            "> [!WARNING]",
+            f"> Rewrites the data of {', '.join(sizes)}. "
+            "A restore point is recorded first.",
+            "",
+        ]
+    unrunnable = [step for step in plan.steps if step.sql is None]
+    if unrunnable:
+        lines += [
+            "> [!IMPORTANT]",
+            f"> {count(len(unrunnable), 'step')} can't be generated, so `apply` "
+            "will refuse this plan. See the notes below.",
+            "",
+        ]
+    return lines
+
+
+def _table_block(
+    plan: Plan, diff: TableDiff, *, include_sql: bool, comparison: bool = True
+) -> list[str]:
+    seen = compare(diff)
+    symbol, verb = table_verb({change.kind for change in diff.changes})
+    size = human_bytes(diff.facts.size_bytes)
+    summary = f"<b>{_html(display_name(diff.table))}</b> · {symbol} {verb}"
+    if comparison:
+        summary += f" · {_html(seen.headline)}"
+    # The headline says what a rewrite or a drop costs, which is usually the
+    # same number: saying it twice reads like two different ones.
+    if size and size not in seen.headline:
+        summary += f" · {size}"
+
+    lines = ["<details open>", f"<summary>{summary}</summary>", ""]
+    lines += (
+        _row_table(seen)
+        if comparison
+        else ["```diff", *_change_lines(diff.changes), "```", ""]
+    )
+
+    steps = plan.steps_for(diff.table)
+    if steps:
+        lines += ["| # | Step | Risk | |", "|--:|---|---|---|"]
+        lines += [_step_row(step) for step in steps]
+        lines.append("")
+        if include_sql:
+            lines += _sql_block(steps)
+
+    if diff.unmanaged:
+        listed = ", ".join(_code(_cell(item)) for item in diff.unmanaged)
+        lines += [f"<sub>Left untouched (unmanaged): {listed}</sub>", ""]
+    for note in diff.notes:
+        lines += [f"<sub>{_html(note)}</sub>", ""]
+
+    lines += ["</details>", ""]
+    return lines
+
+
+def _row_table(seen: Comparison) -> list[str]:
+    """The object as it is beside what it becomes, one row per thing that moved.
+
+    The same rows the page shows, with the same five columns its *changes only*
+    lens shows: the sides for whoever wrote the spec, and the sentence for
+    whoever approves it. Aligned by meaning, so the `amount` column on the left
+    is the `amount` column on the right however much its type moved — which is
+    why a rename reads as one row gone and one arrived, and the sentence says so.
+    """
+    moved = seen.changed
+    if not moved:
+        return []
+    lines = ["| | what | now | after | change |", "|---|---|---|---|---|"]
+    for row in moved:
+        lines.append(
+            f"| {row.marker} | {_code(_cell(row.path))} | "
+            f"{_side(row.left, row, after=False)} | "
+            f"{_side(row.right, row, after=True)} | {_cell(_said(row))} |"
+        )
+    lines.append("")
+    unchanged = len(seen.rows) - len(moved)
+    if unchanged:
+        lines += [f"<sub>{count(unchanged, 'row')} unchanged</sub>", ""]
+    return lines
+
+
+def _said(row: Row) -> str:
+    """The sentence about a row, without the name it already sits next to.
+
+    The words are the terminal's — one vocabulary across every rendering — and
+    there a change is written under the thing it is about, so the label repeats
+    the name. In a table the name has a column of its own.
+    """
+    said = " ".join(row.said.split())
+    if "renamed from" in said:
+        # A rename is said twice: the hint the spec carries, and the step that
+        # will run. One of them is enough next to the two names.
+        said = "; ".join(part for part in said.split("; ") if "(was " not in part)
+    said = "; ".join(_clause(part, row) for part in said.split("; ")).strip("; ")
+    for prefix in (f"{row.path} ", f"{row.path.rsplit('.', 1)[-1]} "):
+        if said.startswith(prefix):
+            said = said[len(prefix) :]
+            break
+    if said.casefold() in {"", row.path.casefold()}:
+        return ""
+
+    # And nothing the sides already say: an added column's label is its type,
+    # which is the `after` cell it sits next to.
+    beside = (row.right or row.left or "").casefold()
+    return "" if beside.startswith(said.casefold()) else said
+
+
+def _clause(text: str, row: Row) -> str:
+    """One clause of a sentence, without the name the row already carries."""
+    leaf = row.path.rsplit(".", 1)[-1]
+    for prefix in (f"{row.path} ", f"{leaf} "):
+        if text.startswith(prefix):
+            return text[len(prefix) :]
+    return text
+
+
+def _side(value: str | None, row: Row, *, after: bool) -> str:
+    """One side of a row: what it holds, or a dash where it holds nothing."""
+    return _code(_cell(value)) if value is not None else "—"
+
+
+def _change_lines(changes: tuple[Change, ...]) -> list[str]:
+    """One line per change, marker first so GitHub colours `+` and `-`."""
+    lines: list[str] = []
+    containers: set[str] = set()
+    for change in changes:
+        marker_, label = describe(change)
+        if change.nested:
+            if change.column not in containers and not any(
+                c.path == change.column for c in changes
+            ):
+                lines.append(f"~ {change.column}")
+            containers.add(change.column)
+            lines.append(f"{marker_}   {label}")
+        else:
+            lines.append(f"{marker_} {label}")
+    return lines
+
+
+def _step_row(step: Step) -> str:
+    notes: list[str] = [f"⚠️ {warning}" for warning in step.warnings]
+    if step.note:
+        notes.append(step.note)
+    if step.undo_hint:
+        notes.append(f"undo: {_code(_cell(step.undo_hint))}")
+    return (
+        f"| {step.id} | {_cell(step.title)} | {RISK_BADGE[step.risk]} | "
+        f"{'<br>'.join(_cell(note) for note in notes)} |"
+    )
+
+
+def _sql_block(steps: tuple[Step, ...]) -> list[str]:
+    statements = [
+        f"-- {step.id}. {step.title}\n{step.sql};"
+        for step in steps
+        if step.sql is not None
+    ]
+    if not statements:
+        return []
+    return [
+        "<details><summary>SQL</summary>",
+        "",
+        "```sql",
+        "\n\n".join(statements),
+        "```",
+        "",
+        "</details>",
+        "",
+    ]
+
+
+def _left_alone(plan: Plan) -> list[str]:
+    lines: list[str] = []
+    # Notes on tables with changes are in their own block; these are the rest.
+    quiet = [
+        (diff.table, note)
+        for diff in plan.diffs
+        if not diff.changes
+        for note in diff.notes
+    ]
+    for name, note in quiet:
+        lines += [f"<sub>{_code(display_name(name))}: {_html(note)}</sub>", ""]
+    if plan.orphaned_tables:
+        names = ", ".join(_code(display_name(n)) for n in plan.orphaned_tables)
+        lines += [
+            f"**Kept:** {names} — created by stevin, no longer in any spec. "
+            "The schema is additive, so they stay.",
+            "",
+        ]
+    if plan.unmanaged_tables:
+        names = ", ".join(_code(display_name(n)) for n in plan.unmanaged_tables)
+        lines += [f"<sub>Unmanaged, left untouched: {names}</sub>", ""]
+    if plan.not_managed:
+        # A reviewer should be able to tell what this plan could not have
+        # changed, not just what it will.
+        names = listed([_code(aspect) for aspect in plan.not_managed])
+        lines += [
+            f"<sub>{names} are managed elsewhere: stevin doesn't read or "
+            "change them here.</sub>",
+            "",
+        ]
+    return lines
+
+
+def _footer(plan: Plan) -> str:
+    return (
+        f"<sub>stevin {_cell(plan.tool_version)} · specs `{plan.spec_hash}` · "
+        f"live state `{plan.state_fingerprint}`</sub>"
+    )
+
+
+def _code(text: str) -> str:
+    """Inline code that survives backticks in it — an undo hint quotes every name,
+    and `RESTORE TABLE `a`.`b`` would end the span at the first one. CommonMark:
+    a longer fence than any run inside, padded with a space it strips again."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    if not longest:
+        return f"`{text}`"
+    fence = "`" * (longest + 1)
+    return f"{fence} {text} {fence}"
+
+
+def _cell(text: str) -> str:
+    """Safe inside a Markdown table cell: no pipes, no line breaks."""
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def _html(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

@@ -1,0 +1,953 @@
+# Changelog
+
+All notable changes to this project are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.3.0a1] - 2026-10-07
+
+### Added
+
+- **A warehouse that is starting is waited for, not failed on.** A stopped SQL
+  warehouse starts on the first request, and until it has started it refuses
+  that request with the same sentence a warehouse that will never start gives —
+  which is how a cold start became a failed `plan`. stevin now asks the
+  workspace what the warehouse is doing: while it says *starting* the request
+  is made again (nothing ran, so that is safe for a write too), for up to five
+  minutes; a running warehouse that refuses is reported at once, as before.
+  `apply` shows the wait as *warehouse starting*.
+- **A heartbeat while a step runs.** `apply` shows how long the current step
+  has been going — a spinner in a terminal, a line every five minutes in a log
+  — so a long rewrite is never silence. A program using `stevin.apply()`
+  hears the same through its `observer`, as status `running`.
+- **The unit suite runs on Windows** in CI, next to Linux and macOS. Paths in
+  messages are now written with forward slashes on every platform, so what
+  Windows prints is what the docs show.
+
+- **`stevin adopt`.** The other half of `drift`. A column someone added by
+  hand at 2am to unblock a load is usually *wanted*, and until now the only ways
+  out were to retype it into the spec or to apply the plan and undo their work.
+  `stevin adopt` writes live state into the spec file that already describes
+  the table, and leaves a git diff to review. The file is **edited, not
+  rewritten**: the comments someone wrote, the blank lines, the quoting, the
+  `${catalog}` and every `renamed_from`, `using:` and seed row are still there
+  afterwards — only what stevin would otherwise have planned changes (a new
+  module, `yamledit`, edits YAML text through its own node tree). What a spec
+  never claimed is left alone: a tag, property or grant the file doesn't mention
+  stays unmanaged, because adopting drift is not the moment to start managing
+  something new. Then it reads its own work back and diffs it against the
+  workspace, so what a file can't hold — a seed's rows, which live in the repo —
+  is reported rather than discovered by the next plan. `--dry-run`, `--diff`, and
+  `stevin.adopt()` for a program.
+
+- **`stevin verify`.** The Databricks behaviour stevin's plans rest on —
+  that a `REPLACE` keeps a table's tags and grants, that a nested `NOT NULL` is
+  an ordinary `ALTER`, that the warehouse runs in ANSI mode — used to be
+  settled only by a live suite nobody but the maintainer can run, against one
+  workspace on one runtime. It now ships as a list of named probes
+  (`stevin.PROBES`), and `verify --schema main.scratch` runs them in a
+  scratch schema of yours: ✓ for each that holds, and for each that doesn't the
+  workspace's own words plus what it costs. Two long-standing `TODO(verify)`
+  assumptions are probes too, so a user can settle on their own runtime what no
+  workspace here could: a seed's `INSERT OVERWRITE … (columns) VALUES …`, and
+  `CLUSTER BY AUTO`. `--json` for a host, exit 1 when something didn't hold,
+  `stevin.verify()` for a program. The live suite is now a thin caller of
+  that same list, so an assumption is written down once.
+
+- **`stevin doctor`.** Checks the project, the target, the bundle, the
+  workspace, the warehouse, the metastore's table quota and where `apply` would
+  record a run — and says what to do about whatever isn't right. Every check is
+  there because something once surfaced five steps into an apply instead: a
+  warehouse that wouldn't start, a metastore counting dropped tables, a
+  `databricks` on PATH that was a shim, a typo in `specs:`. It changes nothing,
+  exits 0 unless something will stop a run, and `--json` gives a host the same
+  findings.
+
+- **What stevin knows about a Databricks refusal.** The workspace's own
+  sentence comes through first and whole, as always; for a dozen failures that
+  happen often, one paragraph underneath now says what stevin knows — that
+  the table quota counts dropped tables for a week, that a function's body needs
+  its table to exist first, that "could not be processed by the warehouse" is
+  what a stopped serverless warehouse looks like. Matched on the error class
+  Databricks names, with the real messages as tests, so a rewording is a failing
+  test rather than silence. An error with nothing to add is untouched.
+
+- **A plan you can read in a browser.** `stevin ui` serves the plan as one
+  page on `127.0.0.1` and opens it. Every object is a comparison — what it is
+  now, as read when the plan was made, and what it becomes — with the
+  statements that get there underneath, and two readings of the same rows:
+  *changes only* for whoever approves the change, *full object* for whoever
+  wrote the spec. One table underneath both, built by a new pure module
+  (`render/compare.py`), so the readings can't disagree. `stevin plan -f html -o plan.html` writes
+  that same page as a single self-contained file — no dependencies, nothing
+  fetched, opens offline — to attach to a pull request or hand to whoever
+  approves it. It renders the same `Plan` the terminal and the Markdown comment
+  do, with the same words, and it is read-only: no apply button, nothing
+  written, no call to a workspace. `render_html` is public.
+
+- **Transcripts: what the workspace actually answered, kept.** The fake
+  warehouse proves that stevin's SQL matches stevin's *reading* of the
+  manual — where that reading is wrong, the fake is wrong the same way and the
+  offline suite agrees with the mistake. A transcript is one live run written
+  down: every statement sent, and the rows or the error that came back. With
+  `STEVIN_RECORD=tests/transcripts` a live run writes one per assumption
+  (with the date and the runtime that answered), and `tests/unit/` replays each
+  through the probe it was recorded for — offline, with no credentials. A
+  statement a recording doesn't cover fails loudly, with the statement in the
+  message, so a recording that has stopped being evidence says so instead of
+  passing quietly. The suite now has four layers, and `docs/testing.md` says what
+  each can and cannot prove. **No transcript is recorded yet**: the layer is
+  built, and empty until a live run writes them.
+
+### Changed
+
+- **deltaplan is now stevin.** The command is `stevin`, the package is
+  `import stevin`, every error descends from `StevinError`, the project file is
+  `stevin.yml`, and the repository, the Action and the docs are at
+  `kostavo-oss/stevin`. It is named after Simon Stevin, who designed sluices and
+  introduced decimal notation — and it is one of a family of tools now, which
+  is what the old name had no room for.
+
+  Nothing changes in a workspace. The four names stevin writes onto tables stay
+  exactly as they were — the `deltaplan.managed` and `deltaplan.seed`
+  properties, and the `__deltaplan_rewrite` and `__deltaplan_backup` suffixes —
+  so a table deltaplan made is a table stevin manages: nothing is claimed
+  again, seeded again or left behind, and the SQL in a plan is what it was.
+  Renaming those would be a migration, and isn't part of this.
+
+  What an upgrade asks of a project:
+
+  - `deltaplan plan` → `stevin plan`. The `deltaplan` command is still
+    installed, says its new name on stderr, and runs stevin — so a script or a
+    pipeline keeps working until someone changes the word.
+  - `deltaplan.yml` → `stevin.yml`. The old file is still found (after a
+    `stevin.yml`, where both exist), and the command line says it can be
+    renamed.
+  - `uses: misja-pronk/deltaplan@v0` → `uses: kostavo-oss/stevin@v0`. The
+    Action's `config` input no longer defaults to a file name: left out, the
+    project file is found, under either name.
+  - `import deltaplan` → `import stevin`, and `DeltaplanError` → `StevinError`.
+  - The `$schema` line in a spec or project file points at
+    `https://kostavo-oss.github.io/stevin/schema/…`.
+  - A first `import` now proposes `<catalog>.stevin` as the history schema. A
+    project that already names one keeps it.
+  - For this repo's own suites: `DELTAPLAN_RECORD` and `DELTAPLAN_TEST_*` are
+    `STEVIN_RECORD` and `STEVIN_TEST_*`.
+
+
+- **The pull-request comment shows the comparison, not a list of changes.** The
+  page `stevin ui` serves shows each object as *what it is now* beside *what
+  it becomes*; the comment — where most reviewing actually happens — had the
+  weakest view of the four. It now builds its per-object block from
+  the same `render/compare.py` rows, in the five columns that page's *changes
+  only* lens uses: the marker, the thing, both sides, and the sentence about the
+  difference. Only the rows that moved are in the table and the rest are counted
+  underneath, because a comment is that lens by nature. The title, the summary,
+  the alerts, the steps and the folded SQL are unchanged, and the ladder that
+  keeps a comment under GitHub's limit has a new rung — comparison, comparison
+  without SQL, change list, table names — each saying what it left out.
+
+- **The source distribution holds the package and its tests.** It carried the
+  whole repository: the docs site, the Action, `CLAUDE.md`, `mise.toml`,
+  `uv.lock`. It now holds `src/`, `tests/`, the README, the licence, the
+  changelog and `pyproject.toml`. The wheel is the same, file for file.
+
+### Fixed
+
+- **A step can take longer than five minutes.** Every statement had a
+  five-minute budget — including the `REPLACE` of a table with four hundred
+  gigabytes in it. At the deadline `apply` reported the step as failed and
+  stopped, while the statement kept running on the warehouse: the table was
+  rewritten behind a run that said it wasn't, nothing was cancelled, and the
+  lock stayed held until its TTL. Now a read keeps its budget (a read that
+  takes five minutes has gone wrong), a step has none, and a statement that
+  outlives a budget is **cancelled on the warehouse before it is reported** —
+  stevin never says a statement failed while it is still running. Ctrl-C
+  during `apply` cancels the running statement the same way — once the
+  warehouse has said which statement it is; see below — releases the lock
+  and leaves the run resumable. A long step keeps the lock alive while it runs.
+- **Two specs for one table are an error.** Two files that both said
+  `table: ${catalog}.sales.orders` passed `validate`. The plan then held two
+  `CREATE TABLE IF NOT EXISTS`, the second a no-op, and the plan after that
+  dropped the first file's columns to make the table look like the second.
+  Two specs that resolve to one name — whatever its case, once the variables
+  are filled in — are now refused by `validate` and before `plan` reads
+  anything, naming both files; `stevin.plan()` and `plan_tables()` raise
+  `PlanningError`. `validate` also finds objects that read each other in a
+  cycle, which only `plan` used to say.
+- **Ctrl-C says what happened to the statement.** `apply` printed "cancelled
+  on the warehouse" after every interrupt. An interrupt that came before the
+  warehouse had answered with the statement's id cancelled nothing — there was
+  no id to cancel by — and a cancel the warehouse refused was reported as one
+  that worked. `apply` now says which it was: cancelled, with the statement's
+  id; or possibly still running, and to look in the workspace's Query History
+  before applying again. It no longer speaks of a lock in a project that takes
+  none, or of resuming a run that was planned on the spot.
+- **A stale plan is looked for under the lock.** `apply` read the live tables,
+  compared them with the plan, and took the lock after — so a run that finished
+  in between had changed the tables behind a check that had already passed.
+  The lock is taken first now; a stale plan is refused while holding it, and
+  the lock is given back. A target that is locked says so before anything is
+  read.
+- **A Databricks CLI that fails stops the command, as the docs said.** In a
+  project with a `bundle:`, a `databricks` that was installed and failed — no
+  credentials, two profiles for one host — was treated like one that wasn't
+  there: `plan` and `apply` carried on from the bundle file, against names a
+  deploy would never use. They now stop with the CLI's own words. A machine
+  with no CLI at all still reads the file, and says so on stderr.
+- **`validate` runs nothing.** It said "no workspace, no network" and then ran
+  `databricks bundle validate`, which is both. It now reads the bundle file
+  and nothing else, on every machine. A spec that uses a name only the CLI
+  could settle — what a `mode: development` target deploys a schema as — is
+  linted with a name standing in for it, and `validate` says which names it
+  left unsettled; `plan` asks.
+- **`select=` in the library is `--select`.** `stevin.plan(…, select="orders")`
+  matched full names only, so `"orders"`, `"sales.*"` or a typo came back as an
+  empty plan and no error, where the command line plans the table or refuses
+  the typo. There is one matcher now, in the library: a name from its last
+  part up, or a pattern, in any case — and one that matches no spec raises
+  `PlanningError` from `plan`, `drift` and `adopt`. On the command line the
+  refusal reads `the selection 'ordrs' matches no spec`.
+- **stevin needs Typer 0.17.5 or later, and says so.** The package asked for
+  `typer>=0.12`, and didn't start on it: 0.12 can't read `list[Path] | None`,
+  every release up to 0.15.3 fails on `--help`, and 0.16.0 to 0.17.4 don't
+  hold a command to its required argument — `stevin import` with no schema
+  ended in a traceback. The floor is now `typer>=0.17.5`, the lowest on which
+  every command and the test suite work, and CI installs the lowest version
+  of every dependency on Python 3.11 and runs the tests, so a floor can't go
+  false unnoticed again.
+- **A traceback no longer prints local variables.** Typer before 0.23 shows
+  every frame's locals when a command crashes, which can be a connection or a
+  token; stevin now turns that off whichever Typer is installed.
+- **The Action keeps the plan when `apply` fails.** With `command: apply` the
+  job summary and the `has-changes` and `markdown-file` outputs were written
+  after the apply, so the run that most needed its plan read — the one that
+  stopped halfway — had none. They are written before anything is applied
+  now, and a failed apply adds a line under the plan saying so.
+- **A first `import` that can't read the schema leaves nothing behind.** It
+  wrote `stevin.yml` and made the specs directory first, and read the schema
+  after — so a typo in the catalog left a project for a catalog that isn't
+  there, and the next `import` no longer started one. The schema is read
+  first now; the project file is written once that has worked.
+- **A restore point that can't be taken is said.** Before a destructive step
+  or a rewrite, `apply` reads the table's Delta version; when that failed, the
+  step ran with no restore point and no word about it. The run still goes on —
+  that is on purpose — but the step's line now says `no restore point` and
+  why, and `run.without_restore_point` holds it for a program. The restore
+  point a step did take is on its line too: `apply` said they were "printed
+  below" and printed none.
+- **A command says which workspace it is connecting to.** The Databricks SDK
+  looks a host up when a client is made, and keeps trying one that doesn't
+  answer — for minutes, during which `import` or `plan` printed nothing at
+  all. They now say `Connecting to the Databricks workspace (profile 'dev')…`
+  first: a spinner in a terminal, a line in a log. The wait itself is the
+  SDK's, and is as long as it was.
+- **A spec that isn't UTF-8** was a `UnicodeDecodeError` traceback. It is a
+  one-line error now, with the file and the line the byte is on; the project
+  file and a seed's CSV say so the same way.
+- **`doctor` in a project with several targets and no default** said
+  `unknown target 'None'`. It now leaves that to the finding underneath, which
+  says to pass `-t` or mark one `default: true`.
+- **`adopt` reports whatever stevin refuses as one line.** It caught two
+  kinds of error by name; any other was a traceback.
+- **A failed `apply plan.json` without a history schema** was told to run it
+  again and that it "resumes". Nothing recorded the run, and the plan was made
+  for the tables as they were: it now says to plan again.
+
+## [0.2.0a4] - 2026-09-23
+
+A fresh schema converges in one apply.
+
+### Fixed
+
+- **A function that reads a table was always planned before that table.**
+  Planning went by kind — functions, then tables, then views — which is right
+  for a table whose row filter calls a function, and wrong for a function whose
+  body reads a table. Databricks resolves a function's body when it is created,
+  so the first apply into a fresh schema failed at step 1 and only recovered on
+  a second apply, which is exactly what a fresh deploy doesn't get. The three
+  kinds are now ordered as one graph over the objects: each comes after
+  whatever it names. Objects that name nothing of each other keep the order
+  they had, so a project without such a reference plans exactly as before, and
+  a real cycle is a `PlanningError` naming both ends.
+
+## [0.2.0a3] - 2026-09-23
+
+Every apply on a project with a `manage:` handoff was refusing itself. It
+doesn't any more — and a project can now keep no history schema at all.
+
+### Fixed
+
+- **`apply` read live state differently from `plan`.** A project that handed
+  anything to another tool could plan but never apply: `plan` read the
+  workspace through the project's `manage` and `apply` read it through the
+  default, so the two readings differed by exactly what had been handed over,
+  and every run was refused as stale with nothing having moved. The plan now
+  carries what it was made under — `plan.manage`, from the `not_managed` it
+  already recorded — and both `apply` and `is_stale` read live state with it.
+  A plan written by an earlier version still applies: no record means it
+  managed everything.
+- **A `specs:` entry that isn't there** said so with a traceback; it now reads
+  like every other bad input, naming the entry and the project file.
+
+### Changed
+
+- **A history schema is optional.** `apply` records every run in three Delta
+  tables — `runs`, `steps` and `lock` — in the `history_schema` a project
+  names. A project that names none now applies anyway, writing nothing outside
+  the tables its specs describe: deltaplan's own state is on the tables
+  themselves. What that gives up is said rather than dropped — no lock, so
+  whatever runs deltaplan has to be the only thing running it; no resume, so an
+  interrupted run is followed by a new plan, which skips what is already true;
+  and no audit, which belongs to whatever ran it. The restore point before a
+  risky step is still taken, and now reported: in the apply output, and on
+  `run.restore_points`. `force-unlock` says there is nothing to unlock.
+  **`NoHistory` is now that store**, not the error it used to be — a host that
+  wants to insist on a record checks `project.history_schema_for(target)`.
+
+## [0.2.0a2] - 2026-09-23
+
+The other half of the setup notebook: the rows that belong in the table.
+
+### Added
+
+- **Seeds.** Reference data — country codes, mappings, statuses — kept in the
+  repo beside the spec that describes the table holding it: `seed:
+  countries.csv`, relative to the spec file, or the rows written out in it.
+  A seed is the table's **whole content**, so applying one replaces what is
+  there (`INSERT OVERWRITE`): on a table that already holds rows the step is
+  `destructive`, says so, and records a restore point first. The plan compares
+  a digest the loaded table carries in a `deltaplan.seed` property rather than
+  reading rows back, so it costs nothing to ask and says *seed 2 rows from
+  countries.csv* instead of printing them; the digest is over the values, so
+  reformatting a CSV is not a change. Every value is written as a literal of
+  its column's declared type, and anything that isn't one is a spec error with
+  a line number before any statement exists. Plain columns only, and at most
+  1000 rows — past that it is a dataset for a pipeline, with deltaplan keeping
+  the table's shape. Taking a seed out of a spec doesn't empty the table.
+
+  The statement it builds is the grammar the Databricks manual gives and parses
+  under a Databricks parser, but **no workspace has taken one yet**: the live
+  suite is waiting on a serverless warehouse that won't start. `TODO(verify)`
+  in `planner.py` says so, and `tests/integration/test_live_seeds.py` settles
+  it the moment the suite can run.
+
+## [0.2.0a1] - 2026-09-22
+
+deltaplan is a library as well as a command, and the command is the library's
+first customer.
+
+### Added
+
+- **A public SDK: `import deltaplan`.** A program that runs deltaplan as part
+  of something larger — a deployment task, a notebook, a policy check — now has
+  names it can rely on, `__all__`, and a page of its own
+  (**[As a library](https://misja-pronk.github.io/deltaplan/sdk/)**). The seven
+  steps every host takes: `Project.find()` / `Project.load()`,
+  `project.resolve(target, bundle_config=…)`, `project.load_specs(target)`,
+  `Connection.from_target(target)`, `deltaplan.plan(…)`,
+  `deltaplan.apply(…)`, and `deltaplan.drift(…)`. With
+  `deltaplan.validate(…)`, `deltaplan.import_schema(…)`,
+  `deltaplan.is_stale(plan, conn)` and `deltaplan.find_cli()` beside them.
+- **Errors with one root.** Everything deltaplan raises on purpose is a
+  `DeltaplanError`, so one `except` reports a failure and a subclass reacts to
+  a particular one. Two are new because they are the two a host acts on:
+  `StalePlan` and `DestructiveRefused`, each naming the tables it is about.
+  `SpecErrors` carries *every* unreadable spec, not the first.
+- **A plan can be talked about without walking it.** `plan.is_destructive`,
+  `plan.unmanaged`, `plan.orphaned`, and per table `diff.kind`, `diff.action`,
+  `diff.steps`, `diff.risk`, `diff.warnings` — so nothing has to read a class
+  name to learn that a diff is about a view. A plan written to JSON and read
+  back keeps all of it.
+- **A bundle the caller already resolved.** `project.resolve(target,
+  bundle_config=…)` takes what `databricks bundle validate -o json` printed and
+  runs no subprocess. `Bundle.from_resolved(mapping)` is the entry.
+- **`manage: comments`.** Descriptions can be handed to the tool that owns
+  them, like grants and tags. A comment a spec doesn't mention normally means
+  *remove it*, so handing them over also stops deltaplan comparing them.
+
+### Changed
+
+- **A bundle that doesn't resolve is an error.** When the Databricks CLI is
+  installed and fails, deltaplan stops and shows what it said — "two profiles
+  match this host" — instead of falling back to the bundle file and planning
+  against names a deploy would never use. With no CLI at all, the file stands
+  in as before. The CLI is looked for the way the Databricks SDK looks for it:
+  `DATABRICKS_CLI_PATH` first, then `PATH`.
+- **The command line is the SDK's first customer.** `cli.py` is argument
+  parsing, rendering and exit codes around the same public functions; it holds
+  no logic the library lacks, and imports nothing private. What it prints is
+  unchanged, down to the pictures in the documentation.
+
+### Fixed
+
+- **A volume no longer stands in for a table that shares its name.** Asked
+  about a table it didn't have, a live schema handed back the volume of that
+  name, so a plan to create the table refused itself as stale with nothing
+  having changed.
+
+## [0.1.0a10] - 2026-09-22
+
+Say what deltaplan looks after, and what belongs to the tool that already owns
+it.
+
+### Added
+
+- **`manage:` — what deltaplan looks after here, and what belongs to another
+  tool.** Teams often already have something that owns part of a table: a policy
+  framework that sets grants, a catalogue that writes the tags an ABAC rule
+  reads. `manage: {grants: false, tags: false}` in `deltaplan.yml` hands those
+  over: the key is refused in a spec where you write it, left out of the
+  editors' JSON Schema, never written by `import`, and never in a plan — and for
+  grants the workspace isn't even asked. `grants`, `tags`, `owner`,
+  `properties`, `masks` and `row_filters` can be handed over; a table's shape
+  can't. What is handed over is still *read* where not reading it would destroy
+  it: a masked table still refuses a rewrite, and a renamed column's tags are
+  still put back after one. A plan says what it could not have changed, in the
+  terminal and in the pull-request comment.
+
+## [0.1.0a9] - 2026-09-20
+
+A bundle resolves the way a deploy does, and rebuilding a table costs one pass
+over its data instead of two.
+
+### Changed
+
+- **A bundle is resolved by the Databricks CLI, not by deltaplan.** For any
+  target with a `bundle:`, deltaplan runs
+  `databricks bundle validate -o json -t <target>` once per command and uses
+  the answer: every `${var.…}` filled in, every `lookup:` run against the
+  workspace, and every object under the name a deploy would give it — which
+  for `mode: development` is `dev_jane_sales`, and under
+  `presets.name_prefix: team_` is `teamsales`. Lookups other than the
+  warehouse and `${workspace.current_user.…}` therefore work now, where they
+  used to be *unknown*. Reading the bundle file stays as the fallback for when
+  the CLI isn't installed or has no credentials — it resolves nothing without
+  them — and it still says *unknown* with a reason rather than guessing.
+  `deltaplan.yml` keeps the last word either way. Bundles also have a guide of
+  their own now: **With an Asset Bundle** in the docs.
+- **A rewrite that converts nothing writes the data once.** Rebuilding a table
+  staged the whole thing and then replaced it from the staging copy — two full
+  writes, even for changes that touch no value. Databricks allows a table to
+  read itself and be replaced in the same statement (verified live), so new
+  partitioning, the move to liquid clustering, a rename or a dropped column is
+  now a single `REPLACE TABLE`: half the writes, and one step in the plan
+  instead of three. A conversion — a cast, or a `using:` expression — still
+  stages, because that is the one thing a rewrite can get quietly wrong, and
+  staging is what lets it be checked while the original is still there.
+
+## [0.1.0a8] - 2026-09-20
+
+deltaplan reads the context an Asset Bundle already holds, and leaves what the
+bundle declares to the bundle.
+
+### Added
+
+- **A bundle's catalogs, schemas and volumes are read as context.** Teams keep
+  the schema itself in `databricks.yml`; deltaplan now reads those resources
+  (from the bundle and its included files, per target), lets a spec name one
+  the way the bundle does — `${resources.schemas.sales.name}` — and leaves the
+  object itself to the bundle: it won't create or manage it, a spec for one is
+  an error, `import` writes no spec for it, and a table whose schema hasn't
+  been deployed yet says "run `databricks bundle deploy` first" instead of
+  creating it.
+
+## [0.1.0a7] - 2026-09-20
+
+A rewrite's plan says what it will really do, and nothing more.
+
+### Changed
+
+- **A rewrite plans what it actually has to do.** A replace keeps the table's
+  tags, grants and owner, and a column's tags — verified live — so the plan no
+  longer lists steps to set them again; the tour's rewrite went from twelve
+  steps to nine. What a replace does lose is still put back: `NOT NULL`, the
+  constraints, a converted column's comment, and a renamed column's tags,
+  which stay behind on the old name. A live test asserts nothing is lost,
+  including the tags and grants the spec doesn't name.
+
+## [0.1.0a6] - 2026-09-19
+
+What an engineer replacing a setup notebook needs: `deltaplan apply` in one
+go, a first `import` that sets up the project, owners, partitioning, and
+removing a tag or property. The GitHub Action applies too. The first release
+cut from a tag, after the live suite passed on its pull request.
+
+### Added
+
+- **The GitHub Action applies**: `command: apply` plans, puts the plan in the
+  job summary and runs exactly that plan, with the deltaplan of the action's
+  own version; `allow-destructive: true` lets it drop. `@v0` now follows the
+  newest 0.x release, alphas included — it didn't exist before.
+- **A first `import` writes `deltaplan.yml`**: in a directory without a
+  project, `deltaplan import main.crm` also writes the project file — one
+  target, `dev`, whose catalog is the one imported from, so the specs say
+  `${catalog}` — and `plan` and `apply` work straight after. With `-o` it
+  adds nothing. A **Get started** page walks exactly this.
+- **Partitioning**: `partitioned_by: [day]`, in YAML and SQL specs. Left out,
+  a table's partitioning stays as it is, so no plan rewrites a partitioned
+  table by surprise; `[]` says none. Moving to liquid clustering — take
+  `partitioned_by` out, add `cluster_by` — is planned as a rewrite that keeps
+  every row. A rewrite for any other reason keeps the table's partitions,
+  where it used to refuse to rewrite a partitioned table at all. Verified
+  live, both ways.
+- **Owners**: `owner: data-eng` on tables, views, functions, schemas and
+  volumes. Only an owner a spec names is enforced, always as the object's
+  last step. A replaced view or function belongs to whoever replaced it, so
+  deltaplan puts the owner back. `import` leaves owners out. Verified live.
+- **`deltaplan apply` without a plan file**: plans, shows the plan and asks
+  before running it — spec to table in one command. `--yes` skips the
+  question; a closed stdin counts as no. A saved plan still runs as before,
+  for CI.
+- **`--select`** on `plan` and `apply`: `orders`, `sales.orders` or `sales.*`.
+  A selection plans only what it names, so it never drops a table it left
+  out, even in a strict schema.
+- **Removing a tag or property**: `tags: {pii: null}` in a spec means it must
+  not be there, and plans `UNSET TAGS` / `UNSET TBLPROPERTIES` with the undo.
+  Leaving a key out still only stops managing it. Tables, columns, views,
+  schemas and volumes; YAML only. Verified live.
+
+### Changed
+
+- **Releases are cut by pushing a tag** (`v0.1.0a7`) that matches the version
+  in `pyproject.toml`; the workflow checks it, runs the gate, and publishes.
+
+## [0.1.0a5] - 2026-09-19
+
+Every assumption deltaplan makes about Databricks that a workspace can check is
+now checked by a live test, and the docs have a tour and a feature gallery with
+the CLI's real output. The live suite passes 53 of 53.
+
+### Fixed
+
+Found by settling the `TODO(verify)` list against a live workspace:
+
+- **`plan --clone` left a backup a strict schema would drop.** A shallow clone
+  copies the table's properties, ownership marker included, so the next plan
+  saw the backup as a managed table whose spec was gone and planned
+  `drop_table`. The clone is now made with `deltaplan.managed = 'false'`.
+- **Two integer-to-decimal widenings Delta refuses were planned in place.**
+  Delta widens `tinyint`, `smallint` and `int` only to a decimal with at least
+  10 integer digits, and `bigint` to at least 20 — so `tinyint` to
+  `decimal(5,0)` and `bigint` to `decimal(19,0)` failed at apply. They are
+  rewrites now.
+- **A materialized view's storage table was read as an ordinary table**, so
+  `import` wrote a spec for it. `__materialization_…` tables are skipped now,
+  like the view itself.
+
+Found by writing the docs' tour, which runs the real CLI:
+
+- **`plan -o plan.json` wrote the text view** in the default format, so the
+  documented `plan -o plan.json` then `apply plan.json` failed. The file is the
+  plan object now; the terminal still shows the plan.
+- **`apply` never showed a step's risk class**: `[meta]` is Rich markup and was
+  swallowed. So was any lowercase bracket in an error — a type written
+  `array[int]` was reported as `array`.
+- **The PR comment broke on undo hints**: the backticks around quoted names
+  ended the inline code early.
+- The plan showed steps out of order when a grant or a hook came after a
+  column's changes, put a claim under a column called `deltaplan`, and wrote
+  `1 steps`; step 10 sat a column right of step 9. All fixed.
+- Paths in messages are relative to where you ran the command.
+
+### Added
+
+- **A tour and a feature gallery** in the docs, with the CLI's real output at
+  every step — generated by `tests/screens.py`, and kept current by a test.
+- `deltaplan --version`.
+
+### Changed
+
+- **A nested field's `NOT NULL` is an `ALTER`**, set or dropped in place, rather
+  than a rewrite; and a rewrite puts it back afterwards instead of refusing.
+- **A map key widens in place**, like any other field.
+- Every assumption the plans rest on that could be checked live now has a live
+  test (`tests/integration/test_live_assumptions.py`); two `TODO(verify)`s are
+  left — host-only auth, and `CLUSTER BY AUTO` on a workspace without predictive
+  optimization — which this workspace can't settle.
+
+## [0.1.0a4] - 2026-09-19
+
+Fixes found by dogfooding: a schema built by hand the way real ones end up,
+imported, adopted and changed on a live workspace. The live suite passes
+25 of 25.
+
+### Fixed
+
+Found by dogfooding — importing a messy, hand-built schema and planning it:
+
+- **A column named after a reserved word broke reading the table's definition.**
+  Databricks prints `select STRING` in `SHOW CREATE TABLE` without backticks;
+  such names are quoted before parsing. The table's identity, generated and
+  default columns were silently missing from its imported spec.
+- **Changing a column a CHECK uses failed at apply.** Delta refuses to change
+  the type of, rename or drop such a column. The CHECK is now dropped first and
+  put back after, as the spec has it. A change a generated column blocks is
+  refused with the reason, since a generated column can't be made again.
+- **A name with a space (or `,;{}()=`) failed at apply**: it needs column
+  mapping, which is now switched on — in `CREATE TABLE`, before adding such a
+  column, and on a rewrite's staging table.
+- `validate` rejects `NOT NULL` inside an array or map (Delta refuses it), and a
+  CHECK or generated column that uses a column the spec doesn't have.
+
+### Added
+
+- A live dogfooding test: a messy schema built by hand is imported, adopted and
+  changed, and every plan along the way must be what it should be.
+
+## [0.1.0a3] - 2026-09-18
+
+Schemas and managed volumes as specs, and a `plan` that reads only what it
+needs, several queries at a time. Verified against a live workspace: 24 of 24.
+
+### Added
+
+- **Schemas as specs** (`schema:`): a schema's comment, tags and grants. A
+  declared schema is created with its comment before the tables in it; its tags
+  and grants are brought in line, per principal. A spec only adds — a comment
+  it doesn't give isn't cleared, and tags and grants it doesn't name are
+  reported. Never dropped. `import` writes `_schema.yml`; SQL specs can say a
+  schema's comment and grants, not its tags. Schema privileges verified live.
+- **Managed volumes** (`volume:`): comment, tags and grants, created and kept in
+  line, never dropped (that would delete their files). External volumes are
+  listed and left alone. YAML only. Volume privileges verified live.
+
+### Changed
+
+- **`plan` reads less, and in parallel.** Only tables a spec describes get the full
+  read (`DESCRIBE DETAIL` and `SHOW CREATE TABLE`); the rest of a schema gets
+  `DESCRIBE DETAIL` alone — unless a strict schema is about to drop it. Per-table
+  queries run eight at a time (`--parallel` on `plan`, `drift` and `import`).
+  `apply` reads only its own tables in full.
+
+## [0.1.0a2] - 2026-09-18
+
+The first release run against a real workspace. That found six bugs in
+0.1.0a1 — most seriously, `apply` couldn't create a table — all fixed below,
+and SQL specs arrive alongside YAML.
+
+### Added
+
+- **Editor support.** JSON Schemas for YAML specs and `deltaplan.yml`, published
+  with the docs and printed by `deltaplan schema`, give completion and inline
+  errors in any editor with a YAML language server. `import` writes the
+  `$schema` line into each spec. Built from the loader's own key sets and held
+  to them by tests, so the editor and `validate` agree.
+- **SQL specs.** A `.sql` file holding a `CREATE TABLE`, `CREATE VIEW` or `CREATE
+  FUNCTION` — optionally followed by `ALTER … SET TAGS` and `GRANT` for the same
+  object — is a spec, read with sqlglot into the same model as YAML. SQL specs
+  support what sqlglot parses into structure; what it can't (column masks, row
+  filters, column tags today) is refused with its line and a pointer to YAML.
+  View queries and function bodies are kept exactly as written. A project can mix
+  both formats.
+- **`import --format sql`** writes SQL specs, and YAML for a table SQL can't
+  describe (column tags, masks, row filters), saying which. A foreign key into
+  the imported catalog now goes behind `${catalog}` too, in both formats.
+- **A supported-features list** for YAML and SQL (`docs/formats.md`), generated
+  from `deltaplan.features` and proven row by row by the tests.
+
+- **`cluster_by: auto`** — automatic liquid clustering. Only whether it is on is
+  compared: the keys are Databricks' choice. Naming keys turns it off.
+- **The `timestampNtz` feature is enabled first** when a `timestamp_ntz` column is
+  added (nested too) or a column is widened to one; `ALTER TABLE` fails without
+  it, found live.
+
+### Fixed
+
+- **Every `CREATE TABLE` failed on a real warehouse**: its postcheck was a
+  `DESCRIBE`, whose first value is a column name, not true/false. It's gone; the
+  fake now refuses `DESCRIBE TABLE` so such a check can't pass offline again.
+- **Masks and row filters couldn't be read**: introspection asked
+  `information_schema` for columns that don't exist.
+- Table features are read from `DESCRIBE DETAIL`'s `tableFeatures`, where
+  Databricks lists them. The `allowColumnDefaults` step was planned again on every
+  table that already had it.
+- Plan files keep whether the schema exists, and the table's features.
+- **A second read through the same introspector returned the first one's state**
+  — it cached `DESCRIBE DETAIL` for its whole life. With plan and apply sharing
+  one, apply's staleness check could never see a change. Caches now last one read.
+- **Apostrophes were silently dropped** from every comment, tag and property
+  deltaplan wrote. It escaped quotes by doubling them, and Databricks reads
+  `'It''s'` as two literals joined: `Its`. Literals are backslash-escaped now
+  (`'It\'s'`), as Databricks expects and writes them back.
+- **Identity, generated and default columns were never read back**, nor NOT NULL
+  and comments inside structs: `information_schema.columns` doesn't report them
+  on a live workspace. Introspection now reads each table's `SHOW CREATE TABLE`
+  (parsed with sqlglot) for them. A definition it can't read is reported, and
+  keeps the table from being rewritten.
+- **Expressions compare by meaning.** Checks, generations and defaults are
+  canonicalised with sqlglot before comparing, so the catalog's
+  `( CAST(placed_at AS DATE) )` matches a spec's `cast(placed_at as date)`.
+- **CHECK constraints were never read back**, so every plan re-added them. Delta
+  keeps them as `delta.constraints.<name>` properties, not in
+  `information_schema`; they're read from there, and no longer reported as
+  unmanaged properties.
+- **Less noise about properties nobody set.** Unity Catalog's own bookkeeping
+  (`io.unitycatalog.*`, row tracking's hidden column names, `*.internal`) is
+  never reported or imported; the platform's defaults for new tables aren't
+  either, while they hold the default value.
+
+## [0.1.0a1] - 2026-09-18
+
+The first public release: an alpha. Everything in the design is built and tested
+offline, against a fake warehouse that interprets deltaplan's own SQL. The live
+suite has only just started running against a real workspace — its first run
+found a wrong assumption about `information_schema`, fixed here — so expect more
+of those before 0.1.0.
+
+### Added
+
+- **Table renames**: `renamed_from:` on a table plans `ALTER TABLE … RENAME TO`
+  as its first step, and the table's other changes follow under the new name.
+  The old name is never treated as an orphan, so a strict schema renames rather
+  than drops. `apply` checks for staleness under the name the table was read by.
+- **Asset Bundles.** `bundle: databricks.yml` in `deltaplan.yml` takes the
+  targets from the bundle: names, the default, each target's workspace, and
+  its variables (defaults, overrides, `BUNDLE_VAR_*`, `${var.…}` and
+  `${bundle.target}` references, `include:` files). A `warehouse_id` lookup is
+  resolved by name once connected. Variables that only a workspace could
+  resolve are reported, with the reason, when a spec uses one.
+- Specs may write a variable as `${var.name}`, as bundles do.
+- A target can be marked `default: true`; `-t` is then optional.
+- **SQL functions** (`function:` specs): parameters, return type, body,
+  comment and `EXECUTE` grants. Created before the tables and views that call
+  them, replaced when their definition changes (grants put back), never
+  dropped. Introspected from `information_schema.routines` and imported.
+- **Foreign keys** (`foreign_key:` constraints), introspected, diffed, planned
+  and imported. They are planned after every table, so the table they reference
+  exists first, and matched by what they mean rather than only by name.
+- Plan files now read back a table's hooks; they were written but dropped on
+  the way in.
+- **Identity, generated and default columns** (`identity:`, `generated:`,
+  `default:`). `CREATE TABLE` has all three. Defaults can be set, changed and
+  dropped later, with the `allowColumnDefaults` feature enabled first as its own
+  step; identity and generated columns exist only from creation, so adding or
+  changing one on an existing table is a step deltaplan won't run, with the
+  reason. Rewrites carry defaults; tables with identity or generated columns
+  are never rewritten. Introspected and imported, so an imported table
+  re-creates faithfully.
+- `plan` and `drift` note a `renamed_from` hint that has done its job and can
+  be deleted. (The design puts this in `validate`, which can't see the live
+  table.) A table with only notes still reads "No changes".
+- **Backfills.** `using:` on a column being added fills the existing rows
+  (`UPDATE … WHERE col IS NULL`) before `SET NOT NULL` — so a NOT NULL column
+  can be added to a table with data. Without it, the plan warns and says what to
+  add.
+- **Table hooks** (`hooks: {before, after}`), the design's simple pre/post SQL
+  hooks: run as written around a table's changes, only when it has some.
+- **Schemas are created when a spec needs them**, once each, just before the
+  first table or view in them — so a fresh target plans from nothing. Catalogs
+  are never created, and schemas are never dropped. The history schema is
+  created the same way.
+
+- **A target can name its workspace**: `profile:` on a target picks a
+  `~/.databrickscfg` profile, and `--profile` overrides it on every command that
+  connects — dev and prod are usually different workspaces.
+- A runbook for the live test suite in the testing guide.
+- The terminal plan ends with the same warnings the pull-request comment
+  raises: that it destroys something, or has steps `apply` will refuse.
+- **Milestone 5 (governance) is complete.**
+- **Views.** A spec with `view:` and a `query:` describes a view. The query is
+  what is compared — whitespace aside — and a change replaces the view, with
+  its tags and grants put back as they were, and the old definition as undo.
+  Views are planned after tables and after the views they read; a cycle is an
+  error. Views can be claimed, dropped in a strict schema, and `import`ed.
+- A table is never turned into a view or the reverse; planning stops instead.
+- Materialized views and streaming tables are recognised and skipped — they
+  report their storage as Delta, and would otherwise have been treated as
+  tables.
+- **Column masks and row filters**, handled as security controls: set or
+  replaced when the spec declares them, never removed because a spec is silent,
+  inline in `CREATE TABLE` so a new table is never unprotected, refused up front
+  if the function is missing, and never rewritten — the staging copy would hold
+  possibly unmasked data.
+- A step's precheck now carries its own `refusal`, so a refused step says
+  exactly why ("the masking function … does not exist", "ssn still has NULLs").
+- **Grants** (`grants:` on a table). A principal the spec names gets exactly
+  the privileges listed — granted or revoked to match, each revoke with a
+  warning and its undo; principals it doesn't name are left alone. Privileges
+  are checked against a known list, because as keywords they can't be quoted.
+  A rewrite puts back grants to principals the spec doesn't name.
+- **Column tags** (`tags:` on a column), additive like table tags. A rewrite
+  puts back the table and column tags the spec doesn't declare, so rebuilding a
+  table never diffs away what deltaplan doesn't manage.
+
+### Fixed
+
+- A new view was headed `~ update` and counted as a change rather than an add.
+- `plan -o plan.txt` also printed the whole plan to stdout.
+- **A rewrite could drop a column without `--allow-destructive`.** A rewrite
+  copies only the columns the spec lists, so a column the spec also removed went
+  with it — inside a step classed `rewrite`, which the flag doesn't gate. The
+  step that replaces the table is now `destructive` whenever the rewrite drops a
+  column or field, and names it.
+- **A lossy conversion could NULL values silently.** The staging step now
+  checks that every row arrived and no converted column gained NULLs, and stops
+  the run — before the original table is touched — if either did.
+- **A rewrite dropped properties and constraints nobody declared** — a
+  retention setting such as `delta.logRetentionDuration`, a CHECK or primary key
+  someone else added. The replacement now carries them across, as it already
+  did tags and grants; a view replace carries its properties the same way.
+- **Partitioning, identity and generated columns, and column defaults went
+  unnoticed** — and a rewrite would have dropped them (an identity column coming
+  back as a plain BIGINT). They are now read from the catalog, reported as not
+  modelled, and a table that has any is never rewritten.
+- **`import` wrote properties Delta maintains itself** — among them
+  `delta.columnMapping.maxColumnId`, which every later plan would then have set
+  back to a stale value as columns were added. Import now writes intent only,
+  `validate` refuses a spec that declares a Delta-maintained property, and
+  `delta.feature.*` flags are no longer reported as unmanaged.
+- A failed postcheck reports what it means, not a generic message.
+- The live suite skipped entirely unless `DATABRICKS_HOST` was set, so anyone
+  authenticating with a profile would never have run it. It now accepts any
+  source the Databricks SDK does, and says why when it skips.
+- Failing to connect to a workspace is a message naming the profile, not a
+  traceback.
+
+- **A differently-cased name could drop a live table.** A spec naming
+  `main.sales.Orders` against the live `orders`, in a strict schema, planned a
+  no-op create and a DROP of the real table. Names are now compared the way Unity
+  Catalog compares them: object names in lower case, column and field names
+  ignoring case.
+- **The apply lock could expire under a long run.** It is now renewed before
+  every step, and a run that finds it has lost the lock stops rather than carry
+  on beside a second one.
+- A precheck whose own query fails is recorded as a failed step, instead of
+  escaping as a traceback; warehouse errors during `apply` and `force-unlock` are
+  reported as messages.
+
+### Before the first release
+
+deltaplan was built in milestones before anything was published. Their
+numbers were internal and never released; what each added is kept here.
+
+#### Milestone 4
+
+##### Added
+
+- **Milestone 4 (CI) is complete.**
+- `--format md`: the plan as a pull-request comment — summary, GitHub alerts for
+  anything destructive, expensive or impossible, a `diff` block per table so
+  additions and removals are coloured, the numbered steps with their risk, and
+  the SQL folded away. Falls back to leaving out the SQL, then to a summary
+  table, when a plan is too long for a comment.
+- `deltaplan show plan.json`: render a saved plan in any format without a
+  warehouse — exactly what `apply` of that file would run.
+- `deltaplan drift`: exits 0 in sync, 2 on drift, 1 on error. Drift is anything
+  `apply` would do; unmanaged objects are not drift.
+- A GitHub Action (`uses: misja-pronk/deltaplan@v0`) that runs `plan` or
+  `drift`, writes the job summary, and comments on the pull request — updating
+  its own comment rather than adding one per push. Inputs reach its script
+  through the environment, never by interpolation, and a test holds it to that.
+- CI lints the workflows with actionlint; releases move the major-version tag
+  the Action is used by.
+
+#### Ownership and strict schemas
+
+##### Added
+
+- **Ownership is claimed.** A spec for a table deltaplan didn't create plans a
+  visible `CLAIM ownership` step that marks it managed — which is how an
+  `import`ed table is handed over on its first apply.
+- **Strict schemas.** A managed table whose spec was deleted is dropped in a
+  strict schema (destructive, so `--allow-destructive` applies, with `UNDROP`
+  as the way back) and kept — but listed — in an additive one. Tables deltaplan
+  didn't create are never touched in either mode.
+- `schemas:` in `deltaplan.yml` sets the mode per schema, as the design
+  specifies; the target's `mode` is the default.
+- `history_schema` and `schemas:` keys may use target variables
+  (`${catalog}.deltaplan`), so one project file serves every catalog.
+- `deltaplan plan --clone` adds a `SHALLOW CLONE` of each table before the first
+  step that could lose its data.
+- `planning.py`: the specs-to-plan pipeline, out of the CLI, so `plan`, `drift`
+  and the GitHub Action share it.
+
+##### Changed
+
+- The plan summary counts destroyed tables; it was hard-coded to zero.
+
+#### Milestone 3
+
+##### Added
+
+- **Milestone 3 (rewrites) is complete**: a table that can't be patched is
+  rebuilt, and `apply` runs it.
+- A rewrite stages the converted data beside the table, **replaces** the table
+  from that staging table (keeping its identity and Delta history, so the
+  recorded restore point means something, and with no window where the table is
+  empty), puts back what a query result can't carry — `NOT NULL`, comments, tags,
+  constraints — with ordinary `ALTER`s, and drops the staging table.
+- deltaplan writes the conversion where it honestly can: a cast between scalars,
+  `named_struct` matched **by name** rather than by position, `transform` over an
+  array of structs, and `CAST(NULL AS …)` for a column that didn't exist.
+- `using:` on a column — a SQL expression over the live table — for conversions
+  deltaplan won't invent: a struct becoming an array, a map whose shape moved, or
+  any change that needs a decision rather than a cast.
+- The plan file now carries both sides of each diff, so it records what was
+  compared and a rewrite knows what it is rebuilding into.
+
+##### Changed
+
+- `apply` no longer refuses plans containing rewrites. It still refuses any plan
+  with a step deltaplan couldn't generate, naming the step and what it needs.
+
+##### Fixed
+
+- Table-level changes (properties, tags) were rendered one level too deep, as
+  though they were nested inside a column.
+
+#### Milestone 2
+
+##### Added
+
+- **Milestone 2 (apply) is complete**: `deltaplan apply plan.json` and
+  `deltaplan force-unlock`.
+- Executor with the design's four promises: a fresh run refuses a stale plan
+  (recomputed state fingerprint), steps are skipped when the change they
+  implement is already true of the live table, a failed run resumes from the
+  history table instead of starting over, and a lock row per target keeps two
+  applies apart. A restore point is recorded before every destructive step.
+- Run history in Delta tables (`runs`, `steps`, `lock`) in the schema named by
+  `history_schema`, created on first use.
+- The plan file is now read as well as written, so `apply` consumes exactly what
+  `plan` produced — asserted by a round-trip test.
+- A fake warehouse (`tests/fake_warehouse.py`) that interprets deltaplan's own
+  SQL against in-memory models, so `plan → apply → re-plan is empty` is asserted
+  offline for every kind of change. See [docs/testing.md](docs/testing.md).
+
+##### Fixed
+
+- The table features deltaplan enables itself as prerequisites
+  (`delta.columnMapping.mode`, `delta.enableTypeWidening`) are no longer reported
+  back as unmanaged properties after an apply.
+
+#### Milestone 1
+
+##### Added
+
+- **Milestone 1 (read-only) is complete**: `validate`, `import` and `plan`.
+- Type tree and parser for Databricks type strings, including nested
+  struct/array/map, decimals, backticked field names, and `not null` / `comment`
+  inside structs.
+- YAML loader with `${var}` substitution per target, both type notations, and
+  errors that carry file, line and column — including for unknown keys.
+- A `deltaplan.yml` project file: where specs live, and what each target
+  substitutes.
+- Pure differ: recursive diff at Databricks' nested paths, declared renames via
+  `renamed_from`, kind-change detection, and opt-in column-order diffing.
+- Pure planner: changes become ordered steps classified `meta` / `feature` /
+  `rewrite` / `destructive`, with column mapping and type widening inserted as
+  their own prerequisite steps, and a conservative widening matrix.
+- Renderers: the terminal layout from the design document, and JSON for
+  `-o plan.json`.
+- Introspection of live Unity Catalog state through `information_schema` and
+  `DESCRIBE DETAIL`, plus a live integration suite that asserts the Databricks
+  behaviour the planner relies on.
+- Project scaffold: uv + hatchling packaging (src layout, Apache-2.0), mise tasks,
+  ruff + ty configuration, pytest with a `unit` / `integration` split, and CI for
+  lint, types, tests, docs and the built wheel.
+- `docs/DESIGN.md` as the source of truth, plus a mkdocs-material site published to
+  GitHub Pages.
+- A `deltaplan version` command, so the packaging is testable end to end.
