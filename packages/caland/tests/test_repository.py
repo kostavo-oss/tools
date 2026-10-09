@@ -124,10 +124,16 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
     import re
 
     tags = subprocess.run(
-        ["git", "tag", "--list"], cwd=ROOT, capture_output=True, text=True, check=False
+        ["git", "tag", "--list", "caland-*"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     ).stdout.split()
     if not tags:
-        pytest.skip("no tags in this checkout")
+        # The repository holds four packages; only caland's own tags say anything
+        # about caland's links. Before its first release from here there are none.
+        pytest.skip("no caland tags in this checkout")
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     coming = f"v{project['project']['version']}"
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
@@ -137,9 +143,10 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
         assert link.startswith("https://github.com/kostavo-oss/tools/"), link
         for name in re.findall(r"(?:compare/|\.\.\.|tree/)([^./][^.]*(?:\.\d+)*)", link):
             there = (
-                name in tags
-                # the tags from before the move, and this package's own since
-                or f"caland-{name}" in tags
+                f"caland-{name}" in tags
+                # a release from before the move: its tag stayed in the old
+                # repository, its commit is here
+                or re.fullmatch(r"v0\.[0-7]\.\d+", name) is not None
                 or name in ("HEAD", coming, "main")
                 or re.fullmatch(r"[0-9a-f]{40}", name)
             )
