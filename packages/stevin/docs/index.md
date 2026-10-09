@@ -26,7 +26,8 @@ touches anything.
 - **The tables and access your transformation tool doesn't own** — dbt, Lakeflow or
   SQLMesh own what they build. stevin puts in place what they read and what a setup
   job used to: the tables notebooks and external systems write into, lookup tables,
-  grants, column masks and row filters. It never touches what another tool built.
+  filtered views, grants, column masks and row filters. It never touches what another
+  tool built.
 - **A plan you can actually read** — per table, per column, nested struct changes as a
   tree, numbered steps, risk labels, and size hints on anything that rewrites.
 - **Delta-aware planning** — metadata-only vs. table-feature vs. rewrite is a

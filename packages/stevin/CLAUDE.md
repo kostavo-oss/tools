@@ -206,20 +206,22 @@ pictures, not just the diff.
 clustering; removing a tag or property with `null`; `command: apply` in the Action.
 **The scope, settled 2026-10-09** (`docs/DESIGN.md` → Scope): stevin puts in place
 the tables and access that a transformation tool (dbt, Lakeflow, SQLMesh) doesn't
-own — the tables notebooks and external systems write into, lookup tables, and who
-may see what. It puts in place what a spec says; it does not decide what a spec may
-say. Leaving in 0.4.0, one PR each: views, `hooks:`, and SQL functions as a thing of
-their own (a function spec stays valid only when a mask, a row filter or a policy
-names it). Coming: ABAC policies (`policy:` spec kind, additive like masks, built
-last and only after a live probe with a governed tag holds) and an *owned elsewhere*
-map (a `stevin.yml` list, dbt's manifest, dlt's `_dlt_*` tables) with governance-only
-specs for owned tables (tags, grants, masks, filters, owner — never columns, never a
-claim). Seeds stay only if `test_live_seeds.py`
-passes live before 0.4.0a1. Still not a policy engine: no rules about who may have
-what, no approvals, no audit beyond its own run history; no catalogs, external
-tables, governed-tag definitions, groups, contracts or quality checks; no job or
-notebook entry point — stevin applies from CI. Until each removal lands, the layout
-above and the milestone notes describe the code as it is.
+own — the tables notebooks and external systems write into, lookup tables, filtered
+views, and who may see what. It puts in place what a spec says; it does not decide
+what a spec may say. Leaving in 0.4.0, one PR each: `hooks:`, and SQL functions as a
+thing of their own (a function spec stays valid only when a mask or a row filter
+names it). Views and seeds stay. Coming: an *owned elsewhere* map (a `stevin.yml`
+list, dbt's manifest, dlt's `_dlt_*` tables) with governance-only specs for tables
+dlt or a notebook owns (tags, grants, masks, filters, owner — never columns, never a
+claim) and an outright refusal for tables dbt owns (dbt's config does that);
+`from_contract`, a table's shape read from an ODCS data contract; and ABAC policies
+*read* into plans, `drift`, an `access` report and `doctor` — **never written: ABAC
+management is cut for good** (Terraform's). Still not a policy engine: no rules about
+who may have what, no approvals, no audit beyond its own run history; no catalogs,
+external tables, governed-tag definitions, groups or quality checks; no notebook entry
+point — stevin applies from CI, or as a job task where CI can't reach the workspace.
+Until each removal lands, the layout above and the milestone notes describe the code
+as it is.
 
 **The Databricks assumptions are `probes.py`**, not a test file: `stevin verify`
 runs them in a user's own scratch schema, and

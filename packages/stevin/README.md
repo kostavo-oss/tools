@@ -14,8 +14,8 @@ then apply it.
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
 
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
-> included), drift, the GitHub Action, and governance (tags, grants, masks, row filters).
-> Views, SQL hooks and standalone SQL functions are leaving in 0.4.0 — the
+> included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
+> views). SQL hooks and standalone SQL functions are leaving in 0.4.0 — the
 > [changelog](https://github.com/kostavo-oss/stevin/blob/main/CHANGELOG.md) says why and
 > what to do. It is tested offline against a fake warehouse, and a live suite
 > runs what it assumes about Databricks against a real workspace. That suite has settled
@@ -66,9 +66,9 @@ source of truth.
 
 - **The tables and access your transformation tool doesn't own.** dbt, Lakeflow or
   SQLMesh own what they build. stevin owns what they read and what they leave to a
-  setup job: the tables notebooks and external systems write into, lookup tables, and
-  who may see what — grants, column masks, row filters. It never touches what another
-  tool built, and it runs from CI at deploy time, not as a job.
+  setup job: the tables notebooks and external systems write into, lookup tables,
+  filtered views, and who may see what — grants, column masks, row filters. It never
+  touches what another tool built, and it runs from CI at deploy time.
 - **Unity Catalog is the state.** There is no state file to store, lock or repair.
   stevin reads the live catalog — `information_schema` and the tables' own definitions —
   every time it plans, and the one thing it has to remember, that it made a table, is a

@@ -19,46 +19,48 @@ the design never had is listed in [Since the design](#since-the-design) at the e
 **(since)** Settled by the owner on 2026-10-09: stevin puts in place
 the tables and access that your transformation tool doesn't own. dbt, Lakeflow or SQLMesh
 own what they build. stevin owns what they read and what they leave to a setup job: the
-tables notebooks and external systems write into, lookup tables, and who may see what —
-grants, column masks, row filters and ABAC policies. It never touches what another tool
-built, and it runs at deploy time from CI (a lely step or the Action), never as a job.
+tables notebooks and external systems write into, lookup tables, filtered views, and who
+may see what — grants, column masks and row filters. It never touches what another tool
+built, and it reports the ABAC policies it does not write. It runs at deploy time from
+CI (a lely step or the Action); the same command can run as a job task where CI cannot
+reach the workspace, and never from a notebook.
 
 What that means for the shape of the tool:
 
-- **Stays:** managed Delta tables (the engine), schemas, managed volumes, seeds, `using:`
-  backfills, grants, tags, owner, properties, column masks, row filters, `import`,
-  `adopt`, `drift`, `plan --clone`, the history and lock tables, the Action, bundle
-  targets, `manage:`, SQL specs, `ui`.
-- **Leaves in 0.4.0:** views, pre/post `hooks:`, and SQL functions as a thing of their
-  own — a function spec stays valid only when a column mask, a row filter or a policy
-  names it. These were the parts that made stevin a second transformation tool. Each
-  removal is a pull request of its own after this note; the changelog says what a user
-  has to do.
-- **Comes:** ABAC policies as a spec kind (`policy:`), additive like masks and filters,
-  built only after a live probe with a governed tag holds; and an *owned elsewhere* map
-  — a list in `stevin.yml`, dbt's manifest, and dlt's own `_dlt_*` tables in a schema —
-  so `plan` refuses a spec that would *shape* what another tool builds, and `drift`
-  names the owner. A spec for such a table may still say who may see it — tags,
-  grants, masks, row filters, owner — and stevin puts that in place without ever
-  claiming or reshaping the table. That is how PII in dlt's landing tables and dbt's
-  models is governed without a post-hook or a setup job.
-- **Seeds stay on one condition:** they have never run on a workspace. They pass the
-  live suite before 0.4.0, or they leave with it.
+- **Stays:** managed Delta tables (the engine), views (query, grants, tags — the no-dbt
+  shop models with them, and Delta Sharing needs a filtered view where a mask or row
+  filter can't go), schemas, managed volumes, seeds (lookup tables are in the sentence
+  above; the live suite still has to take one), `using:` backfills, grants, tags, owner,
+  properties, column masks, row filters, `import`, `adopt`, `drift`, `plan --clone`, the
+  history and lock tables, the Action, bundle targets, `manage:`, SQL specs, `ui`.
+- **Leaves in 0.4.0:** pre/post `hooks:`, and SQL functions as a thing of their own — a
+  function spec stays valid only when a column mask or a row filter names it. These were
+  the parts that made stevin a second transformation tool. Each removal is a pull request
+  of its own after this note; the changelog says what a user has to do.
+- **Comes:** an *owned elsewhere* map — a list in `stevin.yml`, dbt's manifest, and dlt's
+  own `_dlt_*` tables in a schema — so `plan` refuses a spec that would *shape* what
+  another tool builds, and `drift` names the owner. A spec for a table dlt or a notebook
+  owns may still say who may see it — tags, grants, masks, row filters, owner — and
+  stevin puts that in place without ever claiming or reshaping the table. A spec for a
+  table dbt owns is refused outright: dbt's own config carries grants and tags, and a
+  `table` materialisation drops masks, so two writers would fight every run. Also: a
+  table's shape may come from an ODCS data contract (`from_contract`), with the spec
+  adding governance; and the ABAC policies that apply to a table are *read* — into the
+  plan, `drift`, an `access` report and `doctor` — never written.
 
-Not in this scope, and not planned: catalogs; external tables; governed-tag definitions
-(account-level — Terraform's); groups and service principals; ABAC `GRANT`/`DENY`
-policies, metastore- and table-level policies; rules about who may have what, approvals,
-a policy engine; quality checks, SLAs or data contracts; materialized views and streaming
-tables (reported as their pipeline's, never managed); detecting a Lakeflow pipeline's
-tables; SQLMesh beyond the owned-elsewhere list; a bundle job task or a notebook entry
-point.
+Not in this scope, and not planned: managing ABAC policies (Terraform's or SQL's; stevin
+reports them); catalogs; external tables; governed-tag definitions (account-level —
+Terraform's); groups and service principals; rules about who may have what, approvals, a
+policy engine; quality checks or SLAs; materialized views and streaming tables (reported
+as their pipeline's, never managed); detecting a Lakeflow pipeline's tables; SQLMesh
+beyond the owned-elsewhere list; a notebook entry point.
 
 ## Non-goals (v1)
 
 - Views, grants, masks, row filters, volumes, functions (later milestones). **(since)**
   All of these are built: views, grants, column masks, row filters, SQL functions,
   schemas and managed volumes are specs like tables are. **Changed 2026-10-09, by the
-  owner:** views and standalone SQL functions leave again in 0.4.0; grants, masks, row
+  owner:** standalone SQL functions leave again in 0.4.0; views, grants, masks, row
   filters, schemas and volumes stay. See [Scope](#scope-2026-10-09).
 - Data backfills beyond simple pre/post SQL hooks. **(since)** A `using:` expression
   backfills a new `NOT NULL` column, and a `seed:` loads reference data; anything
@@ -110,8 +112,8 @@ Table(name, columns, comment, cluster_by, properties, tags, constraints)
 **(since)** A table also carries grants, a row filter, an owner, partitioning, a seed and
 hooks, and a column a mask, an identity, a generation expression or a default. Beside
 `Table` there are `View`, `Function`, `Schema` and `Volume`; `Relation` is any of the five.
-**(2026-10-09)** `View` and the hooks leave in 0.4.0, a `Policy` comes, and `Function`
-stays for what masks, filters and policies name.
+**(2026-10-09)** The hooks leave in 0.4.0, and `Function` stays for what masks and
+filters name.
 
 - **Change** (semantic, rendered): `path` (e.g. `address.element.zip`), `kind`, `before`, `after`.
 - **Step** (executable): `id`, `sql`, `risk`, `precheck`, `postcheck`, `est_bytes`, `undo_hint`.
@@ -280,12 +282,11 @@ the reference for all of it.
   what sqlglot parses into structure; YAML is the complete format ([formats](formats.md)).
 - **More than tables.** Views, SQL functions, schemas and managed volumes; grants,
   column tags, masks, row filters and owners. Functions, schemas and volumes are never
-  dropped: nothing on them records that stevin made them. **(2026-10-09)** Views and
-  standalone functions leave in 0.4.0 — see [Scope](#scope-2026-10-09).
+  dropped: nothing on them records that stevin made them. **(2026-10-09)** Standalone
+  functions leave in 0.4.0 — see [Scope](#scope-2026-10-09).
 - **One order over the objects.** Functions, tables and views are planned as one graph,
   each after what it names; a cycle is an error, found at `validate`. Two specs for one
-  name are an error too. **(2026-10-09)** With views gone the graph is functions and
-  tables.
+  name are an error too.
 - **Asset Bundles.** A project can take its targets and variables from a
   `databricks.yml`, resolved by asking the Databricks CLI. What a bundle declares is the
   bundle's: stevin doesn't create or manage it ([bundles](bundles.md)).

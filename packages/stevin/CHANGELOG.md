@@ -11,20 +11,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **What stevin is for, said plainly.** stevin puts in place the tables and access
   that your transformation tool doesn't own. dbt, Lakeflow or SQLMesh own what they
   build; stevin owns what they read and what they leave to a setup job — the tables
-  notebooks and external systems write into, lookup tables, and who may see what. It
-  never touches what another tool built, and it runs from CI at deploy time, not as
-  a job. `docs/DESIGN.md` → Scope has what follows from that; the removals below are
-  that scope applied. This entry changes no behaviour; the ones below do.
+  notebooks and external systems write into, lookup tables, filtered views, and who
+  may see what. It never touches what another tool built, and it runs from CI at
+  deploy time. `docs/DESIGN.md` → Scope has what follows from that; the removals
+  below are that scope applied. This entry changes no behaviour; the ones below do.
 
 ### Removed
 
-- **Views.** A `view:` spec, `CREATE VIEW` in a `.sql` spec, and the `create_view` /
-  `replace_view` steps. Views are what a transformation tool builds, and the one
-  reason to keep them here — a secure view in front of a table — is what column masks
-  and row filters do. A view stevin made carries the `deltaplan.managed` property;
-  from this version it is listed as *skipped* and never dropped, in a strict schema
-  too. Drop it by hand, or hand it to the tool that owns your views. `import` no
-  longer writes views.
 - **Hooks.** `hooks: {before, after}` on a table. Raw SQL around a change was the
   door through which transformation logic walked in. `using:` stays: filling a new
   required column is part of the migration. A spec that still says `hooks:` is
@@ -32,8 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   serialised table no longer carries a `hooks` key, every spec hash changes: a
   plan file saved by 0.3 is refused as stale by 0.4 — plan again.
 - **SQL functions as a thing of their own.** A `function:` spec is valid only when a
-  column mask or a row filter in the same project names it (a policy will count too);
-  any other function spec is refused at `validate`, with its file and line. The
+  column mask or a row filter in the same project names it; any other function spec
+  is refused at `validate`, with its file and line. The
   functions a mask or filter needs are still created in the same plan, before the
   tables that use them. General UDFs belong to your transformation tool or your
   bundle. `import` writes only the functions a mask or filter names.
