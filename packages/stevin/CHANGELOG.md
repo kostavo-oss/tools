@@ -28,7 +28,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Hooks.** `hooks: {before, after}` on a table. Raw SQL around a change was the
   door through which transformation logic walked in. `using:` stays: filling a new
   required column is part of the migration. A spec that still says `hooks:` is
-  refused with the key named, so nothing runs that you thought would.
+  refused with the key named, so nothing runs that you thought would. Because the
+  serialised table no longer carries a `hooks` key, every spec hash changes: a
+  plan file saved by 0.3 is refused as stale by 0.4 — plan again.
 - **SQL functions as a thing of their own.** A `function:` spec is valid only when a
   column mask or a row filter in the same project names it (a policy will count too);
   any other function spec is refused at `validate`, with its file and line. The
