@@ -18,10 +18,13 @@ time. The questions people have go the other way: what can *I* touch, and what c
   dialog that says how many secrets go with it, or that they cannot be listed from here,
   and takes a deliberate `y`. A deleted scope cannot be taken back.
   *(built, 0.1.0; on the page since 0.5.1)*
-- **R2 — Show the scopes you can reach.** By default the scopes pane lists the scopes you
-  have any access to. `f` shows every scope in the workspace, and back; the choice is kept.
-  When the default leaves nothing, the pane says so and names the key. *(built, 0.2.8; kept
-  since 0.4.0; on the page since 0.5.0, kept there since 0.5.2)*
+- **R2 — Show every scope, and which you can reach.** The scopes pane lists every scope in
+  the workspace; the ones you have no access to are greyed, and selecting one says so and
+  who can change that. `f` hides them, and back; the choice is kept. When hiding leaves
+  nothing, the pane says so and names the key. *(built, 0.2.8, the other way round: only
+  the reachable scopes, `f` for all; kept since 0.4.0; on the page since 0.5.0, kept there
+  since 0.5.2; every scope by default since 0.7.1 — the scope you have to ask access to is
+  the one you could not see)*
 - **R3 — Your access is what you can really do.** Your permission on a scope is the highest
   granted to you, to `users`, or to a group you are in. Where the grants cannot be listed —
   that takes MANAGE — but the scope's secrets can, it is READ, not "none".

@@ -35,7 +35,7 @@ else of what was asked. That line is what a
 
 ## What it does
 
-Three panes: the scopes you can reach, the secrets of the selected scope with when each was
+Three panes: the scopes, the ones out of your reach greyed, the secrets of the selected scope with when each was
 last changed, and the detail — your access, who else has a grant, and the value once you ask
 for it. The page is there at once and fills as the workspace is read; filtering happens in
 the page, over names it already has.
