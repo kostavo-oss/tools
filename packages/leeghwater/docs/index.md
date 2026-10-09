@@ -8,7 +8,7 @@ kept out of your code.
 
     It has run as a serverless job and from a laptop against a real workspace. What was
     tried and what was not is in the
-    [README](https://github.com/kostavo-oss/leeghwater#tried-and-not-yet).
+    [README](https://github.com/kostavo-oss/tools/tree/main/packages/leeghwater#tried-and-not-yet).
 
 ```sh
 uv add leeghwater

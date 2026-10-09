@@ -1,11 +1,11 @@
 site_name: leeghwater
 site_description: "Your dlt pipeline, the same on your laptop and in a Databricks job"
 site_author: Misja Pronk
-site_url: https://kostavo-oss.github.io/leeghwater/
+site_url: https://kostavo-oss.github.io/tools/leeghwater/
 
-repo_name: kostavo-oss/leeghwater
-repo_url: https://github.com/kostavo-oss/leeghwater
-edit_uri: edit/main/docs/
+repo_name: kostavo-oss/tools
+repo_url: https://github.com/kostavo-oss/tools
+edit_uri: edit/main/packages/leeghwater/docs/
 
 copyright: Apache-2.0 © Misja Pronk
 
@@ -53,7 +53,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kostavo-oss/leeghwater
+      link: https://github.com/kostavo-oss/tools
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/leeghwater/
 

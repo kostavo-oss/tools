@@ -150,7 +150,7 @@ which a bundle workflow installs anyway:
 
 ```yaml
 - uses: databricks/setup-cli@v1.17.0
-- uses: kostavo-oss/stevin@v0
+- uses: kostavo-oss/tools/packages/stevin@stevin-v0
   with:
     target: prod          # the bundle's target
 ```
@@ -161,7 +161,7 @@ in them:
 ```yaml
 - uses: databricks/setup-cli@v1.17.0
 - run: databricks bundle deploy -t prod
-- uses: kostavo-oss/stevin@v0
+- uses: kostavo-oss/tools/packages/stevin@stevin-v0
   with:
     command: apply
     target: prod

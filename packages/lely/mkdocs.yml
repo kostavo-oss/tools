@@ -1,11 +1,11 @@
 site_name: lely
 site_description: One plan for your whole Databricks deploy — the bundle and the steps around it, reviewed before anything runs.
 site_author: Misja Pronk
-site_url: https://kostavo-oss.github.io/lely/
+site_url: https://kostavo-oss.github.io/tools/lely/
 
-repo_name: kostavo-oss/lely
-repo_url: https://github.com/kostavo-oss/lely
-edit_uri: edit/main/docs/
+repo_name: kostavo-oss/tools
+repo_url: https://github.com/kostavo-oss/tools
+edit_uri: edit/main/packages/lely/docs/
 
 copyright: Apache-2.0 © Misja Pronk
 
@@ -77,7 +77,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kostavo-oss/lely
+      link: https://github.com/kostavo-oss/tools
 
 nav:
   - Home: index.md

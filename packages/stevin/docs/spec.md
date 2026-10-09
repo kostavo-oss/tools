@@ -65,7 +65,7 @@ can, so one project file serves every catalog. What the modes mean is in the
 [safety model](safety.md#additive-and-strict-schemas).
 
 There is a runnable example of exactly this layout in
-[`examples/`](https://github.com/kostavo-oss/stevin/tree/main/examples).
+[`examples/`](https://github.com/kostavo-oss/tools/tree/main/packages/stevin/examples).
 
 Without `-t`, a command uses the only target, or the one marked `default: true`.
 

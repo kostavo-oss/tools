@@ -31,7 +31,7 @@ caland: POST /api/value failed: KeyError at caland/interface/web/server.py:412
 
 Which request, what kind of failure, and where in the code — never a value, and nothing
 else of what was asked. That line is what a
-[bug report](https://github.com/kostavo-oss/caland/issues/new/choose) needs.
+[bug report](https://github.com/kostavo-oss/tools/issues/new/choose) needs.
 
 ## What it does
 

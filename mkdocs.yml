@@ -1,20 +1,20 @@
-site_name: caland
-site_description: "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
+site_name: Kostavo tools
+site_description: Small tools for the ugly gaps on Databricks.
 site_author: Misja Pronk
-site_url: https://kostavo-oss.github.io/tools/caland/
+site_url: https://kostavo-oss.github.io/tools/
 
 repo_name: kostavo-oss/tools
 repo_url: https://github.com/kostavo-oss/tools
-edit_uri: edit/main/packages/caland/docs/
+edit_uri: edit/main/docs/
 
 copyright: Apache-2.0 © Misja Pronk
 
 theme:
   name: material
-  font: false # use the system font stack (SF on macOS) for a native, calm feel
+  font: false # the system font stack: native, calm, nothing fetched
   icon:
     repo: fontawesome/brands/github
-    logo: material/grid
+    logo: material/waves
   palette:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
@@ -59,6 +59,17 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.superfences
+  # Each tool's pages quote files beside them: stevin's pictures and the specs
+  # that made them, lely's contributing guide and changelog.
+  - pymdownx.snippets:
+      base_path:
+        - .
+        - docs
+        - packages/stevin/docs
+        - packages/lely/docs
+        - packages/leeghwater/docs
+        - packages/caland/docs
+      check_paths: true
   - pymdownx.details
   - pymdownx.keys
   - pymdownx.tabbed:
@@ -69,21 +80,18 @@ markdown_extensions:
 
 plugins:
   - search
+  # One site from four docs folders: each tool keeps its own mkdocs.yml with its
+  # name and its pages, and is served under /<tool>/.
+  - monorepo
 
 extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/kostavo-oss/tools
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/caland/
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Guide:
-      - Connecting: connecting.md
-      - Using the page: page.md
-  - Security: security.md
-  - Develop:
-      - Architecture: architecture.md
-      - Contributing: contributing.md
+  - stevin: '!include packages/stevin/mkdocs.yml'
+  - lely: '!include packages/lely/mkdocs.yml'
+  - leeghwater: '!include packages/leeghwater/mkdocs.yml'
+  - caland: '!include packages/caland/mkdocs.yml'

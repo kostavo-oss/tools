@@ -42,7 +42,7 @@ Databricks CLI's — so treat it like the config it was made from.
 - **lely can't tell whether credentials are read-only**, and can't see what a `command`
   step's commands really do: the plan shows the command line.
 
-More in [the docs](https://kostavo-oss.github.io/lely/safety/).
+More in [the docs](https://kostavo-oss.github.io/tools/lely/safety/).
 
 ## Supported versions
 
@@ -53,7 +53,7 @@ issue.
 
 Please report security issues **privately**:
 
-- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/lely/security/advisories/new), or
+- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/tools/security/advisories/new), or
 - email **info@kostavo.com**.
 
 Do not open a public issue for security reports. You'll get an acknowledgement as soon as

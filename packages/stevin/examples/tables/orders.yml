@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/spec.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/spec.json
 # A worked example of the spec format. Every key here is optional except
-# `table` and `columns`; see https://kostavo-oss.github.io/stevin/spec/
+# `table` and `columns`; see https://kostavo-oss.github.io/tools/stevin/spec/
 table: ${catalog}.sales.orders
 comment: Order facts, one row per order line
 

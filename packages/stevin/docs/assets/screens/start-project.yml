@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/project.json
 # Written by `stevin import`. Every key is explained at
-# https://kostavo-oss.github.io/stevin/spec/#the-project-file
+# https://kostavo-oss.github.io/tools/stevin/spec/#the-project-file
 version: 1
 specs: [tables]
 

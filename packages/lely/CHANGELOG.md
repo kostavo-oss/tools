@@ -25,7 +25,7 @@ A breaking release: the `command` plugin is gone, and a step runs on its own.
 
 - **`command`**: a program is a `Program` (ten lines, see Writing a step); a config that
   names `command` is told by `lely validate` that no plugin of that name is installed.
-  → [011](https://github.com/kostavo-oss/lely/blob/main/spec/011-a-step-on-its-own.md)
+  → [011](https://github.com/kostavo-oss/tools/blob/main/packages/lely/spec/011-a-step-on-its-own.md)
 
 ## [0.2.0] - 2026-10-07
 

@@ -57,7 +57,7 @@ one. Don't build past a "To decide" that is still open — those are the owner's
 ## Docs
 
 `docs/` is the site (MkDocs Material; `mkdocs.yml`), deployed from `main` to
-<https://kostavo-oss.github.io/lely/>. `mise run docs:build` builds it in strict mode: a
+<https://kostavo-oss.github.io/tools/lely/>. `mise run docs:build` builds it in strict mode: a
 broken link fails. A link out of `docs/` goes to the repository by its full address — the
 site has only what is in `docs/`. The pictures of the page in `docs/assets/` are made from
 the shared scenario; remake them when the page changes how it looks.

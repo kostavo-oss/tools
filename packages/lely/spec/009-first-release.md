@@ -64,7 +64,7 @@ say: the release is one pull request that bumps the version, and merging it publ
 - **R5** — waits for the release: until then the README's "isn't on PyPI yet" is true.
 - **R6** — the docs site: MkDocs Material, as stevin's, built in strict mode on every pull
   request that touches it and deployed to Pages from `main`
-  (<https://kostavo-oss.github.io/lely/>). The contributing guide and the changelog are
+  (<https://kostavo-oss.github.io/tools/lely/>). The contributing guide and the changelog are
   quoted from the top of the repository, where GitHub looks for them.
 
 The release itself will be one pull request: `version = "0.1.0"`, the classifier *Alpha*,

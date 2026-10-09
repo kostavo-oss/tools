@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/spec.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/spec.json
 table: ${catalog}.crm.customers
 comment: One row per customer
 tags:

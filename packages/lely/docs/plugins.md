@@ -69,5 +69,5 @@ Planning runs your project's own code — a step in the repo. On a pull request,
 
 ## `stevin`
 
-Tables, planned by [stevin](https://github.com/kostavo-oss/stevin). Parked: it can plan, and
+Tables, planned by [stevin](https://github.com/kostavo-oss/tools). Parked: it can plan, and
 can't apply yet — `lely apply` refuses a project that uses it.

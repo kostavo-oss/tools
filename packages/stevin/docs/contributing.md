@@ -74,7 +74,7 @@ messages. Describe the *why*. New behaviour comes with a test; changed plans com
 refreshed snapshots.
 
 Full details, including the release process, are in
-[CONTRIBUTING.md](https://github.com/kostavo-oss/stevin/blob/main/CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CONTRIBUTING.md).
 
 ## Previewing these docs
 

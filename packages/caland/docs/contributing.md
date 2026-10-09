@@ -60,6 +60,6 @@ heading, open a PR, and merge. The `release` workflow then publishes to PyPI
 A merge that doesn't change the version does nothing.
 
 For the full process and the one-time PyPI setup, see
-[CONTRIBUTING.md](https://github.com/kostavo-oss/caland/blob/main/CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/kostavo-oss/tools/blob/main/packages/caland/CONTRIBUTING.md).
 
-For pull-request mechanics, see [CONTRIBUTING.md](https://github.com/kostavo-oss/caland/blob/main/CONTRIBUTING.md) in the repository.
+For pull-request mechanics, see [CONTRIBUTING.md](https://github.com/kostavo-oss/tools/blob/main/packages/caland/CONTRIBUTING.md) in the repository.

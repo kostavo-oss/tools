@@ -69,7 +69,7 @@ Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
 ## Where it fits
 
 > Terraform for your platform, Asset Bundles for your code,
-> [stevin](https://github.com/kostavo-oss/stevin) for your data model — and lely to deploy
+> [stevin](https://github.com/kostavo-oss/tools) for your data model — and lely to deploy
 > them as one.
 
 lely borrows Terraform's words — plan, apply, destroy — because everyone knows what they

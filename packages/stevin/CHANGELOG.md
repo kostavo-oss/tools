@@ -150,12 +150,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `deltaplan.yml` → `stevin.yml`. The old file is still found (after a
     `stevin.yml`, where both exist), and the command line says it can be
     renamed.
-  - `uses: misja-pronk/deltaplan@v0` → `uses: kostavo-oss/stevin@v0`. The
+  - `uses: misja-pronk/deltaplan@v0` → `uses: kostavo-oss/tools/packages/stevin@stevin-v0`. The
     Action's `config` input no longer defaults to a file name: left out, the
     project file is found, under either name.
   - `import deltaplan` → `import stevin`, and `DeltaplanError` → `StevinError`.
   - The `$schema` line in a spec or project file points at
-    `https://kostavo-oss.github.io/stevin/schema/…`.
+    `https://kostavo-oss.github.io/tools/stevin/schema/…`.
   - A first `import` now proposes `<catalog>.stevin` as the history schema. A
     project that already names one keeps it.
   - For this repo's own suites: `DELTAPLAN_RECORD` and `DELTAPLAN_TEST_*` are

@@ -97,4 +97,4 @@ failure.
 > **One-time setup.** Releasing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
 > instead of a token. Add a publisher at
 > <https://pypi.org/manage/account/publishing/> for repository
-> `kostavo-oss/caland`, workflow `release.yml`, and environment `pypi`.
+> `kostavo-oss/tools`, workflow `release.yml`, and environment `pypi`.

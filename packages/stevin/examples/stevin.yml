@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/project.json
 # A stevin project: where the specs are, and what a target substitutes into
 # them. Run `stevin validate -t dev` from this directory to try it.
 version: 1

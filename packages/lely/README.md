@@ -4,11 +4,11 @@
 The bundle and everything around it — the steps before, the steps after — reviewed before
 anything runs, and taken down again when you say so.
 
-[![ci](https://github.com/kostavo-oss/lely/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/lely/actions/workflows/ci.yml)
+[![ci](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/lely.svg)](https://pypi.org/project/lely/)
 [![Python](https://img.shields.io/pypi/pyversions/lely.svg)](https://pypi.org/project/lely/)
-[![Docs](https://img.shields.io/badge/docs-lely-2a6f97.svg)](https://kostavo-oss.github.io/lely/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/lely/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-lely-2a6f97.svg)](https://kostavo-oss.github.io/tools/lely/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/tools/blob/main/packages/lely/LICENSE)
 
 lely replaces the script around `databricks bundle deploy`.
 
@@ -19,10 +19,10 @@ lely replaces the script around `databricks bundle deploy`.
 > fake GitHub, and has run for real a few times, with small bundles — see
 > [what has been tried](#what-has-been-tried). That is a first proof, not a track record.
 
-**Docs: [kostavo-oss.github.io/lely](https://kostavo-oss.github.io/lely/)** ·
-[spec/](https://github.com/kostavo-oss/lely/blob/main/spec/README.md) says what each piece
+**Docs: [kostavo-oss.github.io/lely](https://kostavo-oss.github.io/tools/lely/)** ·
+[spec/](https://github.com/kostavo-oss/tools/blob/main/packages/lely/spec/README.md) says what each piece
 must do ·
-[docs/DESIGN.md](https://github.com/kostavo-oss/lely/blob/main/docs/DESIGN.md) says how it
+[docs/DESIGN.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/docs/DESIGN.md) says how it
 is built.
 
 ## Why
@@ -193,7 +193,7 @@ lely plan -t dev --github
 In a GitHub Actions run, `--github` puts the plan on the pull request as one comment —
 updated in place on every push — and on the run's page; after an apply the run's page says
 what each step did and what exists now, with links. `-f md` prints the same Markdown.
-[docs/GITHUB.md](https://github.com/kostavo-oss/lely/blob/main/docs/GITHUB.md) has the
+[docs/GITHUB.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/docs/GITHUB.md) has the
 workflows to copy: plan on a pull request, apply the reviewed plan on merge, destroy only by
 hand.
 
@@ -239,7 +239,7 @@ what they can do.
 - **Your own** — a class in a file in your repo (`uses: ./ops/steps.py:LatestModel`), or a
   package that registers one under the `lely.steps` entry point. A program is a `Program`,
   in ten lines. `lely.testing` checks it against the same rules as the ones above.
-- **`stevin`** — tables, planned by [stevin](https://github.com/kostavo-oss/stevin). Parked:
+- **`stevin`** — tables, planned by [stevin](https://github.com/kostavo-oss/tools). Parked:
   it can plan, and can't apply yet.
 
 Planning runs your project's own code — a step in the repo. On a pull request, give
@@ -310,4 +310,4 @@ mise run check   # lint + format check + types + unit tests
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/lely/blob/main/LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/tools/blob/main/packages/lely/LICENSE).

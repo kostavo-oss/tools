@@ -1,1 +1,1 @@
---8<-- "CONTRIBUTING.md"
+--8<-- "packages/lely/CONTRIBUTING.md"

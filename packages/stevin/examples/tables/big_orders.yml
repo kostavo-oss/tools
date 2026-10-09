@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/spec.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/spec.json
 # A view spec: its shape is its query, so that is what stevin compares. A
 # changed query replaces the view; tags and grants work as they do on a table.
 view: ${catalog}.sales.big_orders

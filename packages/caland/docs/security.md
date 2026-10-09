@@ -64,7 +64,7 @@ defend against.
 
 Please report security issues **privately** — not in a public issue.
 
-- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/caland/security/advisories/new), or
+- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/tools/security/advisories/new), or
 - Email [info@kostavo.com](mailto:info@kostavo.com).
 
 !!! danger "Do not file a public issue"

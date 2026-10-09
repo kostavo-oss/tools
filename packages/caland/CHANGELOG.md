@@ -170,7 +170,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `tab` goes from pane to pane, arrows move inside one, and every action has a key.
   The server answers only to its own page at its own address, and to nothing without
   the session's key; a value is in the page only while it is shown.
-  [The page](https://kostavo-oss.github.io/caland/page/) has the whole of it.
+  [The page](https://kostavo-oss.github.io/tools/caland/page/) has the whole of it.
 
 ### Changed
 
@@ -477,23 +477,23 @@ Initial release.
 - Pre-loads and caches scopes/secrets/ACLs on startup.
 - Three switchable themes (violet, amber Okudagram, phosphor green).
 
-[Unreleased]: https://github.com/kostavo-oss/caland/compare/v0.7.1...HEAD
-[0.7.1]: https://github.com/kostavo-oss/caland/compare/v0.7.0...v0.7.1
-[0.7.0]: https://github.com/kostavo-oss/caland/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/kostavo-oss/caland/compare/v0.5.2...v0.6.0
-[0.5.2]: https://github.com/kostavo-oss/caland/compare/v0.5.1...v0.5.2
-[0.5.1]: https://github.com/kostavo-oss/caland/compare/v0.5.0...v0.5.1
-[0.5.0]: https://github.com/kostavo-oss/caland/compare/v0.4.1...v0.5.0
-[0.4.1]: https://github.com/kostavo-oss/caland/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/kostavo-oss/caland/compare/d4b5e1366acfd6df5f4471d59c9a5785fe29dd81...v0.4.0
-[0.3.0]: https://github.com/kostavo-oss/caland/compare/v0.2.8...d4b5e1366acfd6df5f4471d59c9a5785fe29dd81
-[0.2.8]: https://github.com/kostavo-oss/caland/compare/v0.2.7...v0.2.8
-[0.2.7]: https://github.com/kostavo-oss/caland/compare/v0.2.6...v0.2.7
-[0.2.6]: https://github.com/kostavo-oss/caland/compare/v0.2.5...v0.2.6
-[0.2.5]: https://github.com/kostavo-oss/caland/compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com/kostavo-oss/caland/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/kostavo-oss/caland/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/kostavo-oss/caland/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/kostavo-oss/caland/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/kostavo-oss/caland/compare/625abbde680b0ec5e13684e1ba39050bba8d71b8...v0.2.0
-[0.1.0]: https://github.com/kostavo-oss/caland/tree/625abbde680b0ec5e13684e1ba39050bba8d71b8
+[Unreleased]: https://github.com/kostavo-oss/tools/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/kostavo-oss/tools/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/kostavo-oss/tools/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/kostavo-oss/tools/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/kostavo-oss/tools/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/kostavo-oss/tools/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/kostavo-oss/tools/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/kostavo-oss/tools/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/kostavo-oss/tools/compare/d4b5e1366acfd6df5f4471d59c9a5785fe29dd81...v0.4.0
+[0.3.0]: https://github.com/kostavo-oss/tools/compare/v0.2.8...d4b5e1366acfd6df5f4471d59c9a5785fe29dd81
+[0.2.8]: https://github.com/kostavo-oss/tools/compare/v0.2.7...v0.2.8
+[0.2.7]: https://github.com/kostavo-oss/tools/compare/v0.2.6...v0.2.7
+[0.2.6]: https://github.com/kostavo-oss/tools/compare/v0.2.5...v0.2.6
+[0.2.5]: https://github.com/kostavo-oss/tools/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/kostavo-oss/tools/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/kostavo-oss/tools/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/kostavo-oss/tools/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/kostavo-oss/tools/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/kostavo-oss/tools/compare/625abbde680b0ec5e13684e1ba39050bba8d71b8...v0.2.0
+[0.1.0]: https://github.com/kostavo-oss/tools/tree/625abbde680b0ec5e13684e1ba39050bba8d71b8

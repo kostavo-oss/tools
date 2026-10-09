@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://kostavo-oss.github.io/stevin/schema/project.json",
+  "$id": "https://kostavo-oss.github.io/tools/stevin/schema/project.json",
   "title": "stevin project",
-  "description": "stevin.yml. https://kostavo-oss.github.io/stevin/spec/#the-project-file",
+  "description": "stevin.yml. https://kostavo-oss.github.io/tools/stevin/spec/#the-project-file",
   "type": "object",
   "properties": {
     "bundle": {

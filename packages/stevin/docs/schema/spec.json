@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://kostavo-oss.github.io/stevin/schema/spec.json",
+  "$id": "https://kostavo-oss.github.io/tools/stevin/schema/spec.json",
   "title": "stevin spec",
-  "description": "A table, view, SQL function, schema or volume. https://kostavo-oss.github.io/stevin/spec/",
+  "description": "A table, view, SQL function, schema or volume. https://kostavo-oss.github.io/tools/stevin/spec/",
   "oneOf": [
     {
       "type": "object",

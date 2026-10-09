@@ -7,15 +7,15 @@ one means, and underlines a typo as you type it.
 
 | File | Schema |
 |---|---|
-| A table, view or function spec | <https://kostavo-oss.github.io/stevin/schema/spec.json> |
-| `stevin.yml` | <https://kostavo-oss.github.io/stevin/schema/project.json> |
+| A table, view or function spec | <https://kostavo-oss.github.io/tools/stevin/schema/spec.json> |
+| `stevin.yml` | <https://kostavo-oss.github.io/tools/stevin/schema/project.json> |
 
 ## Per file
 
 Put this on the first line — `stevin import` writes it for you:
 
 ```yaml
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/spec.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/spec.json
 table: ${catalog}.sales.orders
 ```
 
@@ -26,8 +26,8 @@ In `.vscode/settings.json`, with the paths your specs live in:
 ```json
 {
   "yaml.schemas": {
-    "https://kostavo-oss.github.io/stevin/schema/spec.json": ["tables/**/*.yml"],
-    "https://kostavo-oss.github.io/stevin/schema/project.json": ["stevin.yml"]
+    "https://kostavo-oss.github.io/tools/stevin/schema/spec.json": ["tables/**/*.yml"],
+    "https://kostavo-oss.github.io/tools/stevin/schema/project.json": ["stevin.yml"]
   }
 }
 ```

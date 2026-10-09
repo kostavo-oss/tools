@@ -313,7 +313,7 @@ with a waiting step.
 - **A plan made by one identity and applied by another.** The plan job and the job that
   applies sign in as different service principals. lely holds a plan to the workspace's host,
   not to who made it. Whether the Databricks CLI plans the same changes for both has not been
-  tried on a real workspace ([004](https://github.com/kostavo-oss/lely/blob/main/spec/004-asset-bundle.md), V7); a development target,
+  tried on a real workspace ([004](https://github.com/kostavo-oss/tools/blob/main/packages/lely/spec/004-asset-bundle.md), V7); a development target,
   whose bundle lives under the deploying user's own folder, will not. Use a target whose
   `root_path` doesn't depend on who runs.
 - **Whether credentials are read-only** is nothing lely can check; `lely doctor` says what it

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://kostavo-oss.github.io/stevin/schema/project.json
+# yaml-language-server: $schema=https://kostavo-oss.github.io/tools/stevin/schema/project.json
 # stevin next to an Asset Bundle: the targets, their workspaces and their
 # variables come from databricks.yml. Run `stevin validate` from this
 # directory — no -t needed, the bundle's default target is used.

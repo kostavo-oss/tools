@@ -5,10 +5,10 @@ Describe the tables you want in YAML or SQL, see what it takes to get a live cat
 there — which changes are free, which rewrite 400 GB, which destroy something — and
 then apply it.
 
-[![ci](https://github.com/kostavo-oss/stevin/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/stevin/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-stevin-1f9e9a.svg)](https://kostavo-oss.github.io/stevin/)
+[![ci](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-stevin-1f9e9a.svg)](https://kostavo-oss.github.io/tools/stevin/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/stevin/blob/main/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
@@ -16,12 +16,12 @@ then apply it.
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
 > included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
 > views). SQL hooks and standalone SQL functions are leaving in 0.4.0 — the
-> [changelog](https://github.com/kostavo-oss/stevin/blob/main/CHANGELOG.md) says why and
+> [changelog](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CHANGELOG.md) says why and
 > what to do. It is tested offline against a fake warehouse, and a live suite
 > runs what it assumes about Databricks against a real workspace. That suite has settled
 > most of those assumptions and not all of them: loading reference data (`seed:`) has
 > never run on a workspace, for one.
-> [How it is tested](https://kostavo-oss.github.io/stevin/testing/) says what each layer
+> [How it is tested](https://kostavo-oss.github.io/tools/stevin/testing/) says what each layer
 > proves and lists what is still open, and `stevin verify` runs the same assumptions in a
 > workspace of your own. Try it on a dev catalog before production.
 
@@ -31,7 +31,7 @@ Simon Stevin (1548–1620), engineer and mathematician: he designed sluices and 
 decimal notation. Precision before action — which is what a plan is.
 
 Up to 0.2.0a4 stevin was called `deltaplan`. That command and a `deltaplan.yml` still
-work — [coming from deltaplan](https://kostavo-oss.github.io/stevin/installation/#coming-from-deltaplan)
+work — [coming from deltaplan](https://kostavo-oss.github.io/tools/stevin/installation/#coming-from-deltaplan)
 says what changed and what didn't.
 
 ## Install
@@ -54,12 +54,12 @@ stevin apply              # the same plan — shown, asked about, then run
 ```
 
 Then change a table by editing its spec, and `stevin apply` again.
-**[Get started →](https://kostavo-oss.github.io/stevin/getting-started/)** is those ten
+**[Get started →](https://kostavo-oss.github.io/tools/stevin/getting-started/)** is those ten
 minutes on your own workspace, every step shown;
-**[the tour →](https://kostavo-oss.github.io/stevin/tour/)** takes one project from
-nothing to a reviewed pull request. The [docs](https://kostavo-oss.github.io/stevin/)
+**[the tour →](https://kostavo-oss.github.io/tools/stevin/tour/)** takes one project from
+nothing to a reviewed pull request. The [docs](https://kostavo-oss.github.io/tools/stevin/)
 have the spec format, the commands and the safety model, and
-[`docs/DESIGN.md`](https://github.com/kostavo-oss/stevin/blob/main/docs/DESIGN.md) is the
+[`docs/DESIGN.md`](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/docs/DESIGN.md) is the
 source of truth.
 
 ## What it is for
@@ -86,7 +86,7 @@ source of truth.
   targets, the workspaces, the variables and often the schema. stevin asks the
   Databricks CLI what they resolve to, names things the way a deploy would, and leaves
   what the bundle declares to the bundle —
-  [details](https://kostavo-oss.github.io/stevin/bundles/). Without a bundle, a
+  [details](https://kostavo-oss.github.io/tools/stevin/bundles/). Without a bundle, a
   `stevin.yml` says the same things.
 
 Also: nested types are first class — struct, array and map fields diff by path
@@ -126,11 +126,11 @@ CLUSTER BY AUTO;
 ```
 
 A project can mix both. SQL specs support what sqlglot can parse; YAML supports
-everything — [the list](https://kostavo-oss.github.io/stevin/formats/) says which.
+everything — [the list](https://kostavo-oss.github.io/tools/stevin/formats/) says which.
 
 ## The plan
 
-![A stevin plan: a rename, a widening, a backfilled NOT NULL column, a nested field, a CHECK and a grant, each with its numbered, risk-labelled steps](https://kostavo-oss.github.io/stevin/assets/screens/tour-plan-change.svg)
+![A stevin plan: a rename, a widening, a backfilled NOT NULL column, a nested field, a CHECK and a grant, each with its numbered, risk-labelled steps](https://kostavo-oss.github.io/tools/stevin/assets/screens/tour-plan-change.svg)
 
 ## Why not Terraform?
 
@@ -169,13 +169,13 @@ stevin force-unlock -t dev
 ## In CI
 
 ```yaml
-- uses: kostavo-oss/stevin@v0
+- uses: kostavo-oss/tools/packages/stevin@stevin-v0
   with:
     target: prod        # comments the plan on the pull request
 ```
 
 Plan on pull requests, apply on merge, catch drift nightly — see
-[the CI guide](https://kostavo-oss.github.io/stevin/ci/).
+[the CI guide](https://kostavo-oss.github.io/tools/stevin/ci/).
 
 ## Where it fits
 
@@ -204,9 +204,9 @@ mise run test    # uv run pytest tests/unit
 mise run docs    # preview the docs at localhost:8000
 ```
 
-See [CONTRIBUTING.md](https://github.com/kostavo-oss/stevin/blob/main/CONTRIBUTING.md) for
+See [CONTRIBUTING.md](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CONTRIBUTING.md) for
 the architecture and the house rules.
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/stevin/blob/main/LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/LICENSE).

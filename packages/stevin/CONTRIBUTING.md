@@ -86,7 +86,7 @@ The dependency rule is simple: **the middle of the pipeline does no I/O.**
 - **`api.py`** / **`cli.py`** — the verbs as functions, and the thirteen commands
   around them: parsing arguments and printing, nothing else.
 - **`action.yml`** + **`action/`** — the GitHub Action, at the repo root so
-  `uses: kostavo-oss/stevin@v0` finds it.
+  `uses: kostavo-oss/tools/packages/stevin@stevin-v0` finds it.
 
 House rules worth repeating:
 
@@ -147,7 +147,7 @@ The [`release`](.github/workflows/release.yml) workflow watches `pyproject.toml`
 that commit, publishes to **PyPI** (Trusted Publishing — no API token), and creates the
 GitHub release with the changelog's notes, which is what makes the `v0.1.0a7` tag. A
 version with `a`, `b` or `rc` is marked a pre-release. The Action's `v0` tag moves to
-every 0.x release, so `uses: kostavo-oss/stevin@v0` follows the newest.
+every 0.x release, so `uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the newest.
 
 Nothing else triggers it, so a `pyproject.toml` change that isn't a bump — a dependency,
 a ruff rule — costs one run that says "nothing to release" and stops: a push that leaves

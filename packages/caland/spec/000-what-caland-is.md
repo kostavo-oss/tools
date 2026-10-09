@@ -37,8 +37,8 @@ deploy, a platform owner tidying up scopes and grants, someone rotating what has
 
 One of three Kostavo tools, each with a Dutch engineer's name:
 
-> [stevin](https://github.com/kostavo-oss/stevin) for the data model,
-> [lely](https://github.com/kostavo-oss/lely) to deploy a bundle and the steps around it as
+> [stevin](https://github.com/kostavo-oss/tools) for the data model,
+> [lely](https://github.com/kostavo-oss/tools) to deploy a bundle and the steps around it as
 > one plan — and **caland** for the secrets, by hand.
 
 stevin and lely plan and apply, for a pipeline to run and a reviewer to read. caland is the

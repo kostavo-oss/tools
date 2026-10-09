@@ -4,7 +4,7 @@
 One command to run it, its secrets from a secret scope, and the things Databricks asks for
 kept out of your code.
 
-[![ci](https://github.com/kostavo-oss/leeghwater/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/leeghwater/actions/workflows/ci.yml)
+[![ci](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/leeghwater.svg)](https://pypi.org/project/leeghwater/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)

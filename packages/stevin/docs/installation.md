@@ -35,7 +35,7 @@ stevin is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/stevi
 ## From source
 
 ```sh
-git clone https://github.com/kostavo-oss/stevin
+git clone https://github.com/kostavo-oss/tools
 cd stevin
 uv sync
 uv run stevin --version
@@ -96,7 +96,7 @@ did not change anything in a workspace.
 | `uv tool install deltaplan` | `uv tool uninstall deltaplan`, then `uv tool install --prerelease allow stevin` | — |
 | `deltaplan plan` | `stevin plan` | `deltaplan` still runs: it says its new name on stderr, then does what `stevin` does |
 | `deltaplan.yml` | `stevin.yml` | The old file is still found, and the command line says it can be renamed |
-| `uses: misja-pronk/deltaplan@v0` | `uses: kostavo-oss/stevin@v0` | — |
+| `uses: misja-pronk/deltaplan@v0` | `uses: kostavo-oss/tools/packages/stevin@stevin-v0` | — |
 | `import deltaplan`, `DeltaplanError` | `import stevin`, `StevinError` | — |
 
 **With `uv tool`, uninstall deltaplan first.** stevin brings a `deltaplan` command of its

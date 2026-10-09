@@ -35,7 +35,7 @@ share your machine. A browser extension that may read every page can read a
 value while it is shown.
 
 More, and what Caland cannot defend against, in
-[the docs](https://kostavo-oss.github.io/caland/security/).
+[the docs](https://kostavo-oss.github.io/tools/caland/security/).
 
 ## Supported versions
 
@@ -46,7 +46,7 @@ reporting an issue.
 
 Please report security issues **privately**:
 
-- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/caland/security/advisories/new), or
+- Open a [GitHub Security Advisory](https://github.com/kostavo-oss/tools/security/advisories/new), or
 - email **info@kostavo.com**.
 
 Do not open a public issue for security reports. You'll get an acknowledgement

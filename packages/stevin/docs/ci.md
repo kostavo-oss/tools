@@ -4,7 +4,7 @@ stevin ships as a GitHub Action. It runs `plan`, `apply` or `drift`, puts the re
 the job summary, and — on a pull request — posts it as a comment, updating its own
 comment on every push instead of adding another.
 
-`uses: kostavo-oss/stevin@v0` follows the newest 0.x release; pin a release tag
+`uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the newest 0.x release; pin a release tag
 (`@v0.3.0a1`) to hold one still. The action runs the stevin of its own version, so the
 two never disagree.
 
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: plan
-        uses: kostavo-oss/stevin@v0
+        uses: kostavo-oss/tools/packages/stevin@stevin-v0
         with:
           target: prod
       - uses: actions/upload-artifact@v4
@@ -90,7 +90,7 @@ jobs:
       DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: kostavo-oss/stevin@v0
+      - uses: kostavo-oss/tools/packages/stevin@stevin-v0
         with:
           command: apply
           target: prod
@@ -128,7 +128,7 @@ jobs:
       DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: kostavo-oss/stevin@v0
+      - uses: kostavo-oss/tools/packages/stevin@stevin-v0
         with:
           command: drift
           target: prod
