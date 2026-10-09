@@ -1,0 +1,67 @@
+/* Caland docs — a graphite base with violet, cyan and amber accents. The docs' own
+   colours: the page itself has lely's (interface/web/static/page.css). */
+
+:root {
+  --cl-violet: #8b7cff;
+  --cl-cyan: #4ec9e0;
+  --cl-amber: #e0b24a;
+}
+
+/* brand primary (header) + accent (hover) for both light and dark palettes */
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: var(--cl-violet);
+  --md-primary-fg-color--light: #a99dff;
+  --md-primary-fg-color--dark: #6f5fe6;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+}
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: var(--cl-cyan);
+}
+
+/* dark scheme → graphite */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0e0f16;
+  --md-code-bg-color: #15161f;
+  --md-typeset-a-color: var(--cl-cyan);
+}
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #15161f;
+  color: rgba(236, 237, 243, 0.92);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+[data-md-color-scheme="slate"] .md-header__title {
+  color: var(--cl-violet);
+  font-weight: 700;
+}
+
+/* screenshots of the page: no frame or shadow of the docs' own, and never wider than
+   the column they are in. */
+.md-typeset img[src*="img/"] {
+  max-width: 100%;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 8px;
+}
+
+/* a rule in the three accents */
+.cl-rule {
+  height: 3px;
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--cl-violet) 0 33%,
+    var(--cl-cyan) 33% 66%,
+    var(--cl-amber) 66% 100%
+  );
+  margin: 1.2rem 0 1.6rem;
+}
+
+/* keyboard keys (pymdownx.keys) a touch softer */
+.md-typeset .keys kbd {
+  border-radius: 5px;
+}

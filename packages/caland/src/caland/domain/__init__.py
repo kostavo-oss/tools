@@ -1,0 +1,58 @@
+"""Domain layer — the model, the rules, and the ports. Pure: no UI, no SDK,
+no asyncio.
+
+Everything here is exercisable in a plain unit test. Infrastructure implements
+the ports defined here; the application orchestrates these pieces.
+"""
+
+from .errors import AuthError, Exists, StoreError
+from .host import normalize_host
+from .models import (
+    SOURCE_BUNDLE,
+    SOURCE_PROFILE,
+    SOURCE_URL,
+    STALE_AFTER_DAYS,
+    Acl,
+    Identity,
+    Scope,
+    Secret,
+    Settings,
+    Workspace,
+    same_name,
+)
+from .permissions import AuthSummary, authorization_summary, perm_rank
+from .ports import (
+    BundleStore,
+    Connected,
+    ProfileStore,
+    SettingsStore,
+    WorkspaceConnector,
+)
+from .secret_store import SecretStore
+
+__all__ = [
+    "SOURCE_BUNDLE",
+    "SOURCE_PROFILE",
+    "SOURCE_URL",
+    "STALE_AFTER_DAYS",
+    "Acl",
+    "AuthError",
+    "Exists",
+    "AuthSummary",
+    "BundleStore",
+    "Connected",
+    "Identity",
+    "ProfileStore",
+    "Scope",
+    "Secret",
+    "SecretStore",
+    "Settings",
+    "SettingsStore",
+    "StoreError",
+    "Workspace",
+    "same_name",
+    "WorkspaceConnector",
+    "authorization_summary",
+    "normalize_host",
+    "perm_rank",
+]

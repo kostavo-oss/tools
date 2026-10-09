@@ -1,0 +1,89 @@
+site_name: Caland
+site_description: "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
+site_author: Misja Pronk
+site_url: https://kostavo-oss.github.io/caland/
+
+repo_name: kostavo-oss/caland
+repo_url: https://github.com/kostavo-oss/caland
+edit_uri: edit/main/docs/
+
+copyright: Apache-2.0 © Misja Pronk
+
+theme:
+  name: material
+  font: false # use the system font stack (SF on macOS) for a native, calm feel
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/grid
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to light
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kostavo-oss/caland
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/caland/
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Guide:
+      - Connecting: connecting.md
+      - Using the page: page.md
+  - Security: security.md
+  - Develop:
+      - Architecture: architecture.md
+      - Contributing: contributing.md

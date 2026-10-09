@@ -1,0 +1,143 @@
+/* lely's page, taken over as it is: the colours and what they mean, the type, the shapes */
+:root { color-scheme: light dark; --edge: #8884; --dim: #888c; --sunk: #8881;
+  --green: #2e8b57; --amber: #b8860b; --red: #c0392b; --blue: #3b7dd8; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0 auto; padding: 1.4rem 1.5rem 1rem; max-width: 78rem;
+  display: flex; flex-direction: column;
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+code, pre, kbd, .mono { font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+h1 { font-size: 1.35rem; margin: 0; font-weight: 600; }
+h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--dim); font-weight: 600; margin: 0 0 .4rem; }
+h2 .mono { text-transform: none; letter-spacing: 0; }
+.dim, .meta, footer { color: var(--dim); }
+.meta { font-size: .85rem; overflow-wrap: anywhere; }
+.alert { border: 1px solid var(--red); border-left-width: .4rem; border-radius: .4rem;
+  padding: .6rem .9rem; margin: .8rem 0 0; }
+.quiet { border-left: .25rem solid var(--edge); padding: .1rem .7rem; margin: .8rem 0;
+  color: var(--dim); }
+.state { font-size: .75rem; border: 1px solid var(--edge); border-radius: 1rem;
+  padding: 0 .55rem; white-space: nowrap; }
+.state.waiting { border-color: var(--amber); color: var(--amber); }
+footer { margin-top: 1rem; border-top: 1px solid var(--edge); padding-top: .6rem;
+  font-size: .82rem; }
+
+/* what a tool needs and a report does not: the same few shapes, nothing new in colour */
+.state.read, .state.none { color: var(--dim); }
+.state.write { color: var(--blue); border-color: var(--blue); }
+.state.manage { color: var(--amber); border-color: var(--amber); font-weight: 700; }
+kbd { color: var(--dim); border: 1px solid var(--edge); border-radius: .3rem;
+  padding: 0 .3rem; font-size: 11.5px; }
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 1px solid var(--edge); border-radius: .4rem;
+  padding: .22rem .7rem; cursor: pointer; }
+button:hover { background: var(--sunk); }
+button.main { font-weight: 600; border-color: currentColor; }
+button.danger { color: var(--red); border-color: var(--red); }
+button kbd { margin-left: .35rem; }
+input[type=text], input[type=password], select { background: none;
+  border: 1px solid var(--edge); border-radius: .4rem; padding: .32rem .6rem; width: 100%; }
+button, input, select { font: inherit; color: inherit; }
+.bad { color: var(--red); margin: .6rem 0 0; }
+/* started read-only: what changes a workspace is not on the page. The server refuses it
+   whatever the page shows. */
+[data-read-only=true] [data-changes] { display: none !important; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+dialog:focus-visible { outline: none; }
+/* a pane is one stop for tab; inside it the row shows where the keyboard is, not a ring.
+   blue is the keyboard, wherever it is: the bar on a row, the ring on a button */
+#scopes:focus, #keys:focus, #detail:focus { outline: none; }
+#scopes:focus [aria-selected=true], #keys:focus tr[aria-selected=true] td:first-child {
+  box-shadow: inset 3px 0 0 var(--blue); }
+section:focus-within > h2:first-child { color: inherit; }
+
+header { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline;
+  border-bottom: 1px solid var(--edge); padding-bottom: .8rem; }
+header .who { margin-left: auto; }
+.bar { display: flex; gap: .9rem; align-items: center; margin: .9rem 0 1.1rem; }
+.bar .filter { flex: 1; position: relative; }
+.bar .filter kbd { position: absolute; right: .6rem; top: .5rem; }
+
+/* the three panes fill what is left of the window, and each scrolls by itself */
+#app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+main { flex: 1; min-height: 0; display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 23rem; gap: 0 1.6rem; }
+section { min-height: 0; display: flex; flex-direction: column; }
+section + section { border-left: 1px solid var(--edge); padding-left: 1.6rem; }
+#scopes, #keys, #detail { overflow-y: auto; }
+#scopes, #keys { flex: 0 1 auto; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li, table.keys tbody tr { cursor: pointer; }
+.rows li { display: flex; gap: .6rem; padding: .16rem .5rem; border-radius: .3rem; }
+.rows li .count { margin-left: auto; color: var(--dim); font-weight: 400; }
+.rows li small { color: var(--dim); font-weight: 400; }
+.rows li.out { color: var(--dim); }
+[aria-selected=true] { background: var(--sunk); font-weight: 600; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--edge);
+  padding: .25rem .6rem .25rem .5rem; position: sticky; top: 0; background: Canvas; }
+td { padding: .2rem .6rem .2rem .5rem; vertical-align: top; overflow-wrap: anywhere; }
+td.num { color: var(--dim); white-space: nowrap; font-weight: 400; }
+.none { color: var(--dim); padding: .4rem .5rem; margin: 0; }
+
+.name { font-weight: 600; font-size: 1.02rem; overflow-wrap: anywhere; }
+dl.facts { display: grid; grid-template-columns: 6.2rem 1fr; gap: .15rem .6rem;
+  margin: .5rem 0 1rem; }
+dl.facts dt { color: var(--dim); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+pre.value { background: var(--sunk); padding: .7rem .9rem; border-radius: .4rem;
+  margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  border-left: .25rem solid var(--edge); }
+pre.value.shown { border-left-color: var(--green); }
+.acts { display: flex; flex-wrap: wrap; gap: .45rem; margin: .5rem 0 1.2rem; }
+#detail h2 { margin-top: .2rem; }
+
+dialog { border: 1px solid var(--edge); border-radius: .6rem; padding: 1.2rem 1.4rem;
+  width: 36rem; max-width: calc(100vw - 2rem); background: Canvas; color: CanvasText; }
+dialog::backdrop { background: #0007; }
+dialog h1 { font-size: 1.1rem; margin-bottom: .8rem; }
+dialog td:first-child { white-space: nowrap; }
+dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
+dialog label { display: block; margin: .7rem 0 .2rem; color: var(--dim); font-size: .85rem; }
+dialog label.check { color: inherit; font-size: inherit; margin-top: .9rem; }
+dialog td.end { text-align: right; white-space: nowrap; }
+.or { display: flex; gap: .7rem; align-items: center; color: var(--dim);
+  font-size: .8rem; margin: .7rem 0 .5rem; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--edge); }
+.drop { border: 1px dashed var(--edge); border-radius: .4rem; padding: .8rem .9rem;
+  display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
+.drop.over { border-color: var(--blue); background: var(--sunk); }
+.picked { border: 1px solid var(--edge); border-left: .25rem solid var(--green);
+  border-radius: .4rem; padding: .5rem .9rem; margin-top: .6rem; }
+.picked dl.facts { margin: .3rem 0 0; }
+.grant { display: grid; grid-template-columns: 1fr 8rem auto; gap: .5rem; margin-top: .9rem; }
+#code-rows button, #env-rows button { display: block; width: 100%; text-align: left;
+  margin: .4rem 0; padding: .45rem .8rem; }
+#code-rows .mono, #env-rows span { display: block; overflow-wrap: anywhere; }
+#list, #picker { width: 48rem; }
+#picker-box { max-height: 40vh; overflow-y: auto; }
+#picker-box:focus, #list-box:focus, #grants-box:focus { outline: none; }
+#picker-box:focus tr[aria-selected=true] td:first-child,
+#list-box:focus tr[aria-selected=true] td:first-child,
+#grants-box:focus tr[aria-selected=true] td:first-child { box-shadow: inset 3px 0 0 var(--blue); }
+#picker tbody tr { cursor: pointer; }
+#list-box { max-height: 60vh; overflow-y: auto; }
+#list tbody tr { cursor: pointer; }
+#list-filter { margin-bottom: .6rem; }
+th.sorted::after { content: " \2191"; }
+th.sorted.down::after { content: " \2193"; }
+th[id^=by-] { cursor: pointer; }
+#toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%);
+  background: Canvas; border: 1px solid var(--edge); border-left: .25rem solid var(--green);
+  border-radius: .4rem; padding: .4rem .9rem; max-width: 40rem; }
+#toast.bad { border-left-color: var(--red); }
+[hidden] { display: none !important; }
+@media (max-width: 62rem) {
+  html, body { height: auto; }
+  main { display: block; }
+  section + section { border-left: 0; padding-left: 0; border-top: 1px solid var(--edge);
+    padding-top: 1rem; margin-top: 1.2rem; }
+}

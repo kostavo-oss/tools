@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>caland</title>
+<link rel="stylesheet" href="/page.css">
+<script src="/page.js" defer></script>
+</head>
+<body>
+
+<header>
+  <h1>caland</h1>
+  <span class="meta mono" id="host"></span>
+  <span class="state waiting" id="read-only" hidden>read-only</span>
+  <span class="meta who" id="who"></span>
+  <button id="help-open">Keys <kbd>?</kbd></button>
+</header>
+
+<div class="alert" id="trouble" role="alert" hidden></div>
+
+<div class="quiet" id="locked" hidden>
+  <p>This page has no key to caland.</p>
+  <p>Go to the terminal caland runs in and press <kbd>enter</kbd> for a new link. If it is
+    not running any more, start it again.</p>
+</div>
+
+<div id="app" hidden>
+  <div class="bar">
+    <div class="filter">
+      <input type="text" id="filter" placeholder="Filter scopes and secrets" autocomplete="off"
+             spellcheck="false" aria-label="Filter scopes and secrets">
+      <kbd>/</kbd>
+    </div>
+    <button type="button" class="main" id="new-open" data-changes>New secret <kbd>n</kbd></button>
+    <button type="button" id="scope-new" data-changes>New scope <kbd>N</kbd></button>
+    <span class="meta" id="progress" role="status"></span>
+  </div>
+
+  <main>
+    <section aria-label="Scopes" data-pane="scopes">
+      <h2 id="scopes-title">Scopes</h2>
+      <ul class="rows" id="scopes" role="listbox" aria-labelledby="scopes-title" tabindex="0"></ul>
+      <p class="none" id="scopes-none" hidden></p>
+    </section>
+
+    <section aria-label="Secrets" data-pane="secrets">
+      <h2 id="secrets-title">Secrets</h2>
+      <div id="keys" tabindex="0" role="group" aria-labelledby="secrets-title">
+        <table class="keys">
+          <thead><tr><th id="by-key">Key</th><th id="by-changed">Last changed</th><th>Age</th></tr></thead>
+          <tbody id="secrets"></tbody>
+        </table>
+      </div>
+      <p class="none" id="secrets-none" hidden></p>
+    </section>
+
+    <!-- tabindex -1: a browser makes what scrolls a stop for tab by itself, and a pane
+         is one stop — its first button -->
+    <section aria-label="Detail" id="detail" data-pane="detail" tabindex="-1"></section>
+  </main>
+</div>
+
+<footer>
+  <span id="version">caland</span> &middot; served from this machine only &middot; a secret's
+  value is in this page only while it is shown
+</footer>
+
+<dialog id="code" aria-labelledby="code-title">
+  <h1 id="code-title">Copy how to reach it</h1>
+  <div id="code-rows"></div>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<!-- a secret, new or edited: a value typed, or a file chosen (spec/008, R4–R6) -->
+<dialog id="form" aria-labelledby="form-title">
+  <h1 id="form-title">New secret</h1>
+  <label for="form-scope">Scope</label>
+  <select id="form-scope"></select>
+  <label for="form-key">Key</label>
+  <input type="text" id="form-key" class="mono" autocomplete="off" spellcheck="false">
+  <label for="form-value">Value</label>
+  <input type="password" id="form-value" class="mono" autocomplete="off" data-1p-ignore
+         data-lpignore="true" data-bwignore>
+  <div class="or">or a file &mdash; a certificate, a key, anything of more than one line</div>
+  <div class="drop" id="drop">
+    <button type="button" id="choose">Choose a file&hellip;</button>
+    <span class="dim">or drop one here</span>
+    <input type="file" id="file" hidden>
+  </div>
+  <div class="picked" id="picked" hidden></div>
+  <p class="quiet" id="picked-note" hidden></p>
+  <p class="bad" id="form-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="form-save">Save <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="move" aria-labelledby="move-title">
+  <h1 id="move-title">Move or copy</h1>
+  <p class="meta mono" id="move-from"></p>
+  <label for="move-scope">To scope</label>
+  <select id="move-scope"></select>
+  <label for="move-key">Key</label>
+  <input type="text" id="move-key" class="mono" autocomplete="off" spellcheck="false">
+  <label class="check"><input type="checkbox" id="move-keep"> Keep the original: copy, not move</label>
+  <p class="bad" id="move-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="move-save">Save <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="grants" aria-labelledby="grants-title">
+  <h1 id="grants-title">Who has access to <span class="mono" id="grants-scope"></span></h1>
+  <div id="grants-box" tabindex="-1">
+    <table>
+      <thead><tr><th>Principal</th><th>May</th><th></th></tr></thead>
+      <tbody id="grants-rows"></tbody>
+    </table>
+  </div>
+  <p class="none" id="grants-none" hidden>No grants are listed. Listing them takes MANAGE on the
+    scope.</p>
+  <p class="meta" data-changes><kbd>&uarr;</kbd> <kbd>&darr;</kbd> pick a grant &middot;
+    <kbd>e</kbd> change it &middot; <kbd>d</kbd> remove it</p>
+  <p class="quiet">Grants are for a whole scope: whoever may read one secret in it may read
+    them all.</p>
+  <div class="grant" data-changes>
+    <input type="text" id="grant-who" placeholder="a user, a group or a service principal"
+           autocomplete="off" spellcheck="false" aria-label="Principal">
+    <select id="grant-may" aria-label="Permission"><option>READ</option><option>WRITE</option>
+      <option>MANAGE</option></select>
+    <button type="button" class="main" id="grant-give">Grant</button>
+  </div>
+  <p class="bad" id="grants-error" role="alert" hidden></p>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<dialog id="scope-form" aria-labelledby="scope-title">
+  <h1 id="scope-title">New scope</h1>
+  <label for="scope-name">Name</label>
+  <input type="text" id="scope-name" class="mono" autocomplete="off" spellcheck="false">
+  <p class="bad" id="scope-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close>Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="scope-save">Make it <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<!-- nothing destructive without a deliberate y (spec/006, R3) -->
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <h1 id="confirm-title"></h1>
+  <div id="confirm-what"></div>
+  <p class="dim" id="confirm-note"></p>
+  <div class="acts">
+    <button type="button" data-close id="confirm-no">Cancel <kbd>esc</kbd></button>
+    <button type="button" class="danger" id="confirm-yes"><span id="confirm-do"></span> <kbd>y</kbd></button>
+  </div>
+</dialog>
+
+<!-- one dialog for every list that is looked through and picked from: the stale report,
+     the overview, who has access -->
+<dialog id="list" aria-labelledby="list-title">
+  <h1 id="list-title"></h1>
+  <input type="text" id="list-filter" autocomplete="off" spellcheck="false" hidden>
+  <p class="meta" id="list-note"></p>
+  <div id="list-box" tabindex="-1">
+    <table>
+      <thead id="list-head"></thead>
+      <tbody id="list-rows"></tbody>
+    </table>
+  </div>
+  <p class="none" id="list-none" hidden></p>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<dialog id="env" aria-labelledby="env-title">
+  <h1 id="env-title">Copy <span class="mono" id="env-scope"></span> as .env</h1>
+  <div id="env-rows">
+    <button type="button" id="env-keys"><span>Keys only <kbd>1</kbd></span>
+      <span class="meta">a template of KEY= lines, for another scope or a .env.example</span></button>
+    <button type="button" id="env-values"><span>With values <kbd>2</kbd></span>
+      <span class="meta">every value of the scope is read and put on the clipboard</span></button>
+  </div>
+  <div class="acts"><button type="button" data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+<input type="file" id="env-file" hidden>
+
+<!-- which workspace: one that was found, or one at an address -->
+<dialog id="picker" aria-labelledby="picker-title">
+  <h1 id="picker-title">Choose a workspace</h1>
+  <div id="picker-box" tabindex="-1">
+    <table>
+      <thead><tr><th>Workspace</th><th>Address</th><th>Found in</th></tr></thead>
+      <tbody id="picker-rows"></tbody>
+    </table>
+  </div>
+  <p class="none" id="picker-none" hidden>None was found: there is no databricks.yml here and
+    no profile in ~/.databrickscfg. Sign in to one by its address.</p>
+  <div class="or">or sign in to one by its address, through the browser</div>
+  <label for="picker-url">Address</label>
+  <input type="text" id="picker-url" class="mono" autocomplete="off" spellcheck="false">
+  <label class="check"><input type="checkbox" id="picker-save"> Keep it as a profile, to come
+    back to by name</label>
+  <div id="picker-keep" hidden>
+    <label for="picker-name">Its name</label>
+    <input type="text" id="picker-name" class="mono" autocomplete="off" spellcheck="false">
+    <p class="quiet">Kept in ~/.databrickscfg: the address, and that you sign in through the
+      browser. No token is written.</p>
+  </div>
+  <p class="bad" id="picker-error" role="alert" hidden></p>
+  <div class="acts">
+    <button type="button" data-close id="picker-close">Cancel <kbd>esc</kbd></button>
+    <button type="button" class="main" id="picker-go">Sign in <kbd>enter</kbd></button>
+  </div>
+</dialog>
+
+<dialog id="help" aria-labelledby="help-title">
+  <h1 id="help-title">Keys</h1>
+  <table><tbody>
+    <tr><td><kbd>tab</kbd></td><td>The next pane: scopes, secrets, detail. <kbd>shift</kbd> <kbd>tab</kbd> goes back</td></tr>
+    <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> &middot; <kbd>h</kbd> <kbd>l</kbd></td><td>Also from pane to pane</td></tr>
+    <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> &middot; <kbd>j</kbd> <kbd>k</kbd></td><td>Up and down inside a pane; <kbd>g</kbd> <kbd>G</kbd> to its ends</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Filter; <kbd>&darr;</kbd> picks while you type, <kbd>enter</kbd> goes to what is left, <kbd>esc</kbd> clears</td></tr>
+    <tr><td><kbd>space</kbd></td><td>Show or hide the value; it hides itself after 30 s</td></tr>
+    <tr><td><kbd>enter</kbd></td><td>In the scopes: on to the secrets. On a secret: show or hide the value</td></tr>
+    <tr><td><kbd>c</kbd> &middot; <kbd>C</kbd></td><td>Copy the value &middot; copy how to reach it from code</td></tr>
+    <tr><td><kbd>n</kbd> &middot; <kbd>N</kbd></td><td>New secret &middot; new scope</td></tr>
+    <tr><td><kbd>e</kbd> &middot; <kbd>m</kbd> &middot; <kbd>d</kbd></td><td>Edit &middot; move, copy or rename &middot; delete the secret</td></tr>
+    <tr><td><kbd>D</kbd></td><td>Delete the scope</td></tr>
+    <tr><td><kbd>u</kbd></td><td>Put back the secret last deleted or moved away</td></tr>
+    <tr><td><kbd>p</kbd></td><td>Who has access to the scope; there <kbd>&uarr;</kbd> <kbd>&darr;</kbd> pick a grant, <kbd>e</kbd> changes it, <kbd>d</kbd> removes it</td></tr>
+    <tr><td><kbd>i</kbd> &middot; <kbd>x</kbd></td><td>Fill the scope from a .env file &middot; copy the scope as .env</td></tr>
+    <tr><td><kbd>A</kbd> &middot; <kbd>a</kbd> &middot; <kbd>P</kbd></td><td>Secrets gone stale &middot; what you can reach &middot; what somebody else can</td></tr>
+    <tr><td><kbd>s</kbd> &middot; <kbd>S</kbd></td><td>Sort the pane by its next column &middot; the other way round</td></tr>
+    <tr><td><kbd>f</kbd></td><td>Only the scopes you can reach, or all of them</td></tr>
+    <tr><td><kbd>w</kbd></td><td>Another workspace</td></tr>
+    <tr><td><kbd>r</kbd> &middot; <kbd>R</kbd></td><td>Read the scope again &middot; the whole workspace</td></tr>
+  </tbody></table>
+  <div class="acts"><button type="button" id="forget">Forget every value caland holds <kbd>z</kbd></button></div>
+  <div class="acts"><button data-close>Close <kbd>esc</kbd></button></div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+</body>
+</html>

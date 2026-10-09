@@ -1,0 +1,90 @@
+[tools]
+python = "3.14"
+uv = "latest"
+
+[env]
+# No secret stands here, and no file of them is loaded: what is under [env] is
+# shown to an assistant that asks mise for it (.mcp.json).
+# Use uv-managed virtualenv at .venv
+UV_PROJECT_ENVIRONMENT = ".venv"
+# mkdocs-material's "MkDocs 2.0" advisory: mkdocs < 2 is pinned through
+# mkdocs-material, so what it warns about can't reach us.
+NO_MKDOCS_2_WARNING = "1"
+
+# ── tasks ──────────────────────────────────────────────────────────────────
+# Run with `mise run <name>`; list them with `mise tasks`. Everything goes
+# through uv, so the project's .venv stays the source of truth. Every Kostavo
+# tool has these under these names, and an assistant reaches them through
+# mise's MCP server (.mcp.json).
+
+[tasks.dev]
+description = "Run Caland (the page)"
+alias = "run"
+run = "uv run caland"
+
+[tasks.test]
+description = "Run the tests (units, the server over HTTP, the page in Chrome)"
+alias = "t"
+run = "uv run pytest"
+
+[tasks."test:lowest"]
+description = "Run the tests on the lowest version of every dependency, as ci does"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# an environment of its own, outside the project: nothing here lints or packs it
+lowest="${TMPDIR:-/tmp}/caland-lowest"
+rm -rf "$lowest"
+uv venv --quiet --python 3.11 "$lowest"
+uv pip install --quiet --python "$lowest/bin/python" --resolution lowest-direct -e .
+uv pip install --quiet --python "$lowest/bin/python" --group dev
+# without the page in a browser: that is Chrome's to pass, not a dependency's
+PATH="$lowest/bin:$PATH" "$lowest/bin/python" -m pytest --ignore=tests/test_page_in_a_browser.py
+'''
+
+[tasks.lint]
+description = "Lint with ruff"
+run = "uv run ruff check ."
+
+[tasks.fmt]
+description = "Format with ruff"
+alias = "format"
+run = "uv run ruff format ."
+
+[tasks.fix]
+description = "Repair what ruff can repair: lint with --fix, then format"
+run = ["uv run ruff check --fix .", "uv run ruff format ."]
+
+[tasks.typecheck]
+description = "Type-check with ty"
+alias = "types"
+run = "uv run ty check"
+
+[tasks.check]
+description = "The gate before a commit: lint, format check, types, tests"
+run = [
+    "uv run ruff check .",
+    "uv run ruff format --check .",
+    "uv run ty check",
+    "uv run pytest",
+]
+
+[tasks.build]
+description = "Build the wheel and the source package into dist/"
+run = "uv build"
+
+[tasks.docs]
+description = "Preview the docs site at localhost:8000"
+run = "uv run --group docs mkdocs serve"
+
+[tasks."docs:build"]
+description = "Build the docs site (strict)"
+run = "uv run --group docs mkdocs build --strict"
+
+[tasks.ci]
+description = "Everything ci runs: the gate, the docs site and the package"
+run = [{ task = "check" }, { task = "docs:build" }, { task = "build" }]
+
+[tasks.clean]
+description = "Remove what a build and the tools leave behind"
+run = "rm -rf dist site .pytest_cache .ruff_cache"

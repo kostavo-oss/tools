@@ -1,0 +1,92 @@
+[project]
+name = "caland"
+version = "0.7.1"
+description = "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Misja Pronk" }]
+keywords = [
+    "databricks",
+    "secrets",
+    "secret-manager",
+    "browser",
+    "security",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "databricks-sdk>=0.30",
+    "pyyaml>=6.0.3",
+    "cryptography>=42",
+]
+
+[project.urls]
+Homepage = "https://github.com/kostavo-oss/caland"
+Documentation = "https://kostavo-oss.github.io/caland/"
+Repository = "https://github.com/kostavo-oss/caland"
+Issues = "https://github.com/kostavo-oss/caland/issues"
+Changelog = "https://github.com/kostavo-oss/caland/blob/main/CHANGELOG.md"
+
+[project.scripts]
+caland = "caland.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/caland"]
+
+# A source package holds what is listed here and nothing else — not whatever
+# happens to lie in the folder when it is built.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "ty>=0.0.1a1",
+    "types-pyyaml>=6.0.12.20260518",
+]
+docs = [
+    "mkdocs-material>=9.7.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# a marker or an option that is misspelt is an error, not something passed over
+addopts = "-q --strict-markers --strict-config"
+
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ty.environment]
+python-version = "3.11"
+root = ["src"]
+# tests import sibling modules (e.g. `fakes`) the way pytest runs them
+extra-paths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
