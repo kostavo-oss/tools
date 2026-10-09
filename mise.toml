@@ -71,12 +71,14 @@ set -euo pipefail
 # exactly those versions; the test tools go in afterwards at whatever is
 # current — it is the package's floors that are on trial, not pytest's.
 declare -A target=([stevin]="tests/unit" [lely]="tests/unit" [leeghwater]="" [caland]="--ignore=tests/test_page_in_a_browser.py")
+# A package's extras are part of its floors too — leeghwater's tests import Key Vault.
+declare -A extras=([stevin]="" [lely]="" [leeghwater]="[keyvault]" [caland]="")
 for p in stevin lely leeghwater caland; do
   echo "== $p"
   lowest="${TMPDIR:-/tmp}/$p-lowest"
   rm -rf "$lowest"
   uv venv --quiet --python 3.11 "$lowest"
-  uv pip install --quiet --python "$lowest/bin/python" --resolution lowest-direct -e "packages/$p"
+  uv pip install --quiet --python "$lowest/bin/python" --resolution lowest-direct -e "packages/$p${extras[$p]}"
   uv pip install --quiet --python "$lowest/bin/python" --group dev
   # shellcheck disable=SC2086
   (cd "packages/$p" && PATH="$lowest/bin:$PATH" "$lowest/bin/python" -m pytest ${target[$p]})

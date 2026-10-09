@@ -147,7 +147,10 @@ jobs:
           PACKAGE: ${{ matrix.package }}
         run: |
           uv venv --python 3.11 /tmp/lowest
-          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e "packages/$PACKAGE"
+          # A package's extras are part of its floors too — leeghwater's tests import Key Vault.
+          extras=""
+          [ "$PACKAGE" = leeghwater ] && extras="[keyvault]"
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e "packages/$PACKAGE$extras"
           uv pip install --python /tmp/lowest/bin/python --group dev
           uv pip freeze --python /tmp/lowest/bin/python
       - name: Tests (pytest)
