@@ -1,0 +1,80 @@
+[project]
+name = "leeghwater"
+version = "0.1.0"
+description = "Your dlt pipeline, the same on your laptop and in a Databricks job"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Misja Pronk" }]
+keywords = ["databricks", "dlt", "dlthub", "ingestion", "secrets", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# Installed on compute it doesn't own, beside a project's own dlt: few, with low bounds.
+dependencies = [
+    "databricks-sdk>=0.50",
+    # Capped below 2: the secrets provider is a subclass of dlt's VaultDocProvider, which
+    # dlt does not promise to keep as it is. Which extras (databricks, duckdb) is the
+    # project's to say.
+    "dlt>=1.30,<2",
+    "typer>=0.17.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/kostavo-oss/leeghwater"
+Documentation = "https://kostavo-oss.github.io/leeghwater/"
+Repository = "https://github.com/kostavo-oss/leeghwater"
+Issues = "https://github.com/kostavo-oss/leeghwater/issues"
+Changelog = "https://github.com/kostavo-oss/leeghwater/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+keyvault = [
+    "azure-identity>=1.15",
+    "azure-keyvault-secrets>=4.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leeghwater"]
+
+# A source package holds what is listed here and nothing else — not whatever
+# happens to lie in the folder when it is built.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
+
+[dependency-groups]
+dev = [
+    "azure-identity>=1.15",
+    # The tests load into a local DuckDB file.
+    "azure-keyvault-secrets>=4.8",
+    "dlt[duckdb]>=1.30,<2",
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+docs = [
+    "mkdocs-material>=9.7.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
