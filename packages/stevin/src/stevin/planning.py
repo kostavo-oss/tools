@@ -13,7 +13,12 @@ sides at once:
   and left alone whatever the mode;
 * a table stevin created whose spec has gone is **orphaned**. An additive
   schema keeps it and says so; a strict schema drops it — a destructive step,
-  which `apply` refuses without `--allow-destructive`.
+  which `apply` refuses without `--allow-destructive`;
+* a table **another tool owns** — dbt's, by its manifest or `owned_elsewhere`;
+  dlt's, by the `_dlt_*` tables beside it; a team's, by `owned_elsewhere` — is
+  never shaped, claimed or dropped. dbt's are refused outright; the others may
+  be *governed* by a spec with no columns' types, which puts tags, grants,
+  masks, a row filter and an owner on the live table and nothing else.
 """
 
 from __future__ import annotations
@@ -48,6 +53,15 @@ from stevin.model.schema import Schema
 from stevin.model.table import Table
 from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
+from stevin.owned import (
+    DBT,
+    DLT,
+    Owners,
+    dbt_refusal,
+    is_dlt_schema,
+    shape_refusal,
+    unowned_refusal,
+)
 from stevin.planner import build_plan
 
 
@@ -75,6 +89,7 @@ def plan_tables(
     select: Callable[[str], bool] | None = None,
     owned_elsewhere: Mapping[str, str] | None = None,
     manage: Manage = EVERYTHING,
+    owners: Owners | None = None,
 ) -> Plan:
     """Plan every function, table and view against live state.
 
@@ -97,6 +112,13 @@ def plan_tables(
     `owned_elsewhere` maps the full name of a catalog, schema or volume another
     tool declares — a Databricks Asset Bundle — to what declares it. stevin
     neither creates nor manages those; the tables inside them are its business.
+
+    `owners` says whose *tables* are whose, from the project's files — the
+    dbt manifest, `owned_elsewhere:` — and a dlt pipeline's are known by the
+    `_dlt_*` tables beside them. A spec for dbt's table is refused; a table of
+    any other owner may be governed, never shaped (`Table.governance_only`);
+    and the owned tables no spec names are reported as theirs, not as
+    unmanaged.
     """
     _refuse_described_twice(specs)
     # Functions have a namespace of their own; only tables and views can clash.
@@ -104,9 +126,11 @@ def plan_tables(
     if select is not None:
         specs = [spec for spec in specs if select(spec.name)]
     schemas = live_schemas(specs, introspector)
+    owner_of = _owner_of(owners, schemas)
     relations = order_relations(specs)
     functions = [spec for spec in relations if isinstance(spec, Function)]
     _refuse_bundle_conflicts(specs, schemas, owned_elsewhere or {})
+    _refuse_owned(specs, owner_of)
     _refuse_kind_changes([s for s in specs if isinstance(s, Table | View)], schemas)
     _refuse_shared_names(
         [*functions, *[s for s in specs if isinstance(s, Volume)]], described, schemas
@@ -159,6 +183,9 @@ def plan_tables(
         table = relation
         found = _schema_of(schemas, table.name)
         live = found.get(table.name)
+        if table.governance_only:
+            diffs.append(_governed_diff(table, live, introspector, manage, found))
+            continue
         renaming, notes = _rename(table, live, found)
         if table.renamed_from is not None:
             # Whatever else happens, a table a spec says it used to be is not an
@@ -208,12 +235,17 @@ def plan_tables(
 
     unmanaged_tables: list[str] = []
     orphaned_tables: list[str] = []
+    owned_tables: list[tuple[str, str]] = []
     for (catalog, schema), found in sorted(schemas.items() if select is None else ()):
         strict = mode_for(f"{catalog}.{schema}") == "strict"
         for live in found.tables:
             if live.table.name in described:
                 continue
-            if not live.table.managed:
+            owner = owner_of(live.table.name)
+            if owner is not None:
+                # Theirs, whatever the mode and whatever marker it carries.
+                owned_tables.append((live.table.name, owner))
+            elif not live.table.managed:
                 unmanaged_tables.append(live.table.name)
             elif strict:
                 # About to be dropped: read in full, as apply will read it again
@@ -233,7 +265,10 @@ def plan_tables(
         for live_view in found.views:
             if live_view.name in described:
                 continue
-            if not live_view.managed:
+            owner = owner_of(live_view.name)
+            if owner is not None:
+                owned_tables.append((live_view.name, owner))
+            elif not live_view.managed:
                 unmanaged_tables.append(live_view.name)
             elif strict:
                 drop = Change(live_view.name, "drop_table", before=live_view)
@@ -260,7 +295,98 @@ def plan_tables(
         built,
         unmanaged_tables=tuple(sorted(unmanaged_tables)),
         orphaned_tables=tuple(sorted(orphaned_tables)),
+        owned_tables=tuple(sorted(owned_tables)),
         not_managed=manage.elsewhere,
+    )
+
+
+def _owner_of(
+    owners: Owners | None, schemas: dict[tuple[str, str], LiveSchema]
+) -> Callable[[str], str | None]:
+    """Whose is this full name: what the files say, else dlt's if the schema
+    carries dlt's bookkeeping tables, else nobody's."""
+    dlt_schemas = {
+        key
+        for key, found in schemas.items()
+        if is_dlt_schema(live.table.name for live in found.tables)
+    }
+
+    def owner_of(name: str) -> str | None:
+        owner = owners.owner_of(name) if owners else None
+        if owner is not None:
+            return owner
+        parts = name.split(".")
+        if len(parts) == 3 and (parts[0], parts[1]) in dlt_schemas:
+            return DLT
+        return None
+
+    return owner_of
+
+
+def _refuse_owned(
+    specs: Sequence[Relation], owner_of: Callable[[str], str | None]
+) -> None:
+    """A spec for another tool's table, before anything is planned.
+
+    dbt's tables take no spec at all. Any other owner's take a governance-only
+    spec and never a shape; and a governance-only spec needs an owner, or it is
+    a spec with the columns forgotten.
+    """
+    for spec in specs:
+        if not isinstance(spec, Table | View):
+            continue
+        owner = owner_of(spec.name)
+        if owner == DBT:
+            raise PlanningError(dbt_refusal(spec.name))
+        governance_only = isinstance(spec, Table) and spec.governance_only
+        if governance_only and owner is None:
+            raise PlanningError(unowned_refusal(spec.name))
+        if not governance_only and owner is not None:
+            raise PlanningError(shape_refusal(spec.name, owner))
+
+
+def _governed_diff(
+    table: Table,
+    live: LiveTable | None,
+    introspector: Introspector,
+    manage: Manage,
+    found: LiveSchema,
+) -> TableDiff:
+    """A governance-only spec against the table it governs.
+
+    The live shape with the spec's governance laid over it is diffed as any
+    table is, so only governance can come out: tags, grants, masks, a row
+    filter, an owner. No claim — the table stays the other tool's — and no
+    create: a table that isn't there yet is theirs to make first.
+    """
+    if live is None:
+        raise PlanningError(
+            f"{table.name} isn't there yet, and its spec only governs it — whoever "
+            "owns it makes it first; stevin won't create a table it doesn't shape"
+        )
+    try:
+        desired = table.govern(live.table)
+    except KeyError as error:
+        raise PlanningError(
+            f"{table.name} has no column {error.args[0]!r} to govern"
+        ) from error
+    live_table = strip(live.table, manage)
+    changes = diff(desired, live_table)
+    facts = _facts(
+        introspector,
+        table.name,
+        live,
+        changed=bool(changes),
+        schema_exists=found.exists,
+    )
+    return TableDiff(
+        table.name,
+        changes,
+        facts,
+        (*unmanaged(desired, live_table), *_not_modelled(live)),
+        desired=desired,
+        live=live.table,
+        notes=("governs a table another tool makes: shape left to them",),
     )
 
 
@@ -357,8 +483,8 @@ def _references(spec: Orderable) -> str:
         names = [spec.row_filter.function] if spec.row_filter else []
         names += [
             column.mask.function
-            for column in spec.columns
-            if getattr(column, "mask", None) is not None and column.mask
+            for column in (*spec.columns, *spec.governed_columns)
+            if column.mask is not None
         ]
         return " ".join(names)
     return ""

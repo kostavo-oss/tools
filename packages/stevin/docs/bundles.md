@@ -70,6 +70,10 @@ A catalog, schema or volume the bundle declares is the bundle's:
 
 So the order of a first run is: `databricks bundle deploy`, then `stevin apply`.
 
+The bundle's objects are containers — catalogs, schemas, volumes. For the *tables*
+other tools make inside them — dbt's, a dlt pipeline's — see
+[whose tables are whose](spec.md#whose-tables-are-whose).
+
 ## Development mode, and other renaming
 
 A target in `mode: development`, or one with `presets.name_prefix`, does not deploy the

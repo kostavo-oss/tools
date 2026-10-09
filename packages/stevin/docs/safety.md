@@ -15,6 +15,12 @@ tables themselves.
   the plan **claims** it — a visible `CLAIM ownership` step that sets the marker. This
   is how `import` hands a table over: import writes the specs, and the first apply
   claims the tables.
+- A table **another tool owns** is never claimed, reshaped or dropped. The project
+  file says whose it is (`owned_elsewhere:`, a dbt manifest), and a dlt pipeline's
+  schema says so itself. dbt's tables take no spec; the others may be *governed* by a
+  spec with no columns' types — tags, grants, masks, a row filter, an owner — and are
+  reported as theirs, not as unmanaged.
+  [Whose tables are whose →](spec.md#whose-tables-are-whose)
 
 ```
 sales.orders   ~ update

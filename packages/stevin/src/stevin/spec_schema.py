@@ -230,6 +230,20 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
         required={"name", "type"},
         manage=manage,
     )
+    governed: dict[str, Schema] = {
+        "name": _text("A column of a table another tool makes."),
+        "comment": {"type": "string"},
+        "tags": SETTABLE_MAP,
+    }
+    if "mask" in defs["field"]["properties"]:  # not when masks are handed over
+        governed["mask"] = defs["field"]["properties"]["mask"]
+    defs["governed_column"] = _object(
+        loader.GOVERNED_COLUMN_KEYS,
+        governed,
+        required={"name"},
+        description="A column named only to govern it: no type.",
+        manage=manage,
+    )
     constraint = {
         "oneOf": [
             _object(
@@ -298,8 +312,18 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
             "tags": SETTABLE_MAP,
             "properties": SETTABLE_MAP,
             "columns": {
+                "description": (
+                    "The columns with their types — or, for a table another tool "
+                    "makes, just names with a mask, tags or a comment: a "
+                    "governance-only spec."
+                ),
                 "type": "array",
-                "items": {"$ref": "#/definitions/field"},
+                "items": {
+                    "oneOf": [
+                        {"$ref": "#/definitions/field"},
+                        {"$ref": "#/definitions/governed_column"},
+                    ]
+                },
                 "minItems": 1,
             },
             "constraints": {"type": "array", "items": constraint},
@@ -325,8 +349,11 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
                 ],
             },
         },
-        required={"table", "columns"},
-        description="A Delta table.",
+        required={"table"},
+        description=(
+            "A Delta table. Without `columns` — or with columns that have no "
+            "`type` — the spec only governs a table another tool makes."
+        ),
         manage=manage,
     )
     view = _object(
@@ -436,6 +463,19 @@ def project_schema() -> Schema:
                     "additionalProperties": mode,
                 },
                 "bundle": _text("A databricks.yml whose targets to use."),
+                "owned_elsewhere": STRING_MAP
+                | {
+                    "description": (
+                        "Whose tables are whose: catalog.schema.table patterns, * "
+                        "for any part, to an owner — dbt, dlt, a team's name, or "
+                        "unknown. dbt's are refused; the others may be governed."
+                    )
+                },
+                "dbt": _object(
+                    loader.DBT_KEYS,
+                    {"manifest": _text("dbt's target/manifest.json: what dbt builds.")},
+                    required={"manifest"},
+                ),
                 "manage": {
                     "type": "object",
                     "description": (

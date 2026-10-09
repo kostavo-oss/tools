@@ -270,6 +270,32 @@ its own. Anything no spec describes is listed as unmanaged and left alone.
 
 [Safety model →](safety.md)
 
+## Governing a table you don't own
+
+A dlt pipeline lands the customers; the data scientists write their features from a
+notebook. Neither will use stevin for the shape — but somebody has to say who may see
+those tables, and that used to be a setup notebook. A spec with no columns' types does
+it: tags, grants, masks, a row filter, and nothing else. stevin never claims, reshapes
+or drops the table; a dlt schema is known by its `_dlt_*` tables, anyone else by
+`owned_elsewhere:` in the project file.
+
+```yaml title="tables/customers.yml"
+--8<-- "assets/screens/feature-govern.yml"
+```
+
+![Governing a dlt pipeline's table](assets/screens/feature-govern.svg)
+
+dbt's tables are the exception: a spec for one is refused, because dbt's own config
+carries grants and tags and a `table` materialisation would drop the masks.
+
+```yaml title="stevin.yml"
+--8<-- "assets/screens/feature-owned.yml"
+```
+
+![A spec for dbt's table is refused](assets/screens/feature-owned.svg)
+
+[Whose tables are whose →](spec.md#whose-tables-are-whose)
+
 ## Adopting drift
 
 Someone added a column by hand at 2am to unblock a load. `stevin drift` says so —

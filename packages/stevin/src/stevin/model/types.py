@@ -183,6 +183,27 @@ class Mask:
 
 
 @dataclass(frozen=True, slots=True)
+class GovernedColumn:
+    """What a spec says about a column of a table it doesn't shape.
+
+    A governance-only spec — one for a table another tool makes — names a
+    column only to put a mask, tags or a comment on it. No type, because the
+    type is the other tool's; what the column *is* comes from the live table
+    when the plan is made (`Table.govern`).
+    """
+
+    name: str
+    comment: str | None = None
+    tags: tuple[tuple[str, str], ...] = ()
+    removed_tags: tuple[str, ...] = ()
+    mask: Mask | None = None
+
+    def __post_init__(self) -> None:
+        if self.tags:
+            object.__setattr__(self, "tags", tuple(sorted(self.tags)))
+
+
+@dataclass(frozen=True, slots=True)
 class Identity:
     """`GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY (START WITH … INCREMENT BY …)`.
 

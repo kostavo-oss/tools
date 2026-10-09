@@ -101,6 +101,8 @@ def sql_cannot_say(relation: Relation) -> str | None:
         return "volumes"
     if not isinstance(relation, Table):
         return None
+    if relation.governance_only:
+        return "a governance-only spec"
     found: list[str] = []
     if any(column.tags for column in relation.columns):
         found.append("column tags")

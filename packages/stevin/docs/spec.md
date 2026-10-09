@@ -101,6 +101,64 @@ and tags stevin set stay where they are.
     with those keys left out; point your editor at that file and it stops offering what
     `validate` would refuse.
 
+### Whose tables are whose
+
+Some tables in the schemas stevin works in are another tool's: a dbt model, a dlt
+pipeline's landing table, a notebook team's output. The project file can say so, and a
+dbt manifest can say it for dbt:
+
+```yaml
+owned_elsewhere:                        # catalog.schema.table patterns, * for any part
+  ${catalog}.silver.*: dbt
+  ${catalog}.science.*: the data-science team
+dbt:
+  manifest: ../analytics/target/manifest.json   # what dbt builds is dbt's
+```
+
+A dlt pipeline needs no telling: a schema that holds dlt's own `_dlt_loads` and
+`_dlt_version` tables is dlt's, every table in it. (A heuristic, and an honest one: a
+schema someone copied `_dlt_loads` into would pass.)
+
+What an owner means:
+
+- **dbt's** tables take no spec at all. dbt's own config carries their grants and tags,
+  and a `table` materialisation recreates the table and drops its masks, so two writers
+  would fight every run. A spec for one is refused at `validate` and at `plan`, naming
+  the file. For PII in dbt's tables, use a schema-level policy.
+- **dlt's**, a team's, or an `unknown` owner's tables can be *governed* — see below —
+  and never shaped: a spec with columns' types for one is refused.
+- Everything else is as it always was: stevin's to shape, or unmanaged.
+
+A plan reports the owned tables it saw as *theirs* — "dlt's", "dbt's", "the
+data-science team's" — rather than as unmanaged, and `import` skips dbt's and writes
+a governance-only spec for the others.
+
+#### A governance-only spec
+
+A spec with no columns' types says who may see a table and nothing about its shape:
+
+```yaml
+table: ${catalog}.raw.customers          # dlt lands it; stevin only says who may see it
+tags: {domain: sales, source: crm}
+columns:                                 # names only — the shape is dlt's
+  - {name: email, mask: "${catalog}.security.mask_email", tags: {pii: email}}
+grants:
+  - {principal: analysts, privileges: [SELECT]}
+row_filter:
+  function: ${catalog}.security.by_region
+  columns: [region]
+```
+
+It may carry `tags`, `grants`, `row_filter`, `owner`, a `comment`, and columns with a
+`mask`, `tags` or a `comment` — and nothing about the shape: no types, constraints,
+clustering, partitioning, properties, seeds or renames. The plan lays it over the live
+table and finds only governance to change; the table is never claimed, so it can never
+become a drop candidate, and a column or table the spec names that isn't there stops
+the plan — whoever owns it makes it first. What the spec doesn't mention — a comment
+the owner wrote, a mask it doesn't name — is kept and reported, as for any spec.
+
+`adopt` doesn't read a governance-only spec back yet; edit it by hand.
+
 ### Next to an Asset Bundle
 
 A project that already has a [Databricks Asset Bundle](https://docs.databricks.com/aws/en/dev-tools/bundles/)

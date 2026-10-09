@@ -177,7 +177,12 @@ constraints:
             "columns: [{name: a, type: int}]\n",
             "needs a 'table', 'view', 'function', 'schema' or 'volume' key",
         ),
-        ("table: c.s.t\n", "needs a 'columns' key"),
+        (
+            "table: c.s.t\ncolumns: [{name: a}, {name: b, type: int}]\n",
+            "every column's type, or none",
+        ),
+        ("table: c.s.t\ncluster_by: [a]\n", "can't say 'cluster_by'"),
+        ("table: c.s.t\ncolumns: [{name: a, nullable: false}]\n", "unknown key"),
         ("table: c.s.t\ncolumns: []\n", "at least one column"),
         (
             "table: c.s.t\ncolumns: [{name: a, type: int}]\nnope: 1\n",
@@ -188,7 +193,6 @@ constraints:
             "unknown key 'nulable'",
         ),
         ("table: c.s.t\ncolumns: [{type: int}]\n", "needs a 'name' key"),
-        ("table: c.s.t\ncolumns: [{name: a}]\n", "needs a 'type' key"),
         ("table: c.s.t\ncolumns: [{name: a, type: strin g}]\n", "unexpected trailing"),
         (
             "table: c.s.t\ncolumns: [{name: a, type: int, nullable: yep}]\n",

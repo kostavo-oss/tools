@@ -29,6 +29,8 @@
         comment=None,
         constraints=tuple(
         ),
+        governed_columns=tuple(
+        ),
         grants=tuple(
         ),
         name='main.sales.orders',

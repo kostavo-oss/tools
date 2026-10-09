@@ -28,7 +28,14 @@ from stevin.model.table import (
     RowFilter,
     Table,
 )
-from stevin.model.types import Field, Identity, Mask, as_data_type, render_type
+from stevin.model.types import (
+    Field,
+    GovernedColumn,
+    Identity,
+    Mask,
+    as_data_type,
+    render_type,
+)
 from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
 from stevin.typeparser import parse_type
@@ -57,6 +64,7 @@ def plan_to_dict(plan: Plan) -> dict[str, Any]:
         "unmanaged_tables": list(plan.unmanaged_tables),
         "not_managed": list(plan.not_managed),
         "orphaned_tables": list(plan.orphaned_tables),
+        "owned_tables": [[name, owner] for name, owner in plan.owned_tables],
         "tables": [_diff_to_dict(diff) for diff in plan.diffs],
         "steps": [_step_to_dict(step) for step in plan.steps],
     }
@@ -304,6 +312,16 @@ def _table_to_dict(table: Table) -> dict[str, Any]:
         "constraints": [_value(constraint) for constraint in table.constraints],
         "grants": {grant.principal: list(grant.privileges) for grant in table.grants},
         "row_filter": _row_filter_to_dict(table.row_filter) if table.row_filter else None,
+        "governed_columns": [
+            {
+                "name": column.name,
+                "comment": column.comment,
+                "tags": dict(column.tags),
+                "removed_tags": list(column.removed_tags),
+                "mask": _mask_to_dict(column.mask) if column.mask else None,
+            }
+            for column in table.governed_columns
+        ],
     }
 
 
@@ -348,6 +366,10 @@ def plan_from_dict(document: dict[str, Any]) -> Plan:
             unmanaged_tables=tuple(document.get("unmanaged_tables", ())),
             not_managed=tuple(document.get("not_managed", ())),
             orphaned_tables=tuple(document.get("orphaned_tables", ())),
+            owned_tables=tuple(
+                (str(name), str(owner))
+                for name, owner in document.get("owned_tables", ())
+            ),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise PlanFileError(f"malformed plan file: {error}") from error
@@ -546,5 +568,15 @@ def _table_from_dict(entry: dict[str, Any]) -> Table:
             _row_filter_from_dict(entry["row_filter"])
             if entry.get("row_filter")
             else None
+        ),
+        governed_columns=tuple(
+            GovernedColumn(
+                str(column["name"]),
+                comment=column.get("comment"),
+                tags=tuple(sorted(column.get("tags", {}).items())),
+                removed_tags=tuple(column.get("removed_tags", ())),
+                mask=_mask_from_dict(column["mask"]) if column.get("mask") else None,
+            )
+            for column in entry.get("governed_columns", ())
         ),
     )

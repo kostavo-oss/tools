@@ -58,6 +58,7 @@ from stevin.model.types import (
     DataType,
     Decimal,
     Field,
+    GovernedColumn,
     Identity,
     Map,
     Mask,
@@ -69,6 +70,13 @@ from stevin.model.types import (
 )
 from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
+from stevin.owned import (
+    DBT,
+    Owners,
+    combined,
+    dbt_refusal,
+    read_manifest,
+)
 from stevin.sql import (
     FUNCTION_PRIVILEGES,
     SCHEMA_PRIVILEGES,
@@ -239,6 +247,12 @@ class Project:
     #: The targets as `stevin.yml` itself declared them, kept so a bundle
     #: target can be merged again when the Databricks CLI answers for it.
     own_targets: tuple[Target, ...] = ()
+    #: `owned_elsewhere:` as written — `catalog.schema.table` patterns, `*` for
+    #: any part, `${var}` and all — and who owns what they cover.
+    owned_elsewhere: tuple[tuple[str, str], ...] = ()
+    #: `dbt: manifest:` — where dbt wrote `manifest.json`, so what dbt builds is
+    #: dbt's. Read when a plan is made, not when the project is.
+    dbt_manifest: Path | None = None
 
     @classmethod
     def load(cls, path: Path | str, environ: Mapping[str, str] | None = None) -> Project:
@@ -353,6 +367,24 @@ class Project:
         if self.history_schema is None:
             return None
         return substitute(self.history_schema, target.variables_map())
+
+    def owners(self, target: Target) -> Owners:
+        """Who owns what, for one target: the dbt manifest's names, then
+        `owned_elsewhere`'s patterns with the target's variables in.
+
+        A pattern using a variable this target doesn't define is left out, as
+        a `schemas:` entry would be. Raises `OwnedError` when a manifest is
+        named and can't be read.
+        """
+        variables = target.variables_map()
+        patterns: list[tuple[str, str]] = []
+        for pattern, owner in self.owned_elsewhere:
+            try:
+                patterns.append((substitute(pattern, variables).lower(), owner))
+            except KeyError:
+                continue
+        manifest = read_manifest(self.dbt_manifest) if self.dbt_manifest else Owners()
+        return combined(manifest, Owners(patterns=tuple(patterns)))
 
     def mode_for(self, target: Target, schema: str) -> Mode:
         """`strict` or `additive` for one `catalog.schema`, under one target.
@@ -1138,12 +1170,16 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
     _known_keys(items, allowed=TABLE_KEYS, what="a spec", manage=ctx.manage)
 
     name = _string(ctx, _require(ctx, items, node, "table", "a spec"), "table name")
-    columns_node = _require(ctx, items, node, "columns", "a spec")
-    columns: tuple[Column, ...] = tuple(
-        _read_field(ctx, item) for item in _sequence(ctx, columns_node, "columns")
-    )
+    columns, governed = _read_columns(ctx, node, items)
     if not columns:
-        raise SpecError("a spec needs at least one column", ctx.loc(columns_node))
+        # A governance-only spec: the shape is another tool's.
+        for key in SHAPE_KEYS & set(items):
+            raise SpecError(
+                f"a spec without the columns' types governs a table another tool "
+                f"makes — tags, grants, masks, a row filter, an owner — so it "
+                f"can't say {key!r}",
+                items[key][1],
+            )
 
     comment = None
     if "comment" in items:
@@ -1213,6 +1249,65 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
         removed_properties=removed_properties,
         removed_tags=removed_tags,
         owner=_owner(ctx, items),
+        governed_columns=governed,
+    )
+
+
+#: What a spec says about a table's shape — and so what a governance-only spec,
+#: one for a table another tool makes, has no business saying.
+SHAPE_KEYS = {
+    "cluster_by",
+    "partitioned_by",
+    "properties",
+    "constraints",
+    "seed",
+    "renamed_from",
+}
+GOVERNED_COLUMN_KEYS = {"name", "comment", "tags", "mask"}
+
+
+def _read_columns(
+    ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]
+) -> tuple[tuple[Column, ...], tuple[GovernedColumn, ...]]:
+    """A spec's columns: typed, or — for a table another tool makes — names
+    with what governs them and no type. All of one kind, or an error."""
+    if "columns" not in items:
+        return (), ()
+    columns_node = items["columns"][0]
+    entries = _sequence(ctx, columns_node, "columns")
+    if not entries:
+        raise SpecError("a spec needs at least one column", ctx.loc(columns_node))
+    typed = ["type" in _mapping(ctx, entry, "a column") for entry in entries]
+    if all(typed):
+        return tuple(_read_field(ctx, entry) for entry in entries), ()
+    if any(typed):
+        first = next(
+            entry for entry, has_type in zip(entries, typed, strict=True) if not has_type
+        )
+        raise SpecError(
+            "a spec says every column's type, or none of them (a spec without "
+            "types governs a table another tool makes)",
+            ctx.loc(first),
+        )
+    return (), tuple(_read_governed_column(ctx, entry) for entry in entries)
+
+
+def _read_governed_column(ctx: _Ctx, node: Node) -> GovernedColumn:
+    items = _mapping(ctx, node, "a column")
+    _known_keys(
+        items, allowed=GOVERNED_COLUMN_KEYS, what="a governed column", manage=ctx.manage
+    )
+    name = _string(ctx, _require(ctx, items, node, "name", "a column"), "column name")
+    comment = None
+    if "comment" in items:
+        comment = _string(ctx, items["comment"][0], f"comment of {name!r}")
+    tags: tuple[tuple[str, str], ...] = ()
+    removed_tags: tuple[str, ...] = ()
+    if "tags" in items:
+        tags, removed_tags = _settable_map(ctx, items["tags"][0], f"tags of {name!r}")
+    mask = _read_mask(ctx, items["mask"][0]) if "mask" in items else None
+    return GovernedColumn(
+        name, comment=comment, tags=tags, removed_tags=removed_tags, mask=mask
     )
 
 
@@ -1406,7 +1501,10 @@ CONFIG_KEYS = {
     "schemas",
     "bundle",
     "manage",
+    "owned_elsewhere",
+    "dbt",
 }
+DBT_KEYS = {"manifest"}
 TARGET_KEYS = {"vars", "warehouse_id", "mode", "profile", "default"}
 
 
@@ -1510,6 +1608,32 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
 
     manage = _read_manage(ctx, items["manage"][0]) if "manage" in items else EVERYTHING
 
+    owned_elsewhere: list[tuple[str, str]] = []
+    if "owned_elsewhere" in items:
+        for pattern, (owner_node, key_loc) in _mapping(
+            ctx, items["owned_elsewhere"][0], "owned_elsewhere"
+        ).items():
+            if len(pattern.split(".")) != 3:
+                raise SpecError(
+                    "owned_elsewhere is keyed catalog.schema.table, with * for any "
+                    f"part — e.g. ${{catalog}}.silver.* — not {pattern!r}",
+                    key_loc,
+                )
+            owner = _string(ctx, owner_node, f"the owner of {pattern!r}").strip()
+            if not owner:
+                raise SpecError(
+                    f"say who owns {pattern!r}: dbt, dlt, a team's name, or unknown",
+                    ctx.loc(owner_node),
+                )
+            owned_elsewhere.append((pattern, owner))
+
+    dbt_manifest: Path | None = None
+    if "dbt" in items:
+        dbt_items = _mapping(ctx, items["dbt"][0], "dbt")
+        _known_keys(dbt_items, allowed=DBT_KEYS, what="dbt")
+        manifest_node = _require(ctx, dbt_items, items["dbt"][0], "manifest", "dbt")
+        dbt_manifest = root / _string(ctx, manifest_node, "dbt.manifest")
+
     return Project(
         root=root,
         spec_paths=spec_paths,
@@ -1520,6 +1644,8 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         bundle=bundle_path,
         own_targets=own_targets,
         manage=manage,
+        owned_elsewhere=tuple(owned_elsewhere),
+        dbt_manifest=dbt_manifest,
     )
 
 
@@ -1765,6 +1891,7 @@ def unreferenced_functions(
         if not isinstance(loaded.table, Table):
             continue
         named.update(c.mask.function for c in loaded.table.columns if c.mask)
+        named.update(c.mask.function for c in loaded.table.governed_columns if c.mask)
         if loaded.table.row_filter is not None:
             named.add(loaded.table.row_filter.function)
     return tuple(
@@ -1777,6 +1904,50 @@ def unreferenced_functions(
         for loaded in files
         if isinstance(loaded.table, Function) and loaded.table.name.lower() not in named
     )
+
+
+def owned_diagnostics(
+    files: Sequence[LoadedSpec],
+    owners: Owners | None,
+    shown: Callable[[Path], str] = Path.as_posix,
+) -> tuple[Diagnostic, ...]:
+    """What the project's own files say about whose table a spec names.
+
+    A spec for a table that is dbt's is an error: dbt's config carries grants
+    and tags, and a `table` materialisation recreates the table, so two writers
+    would fight. A spec with no columns' types — one that governs a table
+    another tool makes — is a warning when nothing here says whose it is: the
+    plan will accept it if the table turns out to be a dlt pipeline's, and
+    refuse it otherwise. A spec with types for a table the files give an owner
+    is an error too: the shape is theirs.
+    """
+    found: list[Diagnostic] = []
+    for loaded in files:
+        spec = loaded.table
+        if not isinstance(spec, Table | View):
+            continue
+        owner = owners.owner_of(spec.name) if owners else None
+        if owner == DBT:
+            found.append(Diagnostic("error", dbt_refusal(spec.name), shown(loaded.path)))
+        elif isinstance(spec, Table) and spec.governance_only:
+            if owner is None:
+                found.append(
+                    Diagnostic(
+                        "warning",
+                        f"{spec.name} has no columns' types, so it governs a table "
+                        "another tool makes — nothing here says whose; the plan "
+                        "accepts it if the table is a dlt pipeline's, and otherwise "
+                        "asks you to name the owner in owned_elsewhere",
+                        shown(loaded.path),
+                    )
+                )
+        elif owner is not None:
+            from stevin.owned import shape_refusal
+
+            found.append(
+                Diagnostic("error", shape_refusal(spec.name, owner), shown(loaded.path))
+            )
+    return tuple(found)
 
 
 def validate_spec(spec: Relation, where: str) -> tuple[Diagnostic, ...]:
@@ -1887,6 +2058,10 @@ def validate_table(table: Table, where: str) -> tuple[Diagnostic, ...]:
             f"table name {table.name!r} must be catalog.schema.table "
             "(three parts, after variable substitution)"
         )
+    if table.governance_only:
+        # Nothing here names a column the spec itself declares; what it
+        # governs is checked against the live table when the plan is made.
+        return tuple(found)
     for key, _ in table.properties:
         if key in MAINTAINED_PROPERTIES:
             error(f"property {key!r} is maintained by Delta itself; don't declare it")
@@ -2152,6 +2327,8 @@ def spec_document(
         document["comment"] = table.comment
     if table.owner:
         document["owner"] = table.owner
+    if table.governance_only:
+        return _governance_document(document, table)
     if table.cluster_auto:
         # The live keys are Databricks' choice; the spec only asks for AUTO.
         document["cluster_by"] = "auto"
@@ -2200,6 +2377,43 @@ def spec_document(
         ]
     if table.renamed_from:
         document["renamed_from"] = table.renamed_from
+    return document
+
+
+def _governance_document(document: dict[str, object], table: Table) -> dict[str, object]:
+    """The rest of a governance-only spec: tags, columns that carry a mask or
+    tags, a row filter, grants — and nothing about the shape."""
+    if table.tags or table.removed_tags:
+        document["tags"] = _settable(table.tags, table.removed_tags)
+    columns: list[dict[str, object]] = []
+    for column in table.governed_columns:
+        entry: dict[str, object] = {"name": column.name}
+        if column.comment is not None:
+            entry["comment"] = column.comment
+        if column.tags or column.removed_tags:
+            entry["tags"] = _settable(column.tags, column.removed_tags)
+        if column.mask is not None:
+            entry["mask"] = (
+                column.mask.function
+                if not column.mask.using_columns
+                else {
+                    "function": column.mask.function,
+                    "using_columns": list(column.mask.using_columns),
+                }
+            )
+        columns.append(entry)
+    if columns:
+        document["columns"] = columns
+    if table.row_filter is not None:
+        document["row_filter"] = {
+            "function": table.row_filter.function,
+            "columns": list(table.row_filter.columns),
+        }
+    if table.grants:
+        document["grants"] = [
+            {"principal": grant.principal, "privileges": list(grant.privileges)}
+            for grant in table.grants
+        ]
     return document
 
 

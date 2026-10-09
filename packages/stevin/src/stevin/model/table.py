@@ -7,11 +7,11 @@ never needs to know which came from where.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TypeAlias
 
 from stevin.formerly import MANAGED_PROPERTY, SEED_PROPERTY
-from stevin.model.types import Array, Column, DataType, Field, Map, Struct
+from stevin.model.types import Array, Column, DataType, Field, GovernedColumn, Map, Struct
 
 #: Delta table features stevin turns on itself, as prerequisites for a change
 #: that needs them. A spec doesn't list them, and reporting them as unmanaged
@@ -246,6 +246,21 @@ class Securable:
         return self.properties_map().get(MANAGED_PROPERTY, "").lower() == "true"
 
 
+def _governed(column: Column, spec: GovernedColumn | None) -> Column:
+    """A live column with what a governance-only spec says about it on top."""
+    if spec is None:
+        # Not mentioned: tags and a mask the spec doesn't declare are reported
+        # as unmanaged, like any other spec's; the comment stays the owner's.
+        return replace(column, tags=(), removed_tags=())
+    return replace(
+        column,
+        comment=spec.comment if spec.comment is not None else column.comment,
+        tags=spec.tags,
+        removed_tags=spec.removed_tags,
+        mask=spec.mask,
+    )
+
+
 def sort_governance(obj: Securable) -> None:
     """Normalise what the catalog normalises, so equality means what it says.
 
@@ -303,11 +318,76 @@ class Table(Securable):
     #: Who owns it in Unity Catalog. Only a spec that names an owner has it
     #: enforced; a live object always has one, so it takes no part in comparing.
     owner: str | None = field(default=None, compare=False)
+    #: A governance-only spec's columns: a name with a mask, tags or a comment,
+    #: and no type. Spec-only — `govern` folds them into the live columns.
+    governed_columns: tuple[GovernedColumn, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         sort_governance(self)
         if self.renamed_from is not None:
             object.__setattr__(self, "renamed_from", self.renamed_from.lower())
+
+    @property
+    def governance_only(self) -> bool:
+        """A spec that says who may see the table and nothing about its shape.
+
+        It has no typed columns: the table is another tool's — dlt's, a
+        notebook team's — and stevin only puts the tags, grants, masks, row
+        filter and owner in place. Never claimed, reshaped or dropped.
+        """
+        return not self.columns
+
+    def govern(self, live: Table) -> Table:
+        """This governance-only spec, laid over the live table it governs.
+
+        The result is an ordinary table — the live shape, with the spec's
+        governance on top — so the differ compares it as it compares any
+        table and finds only governance to change. What the spec doesn't
+        mention is carried over from the live table rather than left blank,
+        because a blank would read as "remove it": a comment the owner wrote,
+        a mask the spec doesn't name, the properties, the clustering.
+
+        Raises `KeyError` for a governed column the table doesn't have.
+        """
+        governed = {g.name.casefold(): g for g in self.governed_columns}
+        missing = set(governed) - {c.name.casefold() for c in live.columns}
+        if missing:
+            raise KeyError(sorted(governed[m].name for m in missing)[0])
+        columns = tuple(
+            _governed(column, governed.get(column.name.casefold()))
+            for column in live.columns
+        )
+        return replace(
+            live,
+            columns=columns,
+            comment=self.comment if self.comment is not None else live.comment,
+            tags=self.tags,
+            removed_tags=self.removed_tags,
+            grants=self.grants,
+            row_filter=self.row_filter,
+            owner=self.owner,
+            governed_columns=(),
+            # Spec-only hints a live table never has.
+            seed=None,
+            renamed_from=None,
+            removed_properties=(),
+        )
+
+    def governance_spec(self) -> Table:
+        """The governance-only spec that would govern this live table as it is:
+        what `import` writes for a table another tool makes."""
+        return Table(
+            name=self.name,
+            columns=(),
+            tags=self.tags,
+            grants=self.grants,
+            row_filter=self.row_filter,
+            governed_columns=tuple(
+                GovernedColumn(column.name, tags=column.tags, mask=column.mask)
+                for column in self.columns
+                if column.tags or column.mask is not None
+            ),
+        )
 
     # -- lookups -----------------------------------------------------------
     def column(self, name: str) -> Column | None:
