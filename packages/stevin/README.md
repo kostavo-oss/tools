@@ -14,8 +14,10 @@ then apply it.
 > **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
 
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
-> included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
-> views, SQL functions). It is tested offline against a fake warehouse, and a live suite
+> included), drift, the GitHub Action, and governance (tags, grants, masks, row filters).
+> Views, SQL hooks and standalone SQL functions are leaving in 0.4.0 — the
+> [changelog](https://github.com/kostavo-oss/stevin/blob/main/CHANGELOG.md) says why and
+> what to do. It is tested offline against a fake warehouse, and a live suite
 > runs what it assumes about Databricks against a real workspace. That suite has settled
 > most of those assumptions and not all of them: loading reference data (`seed:`) has
 > never run on a workspace, for one.
@@ -62,6 +64,11 @@ source of truth.
 
 ## What it is for
 
+- **The tables and access your transformation tool doesn't own.** dbt, Lakeflow or
+  SQLMesh own what they build. stevin owns what they read and what they leave to a
+  setup job: the tables notebooks and external systems write into, lookup tables, and
+  who may see what — grants, column masks, row filters. It never touches what another
+  tool built, and it runs from CI at deploy time, not as a job.
 - **Unity Catalog is the state.** There is no state file to store, lock or repair.
   stevin reads the live catalog — `information_schema` and the tables' own definitions —
   every time it plans, and the one thing it has to remember, that it made a table, is a
@@ -174,8 +181,9 @@ Plan on pull requests, apply on merge, catch drift nightly — see
 
 stevin is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
 Each does one job and none needs another: Terraform sets up the platform, an Asset
-Bundle deploys the code, and stevin changes the data model — the part of a deploy that
-can't simply be run again. Kostavo is the company behind them: it builds
+Bundle deploys the code, dbt, Lakeflow or SQLMesh build the tables they build, and
+stevin changes the data model around them — the part of a deploy that can't simply be
+run again. Kostavo is the company behind them: it builds
 [a governance platform for Databricks workspaces](https://kostavo.com), and the tools
 are complete without it.
 
