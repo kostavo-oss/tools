@@ -1,0 +1,137 @@
+{
+  "artifacts": {
+    "python_artifact": {
+      "build": "uv build --wheel",
+      "dynamic_version": true,
+      "files": [
+        {
+          "source": "/tmp/project_name/dist/*.whl"
+        }
+      ],
+      "path": "/tmp/project_name",
+      "type": "whl"
+    }
+  },
+  "bundle": {
+    "deployment": {
+      "lock": {
+        "enabled": false
+      }
+    },
+    "environment": "dev",
+    "git": {
+      "bundle_root_path": "."
+    },
+    "mode": "development",
+    "name": "project_name",
+    "target": "dev",
+    "uuid": "7d1b5e3a-2f4c-4d8e-9b6a-1c0e2f3a4b5c"
+  },
+  "include": [
+    "resources/project_name_etl.pipeline.yml",
+    "resources/sample_job.job.yml"
+  ],
+  "presets": {
+    "artifacts_dynamic_version": true,
+    "jobs_max_concurrent_runs": 4,
+    "name_prefix": "[dev jane] ",
+    "pipelines_development": true,
+    "tags": {
+      "dev": "jane"
+    },
+    "trigger_pause_status": "PAUSED"
+  },
+  "resources": {
+    "jobs": {
+      "sample_job": {
+        "deployment": {
+          "kind": "BUNDLE",
+          "metadata_file_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/state/metadata.json"
+        },
+        "edit_mode": "UI_LOCKED",
+        "format": "MULTI_TASK",
+        "id": "662311427418745",
+        "max_concurrent_runs": 4,
+        "name": "[dev jane] sample_job",
+        "parameters": [
+          {
+            "default": "hive_metastore",
+            "name": "catalog"
+          },
+          {
+            "default": "jane",
+            "name": "schema"
+          }
+        ],
+        "queue": {
+          "enabled": true
+        },
+        "tags": {
+          "dev": "jane"
+        },
+        "tasks": [
+          {
+            "pipeline_task": {
+              "pipeline_id": "${resources.pipelines.project_name_etl.id}"
+            },
+            "task_key": "refresh_pipeline"
+          }
+        ],
+        "trigger": {
+          "pause_status": "PAUSED",
+          "periodic": {
+            "interval": 1,
+            "unit": "DAYS"
+          }
+        },
+        "url": "https://dbc-example.cloud.databricks.com/jobs/662311427418745"
+      }
+    },
+    "pipelines": {
+      "project_name_etl": {
+        "channel": "CURRENT",
+        "development": true,
+        "edition": "ADVANCED",
+        "id": "0b9f2d4e-8c1a-4f3b-a6e5-7d2c9b1e0f3a",
+        "name": "[dev jane] project_name_etl",
+        "root_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/files/src/project_name_etl",
+        "schema": "jane",
+        "tags": {
+          "dev": "jane"
+        },
+        "url": "https://dbc-example.cloud.databricks.com/pipelines/0b9f2d4e-8c1a-4f3b-a6e5-7d2c9b1e0f3a"
+      }
+    }
+  },
+  "sync": {
+    "paths": [
+      "."
+    ]
+  },
+  "variables": {
+    "catalog": {
+      "default": "hive_metastore",
+      "description": "The catalog to use",
+      "value": "hive_metastore"
+    },
+    "schema": {
+      "default": "jane",
+      "description": "The schema to use",
+      "value": "jane"
+    }
+  },
+  "workspace": {
+    "artifact_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/artifacts",
+    "current_user": {
+      "domain_friendly_name": "jane",
+      "id": "4815162342",
+      "short_name": "jane",
+      "userName": "jane@example.com"
+    },
+    "file_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/files",
+    "host": "https://dbc-example.cloud.databricks.com",
+    "resource_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/resources",
+    "root_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev",
+    "state_path": "/Workspace/Users/jane@example.com/.bundle/project_name/dev/state"
+  }
+}

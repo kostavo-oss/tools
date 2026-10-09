@@ -1,0 +1,385 @@
+{
+  "format_version": 1,
+  "tool_version": "0.1.0",
+  "target": "dev",
+  "spec_hash": "704c5f713bb3dd5f",
+  "state_fingerprint": "8cd5eec244e9c324",
+  "summary": {
+    "add": 3,
+    "change": 0,
+    "destroy": 0,
+    "steps": 5,
+    "rewrites": 0,
+    "warnings": 0,
+    "highest_risk": "meta"
+  },
+  "unmanaged_tables": [],
+  "not_managed": [],
+  "orphaned_tables": [],
+  "tables": [
+    {
+      "table": "dev.sales.customers",
+      "facts": {
+        "exists": false,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": false,
+        "features": []
+      },
+      "unmanaged": [],
+      "notes": [],
+      "desired": {
+        "table": "dev.sales.customers",
+        "comment": "One row per customer",
+        "cluster_by": [],
+        "cluster_auto": true,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "columns": [
+          {
+            "name": "customer_id",
+            "type": "bigint",
+            "nullable": false,
+            "comment": "Surrogate key"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "country",
+            "type": "string",
+            "nullable": true
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": "customers_pk",
+              "columns": [
+                "customer_id"
+              ]
+            }
+          }
+        ],
+        "grants": {},
+        "row_filter": null,
+        "hooks": null
+      },
+      "live": null,
+      "changes": [
+        {
+          "kind": "create_table",
+          "path": "",
+          "before": null,
+          "after": {
+            "table": "dev.sales.customers",
+            "comment": "One row per customer",
+            "cluster_by": [],
+            "cluster_auto": true,
+            "partitioned_by": null,
+            "owner": null,
+            "properties": {},
+            "tags": {},
+            "columns": [
+              {
+                "name": "customer_id",
+                "type": "bigint",
+                "nullable": false,
+                "comment": "Surrogate key"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "nullable": true
+              },
+              {
+                "name": "country",
+                "type": "string",
+                "nullable": true
+              }
+            ],
+            "constraints": [
+              {
+                "primary_key": {
+                  "name": "customers_pk",
+                  "columns": [
+                    "customer_id"
+                  ]
+                }
+              }
+            ],
+            "grants": {},
+            "row_filter": null,
+            "hooks": null
+          }
+        }
+      ]
+    },
+    {
+      "table": "dev.sales.orders",
+      "facts": {
+        "exists": false,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": false,
+        "features": []
+      },
+      "unmanaged": [],
+      "notes": [],
+      "desired": {
+        "table": "dev.sales.orders",
+        "comment": "Order facts, one row per order",
+        "cluster_by": [
+          "order_date"
+        ],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {
+          "domain": "sales"
+        },
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "order_date",
+            "type": "date",
+            "nullable": false
+          },
+          {
+            "name": "cust_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "amount",
+            "type": "decimal(10,2)",
+            "nullable": true
+          },
+          {
+            "name": "address",
+            "type": "struct<street:string,zip:string>",
+            "nullable": true
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": null,
+              "columns": [
+                "order_id"
+              ]
+            }
+          }
+        ],
+        "grants": {},
+        "row_filter": null,
+        "hooks": null
+      },
+      "live": null,
+      "changes": [
+        {
+          "kind": "create_table",
+          "path": "",
+          "before": null,
+          "after": {
+            "table": "dev.sales.orders",
+            "comment": "Order facts, one row per order",
+            "cluster_by": [
+              "order_date"
+            ],
+            "cluster_auto": false,
+            "partitioned_by": null,
+            "owner": null,
+            "properties": {},
+            "tags": {
+              "domain": "sales"
+            },
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "bigint",
+                "nullable": false
+              },
+              {
+                "name": "order_date",
+                "type": "date",
+                "nullable": false
+              },
+              {
+                "name": "cust_id",
+                "type": "string",
+                "nullable": true
+              },
+              {
+                "name": "amount",
+                "type": "decimal(10,2)",
+                "nullable": true
+              },
+              {
+                "name": "address",
+                "type": "struct<street:string,zip:string>",
+                "nullable": true
+              }
+            ],
+            "constraints": [
+              {
+                "primary_key": {
+                  "name": null,
+                  "columns": [
+                    "order_id"
+                  ]
+                }
+              }
+            ],
+            "grants": {},
+            "row_filter": null,
+            "hooks": null
+          }
+        }
+      ]
+    },
+    {
+      "table": "dev.sales.big_orders",
+      "facts": {
+        "exists": false,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "view",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": false,
+        "features": []
+      },
+      "unmanaged": [],
+      "notes": [],
+      "desired": {
+        "view": "dev.sales.big_orders",
+        "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
+        "comment": "Orders over 1000",
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "grants": {}
+      },
+      "live": null,
+      "changes": [
+        {
+          "kind": "create_view",
+          "path": "",
+          "before": null,
+          "after": {
+            "view": "dev.sales.big_orders",
+            "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
+            "comment": "Orders over 1000",
+            "owner": null,
+            "properties": {},
+            "tags": {},
+            "grants": {}
+          }
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "table": "dev.sales.customers",
+      "change": 0,
+      "path": "",
+      "title": "CREATE SCHEMA sales",
+      "risk": "meta",
+      "sql": "CREATE SCHEMA IF NOT EXISTS `dev`.`sales`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": "the schema doesn't exist yet; stevin creates schemas, not catalogs"
+    },
+    {
+      "id": 2,
+      "table": "dev.sales.customers",
+      "change": 0,
+      "path": "",
+      "title": "CREATE TABLE customers",
+      "risk": "meta",
+      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`customers` (\n  `customer_id` BIGINT NOT NULL COMMENT 'Surrogate key',\n  `name` STRING,\n  `country` STRING,\n  CONSTRAINT `customers_pk` PRIMARY KEY (`customer_id`)\n)\nUSING DELTA\nCLUSTER BY AUTO\nCOMMENT 'One row per customer'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": "DROP TABLE `dev`.`sales`.`customers`",
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 3,
+      "table": "dev.sales.orders",
+      "change": 1,
+      "path": "",
+      "title": "CREATE TABLE orders",
+      "risk": "meta",
+      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`orders` (\n  `order_id` BIGINT NOT NULL,\n  `order_date` DATE NOT NULL,\n  `cust_id` STRING,\n  `amount` DECIMAL(10,2),\n  `address` STRUCT<street:STRING,zip:STRING>,\n  CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)\n)\nUSING DELTA\nCLUSTER BY (`order_date`)\nCOMMENT 'Order facts, one row per order'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": "DROP TABLE `dev`.`sales`.`orders`",
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 4,
+      "table": "dev.sales.orders",
+      "change": 1,
+      "path": "",
+      "title": "SET TAGS",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` SET TAGS ('domain' = 'sales')",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 5,
+      "table": "dev.sales.big_orders",
+      "change": 2,
+      "path": "",
+      "title": "CREATE VIEW big_orders",
+      "risk": "meta",
+      "sql": "CREATE VIEW IF NOT EXISTS `dev`.`sales`.`big_orders`\nCOMMENT 'Orders over 1000'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)\nAS\nSELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": "DROP VIEW `dev`.`sales`.`big_orders`",
+      "warnings": [],
+      "note": null
+    }
+  ]
+}

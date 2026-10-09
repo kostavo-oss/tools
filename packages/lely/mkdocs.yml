@@ -1,0 +1,101 @@
+site_name: lely
+site_description: One plan for your whole Databricks deploy — the bundle and the steps around it, reviewed before anything runs.
+site_author: Misja Pronk
+site_url: https://kostavo-oss.github.io/lely/
+
+repo_name: kostavo-oss/lely
+repo_url: https://github.com/kostavo-oss/lely
+edit_uri: edit/main/docs/
+
+copyright: Apache-2.0 © Misja Pronk
+
+theme:
+  name: material
+  font: false # the system font stack: native, calm, nothing fetched
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/format-list-checks
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to light
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  # The contributing guide and the changelog live at the top of the repository,
+  # where GitHub looks for them; the site quotes them.
+  - pymdownx.snippets:
+      base_path: [".", "docs"]
+      check_paths: true
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kostavo-oss/lely
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Your first plan: getting-started.md
+      - Installation: installation.md
+  - Guide:
+      - The config: config.md
+      - Plan, apply, destroy: plan-apply-destroy.md
+      - Plugins: plugins.md
+      - Writing a step: writing-a-step.md
+      - A plan as a page: page.md
+      - On GitHub: GITHUB.md
+      - Commands: cli.md
+  - Safety:
+      - What may run: safety.md
+      - What has been tried: tried.md
+  - Develop:
+      - Design: DESIGN.md
+      - Contributing: contributing.md
+      - Changelog: changelog.md

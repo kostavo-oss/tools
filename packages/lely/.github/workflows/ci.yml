@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # ruff and the tests on every supported Python — the same gate for every
+  # Kostavo tool, kept in one place.
+  python:
+    uses: kostavo-oss/.github/.github/workflows/python-ci.yml@main
+    with:
+      # every Python pyproject.toml's classifiers name, said here so that the
+      # claim and the gate are read side by side
+      python-versions: '["3.11", "3.12", "3.13", "3.14"]'
+
+  # `mise run check` also runs ty, which the shared gate doesn't: so here it is,
+  # and the gate in CI is the gate at a desk.
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - name: Type check (ty)
+        run: uv run ty check
+
+  # A floor in pyproject.toml is a promise: here every direct dependency is at
+  # its oldest, on the oldest Python, and the unit tests still pass.
+  lowest:
+    name: test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      # Every `>=` in pyproject.toml says the version it names works. This
+      # installs exactly those — the lowest each dependency allows, on the oldest
+      # Python — so a floor that has gone false fails here and not on someone's
+      # machine. The test tools go in afterwards at whatever is current: it is
+      # the package's floors that are on trial, not pytest's — and the lock file
+      # stays the one that is committed.
+      - name: Install with the lowest direct dependencies
+        run: |
+          uv venv --python 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e .
+          uv pip install --python /tmp/lowest/bin/python --group dev
+          uv pip freeze --python /tmp/lowest/bin/python
+      - name: Tests (pytest)
+        run: PATH="/tmp/lowest/bin:$PATH" /tmp/lowest/bin/python -m pytest tests/unit

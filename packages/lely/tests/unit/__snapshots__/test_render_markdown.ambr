@@ -1,0 +1,185 @@
+# serializer version: 1
+# name: test_a_destroy_plan_runs_from_the_bottom_up
+  '''
+  <!-- lely:destroy:dev -->
+  ### lely destroy plan · target `dev`
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  **1 change · 0 runs · 1 destructive**
+  
+  ```diff
+    warm  ./ops/steps.py:Warm
+        skipped: not for target `dev`
+    backfill  bundle.run
+        skipped: `bundle.run` has nothing to destroy
+    notify  ./ops/steps.py:Notify
+        skipped: it needs app.resources.jobs.bar.id, which isn't there
+    app  bundle
+        model_version = 14  ← model.version
+  -     delete   jobs.backfill  destructive
+            backfill · id 771
+        the bundle's uploaded files go with them
+        and whatever else `bundle destroy` removes
+        as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev
+    model  ./ops/steps.py:LatestModel
+        skipped: `./ops/steps.py:LatestModel` has nothing to destroy
+  ```
+  
+  '''
+# ---
+# name: test_a_destructive_change_is_named_above_the_plan
+  '''
+  <!-- lely:plan:dev:team-a -->
+  ### lely plan · project `team-a` · target `dev`
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  **2 changes · 2 runs · 1 destructive · 1 waiting**
+  
+  **Destructive:** `app: pipelines.foo`
+  
+  ```diff
+    model  ./ops/steps.py:LatestModel
+        → version = 14
+    app  bundle
+        model_version = 14  ← model.version
+  +     create   jobs.bar
+  -     replace  pipelines.foo  destructive
+            replaced: storage (immutable)
+        run      uploads the bundle's files
+    notify  ./ops/steps.py:Notify
+        waiting for app.resources.jobs.bar.id
+    backfill  bundle.run
+        bundle  ← app
+        run      runs jobs.backfill
+    warm  ./ops/steps.py:Warm
+        skipped: not for target `dev`
+  ```
+  
+  > Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.
+  
+  > Planned with uncommitted changes: lely can't say what this was made on, so it won't run it from a file. Commit first, or run it without one.
+  
+  '''
+# ---
+# name: test_a_first_deploy
+  '''
+  <!-- lely:plan:dev -->
+  ### lely plan · target `dev`
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  **2 changes · 2 runs · 0 destructive · 1 waiting**
+  
+  ```diff
+    model  ./ops/steps.py:LatestModel
+        → version = 14
+    app  bundle
+        model_version = 14  ← model.version
+  +     create   jobs.bar
+  +     create   pipelines.foo
+        run      uploads the bundle's files
+    notify  ./ops/steps.py:Notify
+        waiting for app.resources.jobs.bar.id
+    backfill  bundle.run
+        bundle  ← app
+        run      runs jobs.backfill
+    warm  ./ops/steps.py:Warm
+        skipped: not for target `dev`
+  ```
+  
+  > Applied from a file, this stops before `notify`: a waiting step is planned once what it waits for exists.
+  
+  '''
+# ---
+# name: test_a_run_that_failed
+  '''
+  ### lely apply · target `dev` · failed
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  **Nothing was rolled back.**
+  
+  - ran: `app`
+  - failed: `notify`
+  - never started: `backfill`
+  
+  ```diff
+    · model  ./ops/steps.py:LatestModel  nothing to do
+    ✓ app  bundle
+  +       create   jobs.bar
+  +       create   pipelines.foo
+          run      uploads the bundle's files
+    ✗ notify  ./ops/steps.py:Notify  failed
+    · backfill  bundle.run  not started
+    – warm  ./ops/steps.py:Warm  not for target `dev`
+  ```
+  
+  ```text
+  step `notify` (./ops/steps.py:Notify): `./ops/notify.sh 1001` failed (exit 7):
+  no route
+  ```
+  
+  '''
+# ---
+# name: test_an_apply_and_what_exists_after_it
+  '''
+  ### lely apply · target `dev`
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  **Applied: 3 steps.**
+  
+  ```diff
+    · model  ./ops/steps.py:LatestModel  nothing to do
+    ✓ app  bundle
+  +       create   jobs.bar
+  +       create   pipelines.foo
+          run      uploads the bundle's files
+    ✓ notify  ./ops/steps.py:Notify
+          run      runs ./ops/notify.sh 1001
+    ✓ backfill  bundle.run
+          run      runs jobs.backfill
+    – warm  ./ops/steps.py:Warm  not for target `dev`
+  ```
+  
+  #### What exists now
+  
+  | step | kind | key | name | id | this run |  |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `app` | `job` | `jobs.backfill` | `backfill` | `771` | `unchanged` | [open](<https://dbc-example.cloud.databricks.com/jobs/771>) |
+  | `app` | `job` | `jobs.bar` | `job bar` | `1001` | `created` | [open](<https://dbc-example.cloud.databricks.com/jobs/1001>) |
+  | `app` | `pipeline` | `pipelines.foo` | `pipeline foo` | `1002` | `created` | [open](<https://dbc-example.cloud.databricks.com/pipelines/1002>) |
+  
+  ```text
+  app: as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev
+  ```
+  
+  '''
+# ---
+# name: test_status
+  '''
+  ### lely status · target `dev`
+  
+  `https://dbc-example.cloud.databricks.com` as `jane@example.com`
+  
+  | step | kind | key | name | id |  |
+  | --- | --- | --- | --- | --- | --- |
+  | `app` | `job` | `jobs.backfill` | `backfill` | `771` | [open](<https://dbc-example.cloud.databricks.com/jobs/771>) |
+  | `app` | `job` | `jobs.bar` | `job bar` | `not deployed` |  |
+  | `app` | `pipeline` | `pipelines.foo` | `pipeline foo` | `not deployed` |  |
+  
+  ```text
+  app: as seen by jane@example.com under /Workspace/Users/jane@example.com/.bundle/shop/dev
+  ```
+  
+  ```text
+  model: nothing to list
+  notify: can't be listed: it needs app.resources.jobs.bar.id, which isn't there
+  backfill: nothing to list
+  warm: skipped: not for target `dev`
+  ```
+  
+  '''
+# ---
