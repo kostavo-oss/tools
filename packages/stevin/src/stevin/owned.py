@@ -121,20 +121,21 @@ def read_manifest(path: Path) -> Owners:
     `OwnedError` naming the path — dbt hasn't run yet, or the path is wrong,
     and either way stevin can't say what is dbt's.
     """
+    shown = path.as_posix()  # every path in a message, on every platform
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise OwnedError(
-            f"the dbt manifest {path} can't be read ({error.strerror or error}) — "
+            f"the dbt manifest {shown} can't be read ({error.strerror or error}) — "
             "run dbt first, or point `dbt: manifest:` at the one it wrote"
         ) from error
     try:
         document = json.loads(text)
     except json.JSONDecodeError as error:
-        raise OwnedError(f"the dbt manifest {path} isn't JSON: {error}") from error
+        raise OwnedError(f"the dbt manifest {shown} isn't JSON: {error}") from error
     nodes = document.get("nodes") if isinstance(document, dict) else None
     if not isinstance(nodes, dict):
-        raise OwnedError(f"the dbt manifest {path} has no `nodes`; is it a manifest?")
+        raise OwnedError(f"the dbt manifest {shown} has no `nodes`; is it a manifest?")
     names: list[tuple[str, str]] = []
     passed_over = 0
     for node in nodes.values():
