@@ -86,7 +86,7 @@ class Acl:
 class Settings:
     """Persisted preferences — how things are shown, never secret material."""
 
-    show_all_scopes: bool = False
+    show_all_scopes: bool = True
     audit_threshold: int = STALE_AFTER_DAYS
 
 

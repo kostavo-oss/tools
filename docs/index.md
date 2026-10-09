@@ -12,7 +12,7 @@ for it and written nowhere.
 
 ## Highlights
 
-- **Three panes** — the scopes you can reach, the secrets of one with when each was last
+- **Three panes** — the scopes, the ones out of reach greyed, the secrets of one with when each was last
   changed, and the detail: your access, who else has a grant, and the value once you ask.
 - **Everything has a key**, and everything can be clicked. ++tab++ goes from pane to pane.
 - **Secrets, with a way back** — create, edit, move, copy, rename and delete; nothing is

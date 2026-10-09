@@ -121,7 +121,7 @@ def page(browser, serve):
 #: The first scope, `kv`, is selected and its one secret is listed.
 SHOWN = (
     "document.body.dataset.phase === 'ready'"
-    " && document.querySelectorAll('#scopes li').length === 3"
+    " && document.querySelectorAll('#scopes li').length === 4"
     " && document.querySelectorAll('#secrets tr').length === 1"
 )
 #: `prod` is selected: its four secrets are listed and its detail has arrived.
@@ -176,8 +176,10 @@ def test_it_opens_with_its_key_and_shows_the_workspace(page):
     ) == [
         "kv",
         "prod",
+        "shut",
         "staging",
-    ]  # `shut` is out of reach, and not shown until asked for
+    ]  # `shut` is out of reach: shown, greyed
+    assert page.js("document.querySelector('#scopes li.out span').textContent") == "shut"
     assert page.js("document.getElementById('who').textContent") == "me@corp.com"
     assert page.js("document.getElementById('host').textContent") == "x.example"
 
@@ -327,12 +329,22 @@ def test_the_filter_picks_while_typing_and_goes_back(page):
     assert page.js("document.querySelectorAll('#secrets tr').length") == 4
 
 
-def test_f_shows_the_scopes_out_of_reach_too(page):
+def test_f_hides_the_scopes_out_of_reach_and_shows_them_again(page):
+    page.press("f")
+    page.wait("document.querySelectorAll('#scopes li').length === 3")
+    assert page.js("document.querySelector('#scopes li.out')") is None
     page.press("f")
     page.wait("document.querySelectorAll('#scopes li').length === 4")
     assert page.js("document.querySelector('#scopes li.out span').textContent") == "shut"
-    page.press("f")
-    page.wait("document.querySelectorAll('#scopes li').length === 3")
+
+
+def test_a_scope_out_of_reach_says_so_and_who_can_change_that(page):
+    page.press("j", "j")
+    page.wait(f"{SELECTED_SCOPE} === 'shut'")
+    page.wait("!document.getElementById('secrets-none').hidden")
+    assert page.js("document.getElementById('secrets-none').textContent") == (
+        "You have no access to this scope: someone with MANAGE on it can give you some."
+    )
 
 
 # ── a value ──────────────────────────────────────────────────────────
@@ -801,7 +813,7 @@ def test_a_scope_has_a_key_of_its_own_and_says_what_goes_with_it(prod):
         "document.getElementById('confirm-note').textContent"
     )
     prod.press("y")
-    prod.wait("document.querySelectorAll('#scopes li').length === 2")
+    prod.wait("document.querySelectorAll('#scopes li').length === 3")
     assert ("delete_scope", "prod") in prod.store.calls
     assert prod.js(TOAST) == "Deleted scope prod."
 
@@ -832,8 +844,6 @@ def test_d_with_no_secret_deletes_nothing_and_says_which_key_would(prod):
 
 
 def test_a_scope_whose_secrets_cannot_be_listed_is_not_called_empty(page):
-    page.press("f")
-    page.wait("document.querySelectorAll('#scopes li').length === 4")
     page.press("j", "j")
     page.wait(f"{SELECTED_SCOPE} === 'shut'")
     page.press("D")
@@ -1212,7 +1222,10 @@ def test_s_sorts_the_pane_the_keyboard_is_in_and_keeps_what_was_selected(prod):
     scopes = (
         "[...document.querySelectorAll('#scopes li span.mono')].map(n => n.textContent)"
     )
-    assert prod.js(scopes) in (["kv", "staging", "prod"], ["staging", "kv", "prod"])
+    assert prod.js(scopes) in (
+        ["shut", "kv", "staging", "prod"],
+        ["shut", "staging", "kv", "prod"],
+    )  # by count: `shut` has none that can be listed
     assert "by how many" in prod.js("document.getElementById('scopes-title').textContent")
     assert prod.js(SELECTED_SCOPE) == "prod"
 
@@ -1380,8 +1393,8 @@ def test_two_quick_changes_to_a_setting_are_kept_in_the_order_made(prod, monkeyp
 
 def test_f_is_kept_for_the_next_time(page):
     page.press("f")
-    page.wait("document.querySelectorAll('#scopes li').length === 4")
-    until(lambda: page.server.page.settings.show_all_scopes is True)
+    page.wait("document.querySelectorAll('#scopes li').length === 3")
+    until(lambda: page.server.page.settings.show_all_scopes is False)
 
 
 def test_every_value_can_be_forgotten_from_the_keys(prod):

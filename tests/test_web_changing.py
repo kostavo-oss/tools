@@ -658,19 +658,19 @@ def test_a_preference_is_kept_and_said_back():
         served = Served(server, store)
         served.enter()
         state = served.json("GET", "/api/state")[1]
-        assert (state["show_all"], state["stale_after"]) == (False, 90)
+        assert (state["show_all"], state["stale_after"]) == (True, 90)
         # a preference changes no workspace: read-only does not mind
         assert (
-            post(served, "/api/settings", {"show_all": True, "stale_after": 365})[0]
+            post(served, "/api/settings", {"show_all": False, "stale_after": 365})[0]
             == 200
         )
         state = served.json("GET", "/api/state")[1]
-        assert (state["show_all"], state["stale_after"]) == (True, 365)
-        assert kept[-1].show_all_scopes is True and kept[-1].audit_threshold == 365
+        assert (state["show_all"], state["stale_after"]) == (False, 365)
+        assert kept[-1].show_all_scopes is False and kept[-1].audit_threshold == 365
         for body in ({"show_all": "yes"}, {"stale_after": 45}, {"stale_after": "90"}):
             assert post(served, "/api/settings", body)[0] == 400
         assert (
-            served.ask("POST", "/api/settings", {"show_all": False}, token="wrong")[0]
+            served.ask("POST", "/api/settings", {"show_all": True}, token="wrong")[0]
             == 401
         )
     finally:
@@ -771,4 +771,4 @@ def test_a_value_that_ends_in_a_newline_comes_back_with_it(served):
 def test_a_preference_asked_for_badly_changes_none(served, body):
     assert post(served, "/api/settings", body)[0] == 400
     state = served.json("GET", "/api/state")[1]
-    assert (state["show_all"], state["stale_after"]) == (False, 90)
+    assert (state["show_all"], state["stale_after"]) == (True, 90)

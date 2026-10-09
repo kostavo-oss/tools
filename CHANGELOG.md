@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Every scope is shown, the ones out of reach greyed.** The scope you have to ask
+  access to is the one you could not see. Selecting one says so, and that someone with
+  MANAGE on it can change that. `f` now hides them, and back; a choice already kept
+  stands.
+
+### Fixed
+
+- **A scope out of reach was offered as a place to put a secret** when every scope was
+  shown. *New secret*, *Copy to…* and *Move* now offer the scopes you can reach only.
+
 ## [0.7.0] - 2026-10-07
 
 ### Added

@@ -120,7 +120,7 @@ class Page:
         workspace: Workspace | None = None,
         onboarding: OnboardingService | None = None,
         read_only: bool = False,
-        show_all: bool = False,
+        show_all: bool = True,
         version: str = "",
         clock: Callable[[], float] = time.monotonic,
         settings: Settings | None = None,

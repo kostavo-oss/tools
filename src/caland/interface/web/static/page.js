@@ -28,7 +28,7 @@ let secret = 0;           // the selected secret's place among those shown
 let shown = null;         // { scope, key, value, bytes, since } while a value is on the page
 let timer = null, left = 0;
 let query = "";
-let showAll = false;
+let showAll = true;       // every scope, the ones out of reach greyed; f hides those
 let read = null;          // the server's version the names in `keys` are from
 // where the keyboard is: one of the three panes, and which button of the detail
 let pane = "scopes", action = 0;
@@ -297,7 +297,8 @@ function draw() {
   $("secrets-none").hidden = rows.length > 0 || scope === null;
   $("secrets-none").textContent = row && !row.loaded ? "Reading…"
     : (keys.get(scope) ?? []).length ? "Nothing here matches the filter."
-    : row && !row.access ? "You have no access to this scope." : "No secrets in this scope.";
+    : row && !row.access ? "You have no access to this scope: someone with MANAGE on it can give you some."
+    : "No secrets in this scope.";
   for (const list of [$("scopes"), $("secrets")]) {
     list.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
   }
@@ -470,8 +471,8 @@ async function changed(toScope, toKey, saying, place = 0) {
   hide(); draw();
   if (saying) toast(saying);
 }
-// where a secret can be put: the scopes that are shown, but for Azure's
-const targets = () => told.scopes.filter((s) => !s.keyvault && (s.access || showAll));
+// where a secret can be put: the scopes you can reach, but for Azure's
+const targets = () => told.scopes.filter((s) => !s.keyvault && s.access);
 const options = (rows, picked) => rows.map((s) => el("option", { textContent: s.name, value: s.name, selected: s.name === picked }));
 
 // a secret, new or edited
