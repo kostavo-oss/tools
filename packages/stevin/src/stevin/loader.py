@@ -346,7 +346,7 @@ class Project:
             diagnostics.extend(validate_spec(relation, str(path)))
         if failures:
             raise SpecErrors(failures)
-        diagnostics.extend(shared_names(files))
+        diagnostics.extend((*shared_names(files), *unreferenced_functions(files)))
         return Specs(tuple(files), tuple(diagnostics))
 
     def history_schema_for(self, target: Target) -> str | None:
@@ -1741,6 +1741,42 @@ def shared_names(
             )
         )
     return tuple(found)
+
+
+UNREFERENCED_FUNCTION = (
+    "a function spec is only for a column mask or row filter; general SQL "
+    "functions belong to your transformation tool"
+)
+
+
+def unreferenced_functions(
+    files: Sequence[LoadedSpec], shown: Callable[[Path], str] = Path.as_posix
+) -> tuple[Diagnostic, ...]:
+    """A function spec that no column mask or row filter in the project names.
+
+    A function spec exists so the function a mask or a row filter needs is
+    created in the same plan, before the tables that use it. Any other SQL
+    function is a transformation tool's business — or a bundle's — and a spec
+    for one is refused rather than quietly kept, so stevin doesn't become the
+    place UDFs accumulate. Names are compared as the catalog compares them.
+    """
+    named: set[str] = set()
+    for loaded in files:
+        if not isinstance(loaded.table, Table):
+            continue
+        named.update(c.mask.function for c in loaded.table.columns if c.mask)
+        if loaded.table.row_filter is not None:
+            named.add(loaded.table.row_filter.function)
+    return tuple(
+        Diagnostic(
+            "error",
+            f"{loaded.table.name} is named by no column mask or row filter in this "
+            f"project: {UNREFERENCED_FUNCTION}",
+            shown(loaded.path),
+        )
+        for loaded in files
+        if isinstance(loaded.table, Function) and loaded.table.name.lower() not in named
+    )
 
 
 def validate_spec(spec: Relation, where: str) -> tuple[Diagnostic, ...]:

@@ -440,8 +440,9 @@ row_filter:
 ```
 
 The functions are SQL UDFs named in full (`catalog.schema.function`) — created by hand,
-or declared in a [function spec](#functions) so they're created in the same plan, before
-the tables that use them. stevin treats what they protect as security controls:
+or declared in a [function spec](#mask-and-filter-functions) so they're created in the
+same plan, before the tables that use them. stevin treats what they protect as security
+controls:
 
 - **It only adds or replaces them.** A mask or filter in the spec is set, or replaced if
   it names a different function. One the spec doesn't mention is listed as unmanaged
@@ -463,6 +464,46 @@ for how to write the functions.
     A row filter or a column mask has no spelling in a `CREATE TABLE`, so a table
     that needs one is a YAML spec. `import -f sql` writes YAML for such a table by
     itself and says why. [What each format can say →](formats.md)
+
+### Mask and filter functions
+
+A function spec has a `function:` key, its parameters, what it returns, and a body — the
+expression after `RETURN`. It exists for one reason: so the function a column mask or a
+row filter names is created in the same plan, before the tables that use it.
+
+```yaml
+function: ${catalog}.security.mask_email
+comment: Hide emails from everyone outside pii
+parameters:
+  - {name: email, type: string}
+returns: string
+grants:
+  - {principal: analysts, privileges: [EXECUTE]}
+body: |
+  CASE WHEN is_account_group_member('pii') THEN email ELSE '***' END
+```
+
+- **A function spec is only for a mask or a row filter.** One that no column mask or
+  row filter in the project names is refused at `validate` and before `plan` asks the
+  workspace anything, with its file and line. General SQL functions belong to your
+  transformation tool or your bundle; stevin is not the place UDFs accumulate.
+- **SQL functions only.** Python UDFs aren't modelled; `import` skips them and `plan`
+  leaves them alone. `import` writes only the functions a live mask or row filter
+  names, and says which it skipped.
+- **Parameters, return type, body and comment are its shape.** Whitespace and a trailing
+  semicolon in the body don't count; any other change is planned as a
+  `REPLACE FUNCTION`, with the old definition as its undo. A replace takes effect for
+  every mask and row filter that calls the function, from the moment it runs — the
+  plan warns about exactly that.
+- **Grants survive a replace**, put back as they were, and are otherwise managed per
+  principal as for [tables](#grants). Function privileges are `EXECUTE`, `MANAGE` and
+  `ALL PRIVILEGES`.
+- **Functions come first**: before the tables whose masks and filters call them. A
+  function that reads a table comes after it; a cycle is an error.
+- **A function is never dropped.** It carries no ownership marker, so nothing shows
+  stevin created it; one without a spec is left alone, in strict schemas too.
+- Unity Catalog lets a function share a table's name. stevin doesn't: plans are keyed
+  by name, so planning stops and asks you to rename one.
 
 ## Grants
 
@@ -618,41 +659,6 @@ grants:
 - Volume privileges: `READ VOLUME`, `WRITE VOLUME`, `APPLY TAG`, `MANAGE` and
   `ALL PRIVILEGES`.
 - YAML only: sqlglot doesn't parse `CREATE VOLUME`. `import` writes volume specs as YAML.
-
-## Functions
-
-A function spec has a `function:` key, its parameters, what it returns, and a body — the
-expression after `RETURN`.
-
-```yaml
-function: ${catalog}.security.mask_email
-comment: Hide emails from everyone outside pii
-parameters:
-  - {name: email, type: string}
-returns: string
-grants:
-  - {principal: analysts, privileges: [EXECUTE]}
-body: |
-  CASE WHEN is_account_group_member('pii') THEN email ELSE '***' END
-```
-
-- **SQL functions only.** Python UDFs aren't modelled; `import` skips them and `plan`
-  leaves them alone.
-- **Parameters, return type, body and comment are its shape.** Whitespace and a trailing
-  semicolon in the body don't count; any other change is planned as a
-  `REPLACE FUNCTION`, with the old definition as its undo. A replace takes effect for
-  every mask, row filter and view that calls the function, from the moment it runs — the
-  plan warns about exactly that.
-- **Grants survive a replace**, put back as they were, and are otherwise managed per
-  principal as for [tables](#grants). Function privileges are `EXECUTE`, `MANAGE` and
-  `ALL PRIVILEGES`.
-- **Functions come first**: before tables, so a mask or row filter can call one created
-  in the same plan, and before views that call them. A function that calls another
-  comes after it; a cycle is an error.
-- **A function is never dropped.** It carries no ownership marker, so nothing shows
-  stevin created it; one without a spec is left alone, in strict schemas too.
-- Unity Catalog lets a function share a table's name. stevin doesn't: plans are keyed
-  by name, so planning stops and asks you to rename one.
 
 ## Constraints
 

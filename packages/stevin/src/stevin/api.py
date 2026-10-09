@@ -27,7 +27,14 @@ from stevin.adopt import Adoption
 from stevin.connect import Connection
 from stevin.executor import ExecutionResult, Executor, Status
 from stevin.history import DeltaHistory, HistoryStore, NoHistory
-from stevin.loader import Diagnostic, Project, Specs, Target, shared_names
+from stevin.loader import (
+    Diagnostic,
+    Project,
+    Specs,
+    Target,
+    shared_names,
+    unreferenced_functions,
+)
 from stevin.manage import EVERYTHING, Manage
 from stevin.model.plan import Plan, Step
 from stevin.model.view import Relation
@@ -61,14 +68,17 @@ def plan(
     say — so they aren't read twice.
 
     Raises `SpecErrors` if a spec can't be read, `PlanningError` if the specs
-    can't be planned together — two files describing one name, say — and
-    `IntrospectionError` if the workspace can't be read.
+    can't be planned together — two files describing one name, a function spec
+    that no mask or row filter names — and `IntrospectionError` if the
+    workspace can't be read.
     """
     specs = specs if specs is not None else project.load_specs(target)
-    twice = shared_names(specs.files)
-    if twice:
-        # Refused here rather than in `plan_tables`, which has no files to name.
-        raise PlanningError("\n".join(f"{d.where}: {d.message}" for d in twice))
+    # Two files for one name, and a function spec nothing masks or filters with:
+    # refused here rather than in `plan_tables`, which has no files to name —
+    # and before `select`, which must not hide either.
+    refused = (*shared_names(specs.files), *unreferenced_functions(specs.files))
+    if refused:
+        raise PlanningError("\n".join(f"{d.where}: {d.message}" for d in refused))
     chosen = _selector(select, [relation.name for relation in specs.relations])
     return plan_tables(
         specs.relations,
@@ -415,8 +425,9 @@ def import_schema(
 
     Nothing is written: a host decides where these go, whether that is a
     directory, a pull request or a review screen. The schema's own spec comes
-    first when it has anything to say, then tables, views, functions and
-    volumes.
+    first when it has anything to say, then tables, views, the functions their
+    masks and row filters name, and volumes. Any other SQL function is listed
+    as skipped: a function spec is only for a mask or a row filter.
 
     Owners are left out — an owner is usually a person's email, and rarely the
     same in two workspaces — as is anything `manage` hands to another tool, and
@@ -458,11 +469,26 @@ def import_schema(
     ):
         specs.append(written(definition, "_schema"))
 
+    named: set[str] = set()
+    for entry in live.tables:
+        named.update(c.mask.function for c in entry.table.columns if c.mask)
+        if entry.table.row_filter is not None:
+            named.add(entry.table.row_filter.function)
+    functions = [f for f in live.functions if f.name.lower() in named]
+    skipped = [
+        *live.skipped,
+        *(
+            (f.name, "a SQL function no column mask or row filter here names")
+            for f in live.functions
+            if f.name.lower() not in named
+        ),
+    ]
+
     seen: set[str] = set()
     for relation in (
         *(entry.table for entry in live.tables),
         *live.views,
-        *live.functions,
+        *functions,
         *live.volumes,
     ):
         if relation.name.lower() in owned:
@@ -474,4 +500,4 @@ def import_schema(
             stem = f"{stem}.{'volume' if isinstance(relation, Volume) else 'function'}"
         seen.add(stem)
         specs.append(written(replace(relation, owner=None), stem))
-    return ImportedSchema(tuple(specs), tuple(live.skipped))
+    return ImportedSchema(tuple(specs), tuple(skipped))

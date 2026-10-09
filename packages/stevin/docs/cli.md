@@ -57,7 +57,8 @@ stevin import main.sales -o tables -t dev             # YAML specs
 stevin import main.sales -o tables -t dev -f sql      # SQL specs
 ```
 
-Generates specs from the tables, views and SQL functions that already exist, so adoption
+Generates specs from the tables and views that already exist, and the SQL functions
+their masks and row filters name, so adoption
 doesn't start with a blank file. If the target has a variable whose value is that
 catalog, the generated spec uses `${catalog}` instead of the literal name — foreign keys
 into the same catalog too — so it fits every target. Non-Delta tables are reported and

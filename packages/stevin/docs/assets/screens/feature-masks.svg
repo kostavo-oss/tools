@@ -1,4 +1,4 @@
-<svg class="rich-terminal" viewBox="0 0 994 294.0" xmlns="http://www.w3.org/2000/svg">
+<svg class="rich-terminal" viewBox="0 0 994 538.0" xmlns="http://www.w3.org/2000/svg">
     <!-- Generated with Rich https://www.textualize.io -->
     <style>
 
@@ -35,15 +35,16 @@
     .dp-feature-masks-r1 { fill: #98a84b;font-weight: bold }
 .dp-feature-masks-r2 { fill: #c5c8c6;font-weight: bold }
 .dp-feature-masks-r3 { fill: #c5c8c6 }
-.dp-feature-masks-r4 { fill: #d0b344;font-weight: bold }
-.dp-feature-masks-r5 { fill: #868887;font-weight: bold }
-.dp-feature-masks-r6 { fill: #d0b344 }
-.dp-feature-masks-r7 { fill: #868887 }
+.dp-feature-masks-r4 { fill: #98a84b }
+.dp-feature-masks-r5 { fill: #868887 }
+.dp-feature-masks-r6 { fill: #d0b344;font-weight: bold }
+.dp-feature-masks-r7 { fill: #868887;font-weight: bold }
+.dp-feature-masks-r8 { fill: #d0b344 }
     </style>
 
     <defs>
     <clipPath id="dp-feature-masks-clip-terminal">
-      <rect x="0" y="0" width="975.0" height="243.0" />
+      <rect x="0" y="0" width="975.0" height="487.0" />
     </clipPath>
     <clipPath id="dp-feature-masks-line-0">
     <rect x="0" y="1.5" width="976" height="24.65"/>
@@ -72,9 +73,39 @@
 <clipPath id="dp-feature-masks-line-8">
     <rect x="0" y="196.7" width="976" height="24.65"/>
             </clipPath>
+<clipPath id="dp-feature-masks-line-9">
+    <rect x="0" y="221.1" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-10">
+    <rect x="0" y="245.5" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-11">
+    <rect x="0" y="269.9" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-12">
+    <rect x="0" y="294.3" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-13">
+    <rect x="0" y="318.7" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-14">
+    <rect x="0" y="343.1" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-15">
+    <rect x="0" y="367.5" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-16">
+    <rect x="0" y="391.9" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-17">
+    <rect x="0" y="416.3" width="976" height="24.65"/>
+            </clipPath>
+<clipPath id="dp-feature-masks-line-18">
+    <rect x="0" y="440.7" width="976" height="24.65"/>
+            </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="292" rx="8"/><text class="dp-feature-masks-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">stevin</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="992" height="536" rx="8"/><text class="dp-feature-masks-title" fill="#c5c8c6" text-anchor="middle" x="496" y="27">stevin</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
@@ -85,15 +116,25 @@
     
     <g class="dp-feature-masks-matrix">
     <text class="dp-feature-masks-r1" x="0" y="20" textLength="24.4" clip-path="url(#dp-feature-masks-line-0)">$&#160;</text><text class="dp-feature-masks-r2" x="24.4" y="20" textLength="134.2" clip-path="url(#dp-feature-masks-line-0)">stevin&#160;plan</text><text class="dp-feature-masks-r3" x="976" y="20" textLength="12.2" clip-path="url(#dp-feature-masks-line-0)">
-</text><text class="dp-feature-masks-r2" x="0" y="44.4" textLength="219.6" clip-path="url(#dp-feature-masks-line-1)">sales.customers&#160;&#160;&#160;</text><text class="dp-feature-masks-r4" x="219.6" y="44.4" textLength="97.6" clip-path="url(#dp-feature-masks-line-1)">~&#160;update</text><text class="dp-feature-masks-r5" x="317.2" y="44.4" textLength="109.8" clip-path="url(#dp-feature-masks-line-1)">&#160;&#160;(24&#160;GB)</text><text class="dp-feature-masks-r3" x="976" y="44.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-1)">
-</text><text class="dp-feature-masks-r6" x="24.4" y="68.8" textLength="24.4" clip-path="url(#dp-feature-masks-line-2)">~&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="68.8" textLength="451.4" clip-path="url(#dp-feature-masks-line-2)">email&#160;&#160;mask&#160;→&#160;dev.security.mask_email</text><text class="dp-feature-masks-r3" x="976" y="68.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-2)">
-</text><text class="dp-feature-masks-r7" x="48.8" y="93.2" textLength="36.6" clip-path="url(#dp-feature-masks-line-3)">1.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="93.2" textLength="353.8" clip-path="url(#dp-feature-masks-line-3)">SET&#160;MASK&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r7" x="439.2" y="93.2" textLength="73.2" clip-path="url(#dp-feature-masks-line-3)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="93.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-3)">
-</text><text class="dp-feature-masks-r6" x="0" y="117.6" textLength="976" clip-path="url(#dp-feature-masks-line-4)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;⚠&#160;readers&#160;see&#160;what&#160;dev.security.mask_email&#160;returns&#160;for&#160;email,&#160;from&#160;now&#160;on</text><text class="dp-feature-masks-r3" x="976" y="117.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-4)">
-</text><text class="dp-feature-masks-r6" x="24.4" y="142" textLength="24.4" clip-path="url(#dp-feature-masks-line-5)">~&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="142" textLength="573.4" clip-path="url(#dp-feature-masks-line-5)">row&#160;filter&#160;→&#160;dev.security.by_region&#160;ON&#160;(region)</text><text class="dp-feature-masks-r3" x="976" y="142" textLength="12.2" clip-path="url(#dp-feature-masks-line-5)">
-</text><text class="dp-feature-masks-r7" x="48.8" y="166.4" textLength="36.6" clip-path="url(#dp-feature-masks-line-6)">2.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="166.4" textLength="353.8" clip-path="url(#dp-feature-masks-line-6)">SET&#160;ROW&#160;FILTER&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r7" x="439.2" y="166.4" textLength="73.2" clip-path="url(#dp-feature-masks-line-6)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="166.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-6)">
-</text><text class="dp-feature-masks-r6" x="0" y="190.8" textLength="939.4" clip-path="url(#dp-feature-masks-line-7)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;⚠&#160;readers&#160;see&#160;only&#160;the&#160;rows&#160;dev.security.by_region&#160;allows,&#160;from&#160;now&#160;on</text><text class="dp-feature-masks-r3" x="976" y="190.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-7)">
-</text><text class="dp-feature-masks-r3" x="976" y="215.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-8)">
-</text><text class="dp-feature-masks-r2" x="0" y="239.6" textLength="829.6" clip-path="url(#dp-feature-masks-line-9)">Plan:&#160;0&#160;add,&#160;1&#160;change,&#160;0&#160;destroy&#160;·&#160;2&#160;steps&#160;·&#160;0&#160;rewrites&#160;·&#160;2&#160;warnings</text><text class="dp-feature-masks-r3" x="976" y="239.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-9)">
+</text><text class="dp-feature-masks-r2" x="0" y="44.4" textLength="256.2" clip-path="url(#dp-feature-masks-line-1)">security.by_region&#160;&#160;&#160;</text><text class="dp-feature-masks-r1" x="256.2" y="44.4" textLength="97.6" clip-path="url(#dp-feature-masks-line-1)">+&#160;create</text><text class="dp-feature-masks-r3" x="976" y="44.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-1)">
+</text><text class="dp-feature-masks-r4" x="24.4" y="68.8" textLength="24.4" clip-path="url(#dp-feature-masks-line-2)">+&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="68.8" textLength="97.6" clip-path="url(#dp-feature-masks-line-2)">function</text><text class="dp-feature-masks-r3" x="976" y="68.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-2)">
+</text><text class="dp-feature-masks-r5" x="48.8" y="93.2" textLength="36.6" clip-path="url(#dp-feature-masks-line-3)">1.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="93.2" textLength="353.8" clip-path="url(#dp-feature-masks-line-3)">CREATE&#160;SCHEMA&#160;security&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r5" x="439.2" y="93.2" textLength="73.2" clip-path="url(#dp-feature-masks-line-3)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="93.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-3)">
+</text><text class="dp-feature-masks-r5" x="0" y="117.6" textLength="915" clip-path="url(#dp-feature-masks-line-4)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;·&#160;the&#160;schema&#160;doesn&#x27;t&#160;exist&#160;yet;&#160;stevin&#160;creates&#160;schemas,&#160;not&#160;catalogs</text><text class="dp-feature-masks-r3" x="976" y="117.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-4)">
+</text><text class="dp-feature-masks-r5" x="48.8" y="142" textLength="36.6" clip-path="url(#dp-feature-masks-line-5)">2.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="142" textLength="353.8" clip-path="url(#dp-feature-masks-line-5)">CREATE&#160;FUNCTION&#160;by_region&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r5" x="439.2" y="142" textLength="73.2" clip-path="url(#dp-feature-masks-line-5)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="142" textLength="12.2" clip-path="url(#dp-feature-masks-line-5)">
+</text><text class="dp-feature-masks-r3" x="976" y="166.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-6)">
+</text><text class="dp-feature-masks-r2" x="0" y="190.8" textLength="268.4" clip-path="url(#dp-feature-masks-line-7)">security.mask_email&#160;&#160;&#160;</text><text class="dp-feature-masks-r1" x="268.4" y="190.8" textLength="97.6" clip-path="url(#dp-feature-masks-line-7)">+&#160;create</text><text class="dp-feature-masks-r3" x="976" y="190.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-7)">
+</text><text class="dp-feature-masks-r4" x="24.4" y="215.2" textLength="24.4" clip-path="url(#dp-feature-masks-line-8)">+&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="215.2" textLength="97.6" clip-path="url(#dp-feature-masks-line-8)">function</text><text class="dp-feature-masks-r3" x="976" y="215.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-8)">
+</text><text class="dp-feature-masks-r5" x="48.8" y="239.6" textLength="36.6" clip-path="url(#dp-feature-masks-line-9)">3.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="239.6" textLength="353.8" clip-path="url(#dp-feature-masks-line-9)">CREATE&#160;FUNCTION&#160;mask_email&#160;&#160;&#160;</text><text class="dp-feature-masks-r5" x="439.2" y="239.6" textLength="73.2" clip-path="url(#dp-feature-masks-line-9)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="239.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-9)">
+</text><text class="dp-feature-masks-r3" x="976" y="264" textLength="12.2" clip-path="url(#dp-feature-masks-line-10)">
+</text><text class="dp-feature-masks-r2" x="0" y="288.4" textLength="219.6" clip-path="url(#dp-feature-masks-line-11)">sales.customers&#160;&#160;&#160;</text><text class="dp-feature-masks-r6" x="219.6" y="288.4" textLength="97.6" clip-path="url(#dp-feature-masks-line-11)">~&#160;update</text><text class="dp-feature-masks-r7" x="317.2" y="288.4" textLength="109.8" clip-path="url(#dp-feature-masks-line-11)">&#160;&#160;(24&#160;GB)</text><text class="dp-feature-masks-r3" x="976" y="288.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-11)">
+</text><text class="dp-feature-masks-r8" x="24.4" y="312.8" textLength="24.4" clip-path="url(#dp-feature-masks-line-12)">~&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="312.8" textLength="451.4" clip-path="url(#dp-feature-masks-line-12)">email&#160;&#160;mask&#160;→&#160;dev.security.mask_email</text><text class="dp-feature-masks-r3" x="976" y="312.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-12)">
+</text><text class="dp-feature-masks-r5" x="48.8" y="337.2" textLength="36.6" clip-path="url(#dp-feature-masks-line-13)">4.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="337.2" textLength="353.8" clip-path="url(#dp-feature-masks-line-13)">SET&#160;MASK&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r5" x="439.2" y="337.2" textLength="73.2" clip-path="url(#dp-feature-masks-line-13)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="337.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-13)">
+</text><text class="dp-feature-masks-r8" x="0" y="361.6" textLength="976" clip-path="url(#dp-feature-masks-line-14)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;⚠&#160;readers&#160;see&#160;what&#160;dev.security.mask_email&#160;returns&#160;for&#160;email,&#160;from&#160;now&#160;on</text><text class="dp-feature-masks-r3" x="976" y="361.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-14)">
+</text><text class="dp-feature-masks-r8" x="24.4" y="386" textLength="24.4" clip-path="url(#dp-feature-masks-line-15)">~&#160;</text><text class="dp-feature-masks-r3" x="48.8" y="386" textLength="573.4" clip-path="url(#dp-feature-masks-line-15)">row&#160;filter&#160;→&#160;dev.security.by_region&#160;ON&#160;(region)</text><text class="dp-feature-masks-r3" x="976" y="386" textLength="12.2" clip-path="url(#dp-feature-masks-line-15)">
+</text><text class="dp-feature-masks-r5" x="48.8" y="410.4" textLength="36.6" clip-path="url(#dp-feature-masks-line-16)">5.&#160;</text><text class="dp-feature-masks-r3" x="85.4" y="410.4" textLength="353.8" clip-path="url(#dp-feature-masks-line-16)">SET&#160;ROW&#160;FILTER&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="dp-feature-masks-r5" x="439.2" y="410.4" textLength="73.2" clip-path="url(#dp-feature-masks-line-16)">[meta]</text><text class="dp-feature-masks-r3" x="976" y="410.4" textLength="12.2" clip-path="url(#dp-feature-masks-line-16)">
+</text><text class="dp-feature-masks-r8" x="0" y="434.8" textLength="939.4" clip-path="url(#dp-feature-masks-line-17)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;⚠&#160;readers&#160;see&#160;only&#160;the&#160;rows&#160;dev.security.by_region&#160;allows,&#160;from&#160;now&#160;on</text><text class="dp-feature-masks-r3" x="976" y="434.8" textLength="12.2" clip-path="url(#dp-feature-masks-line-17)">
+</text><text class="dp-feature-masks-r3" x="976" y="459.2" textLength="12.2" clip-path="url(#dp-feature-masks-line-18)">
+</text><text class="dp-feature-masks-r2" x="0" y="483.6" textLength="829.6" clip-path="url(#dp-feature-masks-line-19)">Plan:&#160;2&#160;add,&#160;1&#160;change,&#160;0&#160;destroy&#160;·&#160;5&#160;steps&#160;·&#160;0&#160;rewrites&#160;·&#160;2&#160;warnings</text><text class="dp-feature-masks-r3" x="976" y="483.6" textLength="12.2" clip-path="url(#dp-feature-masks-line-19)">
 </text>
     </g>
     </g>

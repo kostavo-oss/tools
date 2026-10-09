@@ -786,13 +786,17 @@ def feature_masks(studio: Studio) -> None:
           - {name: email, type: string}
           - {name: region, type: string}
     """
-    studio.write("tables/mask_email.yml", MASK_FUNCTIONS)
-    studio.write("tables/by_region.yml", ROW_FILTER_FUNCTION)
+    # The functions arrive with the masks that name them — a function spec is
+    # only for a mask or a row filter — and are created first, in the same plan.
     _feature(
         studio,
         "masks",
         {"tables/customers.yml": before},
-        {"tables/customers.yml": after},
+        {
+            "tables/customers.yml": after,
+            "tables/mask_email.yml": MASK_FUNCTIONS,
+            "tables/by_region.yml": ROW_FILTER_FUNCTION,
+        },
         show="tables/customers.yml",
     )
 
@@ -820,31 +824,6 @@ def feature_views(studio: Studio) -> None:
         {"tables/orders.yml": orders, "tables/big_orders.yml": before},
         {"tables/big_orders.yml": after},
         show="tables/big_orders.yml",
-    )
-
-
-@scene
-def feature_functions(studio: Studio) -> None:
-    before = """\
-        function: ${catalog}.sales.order_band
-        comment: Small, medium or large, by amount
-        parameters:
-          - {name: amount, type: "decimal(18,2)"}
-        returns: string
-        grants:
-          - {principal: analysts, privileges: [EXECUTE]}
-        body: |
-          CASE WHEN amount < 100 THEN 'small'
-               WHEN amount < 1000 THEN 'medium'
-               ELSE 'large' END
-    """
-    after = before.replace("amount < 1000", "amount < 2500")
-    _feature(
-        studio,
-        "functions",
-        {"tables/order_band.yml": before},
-        {"tables/order_band.yml": after},
-        show="tables/order_band.yml",
     )
 
 
