@@ -1,0 +1,192 @@
+name: release
+
+# A release is a version of one package. Bump `version` in that package's
+# pyproject.toml and move its CHANGELOG's [Unreleased] notes under it, in a pull
+# request — merging that pull request is the release.
+#
+# This workflow notices a package version on main that isn't out yet, runs the
+# gate on it, publishes to PyPI with Trusted Publishing (repository
+# kostavo-oss/tools, workflow release.yml, environment pypi — no token; one
+# publisher per PyPI project), and creates the GitHub release, which is what
+# makes the `<package>-vX.Y.Z` tag. For stevin the Action's `stevin-v0` tag then
+# moves to it, so `uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the
+# newest 0.x release.
+#
+# A version that is already tagged, or already on PyPI, is not a release: the run
+# says so and stops. So is a push that leaves a version as it was. A
+# pyproject.toml change that isn't a bump is free. Two packages bumped in one
+# merge are two releases, one after the other.
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/*/pyproject.toml"]
+  workflow_dispatch: # to pick a release up again after a failure
+    inputs:
+      package:
+        description: "The package to release (its version on main must be unreleased)"
+        required: true
+        type: choice
+        options: [stevin, lely, leeghwater, caland]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: which versions are new?
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.read.outputs.releases }}
+      any: ${{ steps.read.outputs.any }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the tags, to tell what is already out
+          persist-credentials: false
+      - id: read
+        name: The versions, and whether they are already released
+        env:
+          EVENT: ${{ github.event_name }}
+          ONLY: ${{ inputs.package }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tomllib, urllib.request
+
+          def version_at(ref, package):
+              try:
+                  text = subprocess.run(["git", "show", f"{ref}:packages/{package}/pyproject.toml"],
+                                        capture_output=True, text=True, check=True).stdout
+              except subprocess.CalledProcessError:
+                  return None
+              return tomllib.loads(text)["project"]["version"]
+
+          def tagged(tag):
+              return subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"],
+                                    capture_output=True).returncode == 0
+
+          def on_pypi(package, version):
+              try:
+                  urllib.request.urlopen(f"https://pypi.org/pypi/{package}/{version}/json")
+                  return True
+              except Exception:
+                  return False
+
+          event, only = os.environ["EVENT"], os.environ.get("ONLY") or ""
+          packages = [only] if only else ["stevin", "lely", "leeghwater", "caland"]
+          releases, failed = [], False
+          for package in packages:
+              version = version_at("HEAD", package)
+              tag = f"{package}-v{version}"
+              if tagged(tag):
+                  print(f"{tag} is already tagged — nothing to release."); continue
+              if on_pypi(package, version):
+                  print(f"{package} {version} is already on PyPI — nothing to release."); continue
+              # A version can sit on main untagged and unpublished — before the first
+              # release, or after a publish that failed — and then "not out yet" is
+              # true of every push. A push that leaves the version as it was is not a
+              # bump. (Started by hand, this is skipped: that is how a release is
+              # picked up again after a failure.)
+              if event == "push" and version_at("HEAD^", package) == version:
+                  print(f"{package} is {version}, as it was — nothing to release."); continue
+              changelog = open(f"packages/{package}/CHANGELOG.md").read()
+              if f"## [{version}]" not in changelog:
+                  print(f"::error::packages/{package}/CHANGELOG.md says nothing about {version} — "
+                        f"move the [Unreleased] notes under a '## [{version}] - <date>' heading")
+                  failed = True; continue
+              print(f"releasing {package} {version}")
+              releases.append({"package": package, "version": version})
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"releases={json.dumps(releases)}", file=out)
+              print(f"any={'true' if releases else 'false'}", file=out)
+          raise SystemExit(1 if failed else 0)
+          PY
+
+  gate:
+    name: gate (${{ matrix.package }} ${{ matrix.version }})
+    needs: check
+    if: needs.check.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJSON(needs.check.outputs.releases) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - name: Types and tests
+        working-directory: packages/${{ matrix.package }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          uv run ty check
+          case "$PACKAGE" in
+            stevin|lely) uv run pytest tests/unit ;;
+            *) uv run pytest ;;
+          esac
+
+  release:
+    name: publish ${{ matrix.package }} v${{ matrix.version }}
+    needs: [check, gate]
+    if: needs.check.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: write # the GitHub release, its tag, and moving `stevin-v0`
+      id-token: write # PyPI Trusted Publishing (OIDC)
+    strategy:
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJSON(needs.check.outputs.releases) }}
+    steps:
+      # The one checkout that keeps its credentials: the last step pushes a tag.
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Build
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: uv build --package "$PACKAGE"
+      - name: Publish to PyPI
+        # First, because it is the step that can't be undone: a tag without a
+        # release can be pushed again, a release without a tag can't.
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/
+      - name: Release notes from the package's CHANGELOG
+        env:
+          PACKAGE: ${{ matrix.package }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { f=1; next }
+            f && index($0, "## [") == 1 { exit }
+            f { print }
+          ' "packages/$PACKAGE/CHANGELOG.md" > notes.md || true
+      - name: Create the GitHub release, which makes the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          args=(--title "$PACKAGE v$VERSION" --target "$GITHUB_SHA")
+          if [ -s notes.md ]; then args+=(--notes-file notes.md); else args+=(--generate-notes); fi
+          # 0.1.0a1, 0.2.0rc1 … are PEP 440 pre-releases: say so on GitHub too.
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then args+=(--prerelease); fi
+          gh release create "$PACKAGE-v$VERSION" dist/* "${args[@]}"
+      - name: Move the major-version tag the stevin Action is used by
+        # `uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the newest
+        # 0.x release. While every release is an alpha, that is the newest alpha.
+        if: matrix.package == 'stevin'
+        env:
+          VERSION: ${{ matrix.version }}
+        run: |
+          major="stevin-v${VERSION%%.*}"
+          git tag -f "$major" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$major"

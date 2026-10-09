@@ -1,0 +1,56 @@
+name: Bug report
+description: Something isn't working in one of the tools
+labels: [bug]
+body:
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which tool?
+      options: [stevin, lely, leeghwater, caland]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: What you gave it
+      description: >
+        The smallest spec, config or command that reproduces this, with names
+        redacted if needed.
+      render: yaml
+  - type: textarea
+    id: output
+    attributes:
+      label: What it printed
+      description: >
+        The output as it was. For stevin, `stevin plan --format json` if the plan
+        was built.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      placeholder: "stevin 0.4.0  (what `<tool> --version` says)"
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12"
+  - type: input
+    id: workspace
+    attributes:
+      label: Databricks details
+      description: Cloud, warehouse or compute type, and anything unusual about the object.
+      placeholder: "Azure · Serverless SQL warehouse · Delta table with columnMapping enabled"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: The traceback or SQL error, if there is one.
+      render: shell

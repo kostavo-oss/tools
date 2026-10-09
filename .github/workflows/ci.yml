@@ -1,0 +1,246 @@
+name: ci
+
+# One gate for four packages. Lint, the workspace's own tests, the docs site and
+# the workflows always run; a package's types, tests, lowest-dependency run and
+# build run when that package — or something every package shares — changed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+      tests: ${{ steps.list.outputs.tests }}
+      any: ${{ steps.list.outputs.any }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - pyproject.toml
+              - uv.lock
+              - mise.toml
+              - .github/workflows/ci.yml
+            stevin:
+              - packages/stevin/**
+            lely:
+              - packages/lely/**
+            leeghwater:
+              - packages/leeghwater/**
+            caland:
+              - packages/caland/**
+      - id: list
+        name: The packages to check, and the test matrix
+        env:
+          SHARED: ${{ steps.filter.outputs.shared }}
+          STEVIN: ${{ steps.filter.outputs.stevin }}
+          LELY: ${{ steps.filter.outputs.lely }}
+          LEEGHWATER: ${{ steps.filter.outputs.leeghwater }}
+          CALAND: ${{ steps.filter.outputs.caland }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          # unit tests only: stevin's live suite runs in integration.yml
+          target = {"stevin": "tests/unit", "lely": "tests/unit", "leeghwater": "tests", "caland": "tests"}
+          everything = os.environ["SHARED"] == "true" or os.environ["EVENT"] == "push"
+          changed = [p for p in target if everything or os.environ[p.upper()] == "true"]
+          tests = []
+          for p in changed:
+              for py in ("3.11", "3.12", "3.13", "3.14"):
+                  tests.append({"package": p, "python": py, "os": "ubuntu-latest", "target": target[p]})
+              # Databricks is used from a lot of Windows laptops and Macs; nothing
+              # is meant to be OS-specific, and this is what proves it.
+              if p == "stevin":
+                  tests.append({"package": p, "python": "3.14", "os": "macos-latest", "target": target[p]})
+                  tests.append({"package": p, "python": "3.14", "os": "windows-latest", "target": target[p]})
+              if p == "caland":
+                  tests.append({"package": p, "python": "3.14", "os": "macos-latest", "target": target[p]})
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+          print(f"packages={json.dumps(changed)}", file=out)
+          print(f"tests={json.dumps(tests)}", file=out)
+          print(f"any={'true' if changed else 'false'}", file=out)
+          print("checking:", ", ".join(changed) or "no package")
+          PY
+
+  lint:
+    name: lint + the workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+      - name: The workspace's own tests (no package imports another, every package has its files)
+        run: uv run pytest tests
+
+  types:
+    name: types (${{ matrix.package }})
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Type check (ty)
+        working-directory: packages/${{ matrix.package }}
+        run: uv run ty check
+
+  test:
+    name: test (${{ matrix.package }} · py${{ matrix.python }} · ${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.tests) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Tests (pytest)
+        working-directory: packages/${{ matrix.package }}
+        run: uv run --python ${{ matrix.python }} pytest ${{ matrix.target }}
+
+  lowest:
+    name: test (${{ matrix.package }} · lowest dependencies)
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Every `>=` in a package's pyproject.toml says the version it names works.
+      # This installs exactly those — the lowest each direct dependency allows, on
+      # the oldest Python — so a floor that has gone false fails here and not on
+      # someone's laptop. The test tools go in afterwards at whatever is current:
+      # it is the package's floors that are on trial, not pytest's.
+      - name: Install with the lowest direct dependencies
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          uv venv --python 3.11 /tmp/lowest
+          uv pip install --python /tmp/lowest/bin/python --resolution lowest-direct -e "packages/$PACKAGE"
+          uv pip install --python /tmp/lowest/bin/python --group dev
+          uv pip freeze --python /tmp/lowest/bin/python
+      - name: Tests (pytest)
+        working-directory: packages/${{ matrix.package }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          case "$PACKAGE" in
+            stevin|lely) target=tests/unit ;;
+            caland) target="--ignore=tests/test_page_in_a_browser.py" ;;
+            *) target= ;;
+          esac
+          # shellcheck disable=SC2086
+          /tmp/lowest/bin/python -m pytest $target
+
+  actionlint:
+    name: workflows (actionlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The installer from actionlint's own README; it fetches a release binary.
+      # https://github.com/rhysd/actionlint/blob/main/docs/install.md
+      - name: Install actionlint
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - name: Lint workflows
+        run: ./actionlint -color
+
+  docs:
+    name: docs (strict build)
+    runs-on: ubuntu-latest
+    env:
+      NO_MKDOCS_2_WARNING: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # mkdocs lives in the `docs` dependency group, which a plain sync skips
+      - run: uv sync --group docs
+      - name: Build the site (strict — broken links/nav fail)
+        run: uv run --group docs mkdocs build --strict
+
+  build:
+    name: build (${{ matrix.package }})
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Build the wheel and the source package
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: uv build --package "$PACKAGE"
+      - name: The source package holds what is listed, and nothing else
+        # A build packs what the list in pyproject.toml names; a report a tool
+        # wrote, or a lock file, must not be in it.
+        run: |
+          have=$(tar tzf dist/*.tar.gz | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          want=".gitignore CHANGELOG.md LICENSE PKG-INFO README.md pyproject.toml src tests "
+          echo "$have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::the source package holds something that is not on the list in pyproject.toml"
+            exit 1
+          fi
+      - name: Smoke-test the built wheel on 3.11
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          uv venv /tmp/smoke -p 3.11
+          uv pip install --python /tmp/smoke/bin/python dist/*.whl
+          case "$PACKAGE" in
+            leeghwater) /tmp/smoke/bin/python -c "import leeghwater; print('leeghwater', leeghwater.__version__)" ;;
+            caland)
+              # the command as it is installed, not only that it can be imported
+              /tmp/smoke/bin/caland --version | grep -E '^caland [0-9]+\.[0-9]+'
+              /tmp/smoke/bin/caland --help | grep -F -- '--read-only'
+              /tmp/smoke/bin/python - <<'PY'
+          from importlib import resources
+
+          static = resources.files("caland.interface.web").joinpath("static")
+          for name in ("page.html", "page.css", "page.js"):
+              assert static.joinpath(name).read_bytes(), f"{name} is not in the wheel"
+          print("the page is in the wheel")
+          PY
+              ;;
+            *) "/tmp/smoke/bin/$PACKAGE" --version ;;
+          esac
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.package }}
+          path: dist/*
