@@ -371,21 +371,14 @@ class _Planner:
         self._desired = (
             table_diff.desired if isinstance(table_diff.desired, Table) else None
         )
-        hooks = (
-            table_diff.desired.hooks if isinstance(table_diff.desired, Table) else None
-        )
         start = self._change + 1
         changes = table_diff.changes
         if changes and changes[0].kind == "rename_table":
-            # The rename goes first, so every step after it — hooks included —
-            # finds the table under the name the spec gives it.
+            # The rename goes first, so every step after it finds the table under
+            # the name the spec gives it.
             self._change += 1
             self.plan_change(changes[0], table_diff.facts)
             changes = changes[1:]
-        # Hooks run only when the table has something to do in this plan — they are
-        # for the change, not for every apply.
-        if hooks and hooks.before and table_diff.changes:
-            self._emit_hook(table_diff.table, "BEFORE hook", hooks.before)
         if _rewrites(table_diff):
             # The table is rebuilt whole rather than patched change by change, so
             # its steps belong to the table rather than to any one change.
@@ -396,8 +389,6 @@ class _Planner:
             first = self._change + 1
             self._plan_patch(table_diff, changes, first)
             self._change = first + len(changes) - 1
-        if hooks and hooks.after and table_diff.changes:
-            self._emit_hook(table_diff.table, "AFTER hook", hooks.after)
 
     def _plan_patch(
         self, table_diff: TableDiff, changes: tuple[Change, ...], first: int
@@ -496,17 +487,6 @@ class _Planner:
                 continue
             self._change = -1
             self._emit_check(table_diff.table, kept, note="put back after the change")
-
-    def _emit_hook(self, table: str, title: str, sql: str) -> None:
-        change, self._change = self._change, -1
-        self.emit(
-            table,
-            title,
-            "meta",
-            sql=sql.strip().rstrip(";"),
-            warnings=("runs your SQL as written — stevin can't tell what it does",),
-        )
-        self._change = change
 
     @property
     def _object(self) -> str:

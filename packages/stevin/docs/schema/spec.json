@@ -179,20 +179,6 @@
             ]
           }
         },
-        "hooks": {
-          "type": "object",
-          "properties": {
-            "after": {
-              "type": "string",
-              "description": "SQL run after the table's changes."
-            },
-            "before": {
-              "type": "string",
-              "description": "SQL run before the table's changes."
-            }
-          },
-          "additionalProperties": false
-        },
         "owner": {
           "type": "string",
           "minLength": 1,

@@ -182,36 +182,6 @@ def test_constraints_say_what_they_are() -> None:
     assert "+ constraint FOREIGN KEY (c) → sales.customers (id) orders_c_fk\n" in text
 
 
-def test_a_before_hook_is_shown_before_the_changes() -> None:
-    from dataclasses import replace
-
-    from stevin.model.table import Hooks
-
-    live = table(col("id", "bigint"), name=TABLE)
-    desired = replace(
-        table(col("id", "bigint", nullable=False)),
-        hooks=Hooks(before="DELETE FROM t WHERE id IS NULL", after="OPTIMIZE t"),
-    )
-    plan = build_plan(
-        [
-            TableDiff(
-                TABLE,
-                diff(desired, live),
-                TableFacts(TABLE, exists=True),
-                desired=desired,
-                live=live,
-            )
-        ],
-        target="dev",
-        tool_version="0.1.0",
-        spec_hash="spec",
-        state_fingerprint="live",
-    )
-    text = plan_text(plan)
-    numbers = [line.split(".")[0].strip() for line in text.splitlines() if ". " in line]
-    assert numbers == ["1", "2", "3"], text
-
-
 def test_a_claim_belongs_to_the_table() -> None:
     """Its path is the property `deltaplan.managed`, which isn't a column."""
     from stevin.differ import ownership

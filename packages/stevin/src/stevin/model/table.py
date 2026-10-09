@@ -188,19 +188,6 @@ class Seed:
 
 
 @dataclass(frozen=True, slots=True)
-class Hooks:
-    """SQL to run around a table's changes — only when it has some in the plan.
-
-    The design's "simple pre/post SQL hooks": the escape hatch for what a spec
-    can't say, like a backfill that isn't one column's expression. stevin runs
-    them as written and can't tell what they do, so the plan says so.
-    """
-
-    before: str | None = None
-    after: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class Grant:
     """What one principal may do with a table.
 
@@ -307,9 +294,6 @@ class Table(Securable):
     #: Reference data this table is loaded with. Compared through its digest,
     #: which a loaded table carries as a property — never row by row.
     seed: Seed | None = field(default=None, compare=False)
-    #: Not state: nothing in the catalog records them, so they take no part in
-    #: comparing a spec with a live table.
-    hooks: Hooks | None = field(default=None, compare=False)
     #: The table's previous full name, while a rename is still to be applied.
     renamed_from: str | None = field(default=None, compare=False)
     #: What the spec says must not be there: `tags: {pii: null}`. Spec-only —

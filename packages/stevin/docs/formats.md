@@ -74,7 +74,6 @@ sqlglot learns more of Databricks SQL, this list grows.
 |  | Column renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |
 |  | Table renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |
 |  | Conversions and backfills (`using`) | ✓ | — | a stevin hint; SQL has no way to say it |
-|  | Hooks | ✓ | — | stevin's own; SQL has no way to say it |
 |  | Seeds (reference data) | ✓ | — | a stevin hint; a CSV beside the spec, or rows written out in it |
 |  | Partitioning | ✓ | ✓ | or liquid clustering, not both; left out, a table's partitioning stays |
 | Schemas | Schemas: comment and grants | ✓ | ✓ | never dropped |

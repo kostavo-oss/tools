@@ -1,23 +1,25 @@
-"""Filling a new column, and running SQL around a table's changes.
+"""Filling a new column.
 
 The case that needs it: adding a NOT NULL column to a table that has rows. The
 column arrives empty, so SET NOT NULL can only fail. `using:` — already "how to
 get this column's value from the rest of the row" for rewrites — fills the rows
 that are there, in between.
 
-Table `hooks:` are the design's "simple pre/post SQL hooks": the escape hatch for
-what a spec can't say. They run only when the table has changes in the plan.
+Table `hooks:` — SQL before and after a table's changes — left in 0.4.0: raw SQL
+around a change was the door through which transformation logic walked in. A spec
+that still says `hooks:` is refused, with the key named.
 """
 
 from pathlib import Path
 
+import pytest
+
 from helpers import col, plan_against, run, table
 from stevin.differ import diff
 from stevin.introspect import Introspector
-from stevin.loader import load_table
-from stevin.model.table import MANAGED_PROPERTY, Hooks, Table
+from stevin.loader import SpecError, load_table
+from stevin.model.table import MANAGED_PROPERTY
 from stevin.model.types import Field, Primitive
-from stevin.render.rich import plan_text
 
 NAME = "main.sales.orders"
 MANAGED = ((MANAGED_PROPERTY, "true"),)
@@ -69,45 +71,7 @@ def test_a_new_table_has_nothing_to_backfill() -> None:
     assert "BACKFILL" not in " ".join(s.title for s in plan.steps)
 
 
-def test_hooks_run_around_a_tables_changes() -> None:
-    desired = Table(
-        name=NAME,
-        columns=(*LIVE.columns, col("notes", "string")),
-        hooks=Hooks(
-            before="DELETE FROM main.sales.orders WHERE id IS NULL",
-            after="UPDATE main.sales.orders SET notes = '' WHERE notes IS NULL;",
-        ),
-    )
-    fake, plan = plan_against(desired, LIVE)
-    assert [s.title for s in plan.steps] == [
-        "BEFORE hook",
-        "ADD COLUMN notes",
-        "AFTER hook",
-    ]
-    assert plan.steps[0].warnings == (
-        "runs your SQL as written — stevin can't tell what it does",
-    )
-    assert (
-        plan.steps[2].sql == "UPDATE main.sales.orders SET notes = '' WHERE notes IS NULL"
-    )
-    assert "↻ hooks" in plan_text(plan)
-    run(plan, fake)
-
-
-def test_hooks_dont_run_when_the_table_has_nothing_to_do() -> None:
-    desired = Table(name=NAME, columns=LIVE.columns, hooks=Hooks(before="SELECT 1"))
-    _, plan = plan_against(desired, LIVE)
-    assert plan.empty
-
-
-def test_hooks_are_not_state() -> None:
-    # Nothing in the catalog records a hook, so it can't make a spec differ from
-    # the table it describes.
-    with_hooks = Table(name=NAME, columns=LIVE.columns, hooks=Hooks(after="SELECT 1"))
-    assert with_hooks == Table(name=NAME, columns=LIVE.columns)
-
-
-def test_hooks_in_a_spec(tmp_path: Path) -> None:
+def test_a_spec_with_hooks_is_refused_with_the_key_named(tmp_path: Path) -> None:
     path = tmp_path / "orders.yml"
     path.write_text(
         "table: ${catalog}.sales.orders\n"
@@ -115,19 +79,6 @@ def test_hooks_in_a_spec(tmp_path: Path) -> None:
         "hooks:\n"
         "  before: DELETE FROM ${catalog}.sales.orders WHERE id IS NULL\n"
     )
-    loaded = load_table(path, {"catalog": "main"})
-    assert loaded.hooks == Hooks(before="DELETE FROM main.sales.orders WHERE id IS NULL")
-
-
-def test_hooks_survive_the_plan_file() -> None:
-    """Checked by hand: hooks take no part in equality, so `==` can't see them."""
-    from stevin.render.json import dumps, loads
-
-    hooks = Hooks(before="DELETE FROM x WHERE id IS NULL", after="OPTIMIZE x")
-    desired = Table(
-        name=NAME, columns=(*LIVE.columns, col("notes", "string")), hooks=hooks
-    )
-    _, plan = plan_against(desired, LIVE)
-    restored = loads(dumps(plan)).diffs[0].desired
-    assert isinstance(restored, Table)
-    assert restored.hooks == hooks
+    with pytest.raises(SpecError, match="unknown key 'hooks'") as caught:
+        load_table(path, {"catalog": "main"})
+    assert "orders.yml:3" in str(caught.value)

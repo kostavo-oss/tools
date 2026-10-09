@@ -44,7 +44,6 @@ from stevin.model.table import (
     Constraint,
     ForeignKey,
     Grant,
-    Hooks,
     PrimaryKey,
     RowFilter,
     Seed,
@@ -652,7 +651,6 @@ CHECK_KEYS = {"name", "expression"}
 FOREIGN_KEY_KEYS = {"columns", "references", "referenced_columns", "name"}
 PRIMARY_KEY_KEYS = {"columns", "name"}
 PARAMETER_KEYS = {"name", "type"}
-HOOK_KEYS = {"before", "after"}
 GRANT_KEYS = {"principal", "privileges"}
 
 FIELD_KEYS = {
@@ -859,7 +857,6 @@ TABLE_KEYS = {
     "constraints",
     "grants",
     "row_filter",
-    "hooks",
     "seed",
     "renamed_from",
     "owner",
@@ -1190,19 +1187,6 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
     row_filter = None
     if "row_filter" in items:
         row_filter = _read_row_filter(ctx, items["row_filter"][0])
-    hooks = None
-    if "hooks" in items:
-        hook_items = _mapping(ctx, items["hooks"][0], "hooks")
-        _known_keys(hook_items, allowed=HOOK_KEYS, what="hooks")
-        hooks = Hooks(
-            before=_string(ctx, hook_items["before"][0], "before hook")
-            if "before" in hook_items
-            else None,
-            after=_string(ctx, hook_items["after"][0], "after hook")
-            if "after" in hook_items
-            else None,
-        )
-
     renamed_from = None
     if "renamed_from" in items:
         renamed_from = _string(ctx, items["renamed_from"][0], "renamed_from")
@@ -1225,7 +1209,6 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
         grants=grants,
         row_filter=row_filter,
         seed=seed,
-        hooks=hooks,
         renamed_from=renamed_from,
         removed_properties=removed_properties,
         removed_tags=removed_tags,
@@ -2179,13 +2162,6 @@ def spec_document(
             }
             for row in table.seed.rows
         ]
-    if table.hooks is not None:
-        hooks: dict[str, object] = {}
-        if table.hooks.before is not None:
-            hooks["before"] = _LiteralText(table.hooks.before.strip() + "\n")
-        if table.hooks.after is not None:
-            hooks["after"] = _LiteralText(table.hooks.after.strip() + "\n")
-        document["hooks"] = hooks
     if table.renamed_from:
         document["renamed_from"] = table.renamed_from
     return document

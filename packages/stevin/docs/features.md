@@ -269,19 +269,6 @@ table is refused, with the reason, rather than planned as something that would f
 
 [Identity, generated and default columns →](spec.md#identity-generated-and-default-columns)
 
-## Hooks
-
-SQL to run before and after a table's changes, for what a spec can't say. Hooks run
-only when the table changes.
-
-```yaml title="tables/orders.yml"
---8<-- "assets/screens/feature-hooks.yml"
-```
-
-![Hooks](assets/screens/feature-hooks.svg)
-
-[Hooks →](spec.md#hooks)
-
 ## Ownership
 
 stevin only ever drops what it manages. A table it created carries a marker. A table

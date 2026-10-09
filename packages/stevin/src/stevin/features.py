@@ -3,7 +3,7 @@
 YAML is stevin's own format: it can say everything the model holds. SQL specs
 are read with sqlglot, so they can say what sqlglot parses into structure — and
 nothing it can't, even when Databricks accepts it. Some features are stevin's
-own hints (`renamed_from`, `using`, hooks) with no SQL spelling at all.
+own hints (`renamed_from`, `using`) with no SQL spelling at all.
 
 This list is the one place that says which is which. `docs/formats.md` shows it
 (regenerate with `python -m stevin.features docs/formats.md`), and the tests
@@ -222,9 +222,6 @@ FEATURES: tuple[Feature, ...] = (
         False,
         None,
         "a stevin hint; SQL has no way to say it",
-    ),
-    Feature(
-        "Tables", "Hooks", True, False, None, "stevin's own; SQL has no way to say it"
     ),
     Feature(
         "Tables",

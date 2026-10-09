@@ -16,7 +16,7 @@ Three rules decide what a file gets:
   the moment to start managing something new. A declared one takes the live
   value; one that is declared and no longer live stops being declared.
 - **What only a file can say survives**: `${catalog}`, a `renamed_from` hint, a
-  `using:` expression, a seed's rows, hooks — and every comment and blank line
+  `using:` expression, a seed's rows — and every comment and blank line
   around them, because the file is *edited* rather than rewritten (`yamledit`).
 
 It then reads its own work back and diffs that against live, so anything it
@@ -250,7 +250,6 @@ def _adopted_table(spec: Table, live: Table) -> Table:
         row_filter=live.row_filter if spec.row_filter is not None else None,
         # Only a file knows these, and the workspace can't be asked.
         seed=spec.seed,
-        hooks=spec.hooks,
         renamed_from=spec.renamed_from,
     )
 

@@ -31,7 +31,6 @@
         ),
         grants=tuple(
         ),
-        hooks=None,
         name='main.sales.orders',
         owner=None,
         partitioned_by=None,

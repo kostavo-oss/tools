@@ -893,24 +893,6 @@ def feature_generated(studio: Studio) -> None:
 
 
 @scene
-def feature_hooks(studio: Studio) -> None:
-    before = """\
-        table: ${catalog}.sales.orders
-        columns:
-          - {name: order_id, type: bigint}
-    """
-    after = """\
-        table: ${catalog}.sales.orders
-        hooks:
-          before: DELETE FROM ${catalog}.sales.orders WHERE order_id IS NULL
-          after: OPTIMIZE ${catalog}.sales.orders
-        columns:
-          - {name: order_id, type: bigint, nullable: false}
-    """
-    _feature(studio, "hooks", {"tables/orders.yml": before}, {"tables/orders.yml": after})
-
-
-@scene
 def feature_ownership(studio: Studio) -> None:
     from dataclasses import replace
 

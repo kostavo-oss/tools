@@ -22,7 +22,7 @@ from stevin.introspect import Introspector
 from stevin.loader import load_table, validate_spec
 from stevin.model.change import Change
 from stevin.model.plan import Plan
-from stevin.model.table import MANAGED_PROPERTY, Hooks, Table
+from stevin.model.table import MANAGED_PROPERTY, Table
 from stevin.planning import plan_tables
 from stevin.render.json import dumps, loads
 from stevin.render.rich import plan_text
@@ -173,16 +173,6 @@ def test_when_neither_exists_the_table_is_created() -> None:
     fake.schemas.add("main.sales")
     plan = planned([NEW], fake)
     assert [s.title for s in plan.steps] == ["CREATE TABLE orders"]
-
-
-def test_the_rename_runs_before_the_hooks() -> None:
-    hooked = replace(NEW, hooks=Hooks(before="SELECT 1", after="SELECT 2"))
-    plan = planned([hooked], FakeWarehouse.of(OLD))
-    assert [s.title for s in plan.steps] == [
-        "RENAME TABLE",
-        "BEFORE hook",
-        "AFTER hook",
-    ]
 
 
 def test_a_rename_and_a_rewrite_in_one_plan() -> None:

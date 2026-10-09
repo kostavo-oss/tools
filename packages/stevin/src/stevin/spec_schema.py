@@ -324,13 +324,6 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
                     },
                 ],
             },
-            "hooks": _object(
-                loader.HOOK_KEYS,
-                {
-                    "before": _text("SQL run before the table's changes."),
-                    "after": _text("SQL run after the table's changes."),
-                },
-            ),
         },
         required={"table", "columns"},
         description="A Delta table.",

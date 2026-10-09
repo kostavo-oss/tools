@@ -98,7 +98,7 @@ live value.
 
 And what only a file can say survives, because the file is edited rather than
 rewritten: `${catalog}` and every other variable, `renamed_from`, `using:`, a seed's
-rows, hooks — and the comments and blank lines around them.
+rows — and the comments and blank lines around them.
 
 - Names work like `--select`: `orders`, `sales.orders`, `sales.*`. With none, every
   spec that has drifted.

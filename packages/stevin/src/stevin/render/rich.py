@@ -147,7 +147,7 @@ def _render_table(plan: Plan, diff: TableDiff, console: Console, offset: int) ->
 
     numbered = list(enumerate(diff.changes, start=offset))
     # Steps that belong to the table rather than to any one change: a rewrite's,
-    # hooks, a CHECK moved out of a change's way. Those that run before the
+    # a CHECK moved out of a change's way. Those that run before the
     # first change's steps are shown above the changes, the rest below.
     bound = {s.id for index, _ in numbered for s in plan.steps_for_change(index)}
     rest = [step for step in plan.steps_for(diff.table) if step.id not in bound]
@@ -199,8 +199,6 @@ def _rest_label(rest: list[Step]) -> str:
     """What the steps that belong to the table rather than a change are."""
     if any(step.risk == "rewrite" for step in rest):
         return "rewrite"
-    if all(step.title.endswith("hook") for step in rest):
-        return "hooks"
     # Put back after a replace, or out of the way of a change and back again.
     return "around the changes"
 

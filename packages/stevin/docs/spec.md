@@ -254,7 +254,7 @@ table: ${catalog}.sales.orders
 renamed_from: order_facts          # or ${catalog}.sales.order_facts
 ```
 
-- **The rename is the table's first step**, before its hooks and any rewrite, so
+- **The rename is the table's first step**, before any rewrite, so
   everything after it uses the new name. It warns that whatever reads the old name —
   views, jobs, dashboards — stops finding it.
 - **Within the schema only.** Unity Catalog doesn't move a table between schemas with
@@ -420,19 +420,6 @@ plain columns only: no structs, arrays or maps. An empty CSV cell is `NULL`.
     [What is and isn't verified](testing.md#what-the-live-suite-has-not-settled).
 
 Taking a seed out of a spec doesn't empty the table; it stops managing what is in it.
-
-## Hooks
-
-```yaml
-hooks:
-  before: DELETE FROM ${catalog}.sales.orders WHERE order_id IS NULL
-  after: OPTIMIZE ${catalog}.sales.orders
-```
-
-SQL to run around a table's changes, for what a spec can't say. Hooks run only when the
-table has changes in the plan — they are for the change, not for every apply — and
-`before` runs ahead of the table's first step, `after` behind its last. stevin runs
-them as written and can't tell what they do, so the plan shows them with that warning.
 
 ## Column masks and row filters
 

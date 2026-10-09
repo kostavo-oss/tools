@@ -24,7 +24,6 @@ from stevin.model.table import (
     Check,
     ForeignKey,
     Grant,
-    Hooks,
     PrimaryKey,
     RowFilter,
     Table,
@@ -305,11 +304,6 @@ def _table_to_dict(table: Table) -> dict[str, Any]:
         "constraints": [_value(constraint) for constraint in table.constraints],
         "grants": {grant.principal: list(grant.privileges) for grant in table.grants},
         "row_filter": _row_filter_to_dict(table.row_filter) if table.row_filter else None,
-        "hooks": (
-            {"before": table.hooks.before, "after": table.hooks.after}
-            if table.hooks
-            else None
-        ),
     }
 
 
@@ -551,11 +545,6 @@ def _table_from_dict(entry: dict[str, Any]) -> Table:
         row_filter=(
             _row_filter_from_dict(entry["row_filter"])
             if entry.get("row_filter")
-            else None
-        ),
-        hooks=(
-            Hooks(entry["hooks"].get("before"), entry["hooks"].get("after"))
-            if entry.get("hooks")
             else None
         ),
     )
