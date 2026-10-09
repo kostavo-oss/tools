@@ -36,8 +36,12 @@ What that means for the shape of the tool:
   has to do.
 - **Comes:** ABAC policies as a spec kind (`policy:`), additive like masks and filters,
   built only after a live probe with a governed tag holds; and an *owned elsewhere* map
-  — a list in `stevin.yml` and dbt's manifest — so `plan` refuses a spec for what
-  another tool builds and `drift` names the owner.
+  — a list in `stevin.yml`, dbt's manifest, and dlt's own `_dlt_*` tables in a schema —
+  so `plan` refuses a spec that would *shape* what another tool builds, and `drift`
+  names the owner. A spec for such a table may still say who may see it — tags,
+  grants, masks, row filters, owner — and stevin puts that in place without ever
+  claiming or reshaping the table. That is how PII in dlt's landing tables and dbt's
+  models is governed without a post-hook or a setup job.
 - **Seeds stay on one condition:** they have never run on a workspace. They pass the
   live suite before 0.4.0, or they leave with it.
 

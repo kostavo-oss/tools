@@ -212,7 +212,9 @@ say. Leaving in 0.4.0, one PR each: views, `hooks:`, and SQL functions as a thin
 their own (a function spec stays valid only when a mask, a row filter or a policy
 names it). Coming: ABAC policies (`policy:` spec kind, additive like masks, built
 last and only after a live probe with a governed tag holds) and an *owned elsewhere*
-map (a `stevin.yml` list plus dbt's manifest). Seeds stay only if `test_live_seeds.py`
+map (a `stevin.yml` list, dbt's manifest, dlt's `_dlt_*` tables) with governance-only
+specs for owned tables (tags, grants, masks, filters, owner — never columns, never a
+claim). Seeds stay only if `test_live_seeds.py`
 passes live before 0.4.0a1. Still not a policy engine: no rules about who may have
 what, no approvals, no audit beyond its own run history; no catalogs, external
 tables, governed-tag definitions, groups, contracts or quality checks; no job or
