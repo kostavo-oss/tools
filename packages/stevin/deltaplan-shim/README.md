@@ -1,7 +1,7 @@
 # deltaplan is now stevin
 
 `deltaplan` — plan/apply migrations for Unity Catalog tables — was renamed
-[**stevin**](https://github.com/kostavo-oss/stevin). This is the last release under
+[**stevin**](https://github.com/kostavo-oss/tools). This is the last release under
 the old name. It contains no code of its own: it installs stevin, and forwards to it.
 
 ```sh
@@ -11,7 +11,7 @@ stevin plan                                  # instead of: deltaplan plan
 
 Nothing changes in your workspace. Tables deltaplan manages are tables stevin manages,
 and a `deltaplan.yml` is still found.
-[Coming from deltaplan](https://kostavo-oss.github.io/stevin/installation/#coming-from-deltaplan)
+[Coming from deltaplan](https://kostavo-oss.github.io/tools/stevin/installation/#coming-from-deltaplan)
 has the short list of what to rename.
 
 Until you do:
