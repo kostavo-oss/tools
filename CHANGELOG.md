@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-09
+
 ### Changed
 
 - **Every scope is shown, the ones out of reach greyed.** The scope you have to ask
@@ -475,7 +477,8 @@ Initial release.
 - Pre-loads and caches scopes/secrets/ACLs on startup.
 - Three switchable themes (violet, amber Okudagram, phosphor green).
 
-[Unreleased]: https://github.com/kostavo-oss/caland/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/kostavo-oss/caland/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/kostavo-oss/caland/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/kostavo-oss/caland/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kostavo-oss/caland/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/kostavo-oss/caland/compare/v0.5.1...v0.5.2

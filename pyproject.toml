@@ -1,6 +1,6 @@
 [project]
 name = "caland"
-version = "0.7.0"
+version = "0.7.1"
 description = "Databricks secrets, by hand: a keyboard-driven page in your browser, served from your own machine"
 readme = "README.md"
 requires-python = ">=3.11"
