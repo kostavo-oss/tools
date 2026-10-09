@@ -244,3 +244,23 @@ jobs:
         with:
           name: dist-${{ matrix.package }}
           path: dist/*
+
+  ok:
+    # The one check branch protection requires. The package jobs are a matrix
+    # that path filters may leave empty, and a required check that never runs
+    # blocks a merge forever; this job always runs and fails only when a job it
+    # waited for failed or was cancelled. Skipped is fine: that package didn't change.
+    name: ci ok
+    if: always()
+    needs: [changes, lint, types, test, lowest, actionlint, docs, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"result": "(failure|cancelled)"'; then
+            echo "::error::a job failed or was cancelled"
+            exit 1
+          fi
