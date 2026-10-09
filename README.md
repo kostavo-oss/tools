@@ -23,7 +23,7 @@ most workspaces. These are four small tools, one per gap, each with a closed sco
 Every tool is a package of its own on PyPI, with its own version, changelog and docs;
 none needs another. They share this repository: one lock file, one test gate, one site.
 A data product that uses them together starts from
-[vierlingh](https://github.com/kostavo-oss/vierlingh), a template.
+[data-product-template](https://github.com/kostavo-oss/data-product-template), a template.
 
 ## Where they fit
 
