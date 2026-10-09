@@ -195,7 +195,8 @@ And the plan says what it could not have touched, so a reviewer doesn't have to 
 ## Masks and row filters
 
 A column mask or row filter points at a SQL function, which can be a
-[function spec](#functions) in the same project. stevin treats them as security
+[function spec](spec.md#mask-and-filter-functions) in the same project — the only
+reason a function spec exists. stevin treats them as security
 controls. It adds and replaces them and never removes one. A new table is created with
 them, so it never exists unprotected, even for a moment.
 
@@ -219,20 +220,6 @@ grants, which a replace drops, are put back straight after.
 ![Replacing a view](assets/screens/feature-views.svg)
 
 [Views →](spec.md#views)
-
-## Functions
-
-SQL functions: parameters, return type and body. A changed body replaces the function,
-and puts its grants back. The plan warns that everything calling it sees the new
-definition at once.
-
-```yaml title="tables/order_band.yml"
---8<-- "assets/screens/feature-functions.yml"
-```
-
-![Replacing a function](assets/screens/feature-functions.svg)
-
-[Functions →](spec.md#functions)
 
 ## Schemas and volumes
 
@@ -319,7 +306,8 @@ strict schema it's dropped, as a `destructive` step `apply` won't run without
 ## Import
 
 Most schemas exist before stevin does. `import` writes a spec for everything in one,
-tables, views, functions and volumes, so the first plan has nothing to do but claim
+tables, views, the functions their masks and filters name, and volumes, so the first
+plan has nothing to do but claim
 them.
 
 ![stevin import](assets/screens/feature-import.svg)

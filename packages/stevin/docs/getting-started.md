@@ -61,7 +61,8 @@ stevin import main.crm
 
 ![stevin import](assets/screens/start-import.svg)
 
-That wrote one spec per table, view and function, and a `stevin.yml` with one target,
+That wrote one spec per table and view, one per function a mask or row filter names,
+and a `stevin.yml` with one target,
 `dev`, whose catalog is the one you imported from:
 
 === "stevin.yml"

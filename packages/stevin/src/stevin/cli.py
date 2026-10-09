@@ -49,6 +49,7 @@ from stevin.loader import (
     load_spec,
     shared_names,
     spec_files,
+    unreferenced_functions,
     validate_spec,
 )
 from stevin.manage import EVERYTHING
@@ -240,9 +241,14 @@ def validate(
         for diagnostic in validate_spec(table, _shown(path)):
             _print_diagnostic(diagnostic)
             problems += diagnostic.severity == "error"
-    # What is wrong between specs rather than in one: two files for one name,
-    # and objects that name each other in a circle.
-    for diagnostic in (*shared_names(read, _shown), *cycles(read, _shown)):
+    # What is wrong between specs rather than in one: two files for one name, a
+    # function spec nothing masks or filters with, and objects that name each
+    # other in a circle.
+    for diagnostic in (
+        *shared_names(read, _shown),
+        *unreferenced_functions(read, _shown),
+        *cycles(read, _shown),
+    ):
         _print_diagnostic(diagnostic)
         problems += 1
 
@@ -393,7 +399,7 @@ def import_schema(
     for name, reason in found.skipped:
         out.print(
             f"[dim]· skipped {name} ({reason}) — stevin manages Delta tables, "
-            "views and SQL functions[/]"
+            "views, and the SQL functions their masks and row filters name[/]"
         )
 
     if not found.specs:
