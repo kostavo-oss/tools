@@ -158,7 +158,7 @@ for free.
 
 - **R15 — "Writing a plugin" becomes "Writing a step"**, and starts with the step run on
   its own: the file, `uv run`, the five commands, then `uses:` in a config. The
-  `SecretScope` step is the example throughout, and vierlingh's first step of its own.
+  `SecretScope` step is the example throughout, and the data product template's first step of its own.
   *(proposal)*
 
 ## Not in this spec
