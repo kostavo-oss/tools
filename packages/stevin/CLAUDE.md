@@ -19,7 +19,9 @@ must pass (the root `CLAUDE.md` says what it runs, and for which packages).
 `integration` — the live suite against the
 workspace, ~40 minutes — runs on every pull request that touches code, and nightly;
 it isn't required, so read it before merging anything that changes the SQL stevin
-sends. Its credentials are GitHub environment secrets in `databricks-test`.
+sends. Its workspace is three variables in the GitHub environment `databricks-test`
+(`DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, `STEVIN_TEST_CATALOG`) and its token
+the one secret there, `DATABRICKS_TOKEN`.
 
 A release is a version: bump `version` in `pyproject.toml` and move the CHANGELOG's
 `[Unreleased]` notes under it in a PR. Merging that PR is the release — `release.yml`
@@ -266,6 +268,7 @@ tables in a workspace (`deltaplan.managed`, `deltaplan.seed`, the `__deltaplan_r
 and `__deltaplan_backup` suffixes — **do not rename them**: that orphans every table that
 carries one, and is a migration the owner hasn't decided on), the project file's former
 names (still found), and the `deltaplan` command (still installed; it says its new name
-on stderr and runs stevin). The GitHub secret `DELTAPLAN_TEST_CATALOG` kept its name too.
+on stderr and runs stevin). The test catalog's old name, `DELTAPLAN_TEST_CATALOG`, went with the old
+repository: here it is the variable `STEVIN_TEST_CATALOG`.
 `deltaplan-shim/` is the last `deltaplan` release for PyPI — it installs stevin — and is
 not published by any workflow.
