@@ -13,6 +13,12 @@ objects through `Bench.named()` and says what the workspace did: `Disagrees`
 (or a plain failed assertion) means this workspace does something else, and
 `matters` says what that costs.
 
+A table costs the workspace something after it is dropped too: Unity Catalog
+counts tables against a metastore's quota with an estimate that comes down
+slowly. So a table that several probes only read is made once, by the first
+probe that asks (`Bench.once()`), and a probe makes one of its own only where
+it changes the table or must start from nothing.
+
 Nothing here touches anything outside the bench's schema, and the bench's schema
 is one the caller made for the purpose. `tests/integration/test_live_assumptions.py`
 runs this same list, so an assumption is written down once.
@@ -23,8 +29,8 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeVar
 
 from stevin.advice import with_advice
 from stevin.errors import StevinError
@@ -41,6 +47,12 @@ from stevin.typeparser import parse_type
 
 if TYPE_CHECKING:
     from stevin.executor import ExecutionResult
+
+_Made = TypeVar("_Made")
+
+#: What every shared object's name starts with, where a probe's own starts
+#: with its number.
+SHARED_PREFIX = "shared_"
 
 
 class Disagrees(StevinError):
@@ -104,6 +116,10 @@ class Bench:
     `recoverable` makes a second schema that keeps what it drops — for the one
     probe about `UNDROP`. It is a callable because such a schema holds the
     metastore's table quota for a week, so it is only made if a probe asks.
+
+    `shared` is what the probes of one run have made for each other: see
+    `once()`. A bench made afresh shares nothing, so a probe run on its own
+    makes what it needs.
     """
 
     runner: SqlRunner
@@ -113,6 +129,9 @@ class Bench:
     recoverable: Callable[[], str] | None = None
     #: Set per probe by `run`, so every object it makes is its own.
     prefix: str = ""
+    #: What `once()` has made in this run, by key. `run` hands every probe the
+    #: same one.
+    shared: dict[str, Any] = field(default_factory=dict)
 
     # -- where things go ---------------------------------------------------
     @property
@@ -146,6 +165,35 @@ class Bench:
             f"WHERE {schema_column} = {quote_literal(self.bare)} "
             f"AND table_name = {quote_literal(self.short(stem))}"
         )
+
+    # -- what probes share -------------------------------------------------
+    @property
+    def common(self) -> Bench:
+        """This bench under the name all probes share, for an object several
+        of them read and none of them changes."""
+        return replace(self, prefix=SHARED_PREFIX)
+
+    def once(self, key: str, make: Callable[[Bench], _Made]) -> _Made:
+        """What `make` made, the first time a probe of this run asked for it.
+
+        `make` gets the shared bench (`common`) and names its objects through
+        it. Whatever it returns is handed to every probe that asks after. A
+        probe may read a shared object, and may do to it what leaves it as the
+        next probe expects; anything else wants a table of its own.
+
+        When `make` fails the failure is kept, and every probe that asks gets
+        the same one: making it again would only meet the half that was made.
+        """
+        if key not in self.shared:
+            try:
+                self.shared[key] = make(self.common)
+            except Exception as error:
+                self.shared[key] = _Unmade(error)
+                raise
+        found = self.shared[key]
+        if isinstance(found, _Unmade):
+            raise found.error
+        return found
 
     # -- running things ----------------------------------------------------
     def sql(self, statement: str) -> tuple[Row, ...]:
@@ -221,6 +269,13 @@ class Bench:
         ]
 
 
+@dataclass(frozen=True, slots=True)
+class _Unmade:
+    """A shared object that couldn't be made, and why."""
+
+    error: Exception
+
+
 def col(name: str, type_text: str) -> Column:
     """A column, from the type string a spec would have written."""
     return Field(name, parse_type(type_text))
@@ -237,29 +292,59 @@ def spec(*columns: Column, name: str) -> Table:
 # ---------------------------------------------------------------------------
 
 
+def _plain(bench: Bench) -> Table:
+    """A table of stevin's that no probe changes: its spec.
+
+    Four probes only need a table to be there — to grant on, to ask about its
+    policies, to be refused an `ALTER` — and the one about materialized views
+    reads from it.
+    """
+
+    def make(common: Bench) -> Table:
+        wanted = spec(col("id", "int"), col("ts", "timestamp"), name=common.full("plain"))
+        common.apply(common.planned([wanted]))
+        return wanted
+
+    return bench.once("plain", make)
+
+
+def _replaced(bench: Bench) -> int:
+    """A table with rows, tags and a grant, replaced by a statement that reads
+    it: the Delta version it had before the replace.
+
+    Three probes ask about the same replace — that it is allowed, what it
+    keeps, and that `RESTORE` undoes it — so it is done once. The table is
+    `common.named("replaced")`.
+    """
+
+    def make(common: Bench) -> int:
+        name = common.named("replaced")
+        common.sql(f"CREATE TABLE {name} (id INT, label STRING)")
+        common.sql(f"INSERT INTO {name} VALUES (1, 'a'), (2, 'b')")
+        common.sql(f"ALTER TABLE {name} SET TAGS ('domain' = 'x')")
+        common.sql(f"ALTER TABLE {name} ALTER COLUMN label SET TAGS ('pii' = 'none')")
+        common.sql(f"GRANT SELECT ON TABLE {name} TO {quote_ident(common.principal)}")
+        [before] = common.sql(f"DESCRIBE HISTORY {name} LIMIT 1")
+        version = int(before["version"] or 0)
+        common.sql(
+            f"CREATE OR REPLACE TABLE {name} AS "
+            f"SELECT CAST(id AS STRING) AS id, label FROM {name}"
+        )
+        return version
+
+    return bench.once("replaced", make)
+
+
 def _a_table_can_read_itself_in_a_replace(bench: Bench) -> None:
-    name = bench.named("self")
-    bench.sql(f"CREATE TABLE {name} (id INT)")
-    bench.sql(f"INSERT INTO {name} VALUES (1), (2)")
-    bench.sql(
-        f"CREATE OR REPLACE TABLE {name} AS SELECT CAST(id AS STRING) AS id FROM {name}"
-    )
-    rows = bench.sql(f"SELECT id FROM {name}")
+    _replaced(bench)
+    rows = bench.sql(f"SELECT id FROM {bench.common.named('replaced')}")
     bench.expect(len(rows) == 2, f"the table holds {len(rows)} rows, not the 2 it read")
 
 
 def _a_replace_keeps_tags_and_grants(bench: Bench) -> None:
-    name = bench.named("r")
-    bench.sql(f"CREATE TABLE {name} (id INT, label STRING)")
-    bench.sql(f"ALTER TABLE {name} SET TAGS ('domain' = 'x')")
-    bench.sql(f"ALTER TABLE {name} ALTER COLUMN label SET TAGS ('pii' = 'none')")
-    bench.sql(f"GRANT SELECT ON TABLE {name} TO {quote_ident(bench.principal)}")
-    bench.sql(
-        f"CREATE OR REPLACE TABLE {name} AS "
-        f"SELECT CAST(id AS STRING) AS id, label FROM {name}"
-    )
-
-    where = bench.about("r", schema_column="schema_name")
+    _replaced(bench)
+    common = bench.common
+    where = common.about("replaced", schema_column="schema_name")
     tags = bench.values(
         bench.sql(f"SELECT tag_name FROM {bench.info}.table_tags {where}"), "tag_name"
     )
@@ -273,7 +358,8 @@ def _a_replace_keeps_tags_and_grants(bench: Bench) -> None:
     )
     grants = bench.values(
         bench.sql(
-            f"SELECT privilege_type FROM {bench.info}.table_privileges {bench.about('r')}"
+            f"SELECT privilege_type FROM {bench.info}.table_privileges "
+            f"{common.about('replaced')}"
         ),
         "privilege_type",
     )
@@ -281,19 +367,14 @@ def _a_replace_keeps_tags_and_grants(bench: Bench) -> None:
 
 
 def _restore_undoes_a_replace(bench: Bench) -> None:
-    name = bench.named("rs")
-    bench.sql(f"CREATE TABLE {name} (id INT)")
-    bench.sql(f"INSERT INTO {name} VALUES (1), (2)")
-    [before] = bench.sql(f"DESCRIBE HISTORY {name} LIMIT 1")
-    version = int(before["version"] or 0)
-    bench.sql(
-        f"CREATE OR REPLACE TABLE {name} AS SELECT CAST(id AS STRING) AS id FROM {name}"
-    )
+    version = _replaced(bench)
+    common = bench.common
+    name = common.named("replaced")
     bench.sql(f"RESTORE TABLE {name} TO VERSION AS OF {version}")
 
     types = bench.values(
         bench.sql(
-            f"SELECT data_type FROM {bench.info}.columns {bench.about('rs')} "
+            f"SELECT data_type FROM {bench.info}.columns {common.about('replaced')} "
             "AND column_name = 'id'"
         ),
         "data_type",
@@ -433,8 +514,8 @@ def _a_nested_not_null_is_an_alter(bench: Bench) -> None:
 
 
 def _generated_and_identity_columns_cannot_be_added(bench: Bench) -> None:
-    name = bench.named("g")
-    bench.sql(f"CREATE TABLE {name} (id INT, ts TIMESTAMP)")
+    # Both are refused, so the shared table is left as it was.
+    name = quote_qualified(_plain(bench).name)
     bench.fails(
         f"ALTER TABLE {name} ADD COLUMN k BIGINT GENERATED ALWAYS AS IDENTITY",
         "PARSE_SYNTAX_ERROR",
@@ -452,14 +533,26 @@ def _a_check_cannot_be_declared_inline(bench: Bench) -> None:
     )
 
 
+def _widening(bench: Bench) -> str:
+    """A table with type widening on, and a column for each of the two probes
+    about it: `value` is widened, `other` is only asked about. Its name."""
+
+    def make(common: Bench) -> str:
+        common.sql(
+            f"CREATE TABLE {common.named('wide')} (value BIGINT, other BIGINT) "
+            "TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"
+        )
+        return common.full("wide")
+
+    return bench.once("wide", make)
+
+
 def _the_widenings_we_call_metadata_are_allowed(bench: Bench) -> None:
-    name = bench.named("w1")
+    wide = _widening(bench)
     bench.sql(
-        f"CREATE TABLE {name} (value BIGINT) "
-        "TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"
+        f"ALTER TABLE {quote_qualified(wide)} ALTER COLUMN value TYPE DECIMAL(20,0)"
     )
-    bench.sql(f"ALTER TABLE {name} ALTER COLUMN value TYPE DECIMAL(20,0)")
-    live = bench.introspector.table(bench.full("w1"))
+    live = bench.introspector.table(wide)
     bench.expect(live is not None, "the widened table couldn't be read back")
     assert live is not None
     found = live.table.columns[0].type
@@ -470,13 +563,11 @@ def _the_widenings_we_call_metadata_are_allowed(bench: Bench) -> None:
 
 
 def _the_widenings_we_call_rewrites_are_refused(bench: Bench) -> None:
-    name = bench.named("w2")
-    bench.sql(
-        f"CREATE TABLE {name} (value BIGINT) "
-        "TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"
-    )
+    # Refused, so the column stays the bigint the question is about.
     bench.fails(
-        f"ALTER TABLE {name} ALTER COLUMN value TYPE DECIMAL(19,0)", "not supported"
+        f"ALTER TABLE {quote_qualified(_widening(bench))} "
+        "ALTER COLUMN other TYPE DECIMAL(19,0)",
+        "not supported",
     )
 
 
@@ -485,13 +576,33 @@ def _the_widenings_we_call_rewrites_are_refused(bench: Bench) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _cluster_columns() -> list[str]:
+    return [f"c{i}" for i in range(MAX_CLUSTER_COLUMNS + 1)]
+
+
+def _clustered(bench: Bench) -> str:
+    """A table clustered by as many keys as stevin allows. Its name.
+
+    Making it is half of one probe, and the probe about partitioning needs a
+    clustered table to start from.
+    """
+
+    def make(common: Bench) -> str:
+        columns = _cluster_columns()
+        definition = ", ".join(f"{name} INT" for name in columns)
+        common.sql(
+            f"CREATE TABLE {common.named('clustered')} ({definition}) "
+            f"CLUSTER BY ({', '.join(columns[:MAX_CLUSTER_COLUMNS])})"
+        )
+        return common.full("clustered")
+
+    return bench.once("clustered", make)
+
+
 def _liquid_clustering_takes_four_keys(bench: Bench) -> None:
-    columns = [f"c{i}" for i in range(MAX_CLUSTER_COLUMNS + 1)]
+    _clustered(bench)
+    columns = _cluster_columns()
     definition = ", ".join(f"{name} INT" for name in columns)
-    bench.sql(
-        f"CREATE TABLE {bench.named('k4')} ({definition}) "
-        f"CLUSTER BY ({', '.join(columns[:MAX_CLUSTER_COLUMNS])})"
-    )
     bench.fails(
         f"CREATE TABLE {bench.named('k5')} ({definition}) "
         f"CLUSTER BY ({', '.join(columns)})",
@@ -518,17 +629,18 @@ def _cluster_by_auto_is_accepted(bench: Bench) -> None:
 
 
 def _a_clustered_table_can_be_partitioned_after_cluster_by_none(bench: Bench) -> None:
-    name = bench.named("cp")
-    bench.sql(f"CREATE TABLE {name} (id BIGINT, day DATE) CLUSTER BY (day)")
+    # The last probe to need the clustered table as it was made: the one about
+    # four keys only asks that making it worked.
+    clustered = _clustered(bench)
+    name = quote_qualified(clustered)
+    definition = ", ".join(f"{column} INT" for column in _cluster_columns())
     bench.sql(f"ALTER TABLE {name} CLUSTER BY NONE")
-    bench.sql(
-        f"CREATE OR REPLACE TABLE {name} (id BIGINT, day DATE) PARTITIONED BY (day)"
-    )
-    live = bench.introspector.table(bench.full("cp"))
+    bench.sql(f"CREATE OR REPLACE TABLE {name} ({definition}) PARTITIONED BY (c0)")
+    live = bench.introspector.table(clustered)
     bench.expect(live is not None, "the partitioned table couldn't be read back")
     assert live is not None
     bench.expect(
-        live.table.partitioned_by == ("day",),
+        live.table.partitioned_by == ("c0",),
         f"it reads back partitioned by {live.table.partitioned_by}",
     )
 
@@ -594,16 +706,23 @@ def _a_missing_catalog_fails_introspection(bench: Bench) -> None:
         bench.introspector.schema("stevin_no_such_catalog", "anything")
 
 
-def _a_grant_on_the_schema_is_not_the_tables(bench: Bench) -> None:
-    wanted = spec(col("id", "int"), name=bench.full("i"))
-    bench.apply(bench.planned([wanted]))
+def _granted(bench: Bench) -> Table:
+    """The shared table, with `SELECT` granted on its schema and `MODIFY` on
+    the table itself. Two probes read the same two grants."""
+    wanted = _plain(bench)
     bench.sql(
         f"GRANT SELECT ON SCHEMA {quote_qualified(bench.schema)} "
         f"TO {quote_ident(bench.principal)}"
     )
     bench.sql(
-        f"GRANT MODIFY ON TABLE {bench.named('i')} TO {quote_ident(bench.principal)}"
+        f"GRANT MODIFY ON TABLE {quote_qualified(wanted.name)} "
+        f"TO {quote_ident(bench.principal)}"
     )
+    return wanted
+
+
+def _a_grant_on_the_schema_is_not_the_tables(bench: Bench) -> None:
+    wanted = _granted(bench)
     live = bench.introspector.table(wanted.name)
     bench.expect(live is not None, "the table couldn't be read back")
     assert live is not None
@@ -615,15 +734,7 @@ def _a_grant_on_the_schema_is_not_the_tables(bench: Bench) -> None:
 
 
 def _table_privileges_says_where_a_grant_comes_from(bench: Bench) -> None:
-    wanted = spec(col("id", "int"), name=bench.full("w"))
-    bench.apply(bench.planned([wanted]))
-    bench.sql(
-        f"GRANT SELECT ON SCHEMA {quote_qualified(bench.schema)} "
-        f"TO {quote_ident(bench.principal)}"
-    )
-    bench.sql(
-        f"GRANT MODIFY ON TABLE {bench.named('w')} TO {quote_ident(bench.principal)}"
-    )
+    wanted = _granted(bench)
     # Only this principal's: who else holds what here is not for a report.
     mine = {
         (held.privilege, held.level, held.on.lower())
@@ -643,15 +754,10 @@ def _table_privileges_says_where_a_grant_comes_from(bench: Bench) -> None:
 
 
 def _materialized_views_and_streaming_tables_are_left_alone(bench: Bench) -> None:
-    source = spec(col("id", "int"), name=bench.full("src"))
-    bench.apply(bench.planned([source]))
+    source = quote_qualified(_plain(bench).name)
+    bench.sql(f"CREATE MATERIALIZED VIEW {bench.named('mv')} AS SELECT id FROM {source}")
     bench.sql(
-        f"CREATE MATERIALIZED VIEW {bench.named('mv')} AS "
-        f"SELECT id FROM {bench.named('src')}"
-    )
-    bench.sql(
-        f"CREATE STREAMING TABLE {bench.named('st')} AS "
-        f"SELECT id FROM STREAM({bench.named('src')})"
+        f"CREATE STREAMING TABLE {bench.named('st')} AS SELECT id FROM STREAM({source})"
     )
     live = bench.introspector.schema(bench.catalog, bench.bare)
     skipped = dict(live.skipped)
@@ -695,10 +801,28 @@ _SHOW_POLICIES = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref
 _DESCRIBE_POLICY = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy"
 
 
+def _policed(bench: Bench) -> tuple[str, str]:
+    """A table to define a policy on and the function its row filter calls:
+    their names. The two probes that read a policy back share them, and each
+    defines and drops a policy of its own."""
+
+    def make(common: Bench) -> tuple[str, str]:
+        table, function = common.full("policed"), common.full("keep")
+        common.sql(f"CREATE TABLE {quote_qualified(table)} (id INT, region STRING)")
+        common.sql(
+            f"CREATE FUNCTION {quote_qualified(function)}(x INT) "
+            "RETURNS BOOLEAN RETURN x = 1"
+        )
+        return table, function
+
+    return bench.once("policed", make)
+
+
 @contextmanager
-def _a_table_under_a_policy(bench: Bench) -> Generator[str]:
+def _a_table_under_a_policy(bench: Bench) -> Generator[tuple[str, str, str]]:
     """A scratch table with one row filter policy defined on it, by the
-    documented `CREATE POLICY`; the policy's name. Dropped afterwards.
+    documented `CREATE POLICY`: the policy's name, the table's and the
+    function's. The policy is dropped afterwards.
 
     This is the one place stevin's code writes a policy, and it is a probe's
     scratch table: reading one back is the only way to learn what a workspace
@@ -706,27 +830,26 @@ def _a_table_under_a_policy(bench: Bench) -> Generator[str]:
     `stevin verify` leaves out.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-policy
     """
-    table, function = bench.named("t"), bench.named("keep")
+    table, function = _policed(bench)
     name = bench.short("rows")
-    bench.sql(f"CREATE TABLE {table} (id INT, region STRING)")
-    bench.sql(f"CREATE FUNCTION {function}(x INT) RETURNS BOOLEAN RETURN x = 1")
+    on = f"ON TABLE {quote_qualified(table)}"
     bench.sql(
-        f"CREATE POLICY {quote_ident(name)} ON TABLE {table} "
+        f"CREATE POLICY {quote_ident(name)} {on} "
         f"COMMENT {quote_literal('stevin verify')} "
-        f"ROW FILTER {function} TO {quote_ident(bench.principal)} "
+        f"ROW FILTER {quote_qualified(function)} TO {quote_ident(bench.principal)} "
         "FOR TABLES USING COLUMNS (1)"
     )
     try:
-        yield name
+        yield name, table, function
     finally:
         with suppress(Exception):
-            bench.sql(f"DROP POLICY {quote_ident(name)} ON TABLE {table}")
+            bench.sql(f"DROP POLICY {quote_ident(name)} {on}")
 
 
 def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
     # Held on a workspace on 2026-10-10 (the live suite).
-    with _a_table_under_a_policy(bench) as name:
-        rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('t')}")
+    with _a_table_under_a_policy(bench) as (name, table, _function):
+        rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {quote_qualified(table)}")
         own = [row for row in rows if row.get("Policy Name") == name]
         bench.expect(
             len(own) == 1,
@@ -737,7 +860,7 @@ def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
             wanted <= set(own[0]),
             f"the columns are {sorted(own[0])}, without {sorted(wanted - set(own[0]))}",
         )
-        live = bench.introspector.table(bench.full("t"))
+        live = bench.introspector.table(table)
         bench.expect(live is not None, "the table couldn't be read back")
         assert live is not None
         bench.expect(
@@ -749,20 +872,20 @@ def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
         policy = found[0]
         bench.expect(
             (policy.kind, policy.level, policy.on.lower(), policy.comment)
-            == ("row_filter", "table", bench.full("t").lower(), "stevin verify"),
+            == ("row_filter", "table", table.lower(), "stevin verify"),
             f"stevin reads it as {policy}",
         )
 
 
 def _a_table_under_no_policy_lists_none(bench: Bench) -> None:
     # Held on a workspace on 2026-10-10 (the live suite).
-    bench.sql(f"CREATE TABLE {bench.named('bare')} (id INT)")
-    rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('bare')}")
+    bare = _plain(bench).name
+    rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {quote_qualified(bare)}")
     # A policy on the catalog or the schema reaches a scratch table too, so
     # only the table's own would be a surprise.
     own = [row for row in rows if (row.get("on_securable_type") or "") == "TABLE"]
     bench.expect(not own, f"a table nobody put a policy on lists {own}")
-    live = bench.introspector.table(bench.full("bare"))
+    live = bench.introspector.table(bare)
     bench.expect(live is not None, "the table couldn't be read back")
     assert live is not None
     bench.expect(
@@ -773,18 +896,18 @@ def _a_table_under_no_policy_lists_none(bench: Bench) -> None:
 
 def _describe_policy_says_function_and_principals(bench: Bench) -> None:
     # Held on a workspace on 2026-10-10 (the live suite).
-    with _a_table_under_a_policy(bench) as name:
+    with _a_table_under_a_policy(bench) as (name, table, function):
         rows = bench.sql(
-            f"DESCRIBE POLICY {quote_ident(name)} ON TABLE {bench.named('t')}"
+            f"DESCRIBE POLICY {quote_ident(name)} ON TABLE {quote_qualified(table)}"
         )
-        live = bench.introspector.table(bench.full("t"))
+        live = bench.introspector.table(table)
         bench.expect(live is not None, "the table couldn't be read back")
         assert live is not None
         found = [p for p in live.policies if p.name == name]
         bench.expect(len(found) == 1, f"stevin reads the policies as {live.policies}")
         policy = found[0]
         bench.expect(
-            (policy.function or "").lower() == bench.full("keep").lower(),
+            (policy.function or "").lower() == function.lower(),
             f"stevin reads the function as {policy.function!r}; the rows are {rows}",
         )
         bench.expect(
@@ -976,15 +1099,21 @@ PROBES: tuple[Probe, ...] = (
 )
 
 
-def run(bench: Bench, probes: Sequence[Probe] = PROBES) -> Iterator[Result]:
+def run(
+    bench: Bench, probes: Sequence[Probe] = PROBES, *, start: int = 1
+) -> Iterator[Result]:
     """Run each probe in turn, yielding what it found.
+
+    Each probe names its objects by its number in this run, counted from
+    `start`: a caller that runs the probes one call at a time in one schema
+    passes each its own number, so two of them can't make the same table.
 
     A probe that says the workspace does something else — `Disagrees`, or a
     failed assertion — is a `differed`; anything else that stops it is an
     `unknown`, because a privilege or a stopped warehouse is not an answer
     about behaviour. Nothing raises: the results are the report.
     """
-    for index, probe in enumerate(probes, start=1):
+    for index, probe in enumerate(probes, start=start):
         this = replace(bench, prefix=f"p{index:02d}_")
         try:
             probe.check(this)

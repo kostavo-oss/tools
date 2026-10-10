@@ -6,6 +6,9 @@ a workspace does: in a scratch schema it grants `SELECT` on the schema, makes a
 table with a grant and a row filter of its own, has somebody else's row filter
 policy on the schema, and asks stevin who may see the table.
 
+The tests here only read, so they share one schema and one table: the fixture
+is made once for the module, and one table is what the module costs.
+
 Nothing here prints or compares a report as the workspace gave it. The table's
 owner is whoever ran the suite, and a catalog may grant to people by name: the
 report is cut down to the one group and the one policy this file made before
@@ -77,17 +80,18 @@ def ours(report: Access) -> Access:
     )
 
 
-@pytest.fixture
-def governed(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> Iterator[str]:
+@pytest.fixture(scope="module")
+def governed(runner: WarehouseRunner, shared_schema: str) -> Iterator[str]:
     """A schema that grants `SELECT` to a group, with one table in it that has a
     grant and a row filter of its own, and a row filter policy on the schema
     that somebody else wrote. The table's name.
 
+    Made once for the module: every test here reads it and none changes it.
+
     The policy is dropped before the schema is: it is defined on the schema,
     and nothing says a `DROP SCHEMA … CASCADE` takes it along.
     """
+    schema, introspector = shared_schema, Introspector(runner)
     name = f"{schema}.orders"
     orders = table(
         col("id", "bigint"),
@@ -124,6 +128,7 @@ def governed(
         runner.query(f"DROP POLICY {quote_ident(POLICY)} {on}")
 
 
+@pytest.mark.smoke
 def test_the_report_says_what_is_inherited_and_what_is_the_tables_own(
     runner: WarehouseRunner, governed: str
 ) -> None:
@@ -203,10 +208,11 @@ def test_the_command_reads_the_same_as_json(
 
 def test_a_table_that_is_not_there_is_the_usual_error(
     runner: WarehouseRunner,
-    schema: str,
+    shared_schema: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    schema = shared_schema
     connection = Connection(runner=runner, client=runner.client)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: connection)
     monkeypatch.chdir(tmp_path)

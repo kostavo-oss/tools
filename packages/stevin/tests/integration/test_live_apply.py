@@ -5,28 +5,43 @@ and that the executor skips, resumes and refuses (`test_executor.py`), against a
 fake that implements stevin's own reading of the manual. What only a real
 warehouse can tell us is whether the statements are accepted at all — including
 the history and lock SQL, which the fake never sees.
+
+What the module shares, to make fewer tables: the three history tables are made
+once, in the module's schema, and every apply here records into them; one
+applied plan serves the two tests that only look at what an apply left; and one
+rewrite serves the two tests that look at what a rewrite did. A test that
+changes a table has a table, and a schema, of its own.
 """
 
 from __future__ import annotations
 
+import os
+from dataclasses import dataclass
 from dataclasses import replace as with_fields
 
 import pytest
 
 from helpers import col, table
 from stevin.differ import diff
-from stevin.executor import ExecutionError, Executor
-from stevin.history import DeltaHistory
-from stevin.introspect import Introspector, WarehouseRunner
+from stevin.executor import ExecutionError, ExecutionResult, Executor
+from stevin.history import DeltaHistory, MemoryHistory
+from stevin.introspect import Introspector, Row, WarehouseRunner
 from stevin.model.plan import Plan, TableDiff, TableFacts, fingerprint
-from stevin.model.table import Table
+from stevin.model.table import Grant, Table
+from stevin.model.types import Field, Primitive, Struct
 from stevin.planner import build_plan, create_table_sql
+from stevin.planning import plan_tables
 from stevin.sql import quote_literal, quote_qualified
 
 pytestmark = pytest.mark.integration
 
+#: A principal to grant to. Every account has `account users`.
+PRINCIPAL = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
 
-def plan_for(desired: Table, introspector: Introspector) -> Plan:
+
+def plan_for(
+    desired: Table, introspector: Introspector, target: str = "integration"
+) -> Plan:
     live = introspector.table(desired.name)
     live_table = live.table if live else None
     return build_plan(
@@ -47,19 +62,31 @@ def plan_for(desired: Table, introspector: Introspector) -> Plan:
                 live=live_table,
             )
         ],
-        target="integration",
+        target=target,
         tool_version="0.1.0",
         spec_hash="spec",
         state_fingerprint=fingerprint([live_table]),
     )
 
 
-def executor(runner: WarehouseRunner, schema: str) -> Executor:
+def executor(runner: WarehouseRunner, history: str) -> Executor:
+    """An executor that records into the history tables in `history`."""
     return Executor(
         runner=runner,
         introspector=Introspector(runner),
-        history=DeltaHistory(runner, schema),
+        history=DeltaHistory(runner, history),
     )
+
+
+@pytest.fixture(scope="module")
+def history(shared_schema: str) -> str:
+    """The schema this module's applies record into: the module's own.
+
+    `runs`, `steps` and `lock` are three tables, and an executor asks for them
+    with `CREATE TABLE IF NOT EXISTS` on every apply. In a schema per test that
+    was three tables for each of six tests; here it is three.
+    """
+    return shared_schema
 
 
 ORIGINAL = (
@@ -86,16 +113,33 @@ def desired_for(schema: str) -> Table:
     )
 
 
-def test_apply_converges_and_records_what_it_did(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> None:
-    runner.query(create_table_sql(table(*ORIGINAL, name=f"{schema}.orders")))
-    desired = desired_for(schema)
+@dataclass(frozen=True)
+class Applied:
+    """A plan that ran, and what the executor said of it."""
 
+    desired: Table
+    plan: Plan
+    result: ExecutionResult
+
+
+@pytest.fixture(scope="module")
+def applied(runner: WarehouseRunner, history: str) -> Applied:
+    """A table brought to its spec by one apply. Two tests read what that left:
+    neither changes the table, so they share it."""
+    introspector = Introspector(runner)
+    runner.query(create_table_sql(table(*ORIGINAL, name=f"{history}.orders")))
+    desired = desired_for(history)
     plan = plan_for(desired, introspector)
     assert plan.steps
-    result = executor(runner, schema).apply(plan, allow_destructive=True)
+    result = executor(runner, history).apply(plan, allow_destructive=True)
+    return Applied(desired, plan, result)
 
+
+@pytest.mark.smoke
+def test_apply_converges_and_records_what_it_did(
+    runner: WarehouseRunner, introspector: Introspector, applied: Applied, history: str
+) -> None:
+    desired, plan, result = applied.desired, applied.plan, applied.result
     assert result.ok, result.error
     assert len(result.ran) == len(plan.steps)
 
@@ -105,108 +149,178 @@ def test_apply_converges_and_records_what_it_did(
 
     # The history tables exist and hold this run.
     runs = runner.query(
-        f"SELECT status FROM {quote_qualified(f'{schema}.runs')} "
+        f"SELECT status FROM {quote_qualified(f'{history}.runs')} "
         f"WHERE run_id = {quote_literal(result.run_id)}"
     )
     assert [row["status"] for row in runs] == ["succeeded"]
     steps = runner.query(
-        f"SELECT step_id, status FROM {quote_qualified(f'{schema}.steps')} "
+        f"SELECT step_id, status FROM {quote_qualified(f'{history}.steps')} "
         f"WHERE run_id = {quote_literal(result.run_id)}"
     )
     assert len(steps) == len(plan.steps)
     assert {row["status"] for row in steps} == {"succeeded"}
 
     # And the lock was handed back.
-    assert DeltaHistory(runner, schema).lock_holder("integration") is None
+    assert DeltaHistory(runner, history).lock_holder("integration") is None
 
 
 def test_a_plan_that_already_ran_is_refused(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, applied: Applied, history: str
 ) -> None:
-    runner.query(create_table_sql(table(*ORIGINAL, name=f"{schema}.orders")))
-    desired = desired_for(schema)
-    plan = plan_for(desired, introspector)
-    assert executor(runner, schema).apply(plan, allow_destructive=True).ok
-
+    """Refused before a step runs, so the table the other test reads is left
+    as the first apply made it."""
+    assert applied.result.ok, applied.result.error
     with pytest.raises(ExecutionError, match="changed since this plan was made"):
-        executor(runner, schema).apply(plan, allow_destructive=True)
+        executor(runner, history).apply(applied.plan, allow_destructive=True)
 
 
 def test_a_held_lock_stops_a_second_run(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, schema: str, history: str
 ) -> None:
+    """The lock is the target's, and this test has a target of its own: the
+    history tables are the module's, and a lock left held here must not stop
+    the applies of the other tests."""
+    target = "integration-held"
     runner.query(create_table_sql(table(*ORIGINAL, name=f"{schema}.orders")))
-    plan = plan_for(desired_for(schema), introspector)
+    plan = plan_for(desired_for(schema), introspector, target)
 
-    history = DeltaHistory(runner, schema)
-    history.ensure()
-    assert history.acquire_lock("integration", "someone-else", 60)
+    held = DeltaHistory(runner, history)
+    held.ensure()
+    assert held.acquire_lock(target, "someone-else", 60)
+    try:
+        with pytest.raises(ExecutionError, match="locked by run someone-else"):
+            executor(runner, history).apply(plan, allow_destructive=True)
+    finally:
+        unlocked = held.force_unlock(target)
+    assert unlocked == "someone-else"
+    assert executor(runner, history).apply(plan, allow_destructive=True).ok
 
-    with pytest.raises(ExecutionError, match="locked by run someone-else"):
-        executor(runner, schema).apply(plan, allow_destructive=True)
 
-    assert history.force_unlock("integration") == "someone-else"
-    assert executor(runner, schema).apply(plan, allow_destructive=True).ok
+@dataclass(frozen=True)
+class Rewritten:
+    """What one rewrite did to one table: the plan, and the table afterwards."""
+
+    name: str
+    spec: Table
+    plan: Plan
+    result: ExecutionResult
+    #: Planned again after the rewrite: every change still wanted.
+    left: tuple[tuple[str, str], ...]
+    live: Table
+    rows: tuple[Row, ...]
+    staging_left: bool
 
 
-def test_a_rewrite_converts_the_data_it_moves(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> None:
+@pytest.fixture(scope="module")
+def rewritten(runner: WarehouseRunner, shared_schema: str, history: str) -> Rewritten:
+    """One table, rewritten once, for the two tests about a rewrite.
+
+    A rewrite makes three tables in the metastore's count: the table, the
+    staging copy, and the replacement. One asks what became of the data and
+    the other what became of the tags, the grants and the owner, so the table
+    carries both and is rewritten once. Both tests only read what is kept here.
+    """
+    introspector = Introspector(runner)
+    name = f"{shared_schema}.rewritten"
+    quoted = quote_qualified(name)
+    original = with_fields(
+        table(
+            col("order_id", "bigint", nullable=False),
+            Field(
+                "amount",
+                col("amount", "decimal(10,2)").type,
+                comment="Gross",
+                tags=(("pii", "no"),),
+            ),
+            col("address", "struct<street:string,old_zip:string>"),
+            col("lines", "array<struct<sku:string,qty:int>>"),
+            Field("old_name", Primitive("string"), tags=(("pii", "name"),)),
+            name=name,
+            tags=(("domain", "sales"),),
+            grants=(Grant(PRINCIPAL, ("SELECT",)),),
+        ),
+        owner=PRINCIPAL,
+    )
+
+    def planned(spec: Table) -> Plan:
+        return plan_tables([spec], introspector, target="integration", tool_version="0")
+
+    made = Executor(runner, introspector, MemoryHistory()).apply(planned(original))
+    assert made.ok, made.error
+    runner.query(
+        f"INSERT INTO {quoted} VALUES "
+        "(1, 10.50, named_struct('street', 'High St', 'old_zip', '1234'), "
+        "array(named_struct('sku', 'A', 'qty', 2)), 'x')"
+    )
+    # Set by someone else, and never named by the spec below.
+    runner.query(f"ALTER TABLE {quoted} SET TAGS ('unmanaged' = 'yes')")
+    runner.query(f"ALTER TABLE {quoted} ALTER COLUMN old_name SET TAGS ('team' = 'crm')")
+
+    spec = with_fields(
+        original,
+        columns=(
+            original.columns[0],
+            # A cast, and not a widening.
+            Field("amount", Primitive("string"), comment="Gross", tags=(("pii", "no"),)),
+            Field(
+                "address",
+                Struct(
+                    (
+                        Field("street", Primitive("string")),
+                        Field("zip", Primitive("string"), renamed_from="old_zip"),
+                        Field("country", Primitive("string")),  # new, so NULL
+                    )
+                ),
+            ),
+            col("lines", "array<struct<sku:string,qty:string>>"),  # element cast
+            Field(
+                "new_name",
+                Primitive("string"),
+                tags=(("pii", "name"),),
+                renamed_from="old_name",
+            ),
+        ),
+        comment="Rewritten",
+    )
+    plan = planned(spec)
+    result = executor(runner, history).apply(plan)
+    # Said here, with the step's own error: a rewrite that stopped leaves a
+    # table the reads below can't make sense of.
+    assert result.ok, result.error
+    again = planned(spec)
+    live = introspector.table(name)
+    assert live is not None
+    return Rewritten(
+        name=name,
+        spec=spec,
+        plan=plan,
+        result=result,
+        left=tuple((c.kind, c.path) for d in again.diffs for c in d.changes),
+        live=live.table,
+        rows=runner.query(
+            "SELECT order_id, amount, address.street, address.zip, address.country, "
+            f"lines[0].qty AS qty FROM {quoted}"
+        ),
+        staging_left=introspector.table(f"{name}__deltaplan_rewrite") is not None,
+    )
+
+
+@pytest.mark.smoke
+def test_a_rewrite_converts_the_data_it_moves(rewritten: Rewritten) -> None:
     """The one thing no fake can check: that the projection means what we think.
 
     A rewrite stages the converted data, replaces the table from it, and drops the
     staging table. Here there are actual rows in it, so a cast that silently
     produced NULLs — or a struct rebuilt by position — shows up.
     """
-    name = f"{schema}.orders"
-    original = table(
-        col("order_id", "bigint", nullable=False),
-        col("amount", "decimal(10,2)"),
-        col("address", "struct<street:string,old_zip:string>"),
-        col("lines", "array<struct<sku:string,qty:int>>"),
-        name=name,
-    )
-    runner.query(create_table_sql(original))
-    runner.query(
-        f"INSERT INTO {quote_qualified(name)} VALUES "
-        "(1, 10.50, named_struct('street', 'High St', 'old_zip', '1234'), "
-        "array(named_struct('sku', 'A', 'qty', 2)))"
-    )
+    titles = [step.title for step in rewritten.plan.steps]
+    assert titles[:2] == ["STAGE rewritten data", "REPLACE TABLE"], titles
+    assert [step.risk for step in rewritten.plan.steps][:2] == ["rewrite", "rewrite"]
+    assert rewritten.result.ok, rewritten.result.error
+    assert rewritten.left == (), "the new table must match the spec"
 
-    from stevin.model.types import Field, Primitive, Struct
-
-    desired = table(
-        col("order_id", "bigint", nullable=False),
-        col("amount", "string"),  # a cast, and not a widening
-        Field(
-            "address",
-            Struct(
-                (
-                    Field("street", Primitive("string")),
-                    Field("zip", Primitive("string"), renamed_from="old_zip"),
-                    Field("country", Primitive("string")),  # new, so NULL
-                )
-            ),
-        ),
-        col("lines", "array<struct<sku:string,qty:string>>"),  # element cast
-        name=name,
-        comment="Rewritten",
-    )
-
-    plan = plan_for(desired, introspector)
-    assert [step.risk for step in plan.steps][:2] == ["rewrite", "rewrite"]
-    assert executor(runner, schema).apply(plan).ok
-
-    live = introspector.table(name)
-    assert live is not None
-    assert diff(desired, live.table) == (), "the new table must match the spec"
-
-    rows = runner.query(
-        "SELECT order_id, amount, address.street, address.zip, address.country, "
-        f"lines[0].qty AS qty FROM {quote_qualified(name)}"
-    )
-    assert len(rows) == 1, "the rewrite must not lose or duplicate rows"
-    row = rows[0]
+    assert len(rewritten.rows) == 1, "the rewrite must not lose or duplicate rows"
+    row = rewritten.rows[0]
     assert row["order_id"] == "1"
     assert row["amount"] == "10.50"
     assert row["street"] == "High St"
@@ -215,12 +329,11 @@ def test_a_rewrite_converts_the_data_it_moves(
     assert row["qty"] == "2"
 
     # The staging table is cleaned up.
-    staging = introspector.table(f"{name}__deltaplan_rewrite")
-    assert staging is None
+    assert not rewritten.staging_left
 
 
 def test_a_rewrite_that_converts_nothing_is_one_statement(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, schema: str, history: str
 ) -> None:
     """A table reads itself and is replaced in one go — the data written once.
 
@@ -250,7 +363,7 @@ def test_a_rewrite_that_converts_nothing_is_one_statement(
         "nothing is converted, so nothing is staged"
     )
     assert f"FROM {quote_qualified(name)}" in (plan.steps[0].sql or "")
-    assert executor(runner, schema).apply(plan).ok
+    assert executor(runner, history).apply(plan).ok
 
     [row] = runner.query(
         "SELECT count(*) AS rows, count(DISTINCT day) AS days, "
@@ -264,15 +377,13 @@ def test_a_rewrite_that_converts_nothing_is_one_statement(
 
 
 def test_a_table_is_renamed_with_its_data(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, schema: str, history: str
 ) -> None:
     """Settles the TODO(verify) in the planner's rename: RENAME TO takes a fully
     qualified name in the same schema, and the rows go with the table.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-alter-table
     """
     from dataclasses import replace
-
-    from stevin.planning import plan_tables
 
     old = table(col("id", "bigint"), name=f"{schema}.order_facts")
     runner.query(create_table_sql(old))
@@ -283,7 +394,7 @@ def test_a_table_is_renamed_with_its_data(
     )
     plan = plan_tables([new], introspector, target="integration", tool_version="0.1.0")
     assert plan.steps[0].title == "RENAME TABLE"
-    assert executor(runner, schema).apply(plan).ok
+    assert executor(runner, history).apply(plan).ok
 
     rows = runner.query(f"SELECT count(*) AS n FROM {quote_qualified(new.name)}")
     assert rows[0]["n"] == "2"
@@ -292,82 +403,30 @@ def test_a_table_is_renamed_with_its_data(
     assert again.empty
 
 
-def test_a_rewrite_keeps_what_a_replace_keeps(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> None:
+def test_a_rewrite_keeps_what_a_replace_keeps(rewritten: Rewritten) -> None:
     """The plan no longer puts back a table's tags, grants and owner, because a
     replace keeps them (verified 2026-09-20) — so this asserts they are still
     there afterwards, including the ones the spec doesn't name. A renamed
     column's tags do stay behind on the old name, and those the plan puts back.
     https://docs.databricks.com/aws/en/database-objects/tags
     """
-    import os
-    from dataclasses import replace as replace_fields
-
-    from stevin.executor import Executor
-    from stevin.history import MemoryHistory
-    from stevin.model.table import Grant
-    from stevin.model.types import Field, Primitive
-    from stevin.planning import plan_tables
-
-    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
-    name = f"{schema}.orders"
-    quoted = quote_qualified(name)
-    original = replace_fields(
-        table(
-            col("order_id", "bigint", nullable=False),
-            Field("amount", Primitive("int"), comment="Gross", tags=(("pii", "no"),)),
-            Field("old_name", Primitive("string"), tags=(("pii", "name"),)),
-            name=name,
-            tags=(("domain", "sales"),),
-            grants=(Grant(principal, ("SELECT",)),),
-        ),
-        owner=principal,
-    )
-
-    def planned(spec: Table) -> Plan:
-        return plan_tables([spec], introspector, target="it", tool_version="0")
-
-    result = Executor(runner, introspector, MemoryHistory()).apply(planned(original))
-    assert result.ok, result.error
-    runner.query(f"INSERT INTO {quoted} VALUES (1, 5, 'x')")
-    # Set by someone else, and never named by the spec below.
-    runner.query(f"ALTER TABLE {quoted} SET TAGS ('unmanaged' = 'yes')")
-    runner.query(f"ALTER TABLE {quoted} ALTER COLUMN old_name SET TAGS ('team' = 'crm')")
-
-    rewritten = replace_fields(
-        original,
-        columns=(
-            original.columns[0],
-            Field("amount", Primitive("string"), comment="Gross", tags=(("pii", "no"),)),
-            Field(
-                "new_name",
-                Primitive("string"),
-                tags=(("pii", "name"),),
-                renamed_from="old_name",
-            ),
-        ),
-    )
-    plan = planned(rewritten)
-    titles = [step.title for step in plan.steps]
+    titles = [step.title for step in rewritten.plan.steps]
     assert "REPLACE TABLE" in titles
     assert "SET TAGS" not in titles, "a replace keeps the table's tags"
     assert not any(title.startswith("GRANT") for title in titles)
     assert "SET OWNER" not in titles
-    result = Executor(runner, introspector, MemoryHistory()).apply(plan)
-    assert result.ok, result.error
+    assert rewritten.result.ok, rewritten.result.error
 
-    assert planned(rewritten).empty, "the spec is satisfied"
-    live = introspector.table(name)
-    assert live is not None
-    assert dict(live.table.tags) == {"domain": "sales", "unmanaged": "yes"}
-    assert live.table.owner == principal
-    assert live.table.grants == (Grant(principal, ("SELECT",)),)
-    by_name = {column.name: column for column in live.table.columns}
+    assert rewritten.left == (), "the spec is satisfied"
+    live = rewritten.live
+    assert dict(live.tags) == {"domain": "sales", "unmanaged": "yes"}
+    assert live.owner == PRINCIPAL
+    assert live.grants == (Grant(PRINCIPAL, ("SELECT",)),)
+    by_name = {column.name: column for column in live.columns}
     assert dict(by_name["amount"].tags) == {"pii": "no"}, "kept through a cast"
     assert dict(by_name["new_name"].tags) == {"pii": "name", "team": "crm"}
     assert by_name["amount"].comment == "Gross"
-    assert runner.query(f"SELECT amount FROM {quoted}") == ({"amount": "5"},)
+    assert rewritten.rows[0]["amount"] == "10.50"
 
 
 def test_a_project_that_hands_grants_over_can_still_apply(
@@ -379,15 +438,11 @@ def test_a_project_that_hands_grants_over_can_still_apply(
     The table is granted something no spec mentions, which is the state a
     handoff hides — and the state that made every apply refuse itself.
     """
-    import os
-
     from stevin import api
     from stevin.connect import Connection
-    from stevin.history import MemoryHistory
     from stevin.manage import Manage
-    from stevin.planning import plan_tables
 
-    principal = os.environ.get("STEVIN_TEST_PRINCIPAL", "account users")
+    principal = PRINCIPAL
     manage = Manage(("grants",))
     name = f"{schema}.orders"
     runner.query(create_table_sql(table(col("id", "bigint"), name=name)))
@@ -468,8 +523,6 @@ def test_a_function_that_reads_a_table_is_created_after_it(
     from stevin.connect import Connection
     from stevin.history import NoHistory
     from stevin.model.function import Function, Parameter
-    from stevin.model.types import Primitive
-    from stevin.planning import plan_tables
 
     lookup = table(col("mailbox", "string"), name=f"{schema}.mailbox_access")
     reads_it = Function(

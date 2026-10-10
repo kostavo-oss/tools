@@ -55,6 +55,7 @@ constraints:
 """
 
 
+@pytest.mark.smoke
 def test_a_notebooks_write_is_seen_and_adopted(
     runner: WarehouseRunner, introspector: Introspector, schema: str, tmp_path: Path
 ) -> None:

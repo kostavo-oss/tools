@@ -23,7 +23,7 @@ uv sync                 # create/refresh .venv from pyproject + uv.lock
 
 uv run stevin        # run the CLI
 uv run pytest tests/unit          # fast tests, no workspace needed
-uv run pytest -m integration      # needs DATABRICKS_HOST / token / warehouse id
+uv run pytest -m "integration and smoke"   # live: a workspace, and 15 tables of its quota
 uv run ruff check .     # lint
 uv run ruff format .    # format
 uv run ty check         # type check
@@ -63,7 +63,10 @@ rather than picking one silently. Beyond that:
   everything else against a fake warehouse that interprets stevin's own SQL. Fast,
   offline, and the bar for every PR.
 - `tests/integration/` — marked `@pytest.mark.integration`, skipped without credentials,
-  and run nightly against a real workspace in an ephemeral schema.
+  and run weekly against a real workspace. Not on pull requests: one that changes what
+  stevin sends to Databricks asks a maintainer for the `smoke` tests on its branch.
+  [Testing](testing.md#what-a-run-costs) says what a run costs the workspace, and the
+  rule that follows: never a full run for a change `smoke` or `-k` can check.
 - Every discovered Databricks limitation becomes a test. [Testing](testing.md) says
   what each layer proves, and what none of them has settled yet.
 

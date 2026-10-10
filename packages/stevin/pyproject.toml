@@ -92,6 +92,7 @@ pythonpath = ["action"]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: needs a live workspace (DATABRICKS_HOST / token / warehouse id)",
+    "smoke: the few live tests that prove the release path with few tables",
 ]
 
 [tool.ty.environment]

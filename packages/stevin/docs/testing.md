@@ -6,7 +6,7 @@ each one is honest about what it can and cannot prove.
 
 ```sh
 uv run pytest tests/unit        # layers 1 and 2, and 3 once it is recorded — offline, every PR
-uv run pytest -m integration    # layer 4 — real workspace, nightly
+uv run pytest -m "integration and smoke"   # layer 4 — real workspace, by hand
 ```
 
 | Layer | Proves |
@@ -99,10 +99,11 @@ fake can say, and one less than the live suite — which is why the live suite s
 
 ## 4. Integration tests
 
-`tests/integration/` is the only source of truth about Databricks. Each test creates an
-ephemeral schema, does its work, and drops it. They are marked `@pytest.mark.integration`
-and skip themselves without credentials, so forks and laptops stay green, and they run
-nightly in CI.
+`tests/integration/` is the only source of truth about Databricks. Each test works in a
+schema the suite makes and drops: one of its own when it changes a table, one its module
+shares when it only reads. They are marked `@pytest.mark.integration` and skip themselves
+without credentials, so forks and laptops stay green. In CI they run once a week, and
+when somebody starts them: [never on a pull request](#when-the-suite-runs).
 
 They assert the things nothing else can:
 
@@ -207,13 +208,15 @@ Nothing in stevin has been verified against a real workspace until this has run.
 
 You need:
 
-- a **catalog you can write to** — every test creates a schema called
-  `stevin_it_<random>` in it and drops it, with everything inside, when it finishes;
+- a **catalog you can write to** — the suite creates schemas called
+  `stevin_it_<random>` in it and drops each, with everything inside, when the test or
+  the module that asked for it finishes;
 - a **SQL warehouse** — the tests run a few dozen small statements; a 2X-Small
   serverless warehouse is plenty;
 - a principal allowed to `CREATE SCHEMA` in that catalog and `CREATE FUNCTION` in its
   schemas (the mask test creates a masking function);
-- optionally a principal to grant to — `account users` by default.
+- optionally a principal to grant to — `account users` by default;
+- **room in the metastore's table quota**: 15 tables for `smoke`, 60 for everything.
 
 ```sh
 databricks auth login --host https://<workspace> --profile stevin-test
@@ -222,7 +225,7 @@ DATABRICKS_CONFIG_PROFILE=stevin-test \
 DATABRICKS_WAREHOUSE_ID=<warehouse id> \
 STEVIN_TEST_CATALOG=<scratch catalog> \
 STEVIN_TEST_PRINCIPAL="account users" \
-  uv run pytest -m integration -v
+  uv run pytest -m "integration and smoke" -v
 ```
 
 A failure here is the point of the suite: an assumption about Databricks was wrong. Fix
@@ -230,13 +233,124 @@ the code, keep the test, and remove the `TODO(verify)` it settled — and if the
 warehouse agreed with the wrong assumption, fix the fake too, so the offline suite stops
 agreeing with it.
 
-### Asking one question of the workspace
+### What a run costs
 
-A single live question doesn't need the whole forty-minute suite. Push a branch with the
-test on it and run the suite against it, filtered:
+A live run costs the workspace **tables**, and it goes on costing them after it has
+dropped them. Unity Catalog allows a metastore a number of tables, 500 by default, and
+[counts them with an estimate](https://docs.databricks.com/aws/en/data-governance/unity-catalog/resource-quotas)
+that goes up when a table is created and comes down later. The estimate is what a
+`CREATE TABLE` is refused by. So a suite that makes many tables fills a metastore that
+holds almost none, and then nobody can create a table there, the owner of the
+workspace included.
+
+That happened on 2026-10-10. The suite ran on every pull request then, and made more
+than a hundred tables a run. About fifteen runs in one day took the estimate to 510 of
+500 while the catalog held 46 tables. The next run failed 68 tests on
+`QUOTA_EXCEEDED.UC_RESOURCE_QUOTA_EXCEEDED`.
+
+So a run has a **budget**, and the suite keeps to it by itself:
+
+| Selection | Budget | Counted from the code |
+|---|---|---|
+| `-m "integration and smoke"` | at most **15** tables | 13 |
+| `-m integration` | at most **60** tables | 59 |
+
+- **Every table is counted as it is made.** All of the suite's statements go through
+  one runner, and it counts each that creates a table: `CREATE TABLE` in every form,
+  `CREATE OR REPLACE TABLE`, a clone, a streaming table, a materialized view, and the
+  tables stevin's own apply makes, the staging copy of a rewrite and the three history
+  tables included. A statement that was refused is not counted. A replace of a table
+  the run made is counted, because nobody has shown that Unity Catalog does not count
+  it.
+- **The session says what it spent.** At its end it prints the total and the ten
+  tests that made the most. A table a module shares is charged to the fixture that
+  made it.
+- **A session over its budget fails**, with one line, whatever its tests did. The
+  budget is `FULL_BUDGET` and `SMOKE_BUDGET` in `tests/table_budget.py`; raise one only
+  with the reason beside it.
+- **A session does not start without room.** Before any test creates anything it
+  reads the metastore's estimate. When the estimate and the budget together are over
+  the limit, the whole session stops with one error that says the numbers, and nothing
+  has been created. When the quota cannot be read, the session says so and goes on.
+
+The two numbers in the last column are counts from reading the code, not from a run.
+What Databricks makes behind a statement is not in them: the storage table of a
+materialized view or a streaming table, for one. The first live run after a change to
+the suite is where the count is checked.
+
+What each file makes, counted the same way, before and after the suite was cut:
+
+| File | Tests | Before | Now | How |
+|---|---|---|---|---|
+| `test_live_assumptions.py` | 24 probes | 28 | 17 | the probes share one schema and five tables |
+| `test_live_apply.py` | 10 | 33 | 14 | the history tables are made once; one applied plan and one rewrite serve two tests each |
+| `test_live_round_trip.py` | 22 | 24 | 8 | one table has a column for every widening |
+| `test_live_governance.py` | 14 | 11 | 9 | one table to read from and point at; one for the two tests about tags |
+| `test_live_dogfood.py` | 1 | 6 | 5 | a table whose shape was there twice is gone |
+| `test_live_policies.py` | 5 | 5 | 1 | the tests only read: one fixture for the module |
+| `test_live_access.py` | 3 | 2 | 1 | the same |
+| `test_live_seeds.py` | 2 | 2 | 1 | both load into one table |
+| `test_live_adopt.py`, `test_live_notebook_tables.py`, `test_live_sql_specs.py` | 3 | 3 | 3 | |
+| `test_live_bundle.py` | 4 | 0 | 0 | |
+| **All** | | **114** | **59** | |
+
+Two rules keep it there. **A test that only reads shares a table**: a module-scoped
+fixture makes it once in `shared_schema`, and no test may depend on which ran first, so
+`-k` on one test still finds what it needs. **A test that changes a table's shape, or
+has to start from nothing, has its own**, in `schema`. A probe follows the same rule
+through `Bench.once()`.
+
+Recording transcripts (`STEVIN_RECORD`) is the exception. A recording has to stand on
+its own, so each probe gets a schema of its own and shares nothing: that run costs 28
+tables for the probes instead of 17.
+
+### When the suite runs
+
+- **Once a week**, on Monday at 03:00 UTC, all of it. Databricks changes too.
+- **When somebody starts it** (`workflow_dispatch`), `smoke` unless they ask for `full`.
+- **Never on a pull request.** A pull request that changes what stevin sends to
+  Databricks is checked by starting `smoke` on its branch, by whoever may start the
+  workflow: a maintainer. Say in the pull request that it wants one.
 
 ```sh
-gh workflow run integration.yml --ref my-branch -f k=the_test_name
+gh workflow run integration.yml --ref my-branch                 # smoke
+gh workflow run integration.yml --ref my-branch -f suite=full   # everything
+```
+
+The rule, for people and for coding agents alike: **never a full run for a change that
+`smoke` or `-k` can check, and never more than one full run a day on a workspace
+somebody else uses.** One suite runs at a time; a second waits.
+
+### What `smoke` covers
+
+Eight tests that together walk the path a release takes, in 13 tables:
+
+| Test | What it proves |
+|---|---|
+| `test_apply_converges_and_records_what_it_did` | plan → apply → an empty re-plan; the history and lock SQL |
+| `test_a_rewrite_converts_the_data_it_moves` | a rewrite: staged, replaced, the rows converted, the staging copy gone |
+| `test_a_seed_is_loaded_typed_and_replaced` | a seed's load, typed, and planning nothing after |
+| `test_a_notebooks_write_is_seen_and_adopted` | drift, then `adopt`, then an empty plan |
+| `test_grants_read_back` | a grant reads back as the table's own |
+| `test_a_function_and_the_mask_that_calls_it_in_one_plan` | a function and the column mask that calls it |
+| `test_a_plan_lists_the_policy_with_its_function_and_principals` | the policies reader, on a table under a policy |
+| `test_the_report_says_what_is_inherited_and_what_is_the_tables_own` | the access report |
+
+Only `full` covers the rest: the 24 probes, which are every assumption about Databricks
+`stevin verify` runs; every widening and the three refused ones; partitioning and
+clustering, there and back; the messy schema; a table rename; the lock, a plan that
+already ran, a project that hands grants over, an apply with no history; views, foreign
+keys, functions, schemas, volumes, owners, removing a tag; SQL specs; the Databricks
+CLI's reading of a bundle; `drift` and `doctor` under a policy.
+
+### Asking one question of the workspace
+
+A single live question doesn't need the whole suite. Push a branch with the test on it
+and run the suite against it, filtered. `k` narrows the suite that was chosen, so a
+test outside `smoke` wants `suite=full` beside it:
+
+```sh
+gh workflow run integration.yml --ref my-branch -f suite=full -f k=the_test_name
 ```
 
 That's the honest way to settle a Databricks behaviour before building on it: probe it,
@@ -250,25 +364,25 @@ count: 523, limit: 500)"* — usually isn't. Unity Catalog
 and catches up with deletions later, so a day of live runs leaves the count far above
 what is really there.
 
-Two things keep it from happening, and one says so when it does:
+Four things keep it from happening, and the last says so when it does:
 
+- **A run makes few tables**, and fails when it makes more than its budget
+  ([above](#what-a-run-costs)).
 - **A test schema keeps nothing it drops.** `ALTER SCHEMA … SET RETAIN DROPPED TO 0
   HOURS` turns off the seven-day
   [recovery period](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-undrop-table),
   because a dropped table still counts against the quota for as long as `UNDROP` could
-  bring it back. Without this, a suite that makes a hundred tables a run fills a
-  500-table metastore in a couple of days while holding almost nothing.
-- **Schemas a cancelled run left behind are swept.** A new push cancels a running suite
-  mid-test, and its `stevin_it_*` schema is never dropped; anything older than half an
-  hour goes.
-- **Then the quota is read**, which is what asks Unity Catalog to recount it. If it is
-  still at the limit the suite skips rather than failing every test in it — with one
-  line saying why.
+  bring it back.
+- **Schemas a cancelled run left behind are swept.** A run that is cancelled mid-test
+  never drops its `stevin_it_*` schemas; anything older than two hours goes.
+- **Then the quota is read**, which is also what asks Unity Catalog to recount it. If
+  this run's budget does not fit under the limit, the session stops before it creates
+  anything, with one line that says the estimate, the limit and the budget.
 
 If the count stays above what the catalogs really hold, it is dropped tables still inside
-their recovery period, from before the setting above. They age out; a metastore that
-needs to run this suite often is worth asking your Databricks account team to raise the
-table quota on.
+their recovery period, or an estimate that has not caught up. Both come down by
+themselves. A metastore that needs to run this suite often is worth asking your
+Databricks account team to raise the table quota on.
 
 ## The docs' pictures
 

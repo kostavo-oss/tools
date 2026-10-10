@@ -9,6 +9,16 @@ never diffed.
 
 `statements(schema)` gives the SQL for a `catalog.schema` that already exists;
 each statement is run on its own.
+
+It makes five tables, and each is here for a shape no other has: `customers`
+(identity, a default, a name with a space, a mask set later), `orders` (years
+of ALTERs, nested types, generated column, keys, a CHECK), `events` (legacy
+partitioning and the newer types), `people` (a collation, a mask and a row
+filter set at creation) and `sessions` (automatic clustering, and no column
+mapping yet). A table costs the workspace it is made in one of its metastore's
+table quota, so a shape that is here twice is one table too many: a sixth,
+`daily_orders`, was a `CREATE TABLE … AS SELECT` of three plain columns, and
+once it is made nothing in the catalog tells such a table from any other.
 """
 
 from __future__ import annotations
@@ -184,12 +194,6 @@ def statements(schema: str, principal: str = PRINCIPAL) -> list[tuple[str, str]]
             "sessions",
             f"CREATE TABLE {s}.sessions (session_id STRING, started TIMESTAMP, "
             "user_agent STRING) CLUSTER BY AUTO",
-        ),
-        # -- a CTAS, as people make them ---------------------------------------------
-        (
-            "daily",
-            f"CREATE TABLE {s}.daily_orders AS SELECT placed_on, count(*) AS orders, "
-            f"sum(amount) AS revenue FROM {s}.orders GROUP BY placed_on",
         ),
         # -- a view with a comment and a CTE ---------------------------------------
         (
