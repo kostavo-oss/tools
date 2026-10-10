@@ -108,6 +108,11 @@ def test_a_function_spec(tmp_path: Path) -> None:
             "function: c.s.f\nreturns: int\nbody: '1'\nparameters: [{name: x}]\n",
             "needs a 'type' key",
         ),
+        (
+            "function: c.s.f\nreturns: int\nbody: '1'\n"
+            "parameters: [{name: x, type: decimal(18,2)}]\n",
+            "a type with a comma has to be quoted",
+        ),
     ],
 )
 def test_bad_function_specs(tmp_path: Path, spec: str, message: str) -> None:

@@ -207,6 +207,10 @@ A type can be written two ways.
 Both parse to the same type tree. The nested form is the one to reach for when fields
 need their own comments or a `renamed_from`.
 
+Inside `{ }` a type with a comma needs quotes — `{name: amount, type: "decimal(18,2)"}` —
+because there YAML reads the comma as the end of the entry; on a line of its own, as
+above, it needs none.
+
 Arrays and maps take the same nested form, which is what you need to put a comment or a
 `renamed_from` on a field inside a collection:
 

@@ -485,3 +485,91 @@ def test_import_leaves_out_platform_defaults_and_internals() -> None:
         "delta.constraints",
     ):
         assert absent not in written, absent
+
+
+@pytest.mark.parametrize(
+    ("entry", "where", "remedy"),
+    [
+        ("{name: a, type: decimal(18,2)}", "3:21", 'type: "decimal(18,2)"'),
+        ("{name: a, type: decimal(18, 2)}", "3:21", 'type: "decimal(18,2)"'),
+        (
+            "{type: decimal(18,2), name: a, nullable: false}",
+            "3:12",
+            'type: "decimal(18,2)"',
+        ),
+        ("{name: a, type: map<string,int>}", "3:21", 'type: "map<string,int>"'),
+        (
+            "{name: a, type: struct<a:int,b:int,c:int>}",
+            "3:21",
+            'type: "struct<a:int,b:int,c:int>"',
+        ),
+        (
+            "{name: a, type: {struct: [{name: b, type: decimal(18,2)}]}}",
+            "3:47",
+            'type: "decimal(18,2)"',
+        ),
+        (
+            "{name: a, type: {array: {element: decimal(18,2)}}}",
+            "3:39",
+            'element: "decimal(18,2)"',
+        ),
+        (
+            "{name: a, type: {map: {key: string, value: decimal(18,2)}}}",
+            "3:48",
+            'value: "decimal(18,2)"',
+        ),
+    ],
+)
+def test_a_type_with_a_comma_in_flow_style_says_to_quote_it(
+    tmp_path: Path, entry: str, where: str, remedy: str
+) -> None:
+    """Inside `{ }` YAML ends the entry at the comma, so `type: decimal(18,2)` is a
+    type `decimal(18` and a key `2)`. The message names the cause and the remedy, and
+    points at the type rather than at the fragment after the comma.
+
+    https://yaml.org/spec/1.2.2/#74-flow-styles
+    """
+    path = write(tmp_path, f"table: c.s.t\ncolumns:\n  - {entry}\n")
+    with pytest.raises(SpecError) as caught:
+        load_table(path)
+    assert str(caught.value) == (
+        f"{path.as_posix()}:{where}: a type with a comma has to be quoted inside "
+        f"{{ }}: write `{remedy}` (in flow style YAML reads the comma as the end of "
+        "the entry)"
+    )
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        '{name: a, type: "decimal(18,2)"}',
+        "{name: a, type: 'map<string,int>'}",
+        '{name: a, type: {array: {element: "decimal(18,2)"}}}',
+    ],
+)
+def test_a_quoted_type_with_a_comma_loads_in_flow_style(
+    tmp_path: Path, entry: str
+) -> None:
+    table = load_table(write(tmp_path, f"table: c.s.t\ncolumns:\n  - {entry}\n"))
+    assert table.column_names == ("a",)
+
+
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        # A key nobody knows is still that, in flow style too.
+        ("{name: a, type: int, nulable: true}", "unknown key 'nulable' in a field"),
+        ("{name: a, type: decimal(18, nulable: true}", "unknown key 'nulable'"),
+        # An open bracket with nothing after it is the type's own mistake.
+        ("{name: a, type: decimal(18}", "decimal(18"),
+        ("{name: a, type: int, 2)}", "unknown key '2)' in a field"),
+    ],
+)
+def test_other_mistakes_in_flow_style_keep_their_own_message(
+    tmp_path: Path, entry: str, message: str
+) -> None:
+    path = write(tmp_path, f"table: c.s.t\ncolumns:\n  - {entry}\n")
+    with pytest.raises(SpecError) as caught:
+        load_table(path)
+    assert message in str(caught.value)
+    assert "has to be quoted" not in str(caught.value)

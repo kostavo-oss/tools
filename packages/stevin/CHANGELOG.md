@@ -61,6 +61,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deploy time. `docs/DESIGN.md` → Scope has what follows from that; the removals
   below are that scope applied. This entry changes no behaviour; the ones below do.
 
+### Fixed
+
+- **A type with a comma inside `{ }` says what went wrong.** `- {name: amount, type:
+  decimal(18,2)}` failed with `unknown key '2)' in a field` and a list of field keys,
+  as if stevin had never heard of `decimal`. The spec is wrong — in flow style YAML
+  ends the entry at the comma — but the message didn't say so. Now it does, points at
+  the type, and writes out the remedy: `type: "decimal(18,2)"`. The same for
+  `map<string,int>` and `struct<a:int,b:int>`, for a field inside a struct, an array's
+  `element` and a map's `key` and `value`. A key that really is unknown is reported as
+  before.
+
 ### Removed
 
 - **Hooks.** `hooks: {before, after}` on a table. Raw SQL around a change was the
