@@ -92,6 +92,7 @@ extra:
 nav:
   - Home: index.md
   - Why: why.md
+  - One product, end to end: one-product-end-to-end.md
   - stevin: '!include packages/stevin/mkdocs.yml'
   - lely: '!include packages/lely/mkdocs.yml'
   - leeghwater: '!include packages/leeghwater/mkdocs.yml'

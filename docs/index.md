@@ -90,6 +90,10 @@ Every tool is early, and says so. Each keeps a page of what has run against a re
 workspace and what has not: [stevin](stevin/testing.md), [lely](lely/tried.md),
 [leeghwater](leeghwater/tried.md). Try them on a development catalog first.
 
+The template has been taken from an empty repository to a deployed product and back
+once, with every step in the tools' own output:
+[One product, end to end](one-product-end-to-end.md).
+
 ## Named after
 
 Dutch water engineers. Simon Stevin (1548–1620) designed sluices and introduced decimal
