@@ -20,15 +20,21 @@ from fake_warehouse import FakeWarehouse
 from stevin.introspect import IntrospectionError, Introspector
 from stevin.probes import PROBES, Bench, run
 from transcript import (
+    BACKUP,
     BARE,
     CATALOG,
+    LOCATION,
     PRINCIPAL,
     SCHEMA,
+    USER,
+    USER_ID,
+    WAREHOUSE,
     Exchange,
     Recorder,
     Replay,
     Transcript,
     TranscriptMiss,
+    kept_out,
     masking,
     normalise,
 )
@@ -81,7 +87,7 @@ def test_a_recording_keeps_the_answers_and_masks_the_scratch_schema() -> None:
 
     written = recorder.transcript(runtime="2026.20")
     assert written.runtime == "2026.20"
-    assert written.warehouse == "w1"
+    assert written.warehouse == WAREHOUSE, "that one answered, not which"
     assert [one.sql for one in written.exchanges] == [
         f"CREATE TABLE `{CATALOG}`.`{BARE}`.`r` (id INT)",
         f"SELECT tag_name FROM {SCHEMA}.r",
@@ -193,6 +199,179 @@ def test_a_second_schema_is_masked_too() -> None:
     )
     assert normalise(statement, recording) == normalise(theirs, replaying)
     assert "<other-bare>" in normalise(statement, recording)
+
+
+def test_an_answer_is_masked_like_the_statement_that_asked() -> None:
+    """The workspace says the names back — in a row of `information_schema`, in
+    the statement an error quotes — and those are as new on every run as the
+    ones stevin sent. The probe itself still gets what the workspace said."""
+    asked = "SELECT schema_name, name FROM `main`.information_schema.t"
+    refused = "ALTER TABLE `main`.`stevin_it_abc123`.`r` ADD COLUMN k INT"
+    live = Answering(
+        {
+            asked: [
+                {"schema_name": "stevin_it_abc123", "name": "main.stevin_it_abc123.r"}
+            ],
+            refused: IntrospectionError(f"[X] no\n== SQL ==\n{refused}\n-----^^^"),
+        }
+    )
+    recorder = Recorder(live, "anything", mask=masking("main.stevin_it_abc123"))
+    assert recorder.query(asked) == (
+        {"schema_name": "stevin_it_abc123", "name": "main.stevin_it_abc123.r"},
+    )
+    with pytest.raises(IntrospectionError, match="stevin_it_abc123"):
+        recorder.query(refused)
+
+    first, second = recorder.transcript().exchanges
+    assert first.rows == ({"schema_name": BARE, "name": f"{SCHEMA}.r"},)
+    assert second.error == (
+        f"[X] no\n== SQL ==\nALTER TABLE `{CATALOG}`.`{BARE}`.`r` "
+        "ADD COLUMN k INT\n-----^^^"
+    ), "and an answer keeps its lines"
+
+
+def test_an_error_that_quotes_the_end_of_a_schema_name_is_masked_too() -> None:
+    """An error that points into a long statement quotes a window of it, which
+    starts wherever it starts."""
+    mask = masking("main.stevin_it_abc123", "main.stevin_it_def456")
+    assert kept_out(
+        "...n_it_abc123`.`c` (id INT, CONSTRAINT p CHECK (id > 0))", mask
+    ) == (f"...{BARE}`.`c` (id INT, CONSTRAINT p CHECK (id > 0))")
+    assert kept_out("...def456`.`u`", mask) == "...<other-bare>`.`u`"
+    assert kept_out("and so on... 123 rows", mask) == "and so on... 123 rows"
+    assert kept_out("a table named c123", mask) == "a table named c123"
+
+
+def test_a_recording_does_not_say_whose_workspace_it_was() -> None:
+    """A transcript is a public file. Who ran it, where the workspace keeps its
+    tables and which warehouse answered are no part of any assumption."""
+    history = "DESCRIBE HISTORY t LIMIT 1"
+    detail = "DESCRIBE DETAIL t"
+    create = "SHOW CREATE TABLE t"
+    live = Answering(
+        {
+            history: [
+                {
+                    "version": "1",
+                    "userId": "1234567890123456",
+                    "userName": "someone@example.com",
+                    "job": None,
+                }
+            ],
+            detail: [
+                {
+                    "location": "s3://a-bucket/uc/0a1b/__unitystorage/tables/2c3d",
+                    "owner": "first.last+tag@mail.example.co.uk",
+                }
+            ],
+            create: [
+                {
+                    "createtab_stmt": "CREATE TABLE t (\n  id INT)\nUSING delta\n"
+                    "LOCATION 'abfss://c@account.dfs.core.windows.net/t'\n"
+                    "TBLPROPERTIES ('k' = 'v')"
+                }
+            ],
+            "SELECT 1": IntrospectionError("the warehouse w1 is stopped"),
+        }
+    )
+    recorder = Recorder(live, "anything")
+    for statement in (history, detail, create):
+        recorder.query(statement)
+    with pytest.raises(IntrospectionError):
+        recorder.query("SELECT 1")
+
+    written = recorder.transcript()
+    assert [one.rows or one.error for one in written.exchanges] == [
+        ({"version": "1", "userId": USER_ID, "userName": USER, "job": None},),
+        ({"location": LOCATION, "owner": USER},),
+        (
+            {
+                "createtab_stmt": "CREATE TABLE t (\n  id INT)\nUSING delta\n"
+                f"LOCATION '{LOCATION}'\nTBLPROPERTIES ('k' = 'v')"
+            },
+        ),
+        f"the warehouse {WAREHOUSE} is stopped",
+    ]
+
+
+def test_a_replay_answers_in_its_own_names() -> None:
+    """The workspace named the schema it was asked about; a replay names the one
+    it asks about, or a probe would look for its table and not find it. What
+    stands for whose workspace it was has nothing to go back to."""
+    written = Transcript(
+        about="anything",
+        recorded="2026-10-10",
+        exchanges=(
+            Exchange(
+                f"SELECT * FROM `{CATALOG}`.information_schema.tables",
+                rows=(
+                    {
+                        "name": f"{SCHEMA}.r",
+                        "table_schema": BARE,
+                        "table_owner": USER,
+                        "grantee": PRINCIPAL,
+                        "comment": None,
+                    },
+                ),
+            ),
+            Exchange(
+                f"DROP TABLE `{CATALOG}`.`{BARE}`.`gone`", error=f"no {SCHEMA}.gone"
+            ),
+        ),
+    )
+    replay = Replay(written, mask=masking(SCHEMA_HERE, principal=PRINCIPAL_HERE))
+    assert replay.query("SELECT * FROM `main`.information_schema.tables") == (
+        {
+            "name": "main.replayed.r",
+            "table_schema": "replayed",
+            "table_owner": USER,
+            "grantee": PRINCIPAL_HERE,
+            "comment": None,
+        },
+    )
+    with pytest.raises(IntrospectionError, match=r"no main\.replayed\.gone"):
+        replay.query("DROP TABLE `main`.`replayed`.`gone`")
+
+
+def test_a_backup_clone_is_found_under_the_name_the_replay_gave_it() -> None:
+    """A `--clone` plan names its backup after a fingerprint of the live schema,
+    whose own name is part of it: another suffix on every run, and another again
+    in a replay. The recording masks it; the replay hears its own from the
+    statement that makes the clone, and reads that back."""
+    live = Answering(
+        {
+            "CREATE TABLE main.it_abc.o__deltaplan_backup_d63045b5 SHALLOW CLONE o": [],
+            "SHOW TABLES": [{"table_name": "o__deltaplan_backup_d63045b5"}],
+        }
+    )
+    recorder = Recorder(live, "anything", mask=masking("main.it_abc"))
+    recorder.query(
+        "CREATE TABLE main.it_abc.o__deltaplan_backup_d63045b5 SHALLOW CLONE o"
+    )
+    recorder.query("SHOW TABLES")
+    written = recorder.transcript()
+    assert written.exchanges[0].sql == (
+        f"CREATE TABLE {SCHEMA}.o__deltaplan_backup_{BACKUP} SHALLOW CLONE o"
+    )
+    assert written.exchanges[1].rows == ({"table_name": f"o__deltaplan_backup_{BACKUP}"},)
+
+    replay = Replay(written, mask=masking(SCHEMA_HERE))
+    replay.query(
+        f"CREATE TABLE {SCHEMA_HERE}.o__deltaplan_backup_e48a3ac6 SHALLOW CLONE o"
+    )
+    assert replay.query("SHOW TABLES") == (
+        {"table_name": "o__deltaplan_backup_e48a3ac6"},
+    )
+
+
+def test_the_backup_a_recording_masks_is_the_one_stevin_names() -> None:
+    """`transcript.py` spells the backup's name out; this is what notices if
+    stevin starts spelling it another way."""
+    from stevin.planner import backup_name
+
+    assert normalise(backup_name("main.s.o", "0123abcd")) == (
+        f"main.s.o__deltaplan_backup_{BACKUP}"
+    )
 
 
 def test_a_recording_can_be_replayed() -> None:
