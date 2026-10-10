@@ -1,17 +1,35 @@
 # Kostavo tools
 
 **Small tools for the ugly gaps on Databricks.**
-Databricks does most things well. A few it leaves to you: the tables no pipeline owns
-and the grants and masks around them, the steps before and after a bundle deploy, a dlt
-pipeline that has to run on a laptop before it runs in a job, and the secrets in a scope
-you can only reach with an API. Each of those is a setup notebook or a brittle script in
-most workspaces. These are four small tools, one per gap, each with a closed scope.
+Databricks runs the compute, governs the catalog and deploys the code. dlt and dbt land
+the data and shape it. Between them sit a handful of jobs that nobody ships a tool for,
+and every team fills them the same way: a setup notebook, a shell script around the
+deploy, a page of steps in a wiki. Those are the parts of a data platform that are never
+reviewed, that break in the second environment, and that leave with whoever wrote them.
+
+These are four small tools, one per gap, and a template that starts a data product with
+them in place.
 
 [![ci](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-kostavo--oss.github.io%2Ftools-1f9e9a.svg)](https://kostavo-oss.github.io/tools/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/tools/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+Every tool keeps to the same six points:
+
+- **One job, and a closed scope.** Each lists what it will never do, and names the
+  change in Databricks that would make it unnecessary.
+- **What changes a workspace is shown first.** stevin and lely print a plan to read in
+  the pull request.
+- **Nothing to host, nothing to sign up for.** No state file, no service, no account.
+  The workspace is the state.
+- **Your code stays yours.** The pipelines are dlt, the models are dbt, the contracts
+  are an open standard. Take a tool away and the product still runs.
+- **Each works alone.** None needs another, and none needs a service behind it.
+- **Complete as it is.** Apache-2.0, nothing held back for a paid edition, no telemetry.
+
+[Why they exist, and what they are worth](https://kostavo-oss.github.io/tools/why/)
 
 | tool | the gap | |
 |---|---|---|
@@ -23,7 +41,8 @@ most workspaces. These are four small tools, one per gap, each with a closed sco
 Every tool is a package of its own on PyPI, with its own version, changelog and docs;
 none needs another. They share this repository: one lock file, one test gate, one site.
 A data product that uses them together starts from
-[data-product-template](https://github.com/kostavo-oss/data-product-template), a template.
+[data-product-template](https://github.com/kostavo-oss/data-product-template), a copier
+template in a repository of its own.
 
 ## Where they fit
 

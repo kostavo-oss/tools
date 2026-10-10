@@ -20,7 +20,7 @@ The numbers are names, not an order; the order of work is in
 | [001 — the runner](001-the-runner.md) | The project's command line: one command on a laptop and in a job | 1 | built; run as a serverless wheel task |
 | [002 — on Databricks](002-on-databricks.md) | What it knows about where it runs, and what it does about it | 1 | built; run on serverless, not on a cluster or in a notebook |
 | [003 — secrets](003-secrets.md) | dlt's secrets, from Databricks secret scopes | 1 | built; read from a real scope, in a job and from a laptop |
-| [004 — the scaffold](004-the-scaffold.md) | A project and a job to start from | 2 | superseded: moved to [vierlingh](https://github.com/kostavo-oss/vierlingh) |
+| [004 — the scaffold](004-the-scaffold.md) | A project and a job to start from | 2 | superseded: moved to [data-product-template](https://github.com/kostavo-oss/data-product-template) |
 | [005 — for agents](005-for-agents.md) | Skills for coding agents | 3 | draft, not built; the owner said "maybe" |
 
 ## How a spec is written

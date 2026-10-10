@@ -1,6 +1,7 @@
 # stevin
 
-Declarative, Terraform-style `plan` / `apply` for Databricks SQL tables — Unity Catalog and Delta.
+**stevin puts in place the tables and access that your transformation tool doesn't own.**
+Safe plan/apply migrations for Unity Catalog tables and schemas.
 
 !!! warning "Alpha"
     Every milestone in the design is built, and the assumptions stevin makes about
@@ -8,8 +9,13 @@ Declarative, Terraform-style `plan` / `apply` for Databricks SQL tables — Unit
     [testing](testing.md). It is still an alpha: try it on dev before production, and
     expect the spec format to change before the first stable release.
 
-Describe the tables you want in YAML or SQL, diff that against live Unity Catalog, review
-a plan, then apply it. stevin knows which Delta changes are metadata-only, which need
+Every workspace has tables that nobody's pipeline owns: the table a notebook appends
+to, the lookup table, the table another system writes into. Someone made each once, with
+a `CREATE TABLE` in a notebook, and changing one is another notebook, run by hand, once
+per environment. stevin keeps those tables, and the access around them, as specs in git.
+
+Describe the tables you want in YAML or SQL, or take their shape from a data contract;
+diff that against live Unity Catalog, review a plan, then apply it. stevin knows which Delta changes are metadata-only, which need
 a table feature enabled first, and which force a rewrite — and it says so before it
 touches anything.
 
@@ -59,6 +65,16 @@ touches anything.
 - [Access recipes](access-recipes.md) — groups per schema, rows by region, PII by tag;
   and what stays hard.
 - [Running from a job](running-from-a-job.md) — when CI can't reach the workspace.
+
+## Where it fits
+
+stevin is one of the [Kostavo tools](https://kostavo-oss.github.io/tools/): small tools
+for the ugly gaps on Databricks, one gap each. Its gap is the table nobody's pipeline
+owns, and who may see it. Each works alone.
+[Why the tools exist](https://kostavo-oss.github.io/tools/why/) has the rules they keep,
+and the README says
+[what stevin will not do](https://github.com/kostavo-oss/tools/tree/main/packages/stevin#what-it-will-not-do)
+and when you no longer need it.
 
 ---
 

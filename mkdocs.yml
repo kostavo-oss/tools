@@ -91,6 +91,7 @@ extra:
 
 nav:
   - Home: index.md
+  - Why: why.md
   - stevin: '!include packages/stevin/mkdocs.yml'
   - lely: '!include packages/lely/mkdocs.yml'
   - leeghwater: '!include packages/leeghwater/mkdocs.yml'

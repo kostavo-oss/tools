@@ -85,7 +85,7 @@ The dependency rule is simple: **the middle of the pipeline does no I/O.**
   and drops a scratch schema. Nothing else writes.
 - **`api.py`** / **`cli.py`** — the verbs as functions, and the thirteen commands
   around them: parsing arguments and printing, nothing else.
-- **`action.yml`** + **`action/`** — the GitHub Action, at the repo root so
+- **`action.yml`** + **`action/`** — the GitHub Action, at the package's root so
   `uses: kostavo-oss/tools/packages/stevin@stevin-v0` finds it.
 
 House rules worth repeating:

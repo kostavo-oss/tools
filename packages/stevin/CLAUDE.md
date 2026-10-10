@@ -14,19 +14,16 @@
 
 ## How changes land
 
-`main` is protected: every change is a pull request, and the `ci` checks must
-pass (they enforce for admins too) — eleven jobs: lint + types, the unit tests
-on Python 3.11–3.14 on Linux and on 3.14 on macOS and Windows, the unit tests
-on the lowest dependency versions `pyproject.toml` allows, actionlint, the
-strict docs build, and the wheel + sdist build. A job added to `ci.yml` is not
-required until it is added to the branch protection. `integration` — the live suite against the
+`main` is protected: every change is a pull request, and the repository's `ci`
+must pass (the root `CLAUDE.md` says what it runs, and for which packages).
+`integration` — the live suite against the
 workspace, ~40 minutes — runs on every pull request that touches code, and nightly;
 it isn't required, so read it before merging anything that changes the SQL stevin
 sends. Its credentials are GitHub environment secrets in `databricks-test`.
 
 A release is a version: bump `version` in `pyproject.toml` and move the CHANGELOG's
 `[Unreleased]` notes under it in a PR. Merging that PR is the release — `release.yml`
-watches `pyproject.toml` on `main`, publishes to PyPI and makes the tag. Ask before
+watches `pyproject.toml` on `main`, publishes to PyPI and makes the `stevin-vX.Y.Z` tag. Ask before
 merging a bump PR; it ships. CONTRIBUTING.md has the details.
 
 ## Layout
@@ -43,6 +40,8 @@ src/stevin/
   spec_schema.py  the editors' JSON Schema, from the loader's key sets
   bundle.py       a Databricks Asset Bundle's targets and objects; asks the CLI
   manage.py       what a project hands to another tool (`manage:`)
+  owned.py        whose tables are whose: `owned_elsewhere`, dbt's manifest, dlt's schemas
+  contract.py     a table's shape from an ODCS data contract (`from_contract`)
   formerly.py     the names from when this was deltaplan — the only place they are
   connect.py      Connection: the workspace client and the warehouse
   introspect.py   live state from Unity Catalog; WarehouseRunner
@@ -96,14 +95,13 @@ The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks`
 them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
 `test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
 assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
-`dev` and `docs` keep running until they are stopped, so they are not for an assistant to
-start and wait on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
+`docs` keeps running until it is stopped, so it is not for an assistant to start and wait
+on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
 an assistant that asks mise for it.
 
-`mise.toml`, `.mcp.json`, the workflows and the packaging come from
-[the template](https://github.com/kostavo-oss/template-python); `.copier-answers.yml` says
-which version this tool has taken, and `uvx copier update` brings the next. What every
-tool shares is changed there, not here.
+`mise.toml`, `.mcp.json` and the workflows are the repository's, at its root, since the
+tools moved into `kostavo-oss/tools`: what every tool shares is changed there, once. The
+copier template the tools were first made from is gone.
 
 ## Milestone 1 (read-only) — done
 
@@ -153,7 +151,8 @@ says the mode is per schema; `stevin.yml` has a per-schema `schemas:` map
 *and* keeps the target's `mode` as the default for unlisted schemas.
 
 **Milestone 4 (CI) is done**: `render/markdown.py`, `show`, `drift` (exit 0/2/1),
-and a composite GitHub Action — `action.yml` at the repo root, with its comment
+and a composite GitHub Action — `action.yml` at the package's root
+(`uses: kostavo-oss/tools/packages/stevin@stevin-v0`), with its comment
 script in `action/upsert_comment.py` (stdlib only, tested against a fake API).
 Change labels are shared by both renderers in `render/labels.py`. The Action
 must never interpolate `${{ }}` into a `run:` script — `test_action.py`
@@ -208,20 +207,21 @@ clustering; removing a tag or property with `null`; `command: apply` in the Acti
 the tables and access that a transformation tool (dbt, Lakeflow, SQLMesh) doesn't
 own — the tables notebooks and external systems write into, lookup tables, filtered
 views, and who may see what. It puts in place what a spec says; it does not decide
-what a spec may say. Leaving in 0.4.0, one PR each: `hooks:`, and SQL functions as a
-thing of their own (a function spec stays valid only when a mask or a row filter
-names it). Views and seeds stay. Coming: an *owned elsewhere* map (a `stevin.yml`
-list, dbt's manifest, dlt's `_dlt_*` tables) with governance-only specs for tables
-dlt or a notebook owns (tags, grants, masks, filters, owner — never columns, never a
-claim) and an outright refusal for tables dbt owns (dbt's config does that);
-`from_contract`, a table's shape read from an ODCS data contract; and ABAC policies
-*read* into plans, `drift`, an `access` report and `doctor` — **never written: ABAC
+what a spec may say. Removed on `main`, leaving with 0.4.0: `hooks:`, and SQL
+functions as a thing of their own (a function spec stays valid only when a mask or a
+row filter names it). Views and seeds stay. Built on `main`, in no release yet: an
+*owned elsewhere* map (`owned.py`: a `stevin.yml` list, dbt's manifest, dlt's `_dlt_*`
+tables) with governance-only specs for tables dlt or a notebook owns (tags, grants,
+masks, filters, owner — never columns, never a claim) and an outright refusal for
+tables dbt owns (dbt's config does that); and `from_contract` (`contract.py`), a
+table's shape read from an ODCS data contract. Not built: ABAC policies *read* into
+plans, `drift`, an `access` report and `doctor` — and **never written: ABAC
 management is cut for good** (Terraform's). Still not a policy engine: no rules about
 who may have what, no approvals, no audit beyond its own run history; no catalogs,
 external tables, governed-tag definitions, groups or quality checks; no notebook entry
 point — stevin applies from CI, or as a job task where CI can't reach the workspace.
-Until each removal lands, the layout above and the milestone notes describe the code
-as it is.
+The milestone notes above are history: where they name hooks or SQL functions of
+their own, this paragraph holds.
 
 **The Databricks assumptions are `probes.py`**, not a test file: `stevin verify`
 runs them in a user's own scratch schema, and

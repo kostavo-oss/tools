@@ -76,18 +76,17 @@ The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks`
 them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
 `test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
 assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
-`dev` and `docs` keep running until they are stopped, so they are not for an assistant to
-start and wait on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
+`docs` keeps running until it is stopped, so it is not for an assistant to start and wait
+on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
 an assistant that asks mise for it.
 
-`mise.toml`, `.mcp.json`, the workflows and the packaging come from
-[the template](https://github.com/kostavo-oss/template-python); `.copier-answers.yml` says
-which version this tool has taken, and `uvx copier update` brings the next. What every
-tool shares is changed there, not here.
+`mise.toml`, `.mcp.json` and the workflows are the repository's, at its root, since the
+tools moved into `kostavo-oss/tools`: what every tool shares is changed there, once. The
+copier template the tools were first made from is gone.
 
 ## Status
 
-**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07).** lely was run
+**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07; 0.3.0, 2026-10-08).** lely was run
 on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
 `validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
 `bundle` and `bundle.run` plugins and plugins from a repo file; the config in `lely.yml` or

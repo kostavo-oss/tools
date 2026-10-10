@@ -16,6 +16,13 @@ and delete; show and copy values; put a certificate in from a file.
 **[Read the docs →](https://kostavo-oss.github.io/tools/caland/)** — installation,
 connecting, every key, and how the page is kept yours.
 
+## Why
+
+Databricks secrets have an API and a CLI, and no screen. Rotating a key is a command
+copied from a wiki, and who may read which scope is a question nobody can answer quickly.
+Caland is the screen: a workspace's scopes, secrets and grants on one page, on your own
+machine, with a value read only when you ask for it and written nowhere.
+
 ## Named after
 
 Pieter Caland (1826–1902), the engineer who designed and built the Nieuwe Waterweg — the
@@ -145,13 +152,30 @@ uv run caland     # run it
 uv run --group docs mkdocs serve   # preview the docs site at localhost:8000
 ```
 
+## When not to use it
+
+- **In a pipeline.** Caland is for a person at a keyboard. It has no command that runs
+  unattended, and is not to get one.
+- **To keep secrets in code.** It declares nothing and plans nothing: what it does, it
+  does now, to the workspace it is connected to.
+- **For secrets outside Databricks secret scopes.** A Key Vault-backed scope is shown and
+  its values can be read; its secrets are managed in Azure.
+- **To see when a secret was last read.** That takes the audit table and a warehouse, and
+  Caland uses only the Databricks SDK: no query, no warehouse, no system table.
+
+## When you no longer need it
+
+When a Databricks workspace has a page of its own for secret scopes — the scopes, the
+secrets in each, who may read them, and a way to change one — use that. Today the docs
+name one screen, a form that creates a scope; listing, reading and changing go through
+the CLI, the API or the SDK.
+
 ## Where it fits
 
-> **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
-
-Caland is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
-Each does one job and none needs another: this one is for the secrets a deploy and a
-data model both end up depending on, and for the people who have to look after them.
+Caland is one of the [Kostavo tools](https://github.com/kostavo-oss/tools): small tools for the ugly gaps on Databricks,
+one gap each. Its gap is the secret you reach through an API: rotating a key is a
+command copied from a wiki, and who may read which scope is a question nobody can answer
+quickly. Each works alone.
 Kostavo is the company behind them: it builds
 [a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
 complete without it.

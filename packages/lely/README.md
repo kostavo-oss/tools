@@ -12,14 +12,11 @@ anything runs, and taken down again when you say so.
 
 lely replaces the script around `databricks bundle deploy`.
 
-> **Terraform for your platform, Asset Bundles for your code, stevin for your data model —
-> and lely to deploy them as one.**
-
 > **Status: alpha.** Everything below is built, tested against a fake Databricks CLI and a
 > fake GitHub, and has run for real a few times, with small bundles — see
 > [what has been tried](#what-has-been-tried). That is a first proof, not a track record.
 
-**Docs: [kostavo-oss.github.io/lely](https://kostavo-oss.github.io/tools/lely/)** ·
+**Docs: [kostavo-oss.github.io/tools/lely](https://kostavo-oss.github.io/tools/lely/)** ·
 [spec/](https://github.com/kostavo-oss/tools/blob/main/packages/lely/spec/README.md) says what each piece
 must do ·
 [docs/DESIGN.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/docs/DESIGN.md) says how it
@@ -27,9 +24,10 @@ is built.
 
 ## Why
 
-A real deploy to Databricks is an Asset Bundle and the things around it: a model version
-looked up and handed to the bundle, a job that has to run once the bundle is there, a seed, a
-migration. The bundle has a plan and a deploy. The things around it have a shell script.
+`databricks bundle deploy` deploys the bundle. A real deploy is more than that: the schema
+that has to exist first, a model version looked up and handed to the bundle, the job that has
+to run once after, the table that has to change. The bundle has a plan and a deploy. The
+things around it have a shell script, and a script has no dry run.
 
 That script fails in four ways a team feels, and lely answers each:
 
@@ -41,6 +39,10 @@ That script fails in four ways a team feels, and lely answers each:
 lely keeps no state. Whatever it needs to know, it asks the system it manages — for a bundle,
 the Databricks CLI.
 
+It borrows Terraform's words — plan, apply, destroy — because everyone knows what they promise.
+The job is not the same: lely manages no resource itself and remembers nothing. It owns the
+order, the review and the consent.
+
 ### When not to use it
 
 - **One bundle and nothing around it.** `databricks bundle deploy` is all you need.
@@ -50,6 +52,15 @@ the Databricks CLI.
   need state, and lely has none: remove a step from the config and what it deployed stays.
   Destroy first, then remove the step.
 - **Your CI isn't GitHub Actions**, for now.
+
+And what it will not become: a workflow engine (one ordered list, no parallel steps, no
+retries), a rollback, a build tool, or a second way to do what a bundle resource can do.
+
+### When you no longer need it
+
+When a bundle plans its own before-and-after steps — `databricks bundle plan` shows what
+runs before and after the deploy, and `bundle destroy` takes it down again — use the
+bundle alone. Today `bundle plan` shows the bundle's resources and nothing around them.
 
 ## Install
 
@@ -287,16 +298,12 @@ got them built — the Afsluitdijk among them. The one who actually got big plan
 
 ## Where it fits
 
-lely is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks. Kostavo is
+lely is one of the [Kostavo tools](https://github.com/kostavo-oss/tools): small tools for the ugly gaps on Databricks, one
+gap each. Its gap is the deploy that is more than a deploy: the steps before and after
+`databricks bundle deploy`, kept in a script with no dry run. Each works alone. Kostavo is
 the company behind them: it builds
 [a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
-complete without it. lely is not a fourth layer: it carries the layers out together.
-Terraform sets up the platform, an Asset Bundle deploys the code, stevin changes the data
-model — and lely deploys them as one.
-
-It borrows Terraform's words — plan, apply, destroy — because everyone knows what they promise.
-The job is not the same: lely manages no resource itself and remembers nothing. It owns the
-order, the review and the consent.
+complete without it.
 
 Community project, not affiliated with or endorsed by Databricks.
 

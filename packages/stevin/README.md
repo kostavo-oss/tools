@@ -11,11 +11,19 @@ then apply it.
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-> **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
+Every workspace has tables that nobody's pipeline owns: the table a notebook appends
+to, the lookup table, the table another system writes into. Someone made each once, with
+a `CREATE TABLE` in a notebook, and changing one is another notebook, run by hand, once
+per environment. stevin keeps those tables, and the access around them, as specs in git:
+a change is a plan in a pull request, and a change made by hand shows up as drift.
 
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
 > included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
-> views). SQL hooks and standalone SQL functions are leaving in 0.4.0 — the
+> views). On `main` and in no release yet: tables another tool owns are reported as
+> theirs (`owned_elsewhere`, dbt's manifest, dlt's schemas), a governance-only spec says
+> who may see such a table, and a table's shape can come from an ODCS data contract
+> (`from_contract`). SQL hooks and standalone SQL functions are removed on `main` and
+> leave with 0.4.0 — the
 > [changelog](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CHANGELOG.md) says why and
 > what to do. It is tested offline against a fake warehouse, and a live suite
 > runs what it assumes about Databricks against a real workspace. That suite has settled
@@ -74,6 +82,20 @@ source of truth.
   — and it runs from CI at deploy time, or
   [from a job](https://kostavo-oss.github.io/tools/stevin/running-from-a-job/) where
   CI can't reach the workspace.
+- **What another tool owns stays theirs.** `stevin.yml` says which tables another tool
+  owns (`owned_elsewhere:`), a dbt `manifest.json` says it for dbt, and a schema that
+  holds dlt's `_dlt_loads` and `_dlt_version` tables is dlt's. A plan reports those
+  tables as theirs — "dbt's", "dlt's", "the data-science team's" — and not as
+  unmanaged. A spec for a table dbt builds is refused.
+- **Access for a table stevin doesn't make.** A governance-only spec has no column
+  types: it puts tags, grants, a row filter, an owner and column masks on a table dlt
+  or a notebook team makes, and says nothing about its shape. The table is never
+  claimed, reshaped or dropped.
+- **A table's shape from a data contract.** `from_contract:` points a spec at an
+  [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract. The columns,
+  types, keys and descriptions come from the contract, and the spec adds what a contract
+  doesn't say: clustering, properties, grants, a row filter, masks —
+  [how a contract is read](https://kostavo-oss.github.io/tools/stevin/spec/#shape-from-a-data-contract).
 - **Unity Catalog is the state.** There is no state file to store, lock or repair.
   stevin reads the live catalog — `information_schema` and the tables' own definitions —
   every time it plans, and the one thing it has to remember, that it made a table, is a
@@ -158,6 +180,33 @@ because a table holds data.
   table rebuilt. stevin plans each as the separate, numbered step it is, and tells you
   how much a rebuild rebuilds before it starts.
 
+## What it will not do
+
+The scope is closed. stevin does not:
+
+- manage ABAC policies. Those are written in Terraform or SQL;
+- create catalogs, external tables, governed-tag definitions, groups or service
+  principals. Those are the platform's, and Terraform's;
+- decide who may have what. It has no rules, no approvals and no policy engine: it puts
+  in place what a spec says;
+- check data quality or service levels;
+- manage materialized views and streaming tables. Those are their pipeline's;
+- shape a table another tool builds, or detect a Lakeflow pipeline's tables by itself;
+- run from a notebook. It applies from CI, or as a job task where CI can't reach the
+  workspace;
+- run SQL of your own around a change, or keep SQL functions that no mask or row filter
+  names. Both leave with 0.4.0.
+
+A request for one of these is a snippet in your own repository, not a feature.
+[Next to other tools](https://kostavo-oss.github.io/tools/stevin/next-to-other-tools/)
+draws the line per tool.
+
+## When you no longer need it
+
+When an Asset Bundle has a table resource that plans changes to a live table — which
+are free, which rewrite it, which destroy something — use that. Today a bundle declares
+schemas and volumes, and no tables.
+
 ## Commands
 
 ```sh
@@ -184,11 +233,11 @@ Plan on pull requests, apply on merge, catch drift nightly — see
 
 ## Where it fits
 
-stevin is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
-Each does one job and none needs another: Terraform sets up the platform, an Asset
-Bundle deploys the code, dbt, Lakeflow or SQLMesh build the tables they build, and
-stevin changes the data model around them — the part of a deploy that can't simply be
-run again. Kostavo is the company behind them: it builds
+stevin is one of the [Kostavo tools](https://github.com/kostavo-oss/tools): small tools
+for the ugly gaps on Databricks, one gap each. Its gap is the table nobody's pipeline
+owns: the table a notebook appends to, the lookup table, the table another system
+writes into, and who may see them. Each works alone. Kostavo is the company behind
+them: it builds
 [a governance platform for Databricks workspaces](https://kostavo.com), and the tools
 are complete without it.
 
