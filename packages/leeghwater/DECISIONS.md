@@ -139,12 +139,33 @@ vault is asked after the scopes.
 Why: a Key Vault-backed scope is a scope and needed nothing new. Why the vault is read
 directly as well: decided, reason not recorded.
 
-## 15. 2026-10-11 — One place per fact, and no spec folder
+## 15. 2026-10-08 — The providers stay in leeghwater, and are not contributed to dlt
+
+Decided by the owner. The provider for secret scopes and the one for an Azure Key Vault
+are leeghwater's own code, and neither is offered upstream to dlt.
+
+Why: they stay here, where they can change with the tool. dlt's process asks for an
+issue, a maintainer's approval and then a pull request, and three Key Vault pull
+requests were waiting there. If dlt ships a provider of its own, leeghwater can depend
+on it.
+
+## 16. 2026-10-11 — One place per fact, and no spec folder
 
 Decided by the owner. It replaced the `spec/` folder: seven files that each held rules,
-decisions, a record of runs and the story of how the tool came to be. The rules are in
-`RULES.md`, the decisions here, the record of runs in `docs/tried.md`, the scope in the
-README, and the story in git.
+decisions, a record of runs and the story of how the tool came to be.
+
+- The scope is in the README, which is short: the gap, a quickstart, when not to use
+  it, when it is no longer needed.
+- How to use it is in `docs/`, and only there.
+- What must be true of the code is in `RULES.md`. A rule states the whole promise. One
+  the code does not keep in full is marked `Not kept yet:` with the issue that tracks
+  it, so that a gap is written down and not worded away.
+- Why it is so is in this file.
+- What ran on a workspace is in `docs/tried.md`.
+- An idea that is wanted and not built is a GitHub issue, and the story is in git.
+
+`tests/test_rules.py` at the root of the repository holds the rules file to the code
+and the tests.
 
 Why: an audit of the folder against the code found 59% of the checked statements true
 as written, and about 12 of the 42 citations in code and tests named a rule that had

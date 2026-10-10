@@ -14,6 +14,11 @@ what ran on a real workspace is in [docs/tried.md](docs/tried.md).
   `tests/<file>.py::<test>`. Each of those tests cites the identifier, and no other test
   does.
 - A rule no test can hold says `Not tested:` and why, in place of `Held by:`.
+- A rule states the whole promise, also when the code does not keep all of it yet. Such
+  a rule is open: it says `Not kept yet:`, the number of the issue that tracks it, and
+  what the code does instead, as `Not kept yet: #12 — what the code does`. Its
+  `Held by:` names the tests of the part that holds, if there are any. When the code
+  keeps the rule the line is taken out, and the rule gets the test it lacked.
 - A change to behaviour changes its rule and its test in the same pull request.
   `tests/test_rules.py` at the root of the repository checks all of the above.
 
@@ -27,14 +32,15 @@ leeghwater stands beside dlt.
   run the same pipeline as the same words typed by a developer.
   Held by: `tests/test_app.py::test_the_same_words_run_the_same_pipeline_as_a_console_script`.
 - **APP-2** — A pipeline is a function marked `@pipeline` in the module or package the
-  app names, and the app imports that package itself. A pipeline is named after its
-  function unless the mark names it, and two of one name are refused when the app starts.
+  app names. The app imports that package itself, after it has prepared the process. A
+  pipeline is named after its function unless the mark names it, and two of one name are
+  refused when the app starts.
   Held by: `tests/test_app.py::test_list_names_the_pipelines_and_their_parameters`,
   `tests/test_app.py::test_what_else_is_refused_at_the_start`.
 - **APP-3** — A pipeline's parameters are options of its command, with the type the
   function gives: text, a whole or a decimal number, a date or a date and time in ISO
-  format, or a yes or no. A value that does not parse is refused and the pipeline is not
-  called.
+  format, or a yes or no. `run <pipeline> --help` lists them. A value that does not
+  parse is refused and the pipeline is not called.
   Held by: `tests/test_app.py::test_run_runs_a_pipeline_and_its_parameters_arrive_typed`,
   `tests/test_app.py::test_a_parameter_keeps_its_default_and_its_type`,
   `tests/test_app.py::test_a_wrong_option_is_refused_by_name`.
@@ -60,13 +66,15 @@ leeghwater stands beside dlt.
   asked.
   Held by: `tests/test_app.py::test_list_names_the_pipelines_and_their_parameters`,
   `tests/test_app.py::test_list_answers_as_json`.
-- **APP-9** — `doctor` says what a run would set up. For a run that would load into
-  Databricks it checks the sign-in, each secret scope, each pointed-at secret and the
-  warehouse, and ends with 1 when a check fails. It runs no pipeline, reads no secret's
-  value, and answers as JSON when asked.
+- **APP-9** — `doctor` says what a run would set up and checks what the run names,
+  wherever it would load: the sign-in, each secret scope, each pointed-at secret, each
+  Key Vault and the warehouse. It ends with 1 when a check fails, runs no pipeline,
+  reads no secret's value, and answers as JSON when asked.
   Held by: `tests/test_app.py::test_doctor_on_a_laptop_says_it_would_load_locally`,
   `tests/test_app.py::test_doctor_checks_the_identity_the_scopes_and_the_warehouse`,
   `tests/test_app.py::test_doctor_fails_by_name_and_answers_as_json`.
+  Not kept yet: #45 — for a run that would load locally it checks nothing, not even a
+  Key Vault that was named.
 - **APP-10** — A command the project adds with `@app.command()` is prepared as a
   pipeline is, with the app's own settings, and finds the same secrets.
   Held by: `tests/test_app.py::test_a_command_the_project_added_runs_and_finds_a_secret`.
@@ -76,6 +84,10 @@ leeghwater stands beside dlt.
   Held by: `tests/test_app.py::test_on_a_laptop_an_error_of_leeghwaters_is_one_line`,
   `tests/test_app.py::test_a_pipeline_that_raises_ends_the_run_with_its_own_error`,
   `tests/test_app.py::test_on_databricks_a_run_without_a_warehouse_stops_before_the_pipeline`.
+- **APP-12** — Help and errors are plain text: a job's log is not a terminal.
+  Held by: `tests/test_app.py::test_on_a_laptop_an_error_of_leeghwaters_is_one_line`.
+  Not kept yet: #45 — errors and the top-level help are plain; the help of `run`, of a
+  pipeline, of `list` and of `doctor` is drawn with boxes when rich is installed.
 
 ## RUN — the pipeline of a run
 
@@ -132,9 +144,12 @@ leeghwater stands beside dlt.
 - **PRE-2** — A second `prepare()` with the same arguments changes nothing: not the
   environment, not dlt's providers, not the first lines.
   Held by: `tests/test_prepare.py::test_a_second_call_changes_nothing`.
-- **PRE-3** — Each `prepare()` decides the destination, the schemas, the warehouse and
-  the limit anew, from its own arguments.
+- **PRE-3** — A later `prepare()` leaves the process as if only it had been called:
+  the `Setup`, the providers registered with dlt, and the environment.
   Held by: `tests/test_prepare.py::test_a_later_call_decides_again_from_scratch`.
+  Not kept yet: #44 — the destination, the schemas, the warehouse and the limit are
+  decided anew; a scope an earlier call registered stays registered, and the profile,
+  the log level and the `--set` values of an earlier call stay in the environment.
 - **PRE-4** — What `prepare()` sets in the environment is what dlt or the Databricks SDK
   read there: `DATABRICKS_CONFIG_PROFILE`, `DLT_PROJECT_DIR`, `RUNTIME__LOG_LEVEL`, and
   what `--set` names.
@@ -192,6 +207,9 @@ leeghwater stands beside dlt.
 - **DBX-8** — A package that carries a `.dlt/secrets.toml` is refused on Databricks, by
   name, before anything is read from it.
   Held by: `tests/test_prepare.py::test_a_wheel_with_a_secrets_toml_is_refused_on_databricks`.
+- **DBX-9** — A project can ask where it runs, with `leeghwater.where()`.
+  Not kept yet: #45 — the function is there and is not exported: `leeghwater.where`
+  raises `AttributeError`.
 
 ## DST — where a run loads
 
@@ -263,16 +281,18 @@ leeghwater stands beside dlt.
   Held by: `tests/test_secrets.py::test_a_secret_can_hold_a_whole_section`,
   `tests/test_secrets.py::test_a_section_without_its_own_heading_lands_at_the_root`,
   `tests/test_secrets.py::test_dlt_secrets_toml_is_read_as_a_whole_file`.
-- **SEC-6** — A scope's provider lists its scope once in a process, and fetches only a
-  secret the scope holds.
+- **SEC-6** — A scope is listed once in a run, and only a secret it holds is fetched.
   Held by: `tests/test_secrets.py::test_a_scope_is_listed_once_and_only_what_is_there_is_read`.
+  Not kept yet: #45 — a scope that is also pointed into is listed a second time, by
+  the provider of the pointed-at secrets.
 - **SEC-7** — A secret under another name is pointed at as `<scope>/<key>`, split at
   the first `/`. What is pointed at is asked before any scope, and after dlt's own
   providers.
   Held by: `tests/test_secrets.py::test_a_secret_under_another_name_can_be_pointed_at`,
   `tests/test_secrets.py::test_a_pointer_is_a_scope_and_a_key_split_at_the_first_slash`.
-- **SEC-8** — A run's `--secret-scope` stands in place of the app's scopes, and a run's
-  `--secret` points at a secret beside the ones the app points at.
+- **SEC-8** — A run's `--secret-scope` and `--key-vault` stand in place of the app's
+  scopes and vaults. A run's `--secret` adds to what the app points at, and wins on the
+  same name.
   Held by: `tests/test_app.py::test_a_run_can_name_other_scopes_and_point_at_a_secret`.
 - **SEC-9** — leeghwater prints, logs and writes no secret's value, and puts none in
   the environment. The first lines, `doctor`, a provider's name and an error name scopes
@@ -290,8 +310,9 @@ leeghwater stands beside dlt.
   Held by: `tests/test_secrets.py::test_a_scope_that_does_not_exist_is_an_error_with_its_name`,
   `tests/test_secrets.py::test_a_scope_that_refuses_says_which_scope_and_who_asked`,
   `tests/test_secrets.py::test_a_pointer_at_nothing_is_an_error_that_names_it`.
-- **SEC-11** — A key that is missing, refused or empty is "not here", and dlt looks on.
-  Any other error from the workspace is raised as it came.
+- **SEC-11** — A key that is missing, refused or empty is "not here", and dlt looks on;
+  when nothing has it, dlt's own error names the scope and the key it looked for. Any
+  other error from the workspace is raised as it came.
   Held by: `tests/test_secrets.py::test_a_missing_a_refused_and_an_empty_key_are_all_not_here`,
   `tests/test_secrets.py::test_any_other_error_is_raised_as_it_came`.
 - **SEC-12** — Registering a scope or a vault twice adds one provider. There is one

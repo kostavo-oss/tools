@@ -14,7 +14,7 @@ One place per fact. Write a fact where it lives, and link to it from anywhere el
 | What must be true of the code | `RULES.md`: numbered rules, each with the tests that hold it |
 | Why it is so, and what it replaced | `DECISIONS.md`: a log, appended to and never edited |
 | What ran on a real workspace, and what did not | `docs/tried.md` |
-| How a project uses it | `docs/`, and the README in short |
+| How to use it | `docs/`, and only there: the README has a quickstart and links to the pages |
 | What changed for a user, per release | `CHANGELOG.md` |
 | What dlt or Databricks does that the code leans on | the docstring of the code or the test that leans on it |
 | An idea that is wanted and not built | a GitHub issue |
@@ -29,8 +29,9 @@ There is no `spec/` folder, and none comes back.
   that hold it under `Held by:`. Each of those tests cites the identifier in its
   docstring. A number is never reused. `tests/test_rules.py` at the root of the
   repository fails when a citation, a rule and a test disagree.
-- **A rule is checked against the code before it is written.** What the code does not
-  keep is a bug to report or not a rule; it is not written down as if it held.
+- **A rule is checked against the code before it is written, and states the whole
+  promise.** What the code does not keep yet gets an issue, and the rule says
+  `Not kept yet:` with its number. A rule is not worded down to what happens to hold.
 - **A decision is appended to `DECISIONS.md`, with its date and its reason.** No entry is
   edited: a new one names the one it supersedes. Where the reason is not known, the
   entry says "reason not recorded".

@@ -316,7 +316,7 @@ def test_on_databricks_a_run_without_a_warehouse_stops_before_the_pipeline(on_da
 
 
 def test_on_a_laptop_an_error_of_leeghwaters_is_one_line(capsys):
-    """APP-11."""
+    """APP-11, APP-12."""
     with pytest.raises(SystemExit) as exit_:
         _odd()(["run", "raises", "--schema", ""])
 

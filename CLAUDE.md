@@ -46,9 +46,10 @@ them.
 
 | The fact | Its one place in `packages/<name>/` |
 |---|---|
-| What the tool is for, when not to use it, when it is no longer needed | `README.md` |
+| What the tool is for, when not to use it, when it is no longer needed | `README.md`, which is short and whose links are absolute: it is the PyPI page too |
 | What must be true of the code | `RULES.md`: numbered rules in the present tense, each with the tests that hold it |
 | Why it is so, and what it replaced | `DECISIONS.md`: a log with dates, appended to and never edited |
+| How to use it | `docs/`; the README has a quickstart and links to the pages |
 | What ran on a real workspace, and what did not | the docs page for it (`docs/tried.md` in leeghwater) |
 | What changed for a user, per release | `CHANGELOG.md` |
 | How to work in the package: its layout, its commands, its rules of working | `CLAUDE.md` |
@@ -59,7 +60,8 @@ A rule has an identifier, an area and a number such as `APP-3`, that code, tests
 docs cite. A number is never reused. `tests/test_rules.py` holds every package that has
 a `RULES.md` to it: a cited rule exists, a rule is cited by the tests it names or says
 `Not tested:` and why, no identifier is used twice, and there is no `spec/` folder
-beside it.
+beside it. A rule states the whole promise: one the code does not keep in full says
+`Not kept yet:` with the number of the issue that tracks it.
 
 **leeghwater follows this.** lely and caland still have a `spec/` folder that holds
 rules, decisions, runs and history together, and stevin keeps its rules in its

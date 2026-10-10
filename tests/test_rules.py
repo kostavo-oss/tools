@@ -3,7 +3,8 @@
 The rules of a package are in one file, each with an identifier such as `APP-3`. This
 holds, for every package that has the file: an identifier cited anywhere in the package
 is a rule that exists; a rule is cited by the tests its `Held by:` line names, and by no
-other test, or says `Not tested:` and why; no identifier is used twice; and the `spec/`
+other test, or says `Not tested:` and why; a rule the code does not keep in full says
+`Not kept yet:` and names the issue for it; no identifier is used twice; and the `spec/`
 folder the rules came from is gone. A package without the file is not checked.
 """
 
@@ -25,6 +26,8 @@ RULE = re.compile(r"^- \*\*([A-Z]{2,5}-[0-9]+)\*\* — \S", re.MULTILINE)
 NEXT = re.compile(r"^(?:- |#)", re.MULTILINE)
 #: A test, as `Held by:` names it: `tests/test_app.py::test_it_runs`.
 TEST = re.compile(r"`(tests/[\w/]+\.py::[\w:]+)`")
+#: What follows `Not kept yet:` in a rule the code does not keep in full: the issue.
+OPEN = re.compile(r" #[0-9]+ — \S")
 #: A citation of one of the numbered specs a `RULES.md` replaces: `spec/002`.
 OLD_SPEC = re.compile(r"spec/[0-9]{3}")
 
@@ -111,14 +114,21 @@ def problems(here: Path) -> list[str]:
     for name, block in found:
         held = "Held by:" in block
         reason = re.search(r"^\s+Not tested: *(.*)", block, re.MULTILINE)
-        if held == bool(reason):
+        # An open rule states the whole promise. It names the issue for the part the
+        # code does not keep, and may name tests for the part it does.
+        open_ = re.search(r"^\s+Not kept yet:(.*)", block, re.MULTILINE)
+        if open_ and not OPEN.match(open_.group(1)):
+            wrong.append(
+                f"{name} says `Not kept yet:` and names no issue, as"
+                " `Not kept yet: #12 — what the code does instead`"
+            )
+        if (held and reason) or not (held or reason or open_):
             wrong.append(f"{name} needs `Held by:` or `Not tested:`, and one of them")
             continue
-        if reason:
-            if len(reason.group(1).split()) < 3:
-                wrong.append(f"{name} says `Not tested:` and not why")
-            named = set()
-        else:
+        named = set()
+        if reason and len(reason.group(1).split()) < 3:
+            wrong.append(f"{name} says `Not tested:` and not why")
+        if held:
             named = set(TEST.findall(block.split("Held by:", 1)[1]))
             if not named:
                 wrong.append(f"{name} says `Held by:` and names no test")
@@ -158,12 +168,17 @@ GOOD = {
         "  `tests/test_app.py::TestMore::test_it_runs_twice`.\n"
         "- **APP-2** — It reads no token.\n"
         "  Not tested: it is an absence.\n"
+        "- **APP-3** — It runs anywhere.\n"
+        "  Held by: `tests/test_app.py::test_it_runs`.\n"
+        "  Not kept yet: #12 — it runs on a laptop only.\n"
+        "- **APP-4** — It says so in plain text.\n"
+        "  Not kept yet: #13 — it draws boxes.\n"
     ),
     "README.md": "It runs, UTF-8 and all: APP-1.\n",
     "src/made_up/__init__.py": '"""APP-1 and APP-2."""\n',
     "tests/test_app.py": (
         "def test_it_runs():\n"
-        '    """APP-1."""\n\n\n'
+        '    """APP-1, APP-3."""\n\n\n'
         "class TestMore:\n"
         "    def test_it_runs_twice(self):\n"
         "        pass  # APP-1\n\n\n"
@@ -193,8 +208,8 @@ TESTS_PY = GOOD["tests/test_app.py"]
     ("changed", "problem"),
     [
         pytest.param(
-            {"src/made_up/__init__.py": '"""APP-3."""\n'},
-            "src/made_up/__init__.py cites APP-3, and RULES.md has no such rule",
+            {"src/made_up/__init__.py": '"""APP-9."""\n'},
+            "src/made_up/__init__.py cites APP-9, and RULES.md has no such rule",
             id="a rule that does not exist is cited in the code",
         ),
         pytest.param(
@@ -203,7 +218,7 @@ TESTS_PY = GOOD["tests/test_app.py"]
             id="a rule that does not exist is cited in the docs",
         ),
         pytest.param(
-            {"tests/test_app.py": TESTS_PY.replace('"""APP-1."""', '"""It runs."""')},
+            {"tests/test_app.py": TESTS_PY.replace("APP-1, APP-3.", "APP-3.")},
             "APP-1 is held by tests/test_app.py::test_it_runs, which does not cite APP-1",
             id="a test that is named does not cite its rule",
         ),
@@ -231,6 +246,17 @@ TESTS_PY = GOOD["tests/test_app.py"]
             {"RULES.md": RULES_MD.replace("it is an absence", "no")},
             "APP-2 says `Not tested:` and not why",
             id="a rule that is not tested and does not say why",
+        ),
+        pytest.param(
+            {"RULES.md": RULES_MD.replace("Not kept yet: #13 — it", "Not kept yet: it")},
+            "APP-4 says `Not kept yet:` and names no issue, as"
+            " `Not kept yet: #12 — what the code does instead`",
+            id="an open rule that names no issue",
+        ),
+        pytest.param(
+            {"RULES.md": RULES_MD.replace("  Not kept yet: #13 — it draws boxes.\n", "")},
+            "APP-4 needs `Held by:` or `Not tested:`, and one of them",
+            id="a rule that is neither held, nor open, nor explained",
         ),
         pytest.param(
             {"RULES.md": RULES_MD.replace("**APP-2**", "**APP-1**")},
