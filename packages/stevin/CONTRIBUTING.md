@@ -15,9 +15,23 @@ so please say which.
 - **`ci`** — lint, types, the unit tests on Python 3.11–3.14, on macOS and Windows, and
   on the lowest dependency versions `pyproject.toml` allows, the docs in strict mode,
   the wheel, and the workflows. These are required.
-- **`integration`** — the live suite, against a real workspace, on every pull request
-  and nightly. It takes about 40 minutes and isn't required, so read it before merging
-  anything that changes what stevin sends to Databricks.
+- **`integration`** — the live suite, against a real workspace. It runs once a week,
+  and when a maintainer starts it. It does not run on pull requests and isn't required.
+
+**A pull request that changes what stevin sends to Databricks** is checked by starting
+the `smoke` tests on its branch. Say in the pull request that it wants one; a
+maintainer starts it and reads it before merging:
+
+```sh
+gh workflow run integration.yml --ref <branch>                          # smoke
+gh workflow run integration.yml --ref <branch> -f suite=full -f k=<test>  # one test
+```
+
+The suite runs in a workspace that is its owner's own, and every table it makes counts
+against that metastore's quota for a while after it is dropped. So the rule, for people
+and for coding agents: **never a full live run for a change that `smoke` or `-k` can
+check, and never more than one full run a day on a workspace somebody else uses.**
+[docs/testing.md](docs/testing.md) says what a run costs and what `smoke` covers.
 
 Run `mise run check` before pushing; it is the `ci` gate minus the matrix. If you
 changed anything a user sees in the terminal, `mise run screens` remakes the docs'
@@ -112,8 +126,10 @@ Four layers, each honest about what it proves:
 3. **Transcripts** (`tests/transcripts/`) — what a workspace answered, recorded by a
    live run and replayed offline. Built, and empty until one is recorded.
 4. **Integration tests** (`tests/integration/`) — marked `@pytest.mark.integration`,
-   skipped without credentials, run nightly against a real workspace in an ephemeral
-   schema. The only source of truth about Databricks.
+   skipped without credentials, run weekly against a real workspace in schemas the
+   suite makes and drops. The only source of truth about Databricks. A run has a table
+   budget: a test that only reads shares a table with its module, and a test that
+   changes one has its own.
 
 An assumption about what Databricks does is a probe in `src/stevin/probes.py`, with a
 link to the documentation, which the live suite and `stevin verify` both run; anything

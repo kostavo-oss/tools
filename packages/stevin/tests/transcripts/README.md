@@ -27,6 +27,11 @@ STEVIN_RECORD=tests/transcripts \
 Only a probe that **held** is written: a probe that didn't is something to fix in
 the code, and a transcript of it would assert the mistake.
 
+A recording has to stand on its own, so while recording each probe gets a schema of
+its own and shares no table with the others. That run makes 28 tables where the
+probes otherwise make 17, against a budget of 60: record on a day with no other full
+run.
+
 Re-record after a runtime upgrade, or whenever a replay starts failing. The diff
 of a transcript is the diff of what Databricks answers — worth reading.
 

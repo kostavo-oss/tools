@@ -16,10 +16,10 @@
 
 `main` is protected: every change is a pull request, and the repository's `ci`
 must pass (the root `CLAUDE.md` says what it runs, and for which packages).
-`integration` — the live suite against the
-workspace, ~40 minutes — runs on every pull request that touches code, and nightly;
-it isn't required, so read it before merging anything that changes the SQL stevin
-sends. Its workspace is three variables in the GitHub environment `databricks-test`
+`integration` — the live suite against the workspace — runs once a week and when
+somebody starts it, never on a pull request, and isn't required. A pull request that
+changes the SQL stevin sends is checked by starting `smoke` on its branch (below).
+Its workspace is three variables in the GitHub environment `databricks-test`
 (`DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, `STEVIN_TEST_CATALOG`) and its token
 the one secret there, `DATABRICKS_TOKEN`.
 
@@ -74,6 +74,7 @@ tests/
   snapshots/      golden plans
   transcripts/    recorded workspace answers — none yet
   fake_warehouse.py, screens.py, transcript.py, messy_schema.py, helpers.py
+  table_budget.py   what a live run may cost in tables, and the counter
 action.yml, action/upsert_comment.py   the GitHub Action and its comment script
 deltaplan-shim/   the last `deltaplan` release for PyPI; published by no workflow
 docs/             DESIGN.md (source of truth) + the mkdocs site
@@ -97,7 +98,7 @@ Never use pip/virtualenv, black/flake8/isort, or mypy.
 mise install                   # pinned Python + uv
 uv sync
 uv run pytest tests/unit
-uv run pytest -m integration   # needs DATABRICKS_HOST / token / warehouse id
+uv run pytest -m "integration and smoke"   # live; see "The live suite costs tables"
 uv run ruff check . && uv run ruff format --check .
 uv run ty check
 ```
@@ -259,11 +260,37 @@ answered per probe (`tests/transcript.py`), and `tests/unit/test_transcripts.py`
 replays each one offline. A statement a recording doesn't cover fails loudly, like
 `FakeSqlError`. Only a probe that held is written.
 
-**Live verification** runs in CI on every pull request (`integration.yml`), and by
-hand with `uv run pytest -m integration` and the workspace env (see memory). By hand,
-run it from a separate `git worktree` of the commit under test — editing files mid-run
+**The live suite costs tables, and the workspace is somebody's own.** Unity Catalog
+allows a metastore 500 tables and counts them with an estimate that comes down slowly
+after a drop. On 2026-10-10 about fifteen runs in a day, each making more than a
+hundred tables, took the estimate to 510 of 500 with 46 tables really there, and the
+owner could not create a table in their own workspace. So:
+
+- **Never start a full live run for a change that `smoke` or `-k` can check.**
+- **Never more than one full run a day** on a workspace somebody else uses.
+- **Never start a live run of any kind without being asked to**, if you are a coding
+  agent: the workspace is the owner's. Ask, and say which suite and why.
+- `integration.yml` runs weekly (full) and by hand (`smoke` by default, `-f suite=full`,
+  `-f k=<test>`); it does not run on pull requests. Do not put that trigger back.
+- A run has a budget and keeps to it: `tests/table_budget.py` (`FULL_BUDGET` 60,
+  `SMOKE_BUDGET` 15). The live conftest counts every table the suite's one runner
+  creates, prints the total and the ten biggest spenders, fails a session over its
+  budget, and stops a session before it starts when the budget does not fit under the
+  quota. `docs/testing.md` has the numbers per file.
+- **Writing a live test:** one that only reads shares a table through a module-scoped
+  fixture in `shared_schema`, and must not depend on which test ran first (`-k` on one
+  test has to work); one that changes a table's shape or must start from nothing takes
+  `schema`. Never a table per parametrised case. A probe shares through `Bench.once()`.
+  A new test that makes a table says so in the table in `docs/testing.md`, and the
+  budget is raised only with a reason.
+- `@pytest.mark.smoke` is for the few tests that prove the release path. Adding one
+  spends from 15.
+
+By hand, `uv run pytest -m "integration and smoke"` with the workspace env (see
+memory), from a separate `git worktree` of the commit under test — editing files mid-run
 mixes old and new modules. Before building on a Databricks behaviour, probe it on the
-workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
+workspace in a throwaway `stevin_probe_*` schema and drop the schema after: one table,
+not a suite.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 (`tests/integration/test_live_assumptions.py`), and a seed's `INSERT OVERWRITE …

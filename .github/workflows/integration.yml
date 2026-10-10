@@ -1,40 +1,64 @@
 name: integration
 
 # stevin's live suite: every assumption stevin makes about Databricks, checked
-# against a real workspace. Each test creates a throwaway schema and drops it.
-# It runs on every pull request that touches stevin's code, nightly (Databricks
-# changes too), and on demand. It takes about 40 minutes and isn't a required
-# check — read it before merging anything that changes what stevin sends to
-# Databricks.
+# against a real workspace, in throwaway schemas it drops again.
+#
+# It runs when somebody starts it, and once a week. It does not run on pull
+# requests, and this is why. The workspace is its owner's own, and Unity Catalog
+# allows its metastore 500 tables, counted with an estimate that goes up when a
+# table is created and comes down slowly after it is dropped. A full run made
+# more than a hundred tables then (114, counted from the code; about 130 as the
+# workspace saw it). On 2026-10-10 every pull request that touched stevin's
+# code or `uv.lock` started one, 45 minutes each: about fifteen runs in a day
+# took the estimate to 510 of 500 while the catalog held 46 tables. The next run
+# failed 68 tests on QUOTA_EXCEEDED, and the owner could not create a table in
+# their own workspace.
+#
+# So there are two suites, each with a budget the suite itself keeps to
+# (packages/stevin/tests/table_budget.py):
+#
+#   smoke  the release path in a handful of tests; at most 15 tables. The
+#          default when started by hand.
+#   full   everything; at most 60 tables. What the weekly run is.
+#
+# A run reads the quota first and does not start when its budget would not fit.
+# A pull request that changes what stevin sends to Databricks is checked by
+# starting `smoke` on its branch:
+#
+#   gh workflow run integration.yml --ref <branch>
+#   gh workflow run integration.yml --ref <branch> -f suite=full -f k=<test>
+#
+# `k` narrows the suite that was chosen, so a test outside `smoke` wants
+# `suite=full` beside it. Never more than one full run a day.
 #
 # The workspace lives in the `databricks-test` environment (Settings → Environments).
 # Which workspace is no secret, so that is three variables anyone with access can
 # read: DATABRICKS_HOST, DATABRICKS_WAREHOUSE_ID and STEVIN_TEST_CATALOG. The one
-# secret is DATABRICKS_TOKEN. A pull request from a fork gets no secret, so there
-# the suite skips rather than fails.
+# secret is DATABRICKS_TOKEN. Without it the suite skips rather than fails.
 
 on:
-  pull_request:
-    paths:
-      - "packages/stevin/**"
-      - "!packages/stevin/docs/**"
-      - "!packages/stevin/**.md"
-      - "!packages/stevin/mkdocs.yml"
-      - "uv.lock"
   schedule:
-    - cron: "0 3 * * *" # 03:00 UTC nightly
+    - cron: "0 3 * * 1" # Mondays, 03:00 UTC (Databricks changes too): full
   workflow_dispatch:
     inputs:
+      suite:
+        description: "smoke: the release path, at most 15 tables. full: everything, at most 60"
+        type: choice
+        options:
+          - smoke
+          - full
+        default: smoke
       k:
-        description: "Run only the live tests matching this pytest -k expression"
+        description: "Run only the tests of that suite matching this pytest -k expression"
         required: false
         default: ""
 
 concurrency:
-  # One suite at a time, across every pull request and the nightly run: the
-  # workspace allows a single active DBSQL pipeline, so two suites racing means
-  # the materialized-view test fails on the other one's pipeline. A second run
-  # waits instead, and a third replaces the one that is waiting.
+  # One suite at a time, whoever started it: the workspace allows a single
+  # active DBSQL pipeline, so two suites racing means the materialized-view test
+  # fails on the other one's pipeline, and two at once spend two budgets of
+  # tables. A second run waits instead, and a third replaces the one that is
+  # waiting.
   group: integration
   cancel-in-progress: false
 
@@ -68,13 +92,20 @@ jobs:
       - name: Tests (pytest -m integration)
         if: steps.creds.outputs.present == 'true'
         working-directory: packages/stevin
-        # -k comes from the dispatch form, so it goes through the environment
-        # and stays quoted: never interpolated into the script itself.
+        # What was typed into the dispatch form goes through the environment
+        # and stays quoted: never interpolated into the script itself. The
+        # weekly run has no form, and is the full suite.
         env:
           ONLY: ${{ inputs.k }}
+          SUITE: ${{ inputs.suite || 'full' }}
         run: |
+          marks="integration"
+          if [ "$SUITE" = "smoke" ]; then
+            marks="integration and smoke"
+          fi
+          echo "suite: $SUITE"
           if [ -n "$ONLY" ]; then
-            uv run pytest -m integration -rA -k "$ONLY"
+            uv run pytest -m "$marks" -rA -k "$ONLY"
           else
-            uv run pytest -m integration -rA
+            uv run pytest -m "$marks" -rA
           fi

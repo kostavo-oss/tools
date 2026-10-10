@@ -10,6 +10,8 @@ a failing test rather than a failing `apply`.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from helpers import col, table
@@ -145,29 +147,69 @@ def test_dropping_a_column_needs_column_mapping(
     assert live_after.column_names == ("order_id",)
 
 
-@pytest.mark.parametrize(
-    ("before", "after"),
-    [
-        ("tinyint", "smallint"),
-        ("int", "bigint"),
-        ("tinyint", "bigint"),
-        ("int", "double"),
-        ("tinyint", "decimal(10,0)"),
-        ("int", "decimal(12,2)"),
-        ("bigint", "decimal(20,0)"),
-        ("decimal(10,2)", "decimal(18,2)"),
-        ("float", "double"),
-        ("date", "timestamp_ntz"),
-        ("struct<a:int>", "struct<a:bigint>"),
-        ("array<int>", "array<bigint>"),
-        ("map<int,string>", "map<bigint,string>"),
-        ("map<string,int>", "map<string,bigint>"),
-    ],
-)
+#: Every widening `widens()` claims, as (from, to).
+WIDENINGS = [
+    ("tinyint", "smallint"),
+    ("int", "bigint"),
+    ("tinyint", "bigint"),
+    ("int", "double"),
+    ("tinyint", "decimal(10,0)"),
+    ("int", "decimal(12,2)"),
+    ("bigint", "decimal(20,0)"),
+    ("decimal(10,2)", "decimal(18,2)"),
+    ("float", "double"),
+    ("date", "timestamp_ntz"),
+    ("struct<a:int>", "struct<a:bigint>"),
+    ("array<int>", "array<bigint>"),
+    ("map<int,string>", "map<bigint,string>"),
+    ("map<string,int>", "map<string,bigint>"),
+]
+
+#: The edges of `widens()`, as (from, to). An integer widens to a decimal with
+#: 10 integer digits, 20 for a bigint — a fixed floor, not the digits the type
+#: holds.
+REFUSED = [
+    ("tinyint", "decimal(5,0)"),
+    ("bigint", "decimal(19,0)"),
+    ("bigint", "double"),
+]
+
+WIDENING_PROPERTY = "delta.enableTypeWidening"
+
+
+def widened_column(before: str, after: str) -> str:
+    """The column of the shared table that one widening has to itself."""
+    return f"w{WIDENINGS.index((before, after)):02d}"
+
+
+@pytest.fixture(scope="module")
+def widening_table(runner: WarehouseRunner, shared_schema: str) -> str:
+    """One table with a column for every widening asked about. Its name.
+
+    A table per widening was seventeen tables to ask seventeen questions about
+    one column each. Here each claimed widening has a column of its own, which
+    only its test changes, and each type a refusal is asked about has a column
+    no test changes. Type widening is on from the start, which is what the
+    refusals need: a refusal with the feature off would say nothing about the
+    type. So the plan of a widening here has no step to turn it on; that step
+    is planned and run by `test_metadata_changes_converge`.
+    """
+    name = f"{shared_schema}.widenings"
+    columns = [col(widened_column(before, after), before) for before, after in WIDENINGS]
+    columns += [col(f"r_{before}", before) for before in sorted({b for b, _ in REFUSED})]
+    runner.query(
+        create_table_sql(
+            table(*columns, name=name, properties=((WIDENING_PROPERTY, "true"),))
+        )
+    )
+    return name
+
+
+@pytest.mark.parametrize(("before", "after"), WIDENINGS)
 def test_the_widenings_we_claim_are_supported(
     runner: WarehouseRunner,
     introspector: Introspector,
-    schema: str,
+    widening_table: str,
     before: str,
     after: str,
 ) -> None:
@@ -175,49 +217,43 @@ def test_the_widenings_we_claim_are_supported(
 
     https://docs.databricks.com/aws/en/delta/type-widening
     """
-    original = table(col("value", before), name=f"{schema}.orders")
-    runner.query(create_table_sql(original))
-
-    desired = table(col("value", after), name=f"{schema}.orders")
-    live, facts = live_table(introspector, desired.name)
+    name = widened_column(before, after)
+    live, facts = live_table(introspector, widening_table)
+    desired = replace(
+        live,
+        columns=tuple(
+            col(name, after) if column.name == name else column for column in live.columns
+        ),
+    )
     plan = plan_for(desired, live, facts)
-    # timestamp_ntz also needs its own feature before ALTER TABLE may use it.
-    features = 2 if after == "timestamp_ntz" else 1
+    # Type widening is on already, so nothing turns it on. timestamp_ntz also
+    # needs its own feature before ALTER TABLE may use it.
+    features = 1 if after == "timestamp_ntz" else 0
     assert [step.risk for step in plan.steps] == ["feature"] * features + ["meta"]
     run_plan(plan, runner)
 
-    live_after, _ = live_table(introspector, desired.name)
+    live_after, _ = live_table(introspector, widening_table)
     assert diff(desired, live_after) == ()
 
 
-@pytest.mark.parametrize(
-    ("before", "after"),
-    [
-        # An integer widens to a decimal with 10 integer digits, 20 for a bigint —
-        # a fixed floor, not the digits the type holds.
-        ("tinyint", "decimal(5,0)"),
-        ("bigint", "decimal(19,0)"),
-        ("bigint", "double"),
-    ],
-)
+@pytest.mark.parametrize(("before", "after"), REFUSED)
 def test_the_widenings_we_refuse_are_refused(
-    runner: WarehouseRunner, schema: str, before: str, after: str
+    runner: WarehouseRunner, widening_table: str, before: str, after: str
 ) -> None:
     """The edges of `widens()`: Databricks refuses these as metadata changes,
-    so stevin plans them as rewrites.
+    so stevin plans them as rewrites. Refused, so the column stays as it was
+    for the next question about it.
     https://docs.databricks.com/aws/en/delta/type-widening
     """
     from stevin.planner import widens
     from stevin.typeparser import parse_type
 
     assert not widens(parse_type(before), parse_type(after))
-    name = quote_qualified(f"{schema}.orders")
-    runner.query(
-        f"CREATE TABLE {name} (value {before.upper()}) "
-        "TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"
-    )
     with pytest.raises(Exception, match="(?i)not supported"):
-        runner.query(f"ALTER TABLE {name} ALTER COLUMN value TYPE {after.upper()}")
+        runner.query(
+            f"ALTER TABLE {quote_qualified(widening_table)} "
+            f"ALTER COLUMN r_{before} TYPE {after.upper()}"
+        )
 
 
 def test_automatic_clustering_round_trips(
@@ -227,8 +263,6 @@ def test_automatic_clustering_round_trips(
     the TODO(verify) on `_clustering_clause` for a workspace with predictive
     optimization. https://docs.databricks.com/aws/en/delta/clustering
     """
-    from dataclasses import replace
-
     from stevin.executor import Executor
     from stevin.history import MemoryHistory
     from stevin.planning import plan_tables
@@ -256,8 +290,6 @@ def test_partitioning_round_trips_and_moves_to_clustering(
     each a rewrite that keeps the rows, the way back unclustering first.
     https://docs.databricks.com/aws/en/tables/partitions
     """
-    from dataclasses import replace
-
     from stevin.executor import Executor
     from stevin.history import MemoryHistory
     from stevin.planning import plan_tables

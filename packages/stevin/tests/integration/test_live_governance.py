@@ -8,6 +8,12 @@ the statement, and reads back what was written.
   masks       https://docs.databricks.com/aws/en/tables/row-and-column-filters
   views       https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-view
   functions   https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-sql-function
+
+Two things are shared in the module's schema, to make fewer tables. `customers`
+is a table the view test selects from and the foreign key test points at:
+neither changes it. `people` is the table of the two tests about tags: each
+applies its own spec and plans again, which comes out the same whatever the
+other left on the table. Every other test has a schema of its own.
 """
 
 from __future__ import annotations
@@ -41,9 +47,26 @@ def apply(plan: Plan, runner: WarehouseRunner, introspector: Introspector) -> No
     assert result.ok, result.error
 
 
+@pytest.fixture(scope="module")
+def customers(runner: WarehouseRunner, shared_schema: str) -> Table:
+    """A table with a primary key, made by stevin, that no test changes: its
+    spec. A test that needs a table to read from or to point at names this one
+    in its plan, where it plans nothing."""
+    introspector = Introspector(runner)
+    spec = table(
+        col("id", "bigint", nullable=False),
+        col("amount", "decimal(18,2)"),
+        name=f"{shared_schema}.customers",
+        constraints=(PrimaryKey(("id",), "customers_pk"),),
+    )
+    apply(planned([spec], introspector), runner, introspector)
+    return spec
+
+
 def test_column_tags_and_table_tags_read_back(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, shared_schema: str
 ) -> None:
+    schema = shared_schema
     email = col("email", "string")
     spec = table(
         col("id", "bigint"),
@@ -55,6 +78,7 @@ def test_column_tags_and_table_tags_read_back(
     assert planned([spec], introspector).empty, "tags must read back as written"
 
 
+@pytest.mark.smoke
 def test_grants_read_back(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
@@ -69,17 +93,18 @@ def test_grants_read_back(
 
 
 def test_a_view_reads_back_as_its_spec(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner,
+    introspector: Introspector,
+    shared_schema: str,
+    customers: Table,
 ) -> None:
     """The load-bearing assumption behind view diffs: view_definition is the
     query as written. If Unity Catalog rewrote it, every plan would show a
     replace that isn't one. A view's properties come from SHOW TBLPROPERTIES,
     whose columns are `key` and `value`."""
-    base = table(
-        col("id", "bigint"), col("amount", "decimal(18,2)"), name=f"{schema}.orders"
-    )
+    base = customers
     view = View(
-        f"{schema}.big_orders",
+        f"{shared_schema}.big_spenders",
         f"SELECT id, amount FROM {quote_qualified(base.name)} WHERE amount > 1000",
         comment="Orders over 1000",
         properties=(("team", "sales"),),
@@ -128,25 +153,21 @@ def test_a_row_filter_set_at_creation_reads_back(
 
 
 def test_a_foreign_key_reads_back(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner,
+    introspector: Introspector,
+    shared_schema: str,
+    customers: Table,
 ) -> None:
     """Foreign keys come from referential_constraints, and the referenced key's
     columns from key_column_usage.
     https://docs.databricks.com/aws/en/sql/language-manual/information-schema/referential_constraints
     """
-    customers = table(
-        col("customer_id", "bigint", nullable=False),
-        name=f"{schema}.customers",
-        constraints=(PrimaryKey(("customer_id",), "customers_pk"),),
-    )
     orders = table(
         col("order_id", "bigint"),
         col("customer_id", "bigint"),
-        name=f"{schema}.orders",
+        name=f"{shared_schema}.orders",
         constraints=(
-            ForeignKey(
-                ("customer_id",), customers.name, ("customer_id",), "orders_customer_fk"
-            ),
+            ForeignKey(("customer_id",), customers.name, ("id",), "orders_customer_fk"),
         ),
     )
     apply(planned([customers, orders], introspector), runner, introspector)
@@ -198,6 +219,7 @@ def test_a_replaced_function_keeps_its_grants(
     assert planned([second], introspector).empty
 
 
+@pytest.mark.smoke
 def test_a_function_and_the_mask_that_calls_it_in_one_plan(
     runner: WarehouseRunner, introspector: Introspector, schema: str
 ) -> None:
@@ -292,12 +314,13 @@ def test_a_volume_spec_reads_back(
 
 
 def test_null_removes_a_tag_and_a_property(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, shared_schema: str
 ) -> None:
     """`tags: {pii: null}` plans UNSET TAGS / UNSET TBLPROPERTIES, and removing
     what isn't there is a no-op, so the plan converges and re-running is safe.
     https://docs.databricks.com/aws/en/database-objects/tags
     """
+    schema = shared_schema
     email = col("email", "string")
     tagged = table(
         col("id", "bigint"),

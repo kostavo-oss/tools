@@ -186,6 +186,12 @@ inside when it is done. It will not use a schema that already exists — it drop
 made, and that has to be nothing of yours. Nothing outside that schema is read or
 touched.
 
+A plain `verify` makes 14 tables, and 17 with `--slow` and `--create-policy`: probes
+that only read a table share one. Unity Catalog counts a table against the metastore's
+[table quota](https://docs.databricks.com/aws/en/data-governance/unity-catalog/resource-quotas)
+when it is created and takes it off some time after it is dropped, so on a metastore
+near its limit, run it once rather than in a loop.
+
 It creates **no ABAC policy** unless you ask. Two probes can only learn how a policy
 reads back here by creating one — a row filter policy on a scratch table of their own,
 dropped again — and stevin's promise is that it [never writes a policy](safety.md), so

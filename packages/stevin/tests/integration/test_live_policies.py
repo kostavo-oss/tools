@@ -6,6 +6,9 @@ says what a workspace answers: in a scratch schema it makes a table, a
 row-filter function and — by hand, in SQL, the way whoever owns policies would —
 a policy on the schema, and then asks stevin what it sees.
 
+The tests here only read (one plans a change and applies nothing), so they
+share one schema and one table: the fixture is made once for the module.
+
 A workspace may refuse `CREATE POLICY`: it takes `MANAGE` on the securable, and
 ABAC on the workspace. Then there is nothing to read back, and the test skips
 with the workspace's own sentence.
@@ -77,16 +80,17 @@ def planned(
     )
 
 
-@pytest.fixture
-def governed(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> Iterator[str]:
+@pytest.fixture(scope="module")
+def governed(runner: WarehouseRunner, shared_schema: str) -> Iterator[str]:
     """A schema with a table of stevin's in it, a row-filter function, and a
     row filter policy on the schema that somebody else wrote. The schema's name.
+
+    Made once for the module: every test here reads it and none changes it.
 
     The policy is dropped before the schema is: it is defined on the schema,
     and nothing says a `DROP SCHEMA … CASCADE` takes it along.
     """
+    schema, introspector = shared_schema, Introspector(runner)
     plan = planned([orders(schema)], introspector)
     result = Executor(runner, introspector, MemoryHistory()).apply(plan)
     assert result.ok, result.error
@@ -126,6 +130,7 @@ def project_at(root: Path, schema: str) -> Project:
     return Project.load(root / "stevin.yml")
 
 
+@pytest.mark.smoke
 def test_a_plan_lists_the_policy_with_its_function_and_principals(
     runner: WarehouseRunner, introspector: Introspector, governed: str
 ) -> None:

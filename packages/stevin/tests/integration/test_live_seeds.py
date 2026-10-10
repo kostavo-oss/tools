@@ -5,6 +5,10 @@ Databricks. Only this proves the `INSERT OVERWRITE … (columns) VALUES …` it
 builds is accepted, that the rows arrive as their declared types, and that
 loading again replaces rather than appends.
 https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-dml-insert-into
+
+Both tests load into one table, in the module's schema. A seed's load is the
+whole content of the table, so each test starts by loading the full file,
+whatever the other left there: neither depends on which ran first.
 """
 
 from __future__ import annotations
@@ -72,18 +76,26 @@ def plan_for(desired: Table, introspector: Introspector) -> Plan:
     )
 
 
-def test_a_seed_is_loaded_typed_and_replaced(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
-) -> None:
+def load(desired: Table, runner: WarehouseRunner, introspector: Introspector) -> None:
+    """Bring the table to this seed: a create and a load, a load, or nothing."""
     from stevin import api
 
-    name = f"{schema}.countries"
-    connection = Connection(runner=runner)
-    desired = countries(name)
+    result = api.apply(
+        plan_for(desired, introspector),
+        Connection(runner=runner),
+        history=MemoryHistory(),
+        allow_destructive=True,
+    )
+    assert result.ok, result.error
 
-    assert api.apply(
-        plan_for(desired, introspector), connection, history=MemoryHistory()
-    ).ok
+
+@pytest.mark.smoke
+def test_a_seed_is_loaded_typed_and_replaced(
+    runner: WarehouseRunner, introspector: Introspector, shared_schema: str
+) -> None:
+    name = f"{shared_schema}.countries"
+    desired = countries(name)
+    load(desired, runner, introspector)
 
     rows = runner.query(
         f"SELECT code, name, population, eu, joined FROM {quote_qualified(name)} "
@@ -103,21 +115,10 @@ def test_a_seed_is_loaded_typed_and_replaced(
 
 
 def test_loading_again_replaces_rather_than_appends(
-    runner: WarehouseRunner, introspector: Introspector, schema: str
+    runner: WarehouseRunner, introspector: Introspector, shared_schema: str
 ) -> None:
-    from stevin import api
-
-    name = f"{schema}.countries"
-    connection = Connection(runner=runner)
-    assert api.apply(
-        plan_for(countries(name), introspector), connection, history=MemoryHistory()
-    ).ok
-    fewer = countries(name, ROWS[:1])
-    assert api.apply(
-        plan_for(fewer, introspector),
-        connection,
-        history=MemoryHistory(),
-        allow_destructive=True,
-    ).ok
+    name = f"{shared_schema}.countries"
+    load(countries(name), runner, introspector)
+    load(countries(name, ROWS[:1]), runner, introspector)
     [count] = runner.query(f"SELECT count(*) AS n FROM {quote_qualified(name)}")
     assert count["n"] == "1", "the file is the whole content, not an addition to it"

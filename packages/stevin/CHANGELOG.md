@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`stevin verify` makes fewer tables in your workspace.** A plain `verify` made 23
+  tables in its scratch schema and makes 14 now; with `--slow` and `--create-policy` it
+  was 28 and is 17. Unity Catalog counts a table against the metastore's table quota
+  when it is created and takes it off some time after it is dropped, so tables a probe
+  made and dropped can still stand between you and the limit. Probes that only read a
+  table now share one, made by the first that asks, and a probe makes a table of its
+  own only where it changes it. What each probe settles is what it was, and so is the
+  list. For a probe of your own: `Bench.once(key, make)` is how one shares, and
+  `Bench.common` names what is shared.
+
 ## [0.4.0a1] - 2026-10-10
 
 0.4.0 settles what stevin is for: it puts in place the tables and access that a

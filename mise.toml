@@ -58,7 +58,11 @@ uv run pytest tests
 """
 
 [tasks."test:integration"]
-description = "Run stevin's live suite (needs DATABRICKS_HOST / token / warehouse id)"
+description = "Run the smoke tests of stevin's live suite: at most 15 tables (needs DATABRICKS_HOST / token / warehouse id)"
+run = "cd packages/stevin && uv run pytest -m 'integration and smoke'"
+
+[tasks."test:integration:full"]
+description = "Run all of stevin's live suite: at most 60 tables, once a day at most on a shared workspace"
 run = "cd packages/stevin && uv run pytest -m integration"
 
 [tasks."test:lowest"]
