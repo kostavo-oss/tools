@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The page's look is shared with lely's page and stevin's.** The colours and what they
+  mean, the type, a table, a badge, a button, a key and the ring around what the keyboard
+  is on moved out of `page.css` into `base.css`, a style sheet the three pages hold a copy
+  of each. Caland's page already had lely's look, so nothing on it has moved or changed
+  colour. The page is now four files, all Caland's own and served from this machine.
+
 ## [0.7.2] - 2026-10-10
 
 Nothing Caland does has changed. This is the first release from its new home.

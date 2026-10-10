@@ -24,6 +24,11 @@ tests/                what holds across packages (no cross-imports, every packag
 - **No package imports another**, ever. lely runs stevin as a command; that is the one
   allowed coupling. No shared library, no `kostavo-core`. `tests/test_workspace.py`
   enforces it.
+- **The three local pages share one look, as a file and not as code.** caland, lely's
+  plan as a page and stevin's each hold a copy of `base.css` (colours, type, a table, a
+  badge, a button, code, the keyboard) and load it before their own layout. The copies
+  are byte-identical and `tests/test_workspace.py` holds them so: change the look in all
+  three, in one pull request. No framework, no build step, nothing fetched.
 - Tests run **from the package's directory** (`cd packages/x && uv run pytest`); their
   helper modules share names across packages. `ty` runs per package too. ruff runs from
   the root, configured once.

@@ -24,6 +24,12 @@ one. Don't build past a "To decide" that is still open — those are the owner's
   the core does know is the Databricks CLI, which is lely's own edge: that `databricks` is a
   program a step may run, which of its calls only read (`testing.READS`), and which version
   brought the direct engine (`lely doctor`).
+- The page's look is two parts, in `render/`: `base.css`, the look the three Kostavo pages
+  share (caland, this one, stevin's), and the page's own layout in `html.py`, written
+  with the base's names. The base is in each of the three packages, byte for byte, and
+  the repository's `tests/test_workspace.py` holds the copies equal: change all three in
+  one pull request. It is read once, when `render/html.py` is loaded, from lely's own
+  package; making a page still reads nothing. lely's page is the reference for the look.
 - Domain model: frozen, slotted stdlib dataclasses with tuples.
 - The bundle is the Databricks CLI's: the `bundle` plugin asks it
   (`bundle summary/plan -o json`, `deploy --plan`, `destroy`) and never reimplements what it
