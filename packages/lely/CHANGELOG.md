@@ -6,8 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-10
+
+Nothing lely plans or applies has changed. This is the first release from its new home.
+
 ### Changed
 
+- **lely lives in `kostavo-oss/tools`**, one repository for the four Kostavo tools. The
+  package, its name on PyPI and its command are what they were. The links on PyPI point
+  at the new place, and the docs are at `kostavo-oss.github.io/tools/lely/`. From this
+  release on a tag is `lely-v<version>`.
+- **The README says what lely will not do and when you no longer need it**: the day a
+  bundle plans its own before-and-after steps.
 - **The page has the look of the other Kostavo pages, and they have its.** The colours and
   what they mean, the type, a table, a badge and a block of code are now one style sheet
   that caland's page and stevin's use too; lely's page was the reference, so it reads as

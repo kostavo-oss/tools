@@ -92,7 +92,7 @@ copier template the tools were first made from is gone.
 
 ## Status
 
-**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07; 0.3.0, 2026-10-08).** lely was run
+**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07; 0.3.0, 2026-10-08; 0.3.1, 2026-10-10, the first from the tools repository).** lely was run
 on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
 `validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
 `bundle` and `bundle.run` plugins and plugins from a repo file; the config in `lely.yml` or

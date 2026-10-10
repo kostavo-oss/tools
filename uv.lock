@@ -834,7 +834,7 @@ docs = [{ name = "mkdocs-material", specifier = ">=9.7.5" }]
 
 [[package]]
 name = "lely"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "packages/lely" }
 dependencies = [
     { name = "databricks-sdk" },
