@@ -51,6 +51,7 @@ def round_trip(plan: Plan) -> Plan:
 
 
 def test_a_busy_plan_round_trips() -> None:
+    # RULES.md: PLAN-3.
     _, plan = plan_against(DESIRED, LIVE, size_bytes=442_381_631_488)
     assert plan.steps, "this plan should not be empty"
     assert round_trip(plan) == plan

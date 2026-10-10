@@ -95,6 +95,26 @@ ABAC policies are written in Terraform or SQL, never by stevin. It reads them: t
 policies that apply to a table are shown in the plan, in `drift`, and in the report
 `stevin access` gives.
 
+### Why not Terraform for the tables
+
+Terraform is the right tool for the platform, and stevin doesn't try to be it. Tables
+are a different kind of thing, because a table holds data.
+
+- **Replace means drop.** When Terraform can't change something in place it replaces
+  the resource: destroy, then create. For a cluster that costs a restart; for a managed
+  table it costs the rows. stevin has no replace. A change is an `ALTER`, or a rebuild
+  that keeps the data, or — when it really is a drop — a step that says `destructive`
+  and won't run until you allow it.
+- **The catalog is the only copy of the truth.** Terraform keeps a state file, and a
+  table that already exists has to be imported into it before Terraform will manage it.
+  stevin has none: it reads Unity Catalog every time, a table somebody altered by hand
+  shows up as drift, and adopting an existing table is writing a spec for it —
+  `stevin import` does.
+- **Delta has rules a general tool doesn't model.** Renaming a column needs column
+  mapping; `int` to `bigint` needs type widening; a struct becoming an array needs the
+  table rebuilt. stevin plans each as the separate, numbered step it is, and tells you
+  how much a rebuild rebuilds before it starts.
+
 ## Data contracts
 
 A producer who wrote an [ODCS](https://bitol-io.github.io/open-data-contract-standard/)

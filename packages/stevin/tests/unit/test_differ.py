@@ -227,6 +227,7 @@ def test_a_changed_check_is_replaced() -> None:
 
 
 def test_nothing_unmodelled_is_diffed_away() -> None:
+    # RULES.md: OWN-5.
     live = table(
         col("id", "bigint"),
         properties=(

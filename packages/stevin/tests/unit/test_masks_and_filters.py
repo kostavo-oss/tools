@@ -106,6 +106,7 @@ def test_columns_they_use_must_exist(tmp_path: Path) -> None:
 
 
 def test_declared_controls_are_set() -> None:
+    # RULES.md: ACC-2.
     changes = diff(orders(mask=SSN_MASK, row_filter=REGION_FILTER), orders())
     assert [(c.kind, c.path) for c in changes] == [
         ("set_mask", "ssn"),
@@ -122,6 +123,7 @@ def test_a_changed_control_is_replaced() -> None:
 
 
 def test_an_undeclared_control_is_never_removed() -> None:
+    # RULES.md: OWN-5.
     live = orders(mask=SSN_MASK, row_filter=REGION_FILTER)
     desired = orders()
     assert diff(desired, live) == ()
@@ -181,6 +183,7 @@ def test_a_missing_function_is_refused_before_anything_runs() -> None:
 
 
 def test_a_new_table_is_never_unprotected() -> None:
+    # RULES.md: ACC-2.
     # Inline in CREATE TABLE: there is no moment the table exists without them.
     desired = Table(
         name=NAME,
@@ -198,6 +201,7 @@ def test_a_new_table_is_never_unprotected() -> None:
 
 
 def test_a_protected_table_is_never_rewritten() -> None:
+    # RULES.md: RW-4.
     live = Table(
         name=NAME,
         columns=(col("amount", "decimal(10,2)"), ssn(SSN_MASK)),

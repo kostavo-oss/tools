@@ -44,6 +44,7 @@ def kinds(plan: Plan) -> list[tuple[str, str]]:
 
 
 def test_a_spec_for_someone_elses_table_claims_it() -> None:
+    # RULES.md: OWN-3.
     live = table(col("id", "bigint"), name="main.sales.orders")  # no marker
     fake = FakeWarehouse.of(live)
     plan = planned([table(col("id", "bigint"), name="main.sales.orders")], fake)
@@ -63,6 +64,7 @@ def test_a_table_stevin_created_is_not_claimed_again() -> None:
 
 
 def test_a_new_table_needs_no_claim() -> None:
+    # RULES.md: OWN-1.
     # CREATE TABLE marks it managed as it creates it.
     plan = planned([ORDERS], FakeWarehouse())
     assert kinds(plan) == [("main.sales.orders", "create_table")]
@@ -74,6 +76,7 @@ def test_a_new_table_needs_no_claim() -> None:
 
 
 def test_additive_keeps_orphans_and_says_so() -> None:
+    # RULES.md: OWN-2.
     fake = FakeWarehouse.of(ORDERS, OURS_BUT_GONE, NOT_OURS)
     plan = planned([ORDERS], fake)
     assert plan.empty
@@ -83,6 +86,7 @@ def test_additive_keeps_orphans_and_says_so() -> None:
 
 
 def test_strict_drops_orphans_and_only_orphans() -> None:
+    # RULES.md: OWN-2.
     fake = FakeWarehouse.of(ORDERS, OURS_BUT_GONE, NOT_OURS)
     plan = planned([ORDERS], fake, strict=True)
 

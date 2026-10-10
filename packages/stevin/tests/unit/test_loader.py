@@ -226,11 +226,13 @@ constraints:
     ],
 )
 def test_spec_errors(tmp_path: Path, spec: str, message: str) -> None:
+    # RULES.md: SPEC-1.
     with pytest.raises(SpecError, match=message):
         load_table(write(tmp_path, spec))
 
 
 def test_errors_carry_file_line_and_column(tmp_path: Path) -> None:
+    # RULES.md: SPEC-1.
     path = write(tmp_path, "table: c.s.t\ncolumns:\n  - name: a\n    typo: int\n")
     with pytest.raises(SpecError) as raised:
         load_table(path)

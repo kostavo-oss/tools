@@ -120,6 +120,7 @@ def test_a_new_table_is_created_through_the_executor() -> None:
 
 
 def test_a_destructive_plan_needs_the_flag() -> None:
+    # RULES.md: RISK-2.
     desired = table(
         *[c for c in LIVE.columns if c.name != "legacy_flag"],
         name=NAME,
@@ -139,6 +140,7 @@ def test_a_destructive_plan_needs_the_flag() -> None:
 
 def test_a_rewrite_runs_and_converges() -> None:
     """A rewrite is four steps and a new table, not a refusal."""
+    # RULES.md: RW-1.
     desired = table(
         col("order_id", "bigint", nullable=False),
         col("amount", "string"),  # decimal -> string is no widening
@@ -162,6 +164,7 @@ def test_a_rewrite_runs_and_converges() -> None:
 
 
 def test_a_rewrite_records_a_restore_point() -> None:
+    # RULES.md: APL-4.
     desired = table(
         col("order_id", "bigint", nullable=False),
         col("amount", "string"),
@@ -179,6 +182,7 @@ def test_a_rewrite_records_a_restore_point() -> None:
 
 
 def test_a_step_stevin_cannot_generate_is_refused() -> None:
+    # RULES.md: RISK-3.
     # A struct becoming an array: there is no conversion to guess at, so the plan
     # says what it needs instead of emitting something that would fail.
     desired = table(
@@ -197,6 +201,7 @@ def test_a_step_stevin_cannot_generate_is_refused() -> None:
 
 
 def test_a_stale_plan_is_refused() -> None:
+    # RULES.md: APL-1.
     fake, plan = planned()
     # Someone edits the table after the plan was made.
     fake.query("ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)")
@@ -228,6 +233,7 @@ def test_a_locked_target_is_refused() -> None:
 def test_a_locked_target_is_refused_before_anything_is_read() -> None:
     """Locked is the whole answer: what the tables look like while another run
     is changing them says nothing about this plan."""
+    # RULES.md: APL-3.
     fake, plan = planned()
     history = MemoryHistory()
     history.acquire_lock("test", "someone-else", 60)
@@ -242,6 +248,7 @@ def test_staleness_is_settled_under_the_lock() -> None:
     after. A run that finished in between had changed the tables behind a
     check that had already passed, and this run went on to apply a plan made
     for tables that were no longer there."""
+    # RULES.md: APL-1.
     fake, plan = planned()
 
     class TheOtherRunFinishesJustNow(MemoryHistory):
@@ -280,6 +287,7 @@ def test_a_blocked_precheck_stops_the_step() -> None:
 
 
 def test_steps_already_applied_are_skipped() -> None:
+    # RULES.md: APL-2.
     fake, plan = planned()
     assert executor(fake).apply(plan).ok
 
@@ -296,6 +304,7 @@ def test_steps_already_applied_are_skipped() -> None:
 
 
 def test_a_failed_run_resumes_where_it_stopped() -> None:
+    # RULES.md: APL-2.
     fake, plan = planned()
     history = MemoryHistory()
 
@@ -372,6 +381,7 @@ def test_a_step_whose_effect_survived_a_crash_is_not_repeated() -> None:
 
 
 def test_a_destructive_step_records_a_restore_point() -> None:
+    # RULES.md: APL-4.
     desired = table(
         *[c for c in LIVE.columns if c.name != "legacy_flag"],
         name=NAME,
@@ -471,6 +481,7 @@ def test_a_postcheck_that_fails_fails_the_run() -> None:
 
 
 def test_the_fake_refuses_statements_it_does_not_know() -> None:
+    # RULES.md: TEST-1.
     # Which is what stops a new statement shape from going untested.
     fake = FakeWarehouse.of(LIVE)
     with pytest.raises(FakeSqlError, match="does not know"):
@@ -503,6 +514,7 @@ def test_the_lock_is_renewed_before_every_step() -> None:
 def test_a_run_that_loses_its_lock_stops_before_the_next_step() -> None:
     """The TTL exists so a dead run can't hold the lock forever. A live run that
     outlasts it must notice, rather than carry on beside whoever took it."""
+    # RULES.md: APL-3.
     fake, plan = planned()
     history = MemoryHistory()
 

@@ -27,6 +27,14 @@ anything shaped like a document.
 This is where most of the tests live, and it is only possible because the middle of the
 pipeline does no I/O.
 
+No unit test can reach a workspace, also on a laptop that is signed in to one:
+`tests/unit/conftest.py` hides the Databricks CLI, every `DATABRICKS_*` variable and
+`~/.databrickscfg` from every test.
+
+Which tests hold which promise is written down:
+[RULES.md](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/RULES.md)
+names, under each rule, the tests that hold it, and each of those tests names the rule.
+
 ## 2. Convergence against a fake warehouse
 
 `tests/fake_warehouse.py` is an in-memory Unity Catalog. It holds `Table` models,
@@ -228,6 +236,9 @@ STEVIN_TEST_PRINCIPAL="account users" \
   uv run pytest -m "integration and smoke" -v
 ```
 
+Run it from a separate `git worktree` of the commit under test: editing files while a
+run is going mixes old and new modules.
+
 A failure here is the point of the suite: an assumption about Databricks was wrong. Fix
 the code, keep the test, and remove the `TODO(verify)` it settled — and if the fake
 warehouse agreed with the wrong assumption, fix the fake too, so the offline suite stops
@@ -355,7 +366,9 @@ gh workflow run integration.yml --ref my-branch -f suite=full -f k=the_test_name
 ```
 
 That's the honest way to settle a Databricks behaviour before building on it: probe it,
-read the answer, then write the code and the test that keeps it.
+read the answer, then write the code and the test that keeps it. By hand the same
+question costs one table: ask it in a throwaway `stevin_probe_*` schema and drop the
+schema after.
 
 ### When the metastore says it is full
 

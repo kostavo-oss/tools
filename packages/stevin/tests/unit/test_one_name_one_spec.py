@@ -92,6 +92,7 @@ def warehouse(monkeypatch: pytest.MonkeyPatch) -> FakeWarehouse:
 
 @pytest.mark.usefixtures("twice")
 def test_validate_refuses_two_files_naming_one_table() -> None:
+    # RULES.md: PLAN-4.
     result = runner.invoke(app, ["validate"])
     assert result.exit_code == 1, result.output
     assert "OK" not in result.output

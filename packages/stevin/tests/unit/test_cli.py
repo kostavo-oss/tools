@@ -469,6 +469,7 @@ def test_the_plan_file_is_the_plan_whatever_the_screen_shows(
 ) -> None:
     """`plan -o plan.json` then `apply plan.json`, as the docs have it: the
     terminal gets the readable plan, the file gets what `apply` reads."""
+    # RULES.md: PLAN-3.
     plan_file = tmp_path / "plan.json"
     config = str(project / "stevin.yml")
     result = runner.invoke(app, ["plan", "-t", "dev", "-c", config, "-o", str(plan_file)])

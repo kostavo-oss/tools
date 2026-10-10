@@ -71,6 +71,7 @@ def test_a_configured_laptop_is_not_connected_in_a_unit_test(
 
 def test_every_unit_test_runs_that_way() -> None:
     """The fixture is on: what this very test can see is the treated environment."""
+    # RULES.md: TEST-1.
     assert [name for name in os.environ if name.upper().startswith("DATABRICKS_")] == [
         "DATABRICKS_CONFIG_FILE"
     ]

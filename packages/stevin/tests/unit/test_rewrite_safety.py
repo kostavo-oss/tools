@@ -86,6 +86,7 @@ def test_a_rewrite_that_keeps_every_column_is_not_destructive() -> None:
 
 
 def test_staging_is_checked_for_lost_rows_and_values() -> None:
+    # RULES.md: RW-2.
     desired = table(
         col("id", "bigint"),
         col("amount", "string"),  # converted
@@ -126,6 +127,7 @@ def test_a_renamed_conversion_compares_against_the_old_name() -> None:
 
 
 def test_lost_values_stop_the_run_before_the_table_is_touched() -> None:
+    # RULES.md: RW-2.
     desired = table(
         col("id", "bigint"), col("amount", "string"), col("notes", "string"), name=NAME
     )
@@ -155,6 +157,7 @@ def test_lost_values_stop_the_run_before_the_table_is_touched() -> None:
 
 
 def test_properties_nobody_declared_survive_a_rewrite() -> None:
+    # RULES.md: RW-3.
     from helpers import run
 
     live = table(
@@ -203,6 +206,7 @@ def test_constraints_nobody_declared_survive_a_rewrite() -> None:
 def test_tags_grants_and_an_owner_survive_a_rewrite_without_a_step() -> None:
     """A replace keeps them (verified live), so the plan doesn't say it will put
     them back — but they have to still be there afterwards."""
+    # RULES.md: RW-3.
     from dataclasses import replace as replace_fields
 
     from helpers import run

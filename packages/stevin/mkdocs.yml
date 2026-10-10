@@ -104,6 +104,6 @@ nav:
       - Running from a job: running-from-a-job.md
   - Security: security.md
   - Develop:
-      - Design: DESIGN.md
+      - How it works: how-it-works.md
       - Contributing: contributing.md
       - Testing: testing.md

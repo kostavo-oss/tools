@@ -175,6 +175,7 @@ def test_the_report_names_the_ten_biggest_spenders_biggest_first() -> None:
 
 
 def test_a_session_over_its_budget_fails_with_one_line() -> None:
+    # RULES.md: TEST-3.
     ledger = Ledger(budget=2)
     for name in ("a", "b"):
         ledger.record(f"CREATE TABLE main.s.{name} (id INT)")
@@ -187,6 +188,7 @@ def test_a_session_over_its_budget_fails_with_one_line() -> None:
 
 def test_the_budgets_are_the_ones_the_docs_promise() -> None:
     """`docs/testing.md` and the workflow's comment say these numbers."""
+    # RULES.md: TEST-3.
     assert (FULL_BUDGET, SMOKE_BUDGET) == (60, 15)
     docs = (Path(__file__).parents[2] / "docs" / "testing.md").read_text("utf-8")
     assert f"at most **{FULL_BUDGET}** tables" in docs

@@ -186,6 +186,7 @@ def test_governance_changes_without_a_replace() -> None:
 
 
 def test_someone_elses_view_is_claimed() -> None:
+    # RULES.md: OWN-3.
     fake = FakeWarehouse.of(ORDERS, BIG)  # no marker
     plan = converge([ORDERS, BIG], fake)
     assert [s.sql for s in plan.steps] == [

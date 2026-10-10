@@ -72,6 +72,7 @@ def test_a_new_table_has_nothing_to_backfill() -> None:
 
 
 def test_a_spec_with_hooks_is_refused_with_the_key_named(tmp_path: Path) -> None:
+    # RULES.md: SPEC-2.
     path = tmp_path / "orders.yml"
     path.write_text(
         "table: ${catalog}.sales.orders\n"

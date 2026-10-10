@@ -4,7 +4,7 @@ A policy is defined on a catalog, a schema or a table and reaches every table
 below it, so a table can be filtered or masked by something no spec of its own
 mentions. stevin reads the policies in scope of the tables it plans, so a
 reviewer sees them beside the change — and leaves the writing of them to
-Terraform or SQL (docs/DESIGN.md, Scope).
+Terraform or SQL (RULES.md, ACC-3).
 
 *In scope* is all `SHOW EFFECTIVE POLICIES` promises: the policy is defined on
 the table or on a parent of it. Whether it resolves for a given reader depends

@@ -4,9 +4,8 @@
 Safe plan/apply migrations for Unity Catalog tables and schemas.
 
 !!! warning "Alpha"
-    Every milestone in the design is built, and the assumptions stevin makes about
-    Databricks are checked by a live test suite against a real workspace — see
-    [testing](testing.md). It is still an alpha: try it on dev before production, and
+    The assumptions stevin makes about Databricks are checked by a live test suite
+    against a real workspace — see [testing](testing.md). It is still an alpha: try it on dev before production, and
     expect the spec format to change before the first stable release.
 
 Every workspace has tables that nobody's pipeline owns: the table a notebook appends

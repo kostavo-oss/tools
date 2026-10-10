@@ -186,6 +186,7 @@ def test_the_reader_asks_for_grants_whatever_the_project_manages() -> None:
     """`grants: false` keeps handed-over grants out of plans, through one gate.
     The report's read doesn't go through it: it changes nothing, and a team
     whose grants another tool sets is who needs to see them."""
+    # RULES.md: ACC-7.
     fake = warehouse()
     handed = Introspector(fake, Manage(("grants",)))
     assert {held.principal for held in handed.privileges(NAME)} == {
@@ -270,6 +271,7 @@ def test_the_report_says_what_it_is_not() -> None:
 
 
 def test_it_writes_nothing() -> None:
+    # RULES.md: ACC-7.
     fake = warehouse(MASK_PII)
     read(fake)
     assert fake.ddl == []

@@ -377,6 +377,7 @@ def test_functions_calling_each_other_in_a_cycle_are_an_error() -> None:
 def test_a_function_without_a_spec_is_left_alone_even_in_a_strict_schema() -> None:
     """There's no ownership marker on a function, so nothing proves stevin made
     it — and nothing it didn't make is ever dropped."""
+    # RULES.md: OWN-4.
     orders = table(
         col("id", "bigint"),
         name="main.sales.orders",

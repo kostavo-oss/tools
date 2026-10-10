@@ -289,6 +289,7 @@ def test_a_dumped_contract_spec_reads_back_the_same(tmp_path: Path) -> None:
 
 
 def test_adopt_refuses_to_write_over_a_contract(tmp_path: Path) -> None:
+    # RULES.md: SPEC-3.
     path = project(tmp_path)
     found = load_table(path, {"catalog": "dev"})
     with pytest.raises(CannotAdopt, match="shape lives in the contract"):
@@ -432,6 +433,7 @@ def refused(tmp_path: Path, spec: str, contract: str = CONTRACT) -> str:
 
 
 def test_a_spec_cannot_say_the_shape_twice(tmp_path: Path) -> None:
+    # RULES.md: SPEC-3.
     message = refused(
         tmp_path,
         """\
