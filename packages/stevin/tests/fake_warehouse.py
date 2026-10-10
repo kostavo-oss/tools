@@ -655,7 +655,9 @@ class FakeWarehouse:
 
     def _effective_policies(self, level: str, name: str) -> tuple[Row, ...]:
         """`SHOW EFFECTIVE POLICIES ON TABLE` or `ON SCHEMA`: the policies on
-        the securable and on its parents, in the columns the manual lists.
+        the securable and on its parents, in the columns the manual lists —
+        which are the columns a workspace answered in on 2026-10-10, with
+        `Table` empty for a policy on a schema.
         https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
         """
         if level == "table":
@@ -684,10 +686,12 @@ class FakeWarehouse:
         return tuple(rows)
 
     def _describe_policy(self, name: str, level: str, on: str) -> tuple[Row, ...]:
-        """`DESCRIBE POLICY`: label-and-value rows, with the labels of the
-        manual's example and without the ones the policy doesn't set. The two
-        column names are the fake's own — the manual doesn't give them, and
-        stevin reads the rows by position.
+        """`DESCRIBE POLICY`: one row per property, as a workspace answered it
+        on 2026-10-10 — the columns `info_name` and `info_value`, the labels in
+        this order, the function's indented, who made it and when at the end,
+        and no row for what the policy doesn't set. `Except Principals`, `When
+        Condition`, `Match Columns` and `On Column` are still the manual's (and
+        the last a guess): the live suite's policy sets none of them.
         https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
         """
         for policy in self.policies:
@@ -708,9 +712,13 @@ class FakeWarehouse:
             ("On Column", policy.on_column),
             ("Policy Type", policy.kind.upper()),
             ("  Function Name", policy.function),
+            ("Created By", "someone@example.com"),
+            ("Created At", "2026-10-10 AD at 19:56:01 UTC"),
+            ("Updated By", "someone@example.com"),
+            ("Updated At", "2026-10-10 AD at 19:56:01 UTC"),
         ]
         return tuple(
-            {"property": label, "value": value}
+            {"info_name": label, "info_value": value}
             for label, value in said
             if value is not None
         )

@@ -7,8 +7,9 @@ These hold stevin to reading those policies (`SHOW EFFECTIVE POLICIES`, then
 spec's own mask or row filter meets one — and to never making a step of any of
 it, and never failing a plan because a workspace wouldn't say.
 
-What they can't hold it to is what a workspace answers: the fake speaks the
-manual's column names. `probes.py` has the three probes a live run settles.
+What they can't hold it to is what a workspace answers. The fake speaks as one
+did on 2026-10-10 — `tests/integration/test_live_policies.py` and the three
+policy probes in `probes.py` are what asked it.
 https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
 https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
 """

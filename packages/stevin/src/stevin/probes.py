@@ -696,7 +696,7 @@ def _a_table_under_a_policy(bench: Bench) -> Generator[str]:
 
 
 def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
-    # TODO(verify): no workspace has answered this for stevin yet.
+    # Held on a workspace on 2026-10-10 (the live suite).
     with _a_table_under_a_policy(bench) as name:
         rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('t')}")
         own = [row for row in rows if row.get("Policy Name") == name]
@@ -727,7 +727,7 @@ def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
 
 
 def _a_table_under_no_policy_lists_none(bench: Bench) -> None:
-    # TODO(verify): no workspace has answered this for stevin yet.
+    # Held on a workspace on 2026-10-10 (the live suite).
     bench.sql(f"CREATE TABLE {bench.named('bare')} (id INT)")
     rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('bare')}")
     # A policy on the catalog or the schema reaches a scratch table too, so
@@ -744,7 +744,7 @@ def _a_table_under_no_policy_lists_none(bench: Bench) -> None:
 
 
 def _describe_policy_says_function_and_principals(bench: Bench) -> None:
-    # TODO(verify): no workspace has answered this for stevin yet.
+    # Held on a workspace on 2026-10-10 (the live suite).
     with _a_table_under_a_policy(bench) as name:
         rows = bench.sql(
             f"DESCRIBE POLICY {quote_ident(name)} ON TABLE {bench.named('t')}"
@@ -931,8 +931,9 @@ PROBES: tuple[Probe, ...] = (
         "DESCRIBE POLICY says a policy's function and principals",
         _DESCRIBE_POLICY,
         "The manual shows the report's labels but not its columns, so stevin "
-        "reads it by position. Where that is wrong, a plan still names each "
-        "policy and where it is defined, and says nothing of who it reaches.",
+        "reads each row by position: a label, then its value. Where that is "
+        "wrong, a plan still names each policy and where it is defined, and "
+        "says nothing of who it reaches.",
         _describe_policy_says_function_and_principals,
         creates_policy=True,
     ),

@@ -27,11 +27,12 @@ import pytest
 from typer.testing import CliRunner
 
 from helpers import col, table
-from stevin import cli
+from stevin import cli, doctor
 from stevin.connect import Connection
 from stevin.executor import Executor
 from stevin.history import MemoryHistory
 from stevin.introspect import IntrospectionError, Introspector, Row, WarehouseRunner
+from stevin.loader import Project
 from stevin.manage import EVERYTHING, Manage
 from stevin.model.plan import Plan
 from stevin.model.table import RowFilter, Table
@@ -108,6 +109,23 @@ def governed(
         runner.query(f"DROP POLICY {quote_ident(POLICY)} {on}")
 
 
+def project_at(root: Path, schema: str) -> Project:
+    """A project whose one spec is the table the fixture made."""
+    catalog, _, bare = schema.partition(".")
+    (root / "stevin.yml").write_text(
+        "specs: [tables]\n"
+        f"targets:\n  it:\n    default: true\n    vars: {{catalog: {catalog}}}\n"
+    )
+    (root / "tables").mkdir()
+    (root / "tables" / "orders.yml").write_text(
+        f"table: ${{catalog}}.{bare}.orders\n"
+        "columns:\n"
+        "  - {name: id, type: bigint}\n"
+        "  - {name: region, type: string}\n"
+    )
+    return Project.load(root / "stevin.yml")
+
+
 def test_a_plan_lists_the_policy_with_its_function_and_principals(
     runner: WarehouseRunner, introspector: Introspector, governed: str
 ) -> None:
@@ -126,7 +144,11 @@ def test_a_plan_lists_the_policy_with_its_function_and_principals(
         f"DESCRIBE POLICY {quote_ident(POLICY)} ON SCHEMA {quote_qualified(governed)}"
     )
     for row in described:
-        print("DESCRIBE POLICY row:", row)
+        # Who made it is the workspace's own account: not for a public log.
+        label = str(next(iter(row.values()), "")).strip()
+        if not label.endswith(" By"):
+            print("DESCRIBE POLICY row:", row)
+    assert described and set(described[0]) == {"info_name", "info_value"}
 
     plan = planned([orders(governed)], introspector)
     assert plan.policies_unread is None
@@ -167,18 +189,7 @@ def test_drift_lists_the_policy_and_reports_no_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    catalog, _, bare = governed.partition(".")
-    (tmp_path / "stevin.yml").write_text(
-        "specs: [tables]\n"
-        f"targets:\n  it:\n    default: true\n    vars: {{catalog: {catalog}}}\n"
-    )
-    (tmp_path / "tables").mkdir()
-    (tmp_path / "tables" / "orders.yml").write_text(
-        f"table: ${{catalog}}.{bare}.orders\n"
-        "columns:\n"
-        "  - {name: id, type: bigint}\n"
-        "  - {name: region, type: string}\n"
-    )
+    project_at(tmp_path, governed)
     connection = Connection(runner=runner, client=runner.client)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: connection)
     monkeypatch.chdir(tmp_path)
@@ -188,6 +199,20 @@ def test_drift_lists_the_policy_and_reports_no_drift(
     assert f"policy {POLICY} (row filter, on schema " in result.output
     assert "— not stevin's, left untouched" in result.output
     assert "Drift:" not in result.output
+
+
+def test_doctor_says_the_schema_lists_its_policies(
+    runner: WarehouseRunner, governed: str, tmp_path: Path
+) -> None:
+    """`doctor` asks the same statement of a schema rather than a table."""
+    project = project_at(tmp_path, governed)
+    target = project.default
+    assert target is not None
+    connection = Connection(runner=runner, client=runner.client)
+    [finding] = list(doctor._policies(connection, project, target))
+    assert (finding.about, finding.verdict) == ("policies", "ok"), finding
+    assert f"SHOW EFFECTIVE POLICIES accepted on {governed}" in finding.found
+    assert "(0 in scope)" not in finding.found
 
 
 def test_handing_policies_over_sends_no_statement_about_them(

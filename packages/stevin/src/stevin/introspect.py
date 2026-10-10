@@ -812,9 +812,19 @@ class Introspector:
         be read, and the plan goes on. Only the warehouse's own refusal is
         taken that way (`IntrospectionError`); anything else still stops.
 
-        TODO(verify): no workspace has answered either statement for stevin
-        yet. The statement and the columns of `SHOW EFFECTIVE POLICIES` are as
-        documented; the probes in `probes.py` are waiting for a live run.
+        Settled on 2026-10-10 by the live suite (`test_live_policies.py` and
+        the three policy probes): a SQL warehouse accepts `SHOW EFFECTIVE
+        POLICIES ON TABLE`, and answers in the eight documented columns —
+        `Policy Name`, `Policy Type`, `Catalog`, `Schema`, `Table`, `Comment`,
+        `on_securable_type`, `on_securable_fullname`. For a row filter policy
+        on a schema it said `ROW_FILTER`, `SCHEMA`, the schema's full name, and
+        no `Table`; for one on a table, `TABLE` and the table's. A table with no
+        policy of its own is no error.
+
+        TODO(verify): what a refusal looks like — no workspace has refused
+        stevin yet, so "a failed statement" is still the manual's word — and
+        the values for a column mask policy and for one on a catalog, which the
+        live suite doesn't make: it creates nothing outside its scratch schema.
         https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
         """
         if not self.manage.manages("policies") or not names:
@@ -850,13 +860,28 @@ class Introspector:
         """A policy with what `DESCRIBE POLICY` says about it — or as it was,
         where the workspace won't say.
 
-        TODO(verify): the manual calls the result "a formatted report" of
-        property-value pairs and shows the labels read here in its example, but
-        not the result's column names, nor how several principals are listed.
-        So a row is read by position — its first value the label, its second
-        the value — a single text column is split on its gap, labels are
-        matched in any case, an unknown one is ignored and a missing one is
-        left empty; principals are split on commas.
+        Settled on 2026-10-10 by the live suite (`test_live_policies.py` and
+        the probe *DESCRIBE POLICY says a policy's function and principals*):
+        the result is one row per property in two columns, `info_name` and
+        `info_value`. For a row filter policy the labels were `Name`, `On
+        Securable Type`, `On Securable`, `Comment`, `To Principals`, `For
+        Securable Type`, `Policy Type`, `  Function Name` and `  Using Columns`
+        — those two indented — then `Created By`, `Created At`, `Updated By`
+        and `Updated At`. The function reads back by its full name, and a
+        principal bare, without backticks. A property the policy doesn't set
+        has no row.
+
+        A row is still read by position — its first value the label, its second
+        the value — labels are matched in any case and without their indent, an
+        unknown one is ignored and a missing one is left empty.
+
+        TODO(verify): the labels `Except Principals`, `When Condition`, `Match
+        Columns` and `On Column`, and how several principals are listed (split
+        on commas here). The first three are the manual's example; `On Column`
+        is a guess from the others. The live suite's one policy is a row filter
+        for one principal: `account users` is the only principal every
+        workspace has, and a `MATCH COLUMNS` condition wants a governed tag,
+        which is the account's to define.
         https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
         """
         if policy.level == "metastore":
