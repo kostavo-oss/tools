@@ -6,8 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-10
+
 ### Changed
 
+- **leeghwater lives in `kostavo-oss/tools`**, one repository for the four Kostavo
+  tools. The package and its name on PyPI are what they were. The links on PyPI point at
+  the new place, and the docs are at `kostavo-oss.github.io/tools/leeghwater/`. From
+  this release on a tag is `leeghwater-v<version>`.
+- **The README says why leeghwater exists, when not to use it, and when you no longer
+  need it**: the day dlt reads Databricks secret scopes by itself and runs in a job with
+  nothing around it.
 - typer 0.17.5 or newer, as for the other Kostavo tools: older typers mis-declare the
   `--json` flag. Found by the new lowest-dependencies CI job.
 

@@ -1,6 +1,6 @@
 [project]
 name = "leeghwater"
-version = "0.1.0"
+version = "0.1.1"
 description = "Your dlt pipeline, the same on your laptop and in a Databricks job"
 readme = "README.md"
 requires-python = ">=3.11"

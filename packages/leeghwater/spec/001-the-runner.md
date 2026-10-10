@@ -90,6 +90,7 @@ the run names those, and leeghwater makes the pipeline from what the run named.
   | `--warehouse <id>` | The warehouse to load through. → [002/R7](002-on-databricks.md#requirements) |
   | `--secret-scope <name>` | A scope to read secrets from, in place of the app's. May be given more than once. → [003/R3](003-secrets.md#requirements) |
   | `--secret <name>=<scope>/<key>` | Where one secret is, when it isn't under dlt's name. May be given more than once. → [003/R8](003-secrets.md#requirements) |
+  | `--key-vault <url>` | An Azure Key Vault to read secrets from, after the scopes. May be given more than once. → [003](003-secrets.md#requirements) |
   | `--limit <n>` | At most `n` pages from each resource; `0`, the default, for all. |
   | `--log-level <level>` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, for dlt. |
   | `--set <key>=<value>` | Any dlt config value for this run, by the name dlt gives it: `--set sources.github.page_size=50`. |
