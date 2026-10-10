@@ -81,6 +81,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`adopt` leaves an unnamed key unnamed.** A spec that says `primary_key: [id]`
+  came back from `stevin adopt` as `{columns: [id], name: orders_pk}`, with a
+  `~ constraints` note, although nothing had drifted: Databricks names every key, and
+  adopt wrote that name down. The same happened to a foreign key without a name. The
+  differ already plans nothing for such a key; adopt now reads it by the same rule,
+  so the key stays as the spec wrote it and isn't in the notes. A key the spec names
+  takes the live name as before, and a key on other columns is still adopted. A CHECK
+  was never affected: it can't be declared without a name.
 - **A type with a comma inside `{ }` says what went wrong.** `- {name: amount, type:
   decimal(18,2)}` failed with `unknown key '2)' in a field` and a list of field keys,
   as if stevin had never heard of `decimal`. The spec is wrong — in flow style YAML

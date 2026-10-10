@@ -30,7 +30,14 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from stevin.differ import diff, diff_function, diff_schema, diff_view, diff_volume
+from stevin.differ import (
+    as_declared,
+    diff,
+    diff_function,
+    diff_schema,
+    diff_view,
+    diff_volume,
+)
 from stevin.errors import StevinError
 from stevin.loader import (
     LoadedSpec,
@@ -113,8 +120,16 @@ def adopt(
     adopted = _adopted(spec.table, live)
     wanted = spec_document(adopted, manage=manage)
     rendered = _renderer(variables, unresolved)
+    # A list of constraints is one value to the editor, and the file may spell an
+    # unnamed key shorter than a document does: one that didn't change isn't rewritten.
+    same_constraints = (
+        isinstance(adopted, Table)
+        and isinstance(spec.table, Table)
+        and adopted.constraints == spec.table.constraints
+    )
+    settled = ("constraints",) if same_constraints else ()
     try:
-        after = merge_into(source, wanted, rendered=rendered)
+        after = merge_into(source, wanted, rendered=rendered, settled=settled)
     except ValueError as error:
         raise CannotAdopt(f"{path}: {error}") from error
     return Adoption(
@@ -256,7 +271,7 @@ def _adopted_table(spec: Table, live: Table) -> Table:
         cluster_by=live.cluster_by,
         cluster_auto=live.cluster_auto,
         partitioned_by=live.partitioned_by,
-        constraints=live.constraints if spec.constraints else (),
+        constraints=as_declared(spec, live) if spec.constraints else (),
         row_filter=live.row_filter if spec.row_filter is not None else None,
         # Only a file knows these, and the workspace can't be asked.
         seed=spec.seed,

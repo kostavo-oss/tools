@@ -33,6 +33,9 @@ columns:
     type: bigint
     nullable: false
   - {name: placed, type: date}
+
+constraints:
+  - primary_key: [id]   # unnamed: the name is the workspace's to choose
 """
 
 
@@ -67,6 +70,10 @@ def test_a_column_added_by_hand_is_adopted(
     adoption = adopt(spec(), live.table, variables=variables)
     assert adoption.changed
     assert adoption.remaining == ()
+    # Databricks gave the key a name. The spec didn't, and nothing about it drifted.
+    key = live.table.primary_key()
+    assert key is not None and key.name
+    assert not [note for note in adoption.notes if "constraints" in note], adoption.notes
     adoption.write()
 
     after = path.read_text(encoding="utf-8")
@@ -74,6 +81,7 @@ def test_a_column_added_by_hand_is_adopted(
     assert "# Orders, from the ingest pipeline" in after, "and so did the comments"
     assert "# the surrogate key" in after
     assert "region" in after
+    assert "  - primary_key: [id]   # unnamed" in after, "the key reads as it was written"
     assert planned().empty, [
         (change.kind, change.path) for diff in planned().diffs for change in diff.changes
     ]
