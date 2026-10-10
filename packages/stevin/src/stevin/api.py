@@ -286,7 +286,8 @@ def adopt(
     if not loaded:
         return ()
     schemas = live_schemas(
-        [one.table for one in loaded], connection.introspector(project.manage, parallel)
+        [one.table for one in loaded],
+        connection.introspector(project.manage.without_policies(), parallel),
     )
     adoptions: list[Adoption] = []
     for one in loaded:
@@ -471,7 +472,8 @@ def import_schema(
     catalog, _, name = schema.partition(".")
     if not name or "." in name:
         raise PlanningError(f"a schema is named catalog.schema, not {schema!r}")
-    live = connection.introspector(manage, parallel).schema(catalog, name)
+    reader = connection.introspector(manage.without_policies(), parallel)
+    live = reader.schema(catalog, name)
     owned = {key.lower(): value for key, value in (owned_elsewhere or {}).items()}
 
     def written(relation: Relation, stem: str) -> ImportedSpec:

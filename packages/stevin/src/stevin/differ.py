@@ -17,8 +17,11 @@ Two rules shape everything here:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from stevin.model.change import CREATE_KINDS, Change
 from stevin.model.function import Function
+from stevin.model.policy import COLUMN_MASK, ROW_FILTER, Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     CLUSTER_AUTO,
@@ -337,6 +340,53 @@ def _unmanaged_governance(desired: Securable, actual: Securable) -> list[str]:
         if grant.principal not in declared_grants:
             found.append(f"grants to {grant.principal}")
     return found
+
+
+#: Where Databricks says what happens when two filters or masks meet.
+POLICY_LIMITS = (
+    "https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements"
+)
+
+#: That page's own words, quoted whole.
+ONE_FILTER_ONE_MASK = (
+    "If multiple distinct row filters or column masks apply to the same user and "
+    "table or column, Databricks blocks access and returns an error."
+)
+
+
+def policy_conflicts(desired: Table, policies: Sequence[Policy]) -> tuple[str, ...]:
+    """A spec's own row filter or masks, beside a policy of the same kind.
+
+    Databricks resolves one row filter per table and one mask per column for
+    each reader, and refuses the query when two distinct ones apply — a
+    table's own counts as one of them. stevin can't tell whether both *will*
+    apply: that hangs on the policy's conditions, the tags on the table and
+    who is asking. It can tell that both are there, which is the moment to
+    look. One warning per kind, naming every policy of that kind in scope.
+    """
+    found: list[str] = []
+    filters = [p.name for p in policies if p.kind == ROW_FILTER]
+    if desired.row_filter is not None and filters:
+        found.append(_both("a row filter", "row filter", filters))
+    masked = [column.name for column in desired.columns if column.mask is not None]
+    masks = [p.name for p in policies if p.kind == COLUMN_MASK]
+    if masked and masks:
+        on = f"a column mask on {', '.join(masked)}"
+        found.append(_both(on, "column mask", masks))
+    return tuple(found)
+
+
+def _both(mine: str, kind: str, names: Sequence[str]) -> str:
+    policies = (
+        f"the {kind} policy {names[0]} is"
+        if len(names) == 1
+        else f"the {kind} policies {', '.join(names)} are"
+    )
+    return (
+        f"the spec sets {mine}, and {policies} in scope of this table too. "
+        f"Where both reach the same reader, their queries fail: “{ONE_FILTER_ONE_MASK}” "
+        f"({POLICY_LIMITS})"
+    )
 
 
 def spent_renames(desired: Table, actual: Table) -> tuple[str, ...]:

@@ -75,6 +75,7 @@ from stevin.loader import (
 from stevin.manage import MANAGEABLE, Manage
 from stevin.model.function import Function
 from stevin.model.plan import Plan, Risk, Step, Summary, TableDiff, TableFacts
+from stevin.model.policy import Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     Check,
@@ -149,6 +150,7 @@ __all__ = [
     "plan_to_json",
     "PlanFileError",
     "PlanningError",
+    "Policy",
     "PrimaryKey",
     "Probe",
     "PROBES",

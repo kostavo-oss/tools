@@ -33,7 +33,8 @@ merging a bump PR; it ships. CONTRIBUTING.md has the details.
 ```
 src/stevin/
   model/          types.py, table.py, view.py, function.py, schema.py, volume.py,
-                  change.py, plan.py — frozen dataclasses; Relation = any of the five
+                  change.py, plan.py — frozen dataclasses; Relation = any of the five;
+                  policy.py — an ABAC policy as read, never written
   typeparser.py   Databricks type strings -> the type tree
   sql.py          quote_ident() and literals: every identifier goes through here
   loader.py       stevin.yml and YAML specs -> model; the only validator
@@ -250,10 +251,13 @@ workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 (`tests/integration/test_live_assumptions.py`), and a seed's `INSERT OVERWRITE …
-(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Two are
+(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Three are
 open, and `grep -rn "TODO(verify)" src/` is the list: `CLUSTER BY AUTO` without
 predictive optimization
-(`planner._clustering_clause`); and sending a step with `wait_timeout="0s"`
+(`planner._clustering_clause`); reading ABAC policies — `SHOW EFFECTIVE POLICIES ON
+TABLE` and `DESCRIBE POLICY`, built from the manual alone
+(`introspect.Introspector._policies` and `._describe_policy`, three probes waiting); and
+sending a step with `wait_timeout="0s"`
 (`introspect.WarehouseRunner`), the API's documented asynchronous mode, which would
 give Ctrl-C a statement id from the first moment — not done until a workspace has
 taken it. `docs/testing.md` says the same to users. A new

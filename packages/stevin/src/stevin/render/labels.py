@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from stevin.model.change import CREATE_KINDS, Change
+from stevin.model.plan import Plan, TableDiff
+from stevin.model.policy import COLUMN_MASK, ROW_FILTER, Policy
 from stevin.model.table import (
     Check,
     ForeignKey,
@@ -51,6 +53,65 @@ def display_name(name: str) -> str:
     """`main.sales.orders` -> `sales.orders`: the catalog is the target's job."""
     parts = name.split(".")
     return ".".join(parts[-2:]) if len(parts) > 2 else name
+
+
+def has_something_to_say(diff: TableDiff) -> bool:
+    """Whether a table gets a block of its own: it changes, or it carries
+    something a reviewer should see beside the plan — what the spec doesn't
+    manage, a note, a policy it is under, a warning."""
+    return bool(
+        diff.changes
+        or diff.unmanaged
+        or diff.notes
+        or diff.facts.policies
+        or diff.cautions
+    )
+
+
+def policy_line(policy: Policy) -> str:
+    """One policy in scope of a table, as a sentence:
+
+    `policy mask_pii (column mask, on schema main.sales) masks columns matching
+    has_tag('pii') with main.gov.redact, for analysts except data_admins`
+
+    The conditions are the policy's own text. What `DESCRIBE POLICY` didn't
+    say is left out; a policy it said nothing about says so.
+    """
+    kind = policy.kind.replace("_", " ")
+    where = "the metastore" if not policy.on else f"{policy.level} {policy.on}"
+    head = f"policy {policy.name} ({kind}, on {where})"
+    if policy.function is None and not policy.to:
+        return f"{head} — its details can't be read from here"
+    if policy.kind == COLUMN_MASK:
+        what = (
+            f"masks columns matching {policy.match_columns}"
+            if policy.match_columns
+            else "masks columns"
+        )
+    elif policy.kind == ROW_FILTER:
+        what = "filters rows"
+    else:
+        what = "applies"
+    if policy.function:
+        what += f" with {policy.function}"
+    if policy.when:
+        what += f" when {policy.when}"
+    who = f"for {listed(policy.to)}" if policy.to else ""
+    if policy.except_:
+        who = f"{who} except {listed(policy.except_)}".strip()
+    return f"{head} {what}" + (f", {who}" if who else "")
+
+
+def policies_unread(plan: Plan) -> str | None:
+    """What a plan says, once, when a workspace wouldn't list policies."""
+    unread = plan.policies_unread
+    if unread is None:
+        return None
+    tables, reason = unread
+    return (
+        f"policies could not be read: {reason} ({count(len(tables), 'table')}; "
+        "the plan is otherwise complete — `manage: policies: false` stops asking)"
+    )
 
 
 def _count(n: int, noun: str) -> str:
