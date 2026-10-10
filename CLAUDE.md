@@ -63,7 +63,9 @@ mise run build                 # every wheel and sdist into dist/
 
 Until 2026-10-09 each tool was a repository of its own, generated from
 `kostavo-oss/template-python` with copier. They were merged here with their history
-(`git subtree`); the old repositories are archived and their Pages left serving, so an
-old link and stevin's old JSON-schema URL still resolve. data-product-template (was vierlingh), the copier template
-for a data product that uses these tools, stays a repository of its own: copier needs
-its config at a source repository's root.
+(`git subtree`). The old repositories and that template are deleted: a link to
+`kostavo-oss/stevin`, `/lely`, `/caland` or `/leeghwater`, or to
+`kostavo-oss.github.io/<tool>/` without `/tools/`, is dead. data-product-template, the
+copier template for a data product that uses these tools, stays a repository of its own:
+copier needs its config at a source repository's root. It was called `vierlingh` until
+2026-10-10.
