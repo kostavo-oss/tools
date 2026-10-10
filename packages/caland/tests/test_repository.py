@@ -135,7 +135,10 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
         # about caland's links. Before its first release from here there are none.
         pytest.skip("no caland tags in this checkout")
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    coming = f"v{project['project']['version']}"
+    version = project["project"]["version"]
+    # Up to 0.7.1 a link wrote a tag as `v0.7.1`; since the move it is the real
+    # name, `caland-v0.7.2`. The version being released has no tag yet either way.
+    coming = (f"v{version}", f"caland-v{version}")
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     links = re.findall(r"^\[[^\]]+\]: (\S+)$", text, flags=re.MULTILINE)
     assert len(links) > 15
@@ -143,11 +146,12 @@ def test_the_changelogs_links_point_at_what_is_there() -> None:
         assert link.startswith("https://github.com/kostavo-oss/tools/"), link
         for name in re.findall(r"(?:compare/|\.\.\.|tree/)([^./][^.]*(?:\.\d+)*)", link):
             there = (
-                f"caland-{name}" in tags
+                name in tags
+                or f"caland-{name}" in tags
                 # a release from before the move: its tag stayed in the old
                 # repository, its commit is here
                 or re.fullmatch(r"v0\.[0-7]\.\d+", name) is not None
-                or name in ("HEAD", coming, "main")
+                or name in ("HEAD", "main", *coming)
                 or re.fullmatch(r"[0-9a-f]{40}", name)
             )
             assert there, f"{name} in {link}"
