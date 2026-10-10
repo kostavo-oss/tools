@@ -249,11 +249,10 @@ mixes old and new modules. Before building on a Databricks behaviour, probe it o
 workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
-(`tests/integration/test_live_assumptions.py`). Three are open, and
-`grep -rn "TODO(verify)" src/` is the list: a seed's `INSERT OVERWRITE …
-(columns) VALUES …`, which no workspace has taken from stevin yet
-(`planner._load_seed`; `test_live_seeds.py` and a probe are waiting for a live
-run); `CLUSTER BY AUTO` without predictive optimization
+(`tests/integration/test_live_assumptions.py`), and a seed's `INSERT OVERWRITE …
+(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Two are
+open, and `grep -rn "TODO(verify)" src/` is the list: `CLUSTER BY AUTO` without
+predictive optimization
 (`planner._clustering_clause`); and sending a step with `wait_timeout="0s"`
 (`introspect.WarehouseRunner`), the API's documented asynchronous mode, which would
 give Ctrl-C a statement id from the first moment — not done until a workspace has

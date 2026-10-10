@@ -124,14 +124,11 @@ says `TODO(verify)` rather than pretending.
 ### What the live suite has not settled
 
 Most of what stevin assumes about Databricks has been run against a workspace: the
-`TODO(verify)` list was settled on 2026-09-19. These are still open, and each says so in
-the source:
+`TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
+(columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
+*a seed's INSERT OVERWRITE with a column list is accepted*). These are still open, and each
+says so in the source:
 
-- **A seed's load.** `INSERT OVERWRITE … (columns) VALUES …` is the documented grammar and
-  a Databricks parser reads it, but no workspace has taken one from stevin
-  (`planner._load_seed`). `tests/integration/test_live_seeds.py` and the probe *a seed's
-  INSERT OVERWRITE with a column list is accepted* settle it the next time the live suite
-  runs.
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
   and reads back* answers it for the workspace in front of you.

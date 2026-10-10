@@ -800,13 +800,12 @@ class _Planner:
 
         The digest is written in a second step, after the load: a table that
         failed to load must not claim to hold rows it never got.
-        TODO(verify): the statement is the documented grammar —
-        `INSERT OVERWRITE [TABLE] name [ ( columns ) | BY NAME ] query`, with
-        `VALUES` as the query — and a Databricks parser reads it, but no
-        workspace has taken one here yet. `stevin verify` settles it on any
-        workspace (the probe "a seed's INSERT OVERWRITE with a column list is
-        accepted"), and `tests/integration/test_live_seeds.py` settles it here
-        the moment the live suite can run again.
+        The statement is the documented grammar — `INSERT OVERWRITE [TABLE]
+        name [ ( columns ) | BY NAME ] query`, with `VALUES` as the query — and
+        a workspace took it on 2026-10-10: `tests/integration/test_live_seeds.py`
+        loads, types and replaces a seed there, and the probe "a seed's INSERT
+        OVERWRITE with a column list is accepted" asks the same of any
+        workspace through `stevin verify`.
         https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-dml-insert-into
         """
         seed = change.after
