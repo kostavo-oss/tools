@@ -53,6 +53,11 @@ governance-only specs, the refusal for dbt's tables and `from_contract` are on `
 for 0.4.0. Reading ABAC policies is written and waits for a run against a workspace
 before it merges; the `access` report is not built.
 
+**(2026-10-10, later)** 0.4.0a1 shipped all of it: the two removals, the owned-elsewhere
+map, governance-only specs, the refusal for dbt's tables, `from_contract`, ABAC policies
+read into the plan after a run against a workspace, and the `access` report. Where this
+document says something *leaves in 0.4.0*, it has left.
+
 Not in this scope, and not planned: managing ABAC policies (Terraform's or SQL's; stevin
 reports them); catalogs; external tables; governed-tag definitions (account-level —
 Terraform's); groups and service principals; rules about who may have what, approvals, a

@@ -91,9 +91,9 @@ leaves the declared containers alone — a spec for one is an error.
 and ABAC policies. stevin doesn't create any of those. A spec names principals Terraform
 or your identity provider made, and tags whose keys an account admin governs.
 
-ABAC policies are written in Terraform or SQL, never by stevin. Reading them — the
-policies that apply to a table, shown in the plan, in `drift`, and in an access report —
-is planned, not built.
+ABAC policies are written in Terraform or SQL, never by stevin. It reads them: the
+policies that apply to a table are shown in the plan, in `drift`, and in the report
+`stevin access` gives.
 
 ## Data contracts
 

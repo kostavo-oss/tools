@@ -6,87 +6,82 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0a1] - 2026-10-10
+
+0.4.0 settles what stevin is for: it puts in place the tables and access that a
+transformation tool does not own, and it leaves alone what another tool builds. Two
+things left for that reason, and both break a project that used them: `hooks:` on a
+table, and SQL functions that no column mask or row filter names. What came is about
+who may see what: a table another tool owns is reported as theirs and can be given
+grants, masks and a row filter without being claimed, a table's shape can come from an
+ODCS data contract, the ABAC policies a table is under are read into its plan, and
+`stevin access` says who may see one table. It is an alpha, like every release so far.
+
+### Removed
+
+- **Hooks.** `hooks: {before, after}` on a table. Raw SQL around a change was the
+  door through which transformation logic walked in. A spec that still says `hooks:` is
+  refused at `validate` and at `plan`, with the key named, so nothing runs that you
+  thought would:
+
+  ```text
+  tables/orders.yml:4:1: unknown key 'hooks' in a spec (expected one of: cluster_by, columns, comment, constraints, from_contract, grants, owner, partitioned_by, port, properties, renamed_from, row_filter, seed, table, tags)
+  ```
+
+  **What to do:** take the key out of the spec. SQL that filled a new required column
+  goes in that column's `using:`, which stays: filling it is part of the migration. Any
+  other SQL belongs to your transformation tool, or is a step of its own before or after
+  `stevin apply` in the job that runs it.
+- **SQL functions as a thing of their own.** A `function:` spec is valid only when a
+  column mask or a row filter in the same project names it; any other function spec is
+  refused at `validate`, and at `plan` before the workspace is asked anything, with its
+  file:
+
+  ```text
+  tables/to_cents.yml: error: main.util.to_cents is named by no column mask or row filter in this project: a function spec is only for a column mask or row filter; general SQL functions belong to your transformation tool
+  ```
+
+  The functions a mask or filter needs are still created in the same plan, before the
+  tables that use them, and `import` writes only the functions a mask or filter names.
+  **What to do:** delete the spec, and keep the function in your transformation tool or
+  your bundle, where general UDFs belong. The function in the catalog stays as it is:
+  stevin never drops a function.
+- **A plan file saved by 0.3.** The serialised table no longer carries a `hooks` key,
+  so every spec hash changes, and with it what a plan is checked against. `stevin apply`
+  with 0.4 refuses a plan file that 0.3 saved as stale, although nothing in the
+  workspace moved:
+
+  ```text
+  the live tables have changed since this plan was made. Plan again and review the new plan.
+  ```
+
+  **What to do:** plan again with 0.4, and where a plan is made in one job and applied
+  in another, give both the same version.
+
+### Changed
+
+- **What stevin is for, said plainly.** stevin puts in place the tables and access
+  that your transformation tool doesn't own. dbt, Lakeflow or SQLMesh own what they
+  build; stevin owns what they read and what they leave to a setup job — the tables
+  notebooks and external systems write into, lookup tables, filtered views, and who
+  may see what. It never touches what another tool built, and it runs from CI at
+  deploy time. `docs/DESIGN.md` → Scope has what follows from that; the removals
+  above are that scope applied. This entry changes no behaviour.
+- **The page has the look of the other Kostavo pages.** `stevin ui` and `-f html` now
+  draw with the style sheet lely's page and caland's use: the same colours and what they
+  mean, the same type, table, buttons and code. What you will see: a risk is a rounded
+  badge in lower case, with lely's red and amber (a rewrite keeps its purple); the dim
+  text is darker and easier to read; buttons and the filter are a little lower; a column's
+  heading and the small print take lely's sizes; a block of SQL has no border; and what
+  the keyboard is on has a blue ring. What the page shows, its two readings and its
+  filter are what they were, and it is still one file with nothing fetched.
+- **Seeds have run on a workspace.** Loading reference data with `seed:` was the one
+  feature the live suite had never taken: its `INSERT OVERWRITE … (columns) VALUES …` was
+  the documented grammar and nothing more. On 2026-10-10 a workspace loaded, typed and
+  replaced a seed, and loading it twice replaced rather than appended. The warning in the
+  README is gone with it.
+
 ### Added
-
-- **A table's shape may come from a data contract.** `from_contract:` in a table spec
-  points at an [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract
-  beside the repo's specs, and the columns, their types (maps and ODCS 3.2's vectors
-  included), which are required, the primary key, the partitioning, an `enum` as a CHECK,
-  relationships as foreign keys, the descriptions, the tags and the classification come
-  from there — the spec
-  names the table (so `${catalog}` still works), picks the object with `port:` when the
-  contract describes several, and adds only what a contract doesn't say: clustering,
-  partitioning, properties, grants, a row filter, an owner, and masks or tags by column
-  name. The producer's promise is the one source of the shape: columns with types,
-  constraints, seeds and renames next to `from_contract` are refused, and so is `adopt`.
-  A contract that can't be read is the spec's error, on its line, naming both files; a
-  relationship stevin can't follow — into another file — is a warning, and left out.
-  The contract's partitioning yields to a spec that clusters or names its own. ODCS v3.0
-  to v3.2 are read, by hand, for the fields a table needs.
-- **Three pages.** *Next to other tools* draws the line once per tool — dbt, dlt,
-  Lakeflow pipelines, SQLMesh, the bundle, Terraform, data contracts — and lists the
-  sentences stevin refuses with. *Access recipes* writes out groups per schema, rows by
-  region and PII by tag, the last one with the schema-level policy stevin doesn't
-  write, and says plainly what stays hard. *Running from a job* is the apply for a
-  workspace CI can't reach: the same plan file, as a job task.
-- **A page: *Tables your notebooks write*.** The loop for a table a notebook appends
-  to: a spec declares it and stevin creates it; the notebook writes, and may add a
-  column with `mergeSchema`; nightly `drift` shows the column and exits with 2; `adopt`
-  puts it into the spec as a diff to review. A change made on purpose is a spec change
-  and a reviewed plan. The page says what stevin does not do — it does not run in the
-  notebook and does not load data — and its pictures are a new scene in
-  `tests/screens.py`. A live test, `test_live_notebook_tables.py`, runs the same loop
-  against a workspace, with the notebook simulated through the warehouse, and checks
-  that the rows and the ownership marker are still there afterwards.
-- **What a plan assumes about the workspace**, in the safety model. A plan is made from
-  the specs and the live tables, not from what a runtime accepts. `stevin verify` says
-  which assumptions hold; one that does not is a refused statement at `apply`, and the
-  remedy is the spec.
-- **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
-  `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
-  owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,
-  seeds and snapshots; not sources, which are the tables dbt *reads* and stevin's to
-  make). A dlt pipeline's schema needs no telling: the `_dlt_loads` and `_dlt_version`
-  tables beside its tables say so. A plan then reports those tables as *theirs* —
-  "dbt's", "dlt's", "the data-science team's" — instead of *unmanaged*, and `import`
-  skips dbt's and writes a governance-only spec (below) for the others.
-- **A spec for dbt's table is refused**, at `validate` and at `plan`, with the file
-  and line: dbt's own config carries grants and tags, and a `table` materialisation
-  recreates the table and drops its masks, so two writers would fight every run. For
-  PII in dbt's tables, use a schema-level policy.
-- **Governance-only specs.** A table spec without the columns' types — or with
-  columns that are just a name with a `mask`, `tags` or a `comment` — says who may see
-  a table another tool makes, and nothing about its shape: `tags`, `grants`,
-  `row_filter`, `owner`, column masks and tags. The plan lays it over the live table
-  and finds only governance to change; the table is never claimed, reshaped or
-  dropped, and one that isn't there yet stops the plan, because whoever owns it makes
-  it first. It is how PII in a dlt pipeline's landing tables, or a notebook team's
-  tables, gets its grants and masks without a setup job. Valid for dlt's tables and
-  for any owner `owned_elsewhere` names; a spec with types for such a table is refused.
-
-- **The policies a table is under are read into the plan.** An ABAC policy on a
-  catalog or a schema filters or masks every table below it, and none of that shows in
-  a table's spec. A plan now lists the policies in scope of each table it describes,
-  under the table — `policy mask_pii (column mask, on schema main.sales) masks columns
-  matching has_tag('pii') with main.governance.redact, for account users except
-  data_admins` — in the terminal, the pull-request comment, the page and the plan file
-  (`facts.policies`). They are read with `SHOW EFFECTIVE POLICIES ON TABLE` and
-  `DESCRIBE POLICY`, and **never written**: a policy makes no step and no change, and
-  stevin has no statement that creates, alters or drops one. Where a spec sets a mask or
-  a row filter on a table with a policy of the same kind in scope, the plan warns, in
-  Databricks' words: two distinct ones reaching one reader block the query. `drift`
-  lists them as not stevin's and never exits 2 for one; `doctor` says whether the
-  warehouse will list them. A policy that arrives or changes after a plan makes that
-  plan stale, as a table's own mask does. A workspace that refuses the statement — an
-  older runtime, no `READ METADATA` — doesn't fail the plan, which says *policies could
-  not be read* once and goes on; `manage: {policies: false}` stops stevin asking.
-  **Run against a workspace on 2026-10-10**, for a row filter policy on a schema and
-  on a table; a column mask policy, several principals, `EXCEPT`, `WHEN` and `MATCH
-  COLUMNS` are still read as the manual shows them. Three new probes hold what was
-  settled. One only reads and runs in every `stevin verify`. The other two have to
-  create a policy on a scratch table to read it back, so a plain `verify` leaves them
-  out and says so; `stevin verify --create-policy` (`api.verify(create_policy=True)`)
-  runs them, and so does stevin's own live suite.
 
 - **`stevin access <table>`: who may see a table, and through what.** Who may read a
   table is kept in three places, and a reviewer had to look in each. The new command
@@ -110,30 +105,84 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from a catalog is read the same way and has not been seen on a workspace. One new
   probe holds what was settled, and each access recipe now names the command that
   checks it.
-
-### Changed
-
-- **The page has the look of the other Kostavo pages.** `stevin ui` and `-f html` now
-  draw with the style sheet lely's page and caland's use: the same colours and what they
-  mean, the same type, table, buttons and code. What you will see: a risk is a rounded
-  badge in lower case, with lely's red and amber (a rewrite keeps its purple); the dim
-  text is darker and easier to read; buttons and the filter are a little lower; a column's
-  heading and the small print take lely's sizes; a block of SQL has no border; and what
-  the keyboard is on has a blue ring. What the page shows, its two readings and its
-  filter are what they were, and it is still one file with nothing fetched.
-
-- **Seeds have run on a workspace.** Loading reference data with `seed:` was the one
-  feature the live suite had never taken: its `INSERT OVERWRITE … (columns) VALUES …` was
-  the documented grammar and nothing more. On 2026-10-10 a workspace loaded, typed and
-  replaced a seed, and loading it twice replaced rather than appended. The warning in the
-  README is gone with it.
-- **What stevin is for, said plainly.** stevin puts in place the tables and access
-  that your transformation tool doesn't own. dbt, Lakeflow or SQLMesh own what they
-  build; stevin owns what they read and what they leave to a setup job — the tables
-  notebooks and external systems write into, lookup tables, filtered views, and who
-  may see what. It never touches what another tool built, and it runs from CI at
-  deploy time. `docs/DESIGN.md` → Scope has what follows from that; the removals
-  below are that scope applied. This entry changes no behaviour; the ones below do.
+- **The policies a table is under are read into the plan.** An ABAC policy on a
+  catalog or a schema filters or masks every table below it, and none of that shows in
+  a table's spec. A plan now lists the policies in scope of each table it describes,
+  under the table — `policy mask_pii (column mask, on schema main.sales) masks columns
+  matching has_tag('pii') with main.governance.redact, for account users except
+  data_admins` — in the terminal, the pull-request comment, the page and the plan file
+  (`facts.policies`). They are read with `SHOW EFFECTIVE POLICIES ON TABLE` and
+  `DESCRIBE POLICY`, and **never written**: a policy makes no step and no change, and
+  stevin has no statement that creates, alters or drops one. Where a spec sets a mask or
+  a row filter on a table with a policy of the same kind in scope, the plan warns, in
+  Databricks' words: two distinct ones reaching one reader block the query. `drift`
+  lists them as not stevin's and never exits 2 for one; `doctor` says whether the
+  warehouse will list them. A policy that arrives or changes after a plan makes that
+  plan stale, as a table's own mask does. A workspace that refuses the statement — an
+  older runtime, no `READ METADATA` — doesn't fail the plan, which says *policies could
+  not be read* once and goes on; `manage: {policies: false}` stops stevin asking.
+  **Run against a workspace on 2026-10-10**, for a row filter policy on a schema and
+  on a table; a column mask policy, several principals, `EXCEPT`, `WHEN` and `MATCH
+  COLUMNS` are still read as the manual shows them. Three new probes hold what was
+  settled. One only reads and runs in every `stevin verify`. The other two have to
+  create a policy on a scratch table to read it back, so a plain `verify` leaves them
+  out and says so; `stevin verify --create-policy` (`api.verify(create_policy=True)`)
+  runs them, and so does stevin's own live suite.
+- **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
+  `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
+  owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,
+  seeds and snapshots; not sources, which are the tables dbt *reads* and stevin's to
+  make). A dlt pipeline's schema needs no telling: the `_dlt_loads` and `_dlt_version`
+  tables beside its tables say so. A plan then reports those tables as *theirs* —
+  "dbt's", "dlt's", "the data-science team's" — instead of *unmanaged*, and `import`
+  skips dbt's and writes a governance-only spec (below) for the others.
+- **Governance-only specs.** A table spec without the columns' types — or with
+  columns that are just a name with a `mask`, `tags` or a `comment` — says who may see
+  a table another tool makes, and nothing about its shape: `tags`, `grants`,
+  `row_filter`, `owner`, column masks and tags. The plan lays it over the live table
+  and finds only governance to change; the table is never claimed, reshaped or
+  dropped, and one that isn't there yet stops the plan, because whoever owns it makes
+  it first. It is how PII in a dlt pipeline's landing tables, or a notebook team's
+  tables, gets its grants and masks without a setup job. Valid for dlt's tables and
+  for any owner `owned_elsewhere` names; a spec with types for such a table is refused.
+- **A spec for dbt's table is refused**, at `validate` and at `plan`, with the file
+  and line: dbt's own config carries grants and tags, and a `table` materialisation
+  recreates the table and drops its masks, so two writers would fight every run. For
+  PII in dbt's tables, use a schema-level policy.
+- **A table's shape may come from a data contract.** `from_contract:` in a table spec
+  points at an [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract
+  beside the repo's specs, and the columns, their types (maps and ODCS 3.2's vectors
+  included), which are required, the primary key, the partitioning, an `enum` as a CHECK,
+  relationships as foreign keys, the descriptions, the tags and the classification come
+  from there — the spec
+  names the table (so `${catalog}` still works), picks the object with `port:` when the
+  contract describes several, and adds only what a contract doesn't say: clustering,
+  partitioning, properties, grants, a row filter, an owner, and masks or tags by column
+  name. The producer's promise is the one source of the shape: columns with types,
+  constraints, seeds and renames next to `from_contract` are refused, and so is `adopt`.
+  A contract that can't be read is the spec's error, on its line, naming both files; a
+  relationship stevin can't follow — into another file — is a warning, and left out.
+  The contract's partitioning yields to a spec that clusters or names its own. ODCS v3.0
+  to v3.2 are read, by hand, for the fields a table needs.
+- **What a plan assumes about the workspace**, in the safety model. A plan is made from
+  the specs and the live tables, not from what a runtime accepts. `stevin verify` says
+  which assumptions hold; one that does not is a refused statement at `apply`, and the
+  remedy is the spec.
+- **A page: *Tables your notebooks write*.** The loop for a table a notebook appends
+  to: a spec declares it and stevin creates it; the notebook writes, and may add a
+  column with `mergeSchema`; nightly `drift` shows the column and exits with 2; `adopt`
+  puts it into the spec as a diff to review. A change made on purpose is a spec change
+  and a reviewed plan. The page says what stevin does not do — it does not run in the
+  notebook and does not load data — and its pictures are a new scene in
+  `tests/screens.py`. A live test, `test_live_notebook_tables.py`, runs the same loop
+  against a workspace, with the notebook simulated through the warehouse, and checks
+  that the rows and the ownership marker are still there afterwards.
+- **Three pages.** *Next to other tools* draws the line once per tool — dbt, dlt,
+  Lakeflow pipelines, SQLMesh, the bundle, Terraform, data contracts — and lists the
+  sentences stevin refuses with. *Access recipes* writes out groups per schema, rows by
+  region and PII by tag, the last one with the schema-level policy stevin doesn't
+  write, and says plainly what stays hard. *Running from a job* is the apply for a
+  workspace CI can't reach: the same plan file, as a job task.
 
 ### Fixed
 
@@ -153,21 +202,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `map<string,int>` and `struct<a:int,b:int>`, for a field inside a struct, an array's
   `element` and a map's `key` and `value`. A key that really is unknown is reported as
   before.
-
-### Removed
-
-- **Hooks.** `hooks: {before, after}` on a table. Raw SQL around a change was the
-  door through which transformation logic walked in. `using:` stays: filling a new
-  required column is part of the migration. A spec that still says `hooks:` is
-  refused with the key named, so nothing runs that you thought would. Because the
-  serialised table no longer carries a `hooks` key, every spec hash changes: a
-  plan file saved by 0.3 is refused as stale by 0.4 — plan again.
-- **SQL functions as a thing of their own.** A `function:` spec is valid only when a
-  column mask or a row filter in the same project names it; any other function spec
-  is refused at `validate`, with its file and line. The
-  functions a mask or filter needs are still created in the same plan, before the
-  tables that use them. General UDFs belong to your transformation tool or your
-  bundle. `import` writes only the functions a mask or filter names.
 
 ## [0.3.0a1] - 2026-10-07
 
@@ -1114,3 +1148,6 @@ numbers were internal and never released; what each added is kept here.
 - `docs/DESIGN.md` as the source of truth, plus a mkdocs-material site published to
   GitHub Pages.
 - A `deltaplan version` command, so the packaging is testable end to end.
+
+[Unreleased]: https://github.com/kostavo-oss/tools/compare/stevin-v0.4.0a1...HEAD
+[0.4.0a1]: https://github.com/kostavo-oss/tools/releases/tag/stevin-v0.4.0a1

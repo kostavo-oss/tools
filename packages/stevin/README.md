@@ -19,14 +19,17 @@ a change is a plan in a pull request, and a change made by hand shows up as drif
 
 > **Status: alpha.** Every milestone in the design is built — plan, apply (rewrites
 > included), drift, the GitHub Action, and governance (tags, grants, masks, row filters,
-> views). On `main` and in no release yet: tables another tool owns are reported as
-> theirs (`owned_elsewhere`, dbt's manifest, dlt's schemas), a governance-only spec says
-> who may see such a table, and a table's shape can come from an ODCS data contract
-> (`from_contract`). SQL hooks and standalone SQL functions are removed on `main` and
-> leave with 0.4.0 — the
+> views). New in 0.4.0: tables another tool owns are reported as theirs
+> (`owned_elsewhere`, dbt's manifest, dlt's schemas), a governance-only spec says who
+> may see such a table, a table's shape can come from an ODCS data contract
+> (`from_contract`), the ABAC policies a table is under are read into its plan, and
+> `stevin access <table>` says who may see one table and through what. 0.4.0 also
+> removed SQL hooks and standalone SQL functions, and it does not apply a plan file
+> saved by 0.3 — the
 > [changelog](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CHANGELOG.md) says why and
-> what to do. It is tested offline against a fake warehouse, and a live suite
-> runs what it assumes about Databricks against a real workspace. That suite has settled
+> what to do. Every release so far is an alpha, and the spec format may still change
+> before the first stable one. It is tested offline against a fake warehouse, and a live
+> suite runs what it assumes about Databricks against a real workspace. That suite has settled
 > most of those assumptions and not all of them.
 > [How it is tested](https://kostavo-oss.github.io/tools/stevin/testing/) says what each layer
 > proves and lists what is still open, and `stevin verify` runs the same assumptions in a
@@ -198,7 +201,7 @@ The scope is closed. stevin does not:
 - run from a notebook. It applies from CI, or as a job task where CI can't reach the
   workspace;
 - run SQL of your own around a change, or keep SQL functions that no mask or row filter
-  names. Both leave with 0.4.0.
+  names. Both left in 0.4.0.
 
 A request for one of these is a snippet in your own repository, not a feature.
 [Next to other tools](https://kostavo-oss.github.io/tools/stevin/next-to-other-tools/)
