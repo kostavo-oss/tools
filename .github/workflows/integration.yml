@@ -7,11 +7,11 @@ name: integration
 # check — read it before merging anything that changes what stevin sends to
 # Databricks.
 #
-# Credentials live in the `databricks-test` environment (Settings → Environments):
-# the secrets DATABRICKS_HOST, DATABRICKS_TOKEN, DATABRICKS_WAREHOUSE_ID and
-# DELTAPLAN_TEST_CATALOG — a secret keeps the name it was made with, from when
-# stevin was deltaplan; the suite reads it as STEVIN_TEST_CATALOG. A pull request
-# from a fork gets none of them, so there the suite skips rather than fails.
+# The workspace lives in the `databricks-test` environment (Settings → Environments).
+# Which workspace is no secret, so that is three variables anyone with access can
+# read: DATABRICKS_HOST, DATABRICKS_WAREHOUSE_ID and STEVIN_TEST_CATALOG. The one
+# secret is DATABRICKS_TOKEN. A pull request from a fork gets no secret, so there
+# the suite skips rather than fails.
 
 on:
   pull_request:
@@ -45,10 +45,10 @@ jobs:
     timeout-minutes: 90
     environment: databricks-test
     env:
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
-      STEVIN_TEST_CATALOG: ${{ secrets.DELTAPLAN_TEST_CATALOG }}
+      DATABRICKS_WAREHOUSE_ID: ${{ vars.DATABRICKS_WAREHOUSE_ID }}
+      STEVIN_TEST_CATALOG: ${{ vars.STEVIN_TEST_CATALOG }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
