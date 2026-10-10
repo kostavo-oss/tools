@@ -37,7 +37,7 @@ WORKSPACE_HEADER = "X-Caland-Workspace"
 ENTER = "/api/enter"
 
 #: The page itself. It holds nothing: anyone may be given it.
-STATIC = ("/", "/page.css", "/page.js")
+STATIC = ("/", "/base.css", "/page.css", "/page.js")
 
 
 @dataclass(frozen=True)

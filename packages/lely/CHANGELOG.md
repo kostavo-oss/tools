@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The page has the look of the other Kostavo pages, and they have its.** The colours and
+  what they mean, the type, a table, a badge and a block of code are now one style sheet
+  that caland's page and stevin's use too; lely's page was the reference, so it reads as
+  it did. Three things differ: a column's heading is a little less heavy, a `pre` or a
+  `kbd` in a plugin's view is drawn as the page's own, and what the keyboard is on has a
+  blue ring. The page is still one file with its style sheet inline, no script, and
+  nothing fetched.
+
 ## [0.3.0] - 2026-10-08
 
 A breaking release: the `command` plugin is gone, and a step runs on its own.

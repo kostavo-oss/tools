@@ -20,6 +20,7 @@ change is a thing to make in a spec.
 from __future__ import annotations
 
 from html import escape
+from importlib import resources
 
 from stevin.model.plan import Plan, Step, TableDiff
 from stevin.render.compare import Comparison, Row, compare
@@ -35,30 +36,25 @@ from stevin.render.labels import (
 #: Risk classes, worst first — the order the filter offers them in.
 RISKS = ("destructive", "rewrite", "feature", "meta")
 
+#: The look this page shares with the other Kostavo pages: the colours, the type,
+#: a table, a badge, a button, code. The file is in each of their packages, byte for
+#: byte (the repository's own tests hold the copies equal). It is read here once, when
+#: this module is loaded, from stevin's own package: rendering a plan reads nothing.
+BASE = resources.files("stevin.render").joinpath("base.css").read_text(encoding="utf-8")
+
+#: The page's own layout and parts, after the base and in its names.
 _CSS = """\
-:root { color-scheme: light dark; --edge: #8883; --dim: #8888; --sunk: #8881; }
-* { box-sizing: border-box; }
-body {
-  margin: 0 auto; padding: 2rem 1.5rem 5rem; max-width: 72rem;
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
-.meta, .hint, .footnote { color: var(--dim); font-size: .82rem; font-weight: 400; }
+body { margin: 0 auto; padding: 2rem var(--gutter) 5rem; max-width: 72rem; }
+h1 { margin: 0 0 .2rem; }
+.meta { margin: 0 0 1rem; }
+.hint, .footnote { color: var(--dim); font-size: var(--fine); font-weight: 400; }
 .summary { font-weight: 600; margin: 1rem 0; }
 .controls {
   display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;
   margin: 1rem 0 1.5rem; position: sticky; top: 0; padding: .6rem 0;
-  background: Canvas; border-bottom: 1px solid var(--edge); z-index: 1;
+  background: var(--paper); border-bottom: 1px solid var(--edge); z-index: 1;
 }
-input[type=search] {
-  flex: 1 1 12rem; padding: .45rem .6rem; border: 1px solid var(--edge);
-  border-radius: .4rem; background: transparent; color: inherit; font: inherit;
-}
-button {
-  padding: .4rem .7rem; border: 1px solid var(--edge); border-radius: .4rem;
-  background: transparent; color: inherit; font: inherit; cursor: pointer;
-}
-button[aria-pressed=true] { border-color: currentColor; font-weight: 600; }
+input[type=search] { flex: 1 1 12rem; }
 .lens { margin-left: auto; display: flex; gap: .3rem; }
 details.object { border-top: 1px solid var(--edge); padding: .6rem 0; }
 details.object[hidden] { display: none; }
@@ -66,26 +62,20 @@ summary { cursor: pointer; display: flex; gap: .6rem; align-items: baseline;
   flex-wrap: wrap; }
 summary::marker { color: var(--dim); }
 .mark { display: inline-block; width: 1ch; color: var(--dim); }
-.name { font-weight: 600; }
 .kind, .headline { color: var(--dim); }
 .headline { flex: 1 1 20rem; }
-table.rows { width: 100%; border-collapse: collapse; margin: .7rem 0 .3rem; }
-table.rows th {
-  text-align: left; font-size: .78rem; text-transform: uppercase;
-  letter-spacing: .04em; color: var(--dim); font-weight: 600;
-  border-bottom: 1px solid var(--edge); padding: .3rem .5rem;
-}
-table.rows td { padding: .22rem .5rem; vertical-align: top; }
+table.rows { margin: .7rem 0 .3rem; }
+/* a cell that changes is tinted: room between the tint's edge and the words */
+table.rows th, table.rows td { padding-left: .5rem; }
 table.rows tr.state-changed td.now, table.rows tr.state-removed td.now {
-  background: #c0392b18;
+  background: var(--red-wash);
 }
 table.rows tr.state-changed td.after, table.rows tr.state-added td.after {
-  background: #2e8b5718;
+  background: var(--green-wash);
 }
 td.what { white-space: nowrap; }
-td.now, td.after { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px; }
-td.said { color: var(--dim); font-size: .85rem; }
+td.now, td.after { font-family: var(--mono); font-size: var(--code); }
+td.said { color: var(--dim); font-size: var(--small); }
 .depth-1 td.what { padding-left: 1.6rem; }
 .depth-2 td.what { padding-left: 2.8rem; }
 tr.detail td.what { font-style: italic; }
@@ -93,23 +83,17 @@ tr.detail td.what { font-style: italic; }
 ol.steps { margin: .5rem 0 .2rem; padding-left: 2.4rem; }
 ol.steps li { margin: .35rem 0; }
 .step-title { font-weight: 600; }
-pre {
-  margin: .35rem 0 0; padding: .6rem .7rem; overflow-x: auto;
-  border: 1px solid var(--edge); border-radius: .4rem; background: var(--sunk);
-  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
+pre { margin: .35rem 0 0; overflow-x: auto; }
 .note { color: var(--dim); }
-.warn { color: #b26a00; }
-.risk {
-  font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
-  border: 1px solid currentColor; border-radius: .25rem; padding: 0 .3rem;
-}
-.risk-destructive { color: #c0392b; }
-.risk-rewrite { color: #8e44ad; }
-.risk-feature { color: #b26a00; }
+.warn { color: var(--amber); }
+.risk-destructive { color: var(--red); border-color: var(--red); }
+.risk-rewrite { color: var(--purple); border-color: var(--purple); }
+.risk-feature { color: var(--amber); border-color: var(--amber); }
 .risk-meta { color: var(--dim); }
 section.aside { margin-top: 2rem; }
-section.aside h2 { font-size: .95rem; margin: 0 0 .3rem; }
+/* a sentence, not a label: the base's heading without its capitals */
+section.aside h2 { font-size: .95rem; text-transform: none; letter-spacing: 0;
+  color: inherit; margin: 0 0 .3rem; }
 section.aside ul { margin: 0; padding-left: 1.2rem; color: var(--dim); }
 /* The two readings: one table, two ways of looking at it. */
 body[data-lens=changes] tr.state-same { display: none; }
@@ -178,7 +162,7 @@ def render_html(plan: Plan, *, title: str | None = None) -> str:
         "<!doctype html>\n"
         '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{escape(heading)}</title>\n<style>\n{_CSS}</style>\n"
+        f"<title>{escape(heading)}</title>\n<style>\n{BASE}{_CSS}</style>\n"
         '</head>\n<body data-lens="changes">\n'
         + "\n".join(body)
         + f"\n<script>\n{_JS}</script>\n</body>\n</html>\n"

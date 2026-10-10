@@ -90,6 +90,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The page has the look of the other Kostavo pages.** `stevin ui` and `-f html` now
+  draw with the style sheet lely's page and caland's use: the same colours and what they
+  mean, the same type, table, buttons and code. What you will see: a risk is a rounded
+  badge in lower case, with lely's red and amber (a rewrite keeps its purple); the dim
+  text is darker and easier to read; buttons and the filter are a little lower; a column's
+  heading and the small print take lely's sizes; a block of SQL has no border; and what
+  the keyboard is on has a blue ring. What the page shows, its two readings and its
+  filter are what they were, and it is still one file with nothing fetched.
+
 - **Seeds have run on a workspace.** Loading reference data with `seed:` was the one
   feature the live suite had never taken: its `INSERT OVERWRITE … (columns) VALUES …` was
   the documented grammar and nothing more. On 2026-10-10 a workspace loaded, typed and

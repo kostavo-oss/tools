@@ -117,8 +117,13 @@ src/caland/
 
 - The `interface/` layer never touches the SDK or infra directly — it talks to
   `application/` services. The `domain/` layer imports nothing outward.
-- The page's look is `interface/web/static/page.css`: lely's page, taken over — the
-  same colours and what they mean. Light or dark is the system's.
+- The page's look is two files in `interface/web/static/`, loaded in this order.
+  `base.css` is the look the three Kostavo pages share (caland, lely's plan as a page,
+  stevin's): the colours and what they mean, the type, a table, a badge, a button, a key,
+  where the keyboard is. It is in each of the three packages, byte for byte, and the
+  repository's `tests/test_workspace.py` holds the copies equal: change all three in one
+  pull request, never one. `page.css` is caland's own layout and parts, written with the
+  base's names. Light or dark is the system's.
 
 ## Conventions
 

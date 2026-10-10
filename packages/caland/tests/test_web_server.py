@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import socket
 import threading
 from pathlib import Path
@@ -332,7 +333,9 @@ def test_reading_again_is_started_and_answered_at_once(served):
 
 
 # ── what it sends ────────────────────────────────────────────────────
-@pytest.mark.parametrize("path", ["/", "/page.css", "/page.js", "/api/state", "/nope"])
+@pytest.mark.parametrize(
+    "path", ["/", "/base.css", "/page.css", "/page.js", "/api/state", "/nope"]
+)
 def test_every_answer_carries_the_same_care(served, path):
     served.enter()
     _, headers, _ = served.ask("GET", path)
@@ -348,11 +351,12 @@ def test_the_policy_lets_the_page_load_only_what_is_calands_own():
     assert "script-src 'self'" in policy and "unsafe" not in policy and "*" not in policy
 
 
-def test_the_page_is_three_files_and_holds_no_secret_and_no_token(served):
+def test_the_page_is_four_files_and_holds_no_secret_and_no_token(served):
     served.enter()
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     for path, kind in [
         ("/", "text/html"),
+        ("/base.css", "text/css"),
         ("/page.css", "text/css"),
         ("/page.js", "text/javascript"),
     ]:
@@ -367,6 +371,11 @@ def test_the_page_has_no_script_or_style_written_into_it(served):
     page = text.decode()
     assert "<style" not in page and " style=" not in page and "onclick" not in page
     assert page.count("<script") == 1 and '<script src="/page.js" defer></script>' in page
+    # the shared look first, caland's own layout after it: the later rule stands
+    assert re.findall(r'<link rel="stylesheet" href="([^"]+)">', page) == [
+        "/base.css",
+        "/page.css",
+    ]
     assert (
         "http://" not in page
         and "https://" not in page

@@ -50,6 +50,72 @@ def test_a_package_has_what_a_tool_of_its_own_has(package: str) -> None:
     assert urls["Repository"] == "https://github.com/kostavo-oss/tools"
 
 
+#: The pages three of the tools serve from the user's own machine, and where each keeps
+#: the look they share. No package imports another, so the look is no shared module:
+#: it is one file, `base.css`, copied into each of the three.
+LOOK = {
+    "caland": "interface/web/static",
+    "lely": "render",
+    "stevin": "render",
+}
+
+
+def the_look(package: str) -> Path:
+    return ROOT / "packages" / package / "src" / package / LOOK[package] / "base.css"
+
+
+def test_the_pages_share_one_look_byte_for_byte() -> None:
+    """A change to the look is one change, made three times in one pull request. This
+    says which copy was missed."""
+    copies = {package: the_look(package).read_bytes() for package in LOOK}
+    assert copies["lely"], "the base style sheet is empty"
+    differing = sorted(p for p in copies if copies[p] != copies["lely"])
+    assert differing == [], f"base.css in {differing} is not lely's, byte for byte"
+
+
+@pytest.mark.parametrize("package", sorted(LOOK))
+def test_a_page_ships_its_copy_of_the_look_and_loads_it_first(package: str) -> None:
+    here = ROOT / "packages" / package
+    config = tomllib.loads((here / "pyproject.toml").read_text(encoding="utf-8"))
+    build = config["tool"]["hatch"]["build"]["targets"]
+    # the wheel is the whole package folder, and the copy lies inside it; the source
+    # package takes all of `src`
+    assert build["wheel"]["packages"] == [f"src/{package}"]
+    assert "/src" in build["sdist"]["include"]
+    assert the_look(package).is_file()
+    # the base first, the page's own rules after it: where both say something, the
+    # page's stands
+    folder = the_look(package).parent
+    if package == "caland":
+        page = (folder / "page.html").read_text(encoding="utf-8")
+        sheets = re.findall(r'<link rel="stylesheet" href="([^"]+)">', page)
+        assert sheets == ["/base.css", "/page.css"]
+    else:
+        renderer = (folder / "html.py").read_text(encoding="utf-8")
+        assert f'resources.files("{package}.render").joinpath("base.css")' in renderer
+        assert "<style>\\n{BASE}{_CSS}</style>" in renderer
+
+
+#: An address with a scheme (`https://…`), or one that takes the page's (`//host/…`)
+#: where a file is named; and the two ways a style sheet fetches.
+FETCHES = re.compile(r"""[a-z][a-z0-9+.-]*://|(?:href|src)=["']?//|url\(|@import""", re.I)
+
+
+@pytest.mark.parametrize("package", sorted(LOOK))
+def test_no_page_names_anything_to_fetch(package: str) -> None:
+    """Each page is served from the user's own machine and loads what its own package
+    holds, nothing else: no font, no script, no style sheet from a network. So no
+    file a page is made of holds an address with a scheme."""
+    folder = the_look(package).parent
+    made_of = sorted(folder.glob("*.css")) + sorted(folder.glob("*.html"))
+    if package != "caland":
+        made_of.append(folder / "html.py")
+    assert the_look(package) in made_of and len(made_of) >= 2
+    for file in made_of:
+        found = FETCHES.findall(file.read_text(encoding="utf-8"))
+        assert found == [], f"{file.relative_to(ROOT)} names {found}"
+
+
 IMPORT = re.compile(r"^\s*(?:from|import)\s+([a-zA-Z_][\w]*)", re.MULTILINE)
 
 

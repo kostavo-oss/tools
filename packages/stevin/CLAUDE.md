@@ -64,6 +64,7 @@ src/stevin/
   serve.py        the localhost page server for `stevin ui`
   errors.py       StevinError, the root of every deliberate error
   render/         rich.py, markdown.py, json.py, html.py, compare.py, labels.py
+                  base.css — the look the page shares with lely's and caland's
 tests/
   unit/           offline: fake warehouse, snapshots, the docs' pictures
   integration/    live workspace only
@@ -75,6 +76,14 @@ deltaplan-shim/   the last `deltaplan` release for PyPI; published by no workflo
 docs/             DESIGN.md (source of truth) + the mkdocs site
 examples/
 ```
+
+**The page's look** (`stevin ui`, `-f html`) is two parts, in `render/`: `base.css`, the
+look the three Kostavo pages share (caland, lely's plan as a page, this one), and the
+page's own layout in `html.py`, written with the base's names. The base is in each of
+the three packages, byte for byte, and the repository's `tests/test_workspace.py` holds
+the copies equal: change all three in one pull request, never one. lely's page is the
+reference. It is read once, when `render/html.py` is loaded; the page is still one file
+with everything inline.
 
 ## Commands
 

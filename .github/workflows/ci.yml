@@ -236,12 +236,17 @@ jobs:
           from importlib import resources
 
           static = resources.files("caland.interface.web").joinpath("static")
-          for name in ("page.html", "page.css", "page.js"):
+          for name in ("page.html", "base.css", "page.css", "page.js"):
               assert static.joinpath(name).read_bytes(), f"{name} is not in the wheel"
           print("the page is in the wheel")
           PY
               ;;
-            *) "/tmp/smoke/bin/$PACKAGE" --version ;;
+            *)
+              "/tmp/smoke/bin/$PACKAGE" --version
+              # the page is drawn with a style sheet that is a file in the wheel, and
+              # the renderer reads it when it is loaded
+              /tmp/smoke/bin/python -c "import $PACKAGE.render.html as page; assert page.BASE; print('the look is in the wheel')"
+              ;;
           esac
       - uses: actions/upload-artifact@v7
         with:

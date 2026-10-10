@@ -33,6 +33,7 @@ import re
 from collections.abc import Iterable, Iterator, Mapping
 from html import escape
 from html.parser import HTMLParser
+from importlib import resources
 
 from lely import __version__
 from lely.model import (
@@ -59,73 +60,60 @@ POLICY = (
     "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
 )
 
+#: The look this page shares with the other Kostavo pages: the colours, the type,
+#: a table, a badge, code. The file is in each of their packages, byte for byte (the
+#: repository's own tests hold the copies equal). It is read here once, when this
+#: module is loaded, from lely's own package: making a page reads nothing.
+BASE = resources.files("lely.render").joinpath("base.css").read_text(encoding="utf-8")
+
+#: The page's own layout and parts, after the base and in its names.
 _CSS = """\
-:root { color-scheme: light dark; --edge: #8884; --dim: #888c; --sunk: #8881;
-  --green: #2e8b57; --amber: #b8860b; --red: #c0392b; --blue: #3b7dd8; }
-* { box-sizing: border-box; }
-body { margin: 0 auto; padding: 2rem 1.5rem 4rem; max-width: 64rem;
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-code, pre, .mono, table.changes, ul.takes, ul.gives { font-size: 13px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-h1 { font-size: 1.35rem; margin: 0 0 .2rem; font-weight: 600; }
-h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--dim); font-weight: 600; margin: 1.1rem 0 .3rem; }
-.dim, .meta, footer { color: var(--dim); }
-.meta { margin: 0 0 1rem; font-size: .85rem; overflow-wrap: anywhere; }
+body { margin: 0 auto; padding: 2rem var(--gutter) 4rem; max-width: 64rem; }
+table.changes, ul.takes, ul.gives { font-size: var(--code); font-family: var(--mono); }
+h1 { margin: 0 0 .2rem; }
+h2 { margin: 1.1rem 0 .3rem; }
+.meta { margin: 0 0 1rem; }
 .counts { font-weight: 600; margin: .8rem 0; }
 .destructive { color: var(--red); font-weight: 700; }
-.alert { border: 1px solid var(--red); border-left-width: .4rem; border-radius: .4rem;
-  padding: .6rem .9rem; margin: .8rem 0; }
+.alert { border: 1px solid var(--red); border-left-width: .4rem;
+  border-radius: var(--radius); padding: .6rem .9rem; margin: .8rem 0; }
 .alert ul { margin: .3rem 0 0; padding-left: 1.2rem; }
-.warning { border-left: .25rem solid var(--amber); padding: .1rem .7rem;
+.warning { border-left: var(--bar) solid var(--amber); padding: .1rem .7rem;
   margin: .5rem 0; }
-.quiet { border-left: .25rem solid var(--edge); padding: .1rem .7rem; margin: .5rem 0;
-  color: var(--dim); }
+.quiet { border-left: var(--bar) solid var(--edge); padding: .1rem .7rem;
+  margin: .5rem 0; color: var(--dim); }
 .outcome { font-weight: 600; margin: .8rem 0; }
 .outcome.done, .counts.done, .state.done { color: var(--green); }
 .state.done { border-color: var(--green); }
 .state.failed, .state.refused, strong.failed, strong.refused { color: var(--red); }
 .state.failed, .state.refused { border-color: var(--red); }
+.state.waiting { border-color: var(--amber); color: var(--amber); }
 details.step { border-top: 1px solid var(--edge); padding: .7rem 0; }
 details.step > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: .7rem;
   align-items: baseline; }
-.name { font-weight: 600; font-size: 1.02rem; overflow-wrap: anywhere; }
 .uses, .tally { color: var(--dim); overflow-wrap: anywhere; }
-.state { font-size: .75rem; border: 1px solid var(--edge); border-radius: 1rem;
-  padding: 0 .55rem; }
-.state.waiting { border-color: var(--amber); color: var(--amber); }
-.tally { margin-left: auto; font-size: .85rem; }
+.tally { margin-left: auto; font-size: var(--small); }
 .body { padding: .2rem 0 .4rem 1.1rem; }
 .body > p { margin: .4rem 0; }
 ul.takes, ul.gives, ul.notes { list-style: none; margin: .3rem 0; padding: 0;
   overflow-wrap: anywhere; }
 ul.notes { color: var(--dim); }
-table.changes { border-collapse: collapse; margin: .4rem 0; width: 100%; }
-table.changes td { padding: .12rem .6rem .12rem 0; vertical-align: top; }
+table.changes, table.exists { margin: .4rem 0; }
+table.changes td { padding: .12rem var(--cell-x) .12rem 0; }
 td.sym { width: 1.4rem; text-align: center; }
 td.action { width: 5.2rem; }
-td.what { overflow-wrap: anywhere; white-space: pre-wrap; }
+td.what { white-space: pre-wrap; }
 .detail { color: var(--dim); white-space: pre-wrap; padding-left: 1.2rem; }
 tr.create .sym, tr.create .action { color: var(--green); }
 tr.update .sym, tr.update .action { color: var(--amber); }
 tr.delete .sym, tr.delete .action, tr.replace .sym, tr.replace .action {
   color: var(--red); }
 tr.run .sym, tr.run .action { color: var(--blue); }
-table.exists { border-collapse: collapse; margin: .4rem 0; width: 100%; }
-table.exists th { text-align: left; font-size: .75rem; text-transform: uppercase;
-  letter-spacing: .04em; color: var(--dim); border-bottom: 1px solid var(--edge);
-  padding: .25rem .6rem .25rem 0; }
-table.exists td { padding: .2rem .6rem .2rem 0; vertical-align: top;
-  overflow-wrap: anywhere; }
-pre.said { background: var(--sunk); padding: .7rem .9rem; border-radius: .4rem;
-  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.frame { border: 1px solid var(--edge); border-radius: .4rem; padding: .5rem .9rem;
-  margin: .3rem 0; overflow-x: auto; }
-.frame table { border-collapse: collapse; }
-.frame th, .frame td { text-align: left; padding: .15rem .9rem .15rem 0;
-  vertical-align: top; }
-.frame th { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--dim); border-bottom: 1px solid var(--edge); }
+pre.said { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.frame { border: 1px solid var(--edge); border-radius: var(--radius);
+  padding: .5rem .9rem; margin: .3rem 0; overflow-x: auto; }
+.frame table { width: auto; }
+.frame th, .frame td { padding: .15rem .9rem .15rem 0; overflow-wrap: normal; }
 .frame h4, .frame h5, .frame h6 { margin: .7rem 0 .2rem; font-size: .9rem; }
 .frame .create { color: var(--green); }
 .frame .update { color: var(--amber); }
@@ -133,10 +121,9 @@ pre.said { background: var(--sunk); padding: .7rem .9rem; border-radius: .4rem;
 .frame .run { color: var(--blue); }
 .frame .unchanged, .frame .dim { color: var(--dim); }
 .frame .num { text-align: right; }
-.frame .key { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px; }
-footer { margin-top: 2.5rem; border-top: 1px solid var(--edge); padding-top: .8rem;
-  font-size: .82rem; }
+.frame .key { font-family: var(--mono); font-size: var(--code); }
+footer { color: var(--dim); margin-top: 2.5rem; border-top: 1px solid var(--edge);
+  padding-top: .8rem; font-size: var(--fine); }
 """
 
 
@@ -535,7 +522,7 @@ def _page(
         '<meta name="referrer" content="no-referrer">\n'
         f'<meta name="generator" content="{GENERATOR}">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{_t(title)}</title>\n<style>\n{_CSS}</style>\n</head>\n<body>\n"
+        f"<title>{_t(title)}</title>\n<style>\n{BASE}{_CSS}</style>\n</head>\n<body>\n"
         "<header>\n" + "\n".join(part for part in head if part) + "\n</header>\n"
         "<main>\n" + "\n".join(steps) + "\n</main>\n"
         f"<footer>{about}</footer>\n</body>\n</html>\n"

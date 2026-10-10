@@ -1,0 +1,94 @@
+/* The look the Kostavo pages share: caland, lely's plan as a page, stevin's.
+
+   This file is in each of the three packages, byte for byte: no package imports
+   another, so there is no shared module, and a test at the repository's root
+   (tests/test_workspace.py) fails when one copy differs. A change to the look is one
+   change made three times, in one pull request.
+
+   A page loads this first and its own rules after: its layout and its own parts,
+   written with the names below. Nothing here is fetched and nothing here fetches.
+   lely's page is the reference: where the three pages differed, its value stands. */
+
+:root {
+  /* Light or dark is the system's. The ground and the ink are the browser's own for
+     each, and every other colour is one value picked to read on both. */
+  color-scheme: light dark;
+  --paper: Canvas;        /* the ground, for what stays put over what scrolls */
+  --ink: CanvasText;
+  --edge: #8884;          /* a line: a border, a rule between two things */
+  --dim: #888c;           /* what is said beside the point: a label, a note */
+  --sunk: #8881;          /* a ground set back: a block of code, what is selected */
+  --green: #2e8b57;       /* done, made, added */
+  --amber: #b8860b;       /* waiting, changed, take care */
+  --red: #c0392b;         /* destructive, failed, refused */
+  --blue: #3b7dd8;        /* a run; and the keyboard, wherever it is */
+  --purple: #8e44ad;      /* a rewrite: a table rebuilt whole */
+  --green-wash: #2e8b5718;  /* a cell that is new */
+  --red-wash: #c0392b18;    /* a cell that goes */
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text: 15px;           /* what is read */
+  --line: 1.55;
+  --code: 13px;           /* anything in --mono */
+  --title: 1.35rem;       /* the page's one heading */
+  --lead: 1.02rem;        /* the name of the thing a part is about */
+  --small: .85rem;        /* the line under the heading; a remark beside a row */
+  --fine: .82rem;         /* the foot of the page; a hint */
+  --label: .78rem;        /* a heading inside a part, in capitals */
+  --tag: .75rem;          /* a column's heading; a badge */
+
+  --gutter: 1.5rem;       /* between the page and the window, left and right */
+  --radius: .4rem;        /* the corner of a box, a button, a field */
+  --round: 1rem;          /* the corner of a badge */
+  --bar: .25rem;          /* the bar down the left of a note */
+  --cell-x: .6rem;        /* between two cells of a table */
+  --cell-y: .2rem;        /* above and below a cell */
+  --box: .7rem .9rem;     /* inside a block of code */
+}
+
+* { box-sizing: border-box; }
+body { font: var(--text)/var(--line) var(--sans); }
+
+/* code: one family and one size, and a block of it set back. This stands above the
+   sizes of the text below, so that a name or a line of meta set in .mono keeps the
+   size of what it is. */
+code, pre, kbd, .mono { font-family: var(--mono); font-size: var(--code); }
+pre { background: var(--sunk); padding: var(--box); border-radius: var(--radius); }
+
+h1 { font-size: var(--title); font-weight: 600; margin: 0; }
+h2 { font-size: var(--label); text-transform: uppercase; letter-spacing: .05em;
+  color: var(--dim); font-weight: 600; margin: 0; }
+.dim, .meta { color: var(--dim); }
+.meta { font-size: var(--small); overflow-wrap: anywhere; }
+.name { font-weight: 600; font-size: var(--lead); overflow-wrap: anywhere; }
+
+/* a table: headings small, in capitals and dim, over one line; cells from the top */
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: var(--tag); text-transform: uppercase;
+  letter-spacing: .04em; color: var(--dim); font-weight: 600;
+  border-bottom: 1px solid var(--edge);
+  padding: .25rem var(--cell-x) .25rem 0; }
+td { padding: var(--cell-y) var(--cell-x) var(--cell-y) 0; vertical-align: top;
+  overflow-wrap: anywhere; }
+
+/* a badge, for a state or a risk: the word in a ring. A page gives it its colour,
+   the text's and the ring's alike, and never says by colour alone what it says. */
+.state, .risk { font-size: var(--tag); border: 1px solid var(--edge);
+  border-radius: var(--round); padding: 0 .55rem; white-space: nowrap; }
+
+/* a button and a field: the page's own type, one line around */
+button, input, select { font: inherit; color: inherit; }
+button { background: none; border: 1px solid var(--edge); border-radius: var(--radius);
+  padding: .22rem .7rem; cursor: pointer; }
+button:hover { background: var(--sunk); }
+button.main, button[aria-pressed=true] { font-weight: 600; border-color: currentColor; }
+button.danger { color: var(--red); border-color: var(--red); }
+input[type=text], input[type=password], input[type=search], select { background: none;
+  border: 1px solid var(--edge); border-radius: var(--radius); padding: .32rem .6rem; }
+
+/* the keyboard: a key as it is named, and blue around what the keyboard is on */
+kbd { color: var(--dim); border: 1px solid var(--edge); border-radius: .3rem;
+  padding: 0 .3rem; font-size: 11.5px; }
+button kbd { margin-left: .35rem; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }

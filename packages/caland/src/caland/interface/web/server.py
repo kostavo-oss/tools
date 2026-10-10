@@ -89,6 +89,8 @@ _OWN = Path(__file__).resolve().parents[2]
 #: The page: where each file is asked for, what it is called, and what it is.
 _FILES = {
     "/": ("page.html", "text/html; charset=utf-8"),
+    # the look the Kostavo pages share, then caland's own layout on top of it
+    "/base.css": ("base.css", "text/css; charset=utf-8"),
     "/page.css": ("page.css", "text/css; charset=utf-8"),
     "/page.js": ("page.js", "text/javascript; charset=utf-8"),
 }
