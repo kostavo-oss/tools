@@ -127,11 +127,21 @@ stevin doctor
 ✗ metastore  table quota 523 of 500
              → A dropped table counts for as long as UNDROP could bring it back, so
                this is often far above what the catalogs hold. …
+✓ policies   SHOW EFFECTIVE POLICIES accepted on prod.sales (2 in scope)
 ```
 
 Checks the project, the target, the bundle, the workspace, the warehouse, the metastore's
-table quota, and where `apply` would record a run. Every line says what was looked at and
+table quota, where `apply` would record a run, and whether the warehouse lists the
+[ABAC policies](features.md#the-policies-a-table-is-under) in scope of your schemas. Every line says what was looked at and
 what was found; anything that isn't right says what to do about it.
+
+The `policies` line asks `SHOW EFFECTIVE POLICIES ON SCHEMA` of each schema your specs
+live in that is already there. A workspace that refuses gets a `⚠`, never a `✗` — a plan
+goes on without policies and says so — with the workspace's own reason and what
+[the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) says listing them takes: Databricks SQL or Runtime 16.4 and above,
+and `READ METADATA` or `MANAGE` on the securable, or owning it. A plan asks per table,
+which a principal may be allowed where the schema isn't. With `manage: {policies:
+false}` there is no such line: nothing is asked.
 
 It **changes nothing** — no schema is created, no warehouse started, no grant touched —
 and exits 0 unless something will stop a run. `--json` gives a host the same findings.
@@ -379,7 +389,10 @@ Asks whether `apply` would do anything, and exits accordingly:
 | `1` | Something went wrong. |
 
 Drift is a hand edit in the catalog, a table dropped outside stevin, a spec merged but
-never applied. Unmanaged objects are not drift: stevin never claimed them. Point a
+never applied. Unmanaged objects are not drift: stevin never claimed them. Neither is
+an [ABAC policy](features.md#the-policies-a-table-is-under) a table is under: each is
+listed under its table as *not stevin's, left untouched*, the way a grant no spec names
+is, and the exit code stays `0`. Point a
 [scheduled workflow](ci.md#catch-drift-nightly) at it.
 
 When the hand edit was the right call, [`adopt`](#adopt) writes it into the spec instead

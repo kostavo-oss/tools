@@ -51,6 +51,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tables, gets its grants and masks without a setup job. Valid for dlt's tables and
   for any owner `owned_elsewhere` names; a spec with types for such a table is refused.
 
+- **The policies a table is under are read into the plan.** An ABAC policy on a
+  catalog or a schema filters or masks every table below it, and none of that shows in
+  a table's spec. A plan now lists the policies in scope of each table it describes,
+  under the table — `policy mask_pii (column mask, on schema main.sales) masks columns
+  matching has_tag('pii') with main.governance.redact, for account users except
+  data_admins` — in the terminal, the pull-request comment, the page and the plan file
+  (`facts.policies`). They are read with `SHOW EFFECTIVE POLICIES ON TABLE` and
+  `DESCRIBE POLICY`, and **never written**: a policy makes no step and no change, and
+  stevin has no statement that creates, alters or drops one. Where a spec sets a mask or
+  a row filter on a table with a policy of the same kind in scope, the plan warns, in
+  Databricks' words: two distinct ones reaching one reader block the query. `drift`
+  lists them as not stevin's and never exits 2 for one; `doctor` says whether the
+  warehouse will list them. A policy that arrives or changes after a plan makes that
+  plan stale, as a table's own mask does. A workspace that refuses the statement — an
+  older runtime, no `READ METADATA` — doesn't fail the plan, which says *policies could
+  not be read* once and goes on; `manage: {policies: false}` stops stevin asking.
+  **Not yet run against a workspace**: the statements and their columns are the
+  manual's, and three new probes in `stevin verify` are waiting to settle them.
+
 ### Changed
 
 - **What stevin is for, said plainly.** stevin puts in place the tables and access

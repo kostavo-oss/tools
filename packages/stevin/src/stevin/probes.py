@@ -653,6 +653,111 @@ def _materialized_views_and_streaming_tables_are_left_alone(bench: Bench) -> Non
 
 #: Every assumption, in the order the live suite settled them. Each is a probe
 #: `stevin verify` can run in a workspace of its own.
+# ---------------------------------------------------------------------------
+# policies — read, never written by stevin; a probe has to make one to read it
+# ---------------------------------------------------------------------------
+
+_SHOW_POLICIES = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies"
+_DESCRIBE_POLICY = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy"
+
+
+@contextmanager
+def _a_table_under_a_policy(bench: Bench) -> Generator[str]:
+    """A scratch table with one row filter policy defined on it, by the
+    documented `CREATE POLICY`; the policy's name. Dropped afterwards.
+
+    This is the one place stevin's code writes a policy, and it is a probe's
+    scratch table: reading one back is the only way to learn what a workspace
+    answers.
+    https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-policy
+    """
+    table, function = bench.named("t"), bench.named("keep")
+    name = bench.short("rows")
+    bench.sql(f"CREATE TABLE {table} (id INT, region STRING)")
+    bench.sql(f"CREATE FUNCTION {function}(x INT) RETURNS BOOLEAN RETURN x = 1")
+    bench.sql(
+        f"CREATE POLICY {quote_ident(name)} ON TABLE {table} "
+        f"COMMENT {quote_literal('stevin verify')} "
+        f"ROW FILTER {function} TO {quote_ident(bench.principal)} "
+        "FOR TABLES USING COLUMNS (1)"
+    )
+    try:
+        yield name
+    finally:
+        with suppress(Exception):
+            bench.sql(f"DROP POLICY {quote_ident(name)} ON TABLE {table}")
+
+
+def _show_effective_policies_lists_a_tables_policies(bench: Bench) -> None:
+    # TODO(verify): no workspace has answered this for stevin yet.
+    with _a_table_under_a_policy(bench) as name:
+        rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('t')}")
+        own = [row for row in rows if row.get("Policy Name") == name]
+        bench.expect(
+            len(own) == 1,
+            f"the policy isn't listed under `Policy Name`; the rows are {rows}",
+        )
+        wanted = {"Policy Type", "Comment", "on_securable_type", "on_securable_fullname"}
+        bench.expect(
+            wanted <= set(own[0]),
+            f"the columns are {sorted(own[0])}, without {sorted(wanted - set(own[0]))}",
+        )
+        live = bench.introspector.table(bench.full("t"))
+        bench.expect(live is not None, "the table couldn't be read back")
+        assert live is not None
+        bench.expect(
+            live.policies_unread is None,
+            f"stevin couldn't read them: {live.policies_unread}",
+        )
+        found = [p for p in live.policies if p.name == name]
+        bench.expect(len(found) == 1, f"stevin reads the policies as {live.policies}")
+        policy = found[0]
+        bench.expect(
+            (policy.kind, policy.level, policy.on.lower(), policy.comment)
+            == ("row_filter", "table", bench.full("t").lower(), "stevin verify"),
+            f"stevin reads it as {policy}",
+        )
+
+
+def _a_table_under_no_policy_lists_none(bench: Bench) -> None:
+    # TODO(verify): no workspace has answered this for stevin yet.
+    bench.sql(f"CREATE TABLE {bench.named('bare')} (id INT)")
+    rows = bench.sql(f"SHOW EFFECTIVE POLICIES ON TABLE {bench.named('bare')}")
+    # A policy on the catalog or the schema reaches a scratch table too, so
+    # only the table's own would be a surprise.
+    own = [row for row in rows if (row.get("on_securable_type") or "") == "TABLE"]
+    bench.expect(not own, f"a table nobody put a policy on lists {own}")
+    live = bench.introspector.table(bench.full("bare"))
+    bench.expect(live is not None, "the table couldn't be read back")
+    assert live is not None
+    bench.expect(
+        live.policies_unread is None,
+        f"stevin couldn't read them: {live.policies_unread}",
+    )
+
+
+def _describe_policy_says_function_and_principals(bench: Bench) -> None:
+    # TODO(verify): no workspace has answered this for stevin yet.
+    with _a_table_under_a_policy(bench) as name:
+        rows = bench.sql(
+            f"DESCRIBE POLICY {quote_ident(name)} ON TABLE {bench.named('t')}"
+        )
+        live = bench.introspector.table(bench.full("t"))
+        bench.expect(live is not None, "the table couldn't be read back")
+        assert live is not None
+        found = [p for p in live.policies if p.name == name]
+        bench.expect(len(found) == 1, f"stevin reads the policies as {live.policies}")
+        policy = found[0]
+        bench.expect(
+            (policy.function or "").lower() == bench.full("keep").lower(),
+            f"stevin reads the function as {policy.function!r}; the rows are {rows}",
+        )
+        bench.expect(
+            [who.lower() for who in policy.to] == [bench.principal.lower()],
+            f"stevin reads the principals as {policy.to}; the rows are {rows}",
+        )
+
+
 PROBES: tuple[Probe, ...] = (
     Probe(
         "a table can read itself in a REPLACE … AS SELECT",
@@ -797,6 +902,30 @@ PROBES: tuple[Probe, ...] = (
         "strict schema would plan to drop them.",
         _materialized_views_and_streaming_tables_are_left_alone,
         slow=True,
+    ),
+    Probe(
+        "SHOW EFFECTIVE POLICIES lists a table's policies in the documented columns",
+        _SHOW_POLICIES,
+        "A plan shows the ABAC policies in scope of each table, read with this "
+        "statement by column name. Where it is refused, or the columns are "
+        "called something else, plans say policies couldn't be read — or show "
+        "none where there are some.",
+        _show_effective_policies_lists_a_tables_policies,
+    ),
+    Probe(
+        "a table under no policy lists none, without an error",
+        _SHOW_POLICIES,
+        "Most tables are under no policy. If asking about one were an error, "
+        "every plan here would say policies couldn't be read, for every table.",
+        _a_table_under_no_policy_lists_none,
+    ),
+    Probe(
+        "DESCRIBE POLICY says a policy's function and principals",
+        _DESCRIBE_POLICY,
+        "The manual shows the report's labels but not its columns, so stevin "
+        "reads it by position. Where that is wrong, a plan still names each "
+        "policy and where it is defined, and says nothing of who it reaches.",
+        _describe_policy_says_function_and_principals,
     ),
 )
 

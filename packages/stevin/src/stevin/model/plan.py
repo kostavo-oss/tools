@@ -8,12 +8,13 @@ reviewed and what runs cannot drift apart.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 from stevin.manage import Manage
 from stevin.model.change import CREATE_KINDS, Change
+from stevin.model.policy import Policy
 from stevin.model.view import Relation
 
 #: What a step can cost you.
@@ -84,6 +85,11 @@ class TableFacts:
     schema_exists: bool = True
     #: The Delta table features the live table has (`timestampNtz`, …).
     features: tuple[str, ...] = ()
+    #: The ABAC policies in scope of the table: defined on it or on a parent.
+    #: Read, shown, never changed — no step is ever made from one.
+    policies: tuple[Policy, ...] = ()
+    #: Why they couldn't be read, when the workspace refused to say.
+    policies_unread: str | None = None
 
     def property(self, key: str) -> str | None:
         return dict(self.properties).get(key)
@@ -120,6 +126,15 @@ class TableDiff:
     notes: tuple[str, ...] = ()
     #: The steps the planner made for this table. Empty until it has planned.
     steps: tuple[Step, ...] = ()
+    #: Warnings about the table that belong to no step: they hold whether or
+    #: not anything changes — a spec's mask beside a policy's, say.
+    cautions: tuple[str, ...] = ()
+
+    @property
+    def read_as(self) -> str:
+        """The name its live state was read under: its own, or — for a table
+        being renamed — the one it has until the rename runs."""
+        return self.live.name if self.live is not None else self.table
 
     @property
     def kind(self) -> str:
@@ -154,8 +169,12 @@ class TableDiff:
 
     @property
     def warnings(self) -> tuple[str, ...]:
-        """Everything this table's steps want said before they run."""
-        return tuple(warning for step in self.steps for warning in step.warnings)
+        """Everything said about this table before anything runs: what holds
+        of the table itself, then what its steps want said."""
+        return (
+            *self.cautions,
+            *(warning for step in self.steps for warning in step.warnings),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,6 +254,16 @@ class Plan:
         return Manage(self.not_managed)
 
     @property
+    def policies_unread(self) -> tuple[tuple[str, ...], str] | None:
+        """The tables whose policies couldn't be read, and why — in the words
+        of the first refusal, so a plan says it once. None when all were."""
+        refused = [d for d in self.diffs if d.facts.policies_unread]
+        if not refused:
+            return None
+        reason = refused[0].facts.policies_unread or ""
+        return tuple(d.table for d in refused), reason
+
+    @property
     def unmanaged(self) -> tuple[str, ...]:
         """Live objects no spec describes. Reported, never touched."""
         return self.unmanaged_tables
@@ -275,7 +304,8 @@ class Plan:
             destroy=destroyed,
             steps=len(self.steps),
             rewrites=sum(1 for step in self.steps if step.risk == "rewrite"),
-            warnings=sum(len(step.warnings) for step in self.steps),
+            warnings=sum(len(step.warnings) for step in self.steps)
+            + sum(len(diff.cautions) for diff in self.diffs),
         )
 
     @property
@@ -287,16 +317,35 @@ class Plan:
         )
 
 
-def fingerprint(tables: Iterable[Relation | None]) -> str:
+def fingerprint(
+    tables: Iterable[Relation | None],
+    policies: Mapping[str, tuple[Policy, ...]] | None = None,
+) -> str:
     """A short digest of live state, used to refuse a plan that has gone stale.
 
     Deliberately blunt: it hashes the whole model, so *any* difference — a
     comment, a property, a nested field — invalidates the plan. A false "this
     changed" costs a re-plan; a false "nothing changed" would apply a reviewed
     plan to a table that is no longer the one that was reviewed.
+
+    `policies` are the ABAC policies in scope of each table, by the name the
+    table was read under. They are part of what was reviewed, as a table's own
+    masks and row filter are, so a policy that arrives, goes or changes after
+    the plan makes it stale. Tables without one add nothing, which keeps the
+    digest of a workspace with no policies what it always was.
     """
     digest = hashlib.sha256()
     for table in tables:
         digest.update(repr(table).encode("utf-8"))
         digest.update(b"\x00")
+    for name, found in sorted((policies or {}).items()):
+        if found:
+            digest.update(repr((name, found)).encode("utf-8"))
+            digest.update(b"\x00")
     return digest.hexdigest()[:16]
+
+
+def policies_read(diffs: Iterable[TableDiff]) -> dict[str, tuple[Policy, ...]]:
+    """The policies a plan was made against, by the name each table was read
+    under — the second argument of `fingerprint`."""
+    return {diff.read_as: diff.facts.policies for diff in diffs if diff.facts.policies}

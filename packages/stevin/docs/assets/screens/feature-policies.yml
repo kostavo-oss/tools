@@ -1,0 +1,6 @@
+table: ${catalog}.sales.customers
+columns:
+  - {name: customer_id, type: bigint}
+  - {name: email, type: string}
+  - {name: region, type: string}
+  - {name: signed_up, type: date}

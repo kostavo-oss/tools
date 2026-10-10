@@ -11,6 +11,10 @@ So this asks first. Each check says what it looked at, what it found, and — wh
 that isn't right — what to do about it. Nothing here changes anything: no schema
 is created, no warehouse started, no grant touched. It reads, and it tells you.
 
+One check is about something stevin only reads: the ABAC policies in scope of a
+project's tables. A workspace that won't list them doesn't stop a plan, so that
+is a warning, with what the manual says listing them takes.
+
 The checks are a list rather than a script so that a host can run them too, and
 so that every failure this project has actually met can be a named test.
 """
@@ -162,6 +166,7 @@ def _workspace_checks(
     yield _quota(client)
     if project is not None and target is not None:
         yield _history(connection, project, target)
+        yield from _policies(connection, project, target)
 
 
 def _identity(client: WorkspaceClient) -> Finding:
@@ -259,6 +264,70 @@ def _history(connection: Connection, project: Project, target: Target) -> Findin
         "`apply` creates it on the first run, which needs CREATE SCHEMA in "
         f"{catalog}. Set `history_schema` to a schema you own, or leave it out.",
     )
+
+
+#: What the manual says listing policies takes — the remedy's source.
+_POLICIES_DOCS = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies"
+
+
+def _policies(
+    connection: Connection, project: Project, target: Target
+) -> Iterator[Finding]:
+    """Whether this warehouse lists ABAC policies for this principal.
+
+    A plan reads the policies in scope of each table it describes and shows
+    them; it asks `SHOW EFFECTIVE POLICIES`, which the manual gives to
+    Databricks SQL and Runtime 16.4 and above, and to a principal with `READ
+    METADATA` or `MANAGE` on the securable, or who owns it. This asks the same
+    statement of each schema the specs live in — the schemas that are there —
+    so "not accepted here" and "not allowed here" are found before a plan says
+    them. Neither stops a plan, so neither is a problem.
+    """
+    if not project.manage.manages("policies"):
+        return  # said by the `manage` line: not read, so nothing to check
+    try:
+        relations = project.load_specs(target).relations
+    except Exception:  # noqa: BLE001 - `validate` is where a bad spec is said
+        yield Finding("policies", "warning", "not checked: the specs can't be read", None)
+        return
+    schemas = sorted({".".join(r.parts[:2]) for r in relations if len(r.parts) >= 2})
+    accepted: list[str] = []
+    in_scope = 0
+    for schema in schemas:
+        catalog, _, name = schema.partition(".")
+        try:
+            there = connection.runner.query(
+                "SELECT schema_name FROM "
+                f"{_ident(catalog)}.information_schema.schemata "
+                f"WHERE schema_name = {_literal(name)}"
+            )
+            if not there:
+                continue  # a fresh target: nothing is under a policy yet
+            rows = connection.runner.query(
+                f"SHOW EFFECTIVE POLICIES ON SCHEMA {_ident(catalog)}.{_ident(name)}"
+            )
+        except Exception as error:  # noqa: BLE001 - whatever the workspace said
+            said = next((line for line in str(error).splitlines() if line.strip()), "")
+            yield Finding(
+                "policies",
+                "warning",
+                f"can't be listed on {schema}: {said.strip()}",
+                "A plan goes on without them and says so. Listing them takes "
+                "Databricks SQL or Runtime 16.4 and above, and READ METADATA or "
+                f"MANAGE on the securable, or owning it ({_POLICIES_DOCS}). A plan "
+                "asks per table, which a principal may be allowed where the schema "
+                "isn't. `manage: {policies: false}` stops stevin asking.",
+            )
+            continue
+        accepted.append(schema)
+        in_scope += len(rows)
+    if accepted:
+        yield Finding(
+            "policies",
+            "ok",
+            f"SHOW EFFECTIVE POLICIES accepted on {', '.join(accepted)} "
+            f"({in_scope} in scope)",
+        )
 
 
 def _ident(name: str) -> str:

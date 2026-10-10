@@ -142,7 +142,21 @@ the source:
   (`introspect.WarehouseRunner`). It changes how every step is sent, so it waits for a
   run against a workspace.
 
-`stevin verify` runs the first two as probes in a workspace of your own.
+- **Reading ABAC policies.** `SHOW EFFECTIVE POLICIES ON TABLE` and its eight result
+  columns are used as [the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) lists them, and no workspace has answered it
+  for stevin (`introspect.Introspector._policies`). Two probes settle it: *SHOW EFFECTIVE
+  POLICIES lists a table's policies in the documented columns* and *a table under no
+  policy lists none, without an error*.
+- **A policy's details.** [`DESCRIBE POLICY`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy) is documented as "a formatted
+  report" with the labels in its example, but not its result columns, nor how several
+  principals are listed. stevin reads each row by position, splits a single text column
+  on its gap, and splits principals on commas (`Introspector._describe_policy`). The
+  probe *DESCRIBE POLICY says a policy's function and principals* settles it. To read a
+  policy back, two of these probes create one on a scratch table of their own with
+  `CREATE POLICY` — the only place stevin's code does — which takes `MANAGE` on that
+  table and a workspace with ABAC; elsewhere they come out *unknown*.
+
+`stevin verify` runs all of these but the third as probes in a workspace of your own.
 
 ### The assumptions live in `src/`, not here
 

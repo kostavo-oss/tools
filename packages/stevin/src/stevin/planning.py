@@ -14,6 +14,9 @@ sides at once:
 * a table stevin created whose spec has gone is **orphaned**. An additive
   schema keeps it and says so; a strict schema drops it — a destructive step,
   which `apply` refuses without `--allow-destructive`;
+* the **ABAC policies** in scope of a table are read beside it and carried into
+  the plan as facts: shown, warned about where a spec's own mask or row filter
+  meets one, and never the subject of a step;
 * a table **another tool owns** — dbt's, by its manifest or `owned_elsewhere`;
   dlt's, by the `_dlt_*` tables beside it; a team's, by `owned_elsewhere` — is
   never shaped, claimed or dropped. dbt's are refused outright; the others may
@@ -36,6 +39,7 @@ from stevin.differ import (
     diff_view,
     diff_volume,
     ownership,
+    policy_conflicts,
     spent_renames,
     unmanaged,
     unmanaged_function,
@@ -48,7 +52,7 @@ from stevin.loader import Diagnostic, LoadedSpec, Mode
 from stevin.manage import EVERYTHING, Manage, strip
 from stevin.model.change import Change
 from stevin.model.function import Function
-from stevin.model.plan import Plan, TableDiff, TableFacts, fingerprint
+from stevin.model.plan import Plan, TableDiff, TableFacts, fingerprint, policies_read
 from stevin.model.schema import Schema
 from stevin.model.table import Table
 from stevin.model.view import Relation, View
@@ -230,6 +234,7 @@ def plan_tables(
                 # there to check nothing moved since the plan.
                 live=source.table if source else None,
                 notes=(*notes, *(spent_renames(table, live_table) if live_table else ())),
+                cautions=policy_conflicts(table, facts.policies),
             )
         )
 
@@ -288,7 +293,7 @@ def plan_tables(
         target=target,
         tool_version=tool_version,
         spec_hash=fingerprint(specs),
-        state_fingerprint=fingerprint(d.live for d in diffs),
+        state_fingerprint=fingerprint((d.live for d in diffs), policies_read(diffs)),
         clone=clone,
     )
     return replace(
@@ -387,6 +392,7 @@ def _governed_diff(
         desired=desired,
         live=live.table,
         notes=("governs a table another tool makes: shape left to them",),
+        cautions=policy_conflicts(desired, facts.policies),
     )
 
 
@@ -735,6 +741,8 @@ def _facts(
         unmodelled=live.unmodelled if live else (),
         schema_exists=schema_exists,
         features=live.features if live else (),
+        policies=live.policies if live else (),
+        policies_unread=live.policies_unread if live else None,
     )
 
 

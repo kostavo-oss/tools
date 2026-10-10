@@ -39,6 +39,7 @@ from stevin import api, cli
 from stevin.connect import Connection
 from stevin.executor import Executor
 from stevin.history import MemoryHistory
+from stevin.model.policy import Policy
 
 #: Columns in every picture: a docs page scales a wider terminal down until its
 #: text is too small to read, so this is a standard terminal's width.
@@ -799,6 +800,58 @@ def feature_masks(studio: Studio) -> None:
         },
         show="tables/customers.yml",
     )
+
+
+@scene
+def feature_policies(studio: Studio) -> None:
+    """A table under ABAC policies somebody else wrote: read, shown, left alone."""
+    before = """\
+        table: ${catalog}.sales.customers
+        columns:
+          - {name: customer_id, type: bigint}
+          - {name: email, type: string}
+          - {name: region, type: string}
+    """
+    studio.write("tables/customers.yml", before)
+    studio.apply()
+    # Written with Terraform, say: one on the schema, one on the whole catalog.
+    studio.fake.under(
+        Policy(
+            "mask_pii",
+            "column_mask",
+            "dev.sales",
+            "schema",
+            function="dev.governance.redact",
+            to=("account users",),
+            except_=("data_admins",),
+            match_columns="has_tag('pii') AS c",
+            on_column="c",
+        ),
+        Policy(
+            "own_region",
+            "row_filter",
+            "dev",
+            "catalog",
+            function="dev.governance.in_region",
+            to=("analysts",),
+            when="has_tag('regional')",
+        ),
+    )
+    added = before.rstrip(" ") + "          - {name: signed_up, type: date}\n"
+    studio.write("tables/customers.yml", added)
+    studio.quote("tables/customers.yml", "feature-policies.yml")
+    studio.shoot("feature-policies", "stevin plan")
+    # The spec puts a mask of its own on a column: both are there now, and a
+    # reader both reach is refused by Databricks. The plan says so.
+    studio.write(
+        "tables/customers.yml",
+        added.replace(
+            "{name: email, type: string}",
+            '{name: email, type: string, mask: "${catalog}.security.mask_email"}',
+        ),
+    )
+    studio.write("tables/mask_email.yml", MASK_FUNCTIONS)
+    studio.shoot("feature-policies-conflict", "stevin plan")
 
 
 @scene

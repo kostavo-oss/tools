@@ -12,11 +12,14 @@ References:
   information_schema  https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-information-schema
   DESCRIBE DETAIL     https://docs.databricks.com/aws/en/delta/table-details
   Statement Execution https://docs.databricks.com/api/workspace/statementexecution
+  SHOW POLICIES       https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
+  DESCRIBE POLICY     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
 """
 
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +31,7 @@ from stevin.ddl import DdlError, read_columns
 from stevin.errors import StevinError
 from stevin.manage import EVERYTHING, Manage
 from stevin.model.function import Function, Parameter
+from stevin.model.policy import Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     CHECK_PROPERTY_PREFIX,
@@ -45,6 +49,7 @@ from stevin.model.volume import Volume
 from stevin.sql import (
     normalise_expression,
     normalise_privilege,
+    quote_ident,
     quote_literal,
     quote_qualified,
 )
@@ -104,6 +109,13 @@ class LiveTable:
     #: describes — leaves it out: identity, generation, defaults and nested
     #: NOT NULL are then missing. `Introspector.complete` adds them.
     definition_read: bool = True
+    #: The ABAC policies in scope of the table: defined on it, or on its schema
+    #: or catalog. Read for the tables read in full; never stevin's to change.
+    policies: tuple[Policy, ...] = ()
+    #: Why they couldn't be read, in the workspace's words — an older runtime,
+    #: a privilege this principal hasn't got. None when they were read, and
+    #: when nobody asked.
+    policies_unread: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,10 +199,11 @@ class Introspector:
     """Reads live state through a `SqlRunner`."""
 
     runner: SqlRunner
-    #: What this project manages. Only grants are skipped when handed over:
-    #: everything else is still read, because stevin has to know it is there
-    #: not to destroy it — a masked table refuses a rewrite, and a renamed
-    #: column's tags are put back after one.
+    #: What this project manages. Only grants and policies are skipped when
+    #: handed over: everything else is still read, because stevin has to know
+    #: it is there not to destroy it — a masked table refuses a rewrite, and a
+    #: renamed column's tags are put back after one. Nothing stevin does
+    #: depends on a policy, so those may go unread.
     manage: Manage = EVERYTHING
     #: How many per-table queries (DESCRIBE DETAIL, SHOW CREATE TABLE, SHOW
     #: TBLPROPERTIES) run at once. One per table, each about a second on a
@@ -250,10 +263,9 @@ class Introspector:
         wanted = {name.lower() for name in full} if full is not None else None
         delta = [n for n, kind in sorted(formats.items()) if kind == "DELTA"]
         details = self._each(delta, lambda n: self._describe_detail(qualified(n)))
-        statements = self._each(
-            [n for n in delta if wanted is None or qualified(n).lower() in wanted],
-            lambda n: self._show_create(qualified(n)),
-        )
+        in_full = [n for n in delta if wanted is None or qualified(n).lower() in wanted]
+        statements = self._each(in_full, lambda n: self._show_create(qualified(n)))
+        policies = self._policies([qualified(n) for n in in_full])
         view_properties = self._each(
             [n for n, kind in sorted(formats.items()) if kind == "VIEW"],
             lambda n: self._view_properties(qualified(n)),
@@ -325,6 +337,8 @@ class Introspector:
                     unmodelled=(*column_features.get(name, []), *definition_notes),
                     features=_json_list(detail.get("tableFeatures")),
                     definition_read=read,
+                    policies=policies.get(full_name, _NO_POLICIES)[0],
+                    policies_unread=policies.get(full_name, _NO_POLICIES)[1],
                 )
             )
         # Read before `skipped` is frozen: external volumes are added to it.
@@ -355,7 +369,18 @@ class Introspector:
         volume and a table may share a name, and answering with the wrong one
         would make a plan look stale when nothing had changed.
         """
+        return self.state(names, kinds)[0]
+
+    def state(
+        self, names: Sequence[str], kinds: Mapping[str, str] | None = None
+    ) -> tuple[dict[str, Relation | None], dict[str, tuple[Policy, ...]]]:
+        """What `tables` answers, and the policies in scope of each table.
+
+        The two halves of what a plan's state fingerprint is made from, read in
+        one pass: `apply` asks whether either has moved since the plan.
+        """
         found: dict[str, Relation | None] = {}
+        policies: dict[str, tuple[Policy, ...]] = {}
         scanned: dict[tuple[str, str], LiveSchema] = {}
         for name in names:
             parts = name.split(".")
@@ -364,20 +389,27 @@ class Introspector:
                 wanted = [n for n in names if tuple(n.split(".")[:2]) == key]
                 scanned[key] = self.schema(*key, full=wanted)
             found[name] = scanned[key].relation(name, (kinds or {}).get(name))
-        return found
+            live = scanned[key].get(name)
+            if live is not None and found[name] is live.table:
+                policies[name] = live.policies
+        return found, policies
 
     def complete(self, live: LiveTable) -> LiveTable:
-        """A lightly read table, with what SHOW CREATE TABLE adds."""
+        """A lightly read table, with what a full read adds: what SHOW CREATE
+        TABLE says, and the policies in scope."""
         if live.definition_read:
             return live
         columns, notes = _with_definition(
             list(live.table.columns), self._show_create(live.table.name)
         )
+        policies, unread = self._policies([live.table.name])[live.table.name]
         return replace(
             live,
             table=replace(live.table, columns=tuple(columns)),
             unmodelled=(*live.unmodelled, *notes),
             definition_read=True,
+            policies=policies,
+            policies_unread=unread,
         )
 
     def latest_version(self, name: str) -> int | None:
@@ -760,6 +792,96 @@ class Introspector:
                 function, _name_list(row.get("target_columns"))
             )
         return filters
+
+    def _policies(
+        self, names: Sequence[str]
+    ) -> dict[str, tuple[tuple[Policy, ...], str | None]]:
+        """The ABAC policies in scope of each table — and, where they couldn't
+        be read, why. Nothing at all when policies aren't read here.
+
+        Two statements, both read-only. `SHOW EFFECTIVE POLICIES ON TABLE`
+        lists the policies defined on the table and on its parents: name, type
+        and where each is defined. `DESCRIBE POLICY` adds the rest — function,
+        principals, conditions — once per policy, however many tables it
+        reaches.
+
+        A workspace may refuse either: the statements need Databricks SQL or
+        Runtime 16.4, and `READ METADATA` or `MANAGE` on the securable, or
+        owning it. A refusal is not a failed plan. The policies aren't
+        stevin's, and no step depends on them — so the table says they couldn't
+        be read, and the plan goes on. Only the warehouse's own refusal is
+        taken that way (`IntrospectionError`); anything else still stops.
+
+        TODO(verify): no workspace has answered either statement for stevin
+        yet. The statement and the columns of `SHOW EFFECTIVE POLICIES` are as
+        documented; the probes in `probes.py` are waiting for a live run.
+        https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
+        """
+        if not self.manage.manages("policies") or not names:
+            return {}
+
+        def shown(name: str) -> tuple[tuple[Policy, ...], str | None]:
+            try:
+                rows = self.runner.query(
+                    f"SHOW EFFECTIVE POLICIES ON TABLE {quote_qualified(name)}"
+                )
+            except IntrospectionError as error:
+                return (), _first_line(error)
+            return tuple(p for p in map(_policy, rows) if p is not None), None
+
+        listed = self._each(names, shown)
+        # Described once each, however many tables a policy reaches.
+        found = {_policy_key(p): p for policies, _ in listed.values() for p in policies}
+        keys = sorted(found)
+        described = self._each(
+            [str(index) for index in range(len(keys))],
+            lambda index: self._describe_policy(found[keys[int(index)]]),
+        )
+        detailed = {key: described[str(index)] for index, key in enumerate(keys)}
+        return {
+            name: (
+                tuple(detailed[key] for key in sorted(map(_policy_key, policies))),
+                unread,
+            )
+            for name, (policies, unread) in listed.items()
+        }
+
+    def _describe_policy(self, policy: Policy) -> Policy:
+        """A policy with what `DESCRIBE POLICY` says about it — or as it was,
+        where the workspace won't say.
+
+        TODO(verify): the manual calls the result "a formatted report" of
+        property-value pairs and shows the labels read here in its example, but
+        not the result's column names, nor how several principals are listed.
+        So a row is read by position — its first value the label, its second
+        the value — a single text column is split on its gap, labels are
+        matched in any case, an unknown one is ignored and a missing one is
+        left empty; principals are split on commas.
+        https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
+        """
+        if policy.level == "metastore":
+            target = "METASTORE"
+        elif policy.level in ("catalog", "schema", "table") and policy.on:
+            target = f"{policy.level.upper()} {quote_qualified(policy.on)}"
+        else:
+            return policy
+        try:
+            rows = self.runner.query(
+                f"DESCRIBE POLICY {quote_ident(policy.name)} ON {target}"
+            )
+        except IntrospectionError:
+            return policy
+        said = _report(rows)
+        return replace(
+            policy,
+            function=said.get("function name"),
+            to=_principals(said.get("to principals")),
+            except_=_principals(said.get("except principals")),
+            when=said.get("when condition"),
+            match_columns=said.get("match columns"),
+            on_column=said.get("on column"),
+            comment=policy.comment or said.get("comment"),
+        )
 
     def _privileges(self, statement: str) -> tuple[Row, ...]:
         """Privilege rows — or none at all, when grants aren't stevin's here.
@@ -1163,6 +1285,74 @@ def warehouse_runner(warehouse_id: str) -> WarehouseRunner:
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+#: What a table nobody asked about has: no policies read, and no reason why.
+_NO_POLICIES: tuple[tuple[Policy, ...], str | None] = ((), None)
+
+
+def _policy_key(policy: Policy) -> tuple[str, str, str]:
+    """What makes a policy this policy: its name, on the securable it is on."""
+    return policy.name, policy.level, policy.on
+
+
+def _first_line(error: Exception) -> str:
+    """What the workspace said, without the statement that follows it."""
+    lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+    return lines[0] if lines else error.__class__.__name__
+
+
+def _policy(row: Row) -> Policy | None:
+    """One row of `SHOW [EFFECTIVE] POLICIES`, read by column name.
+
+    The documented columns are `Policy Name`, `Policy Type`, `Catalog`,
+    `Schema`, `Table`, `Comment`, `on_securable_type` and
+    `on_securable_fullname`. They are matched in any case and with a space or
+    an underscore, and where the last two are missing the securable is worked
+    out from the three before them. A row without a name is not a policy.
+    """
+    said = {
+        key.strip().lower().replace(" ", "_"): (value or "").strip() or None
+        for key, value in row.items()
+    }
+    name = said.get("policy_name")
+    if name is None:
+        return None
+    parts = [said.get("catalog"), said.get("schema"), said.get("table")]
+    defined_on = [part for part in parts if part is not None]
+    level = (said.get("on_securable_type") or "").lower() or (
+        ("metastore", "catalog", "schema", "table")[len(defined_on)]
+    )
+    return Policy(
+        name=name,
+        kind=(said.get("policy_type") or "policy").lower(),
+        on=said.get("on_securable_fullname") or ".".join(defined_on),
+        level=level,
+        comment=said.get("comment"),
+    )
+
+
+def _report(rows: Sequence[Row]) -> dict[str, str]:
+    """`DESCRIBE POLICY`'s label-and-value rows, by label in lower case."""
+    said: dict[str, str] = {}
+    for row in rows:
+        values = [value for value in row.values()]
+        if len(values) == 1:
+            values = re.split(r"\s{2,}|\t", (values[0] or "").strip(), maxsplit=1)
+        if len(values) < 2 or not values[0] or not values[1]:
+            continue
+        label, value = values[0].strip().lower(), values[1].strip()
+        if label and value:
+            said.setdefault(label, value)
+    return said
+
+
+def _principals(text: str | None) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            part.strip().strip("`") for part in (text or "").split(",") if part.strip()
+        )
+    )
 
 
 def _information_schema(catalog: str) -> str:
