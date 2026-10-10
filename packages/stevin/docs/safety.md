@@ -132,6 +132,12 @@ It cuts one way only. stevin stops *declaring* grants, tags or masks; it doesn't
 a column mask still refuses to be rebuilt. A renamed column's tags are still put back
 after a rewrite. What another tool set stays exactly as that tool left it.
 
+The same line runs through a [data contract](spec.md#shape-from-a-data-contract). A spec
+that takes its shape from one reads the contract and never writes it: the columns, the
+key and the descriptions have one source, `adopt` refuses to put live state over it, and
+a change to the shape is a change to the contract, reviewed where the producer's promise
+is.
+
 ## What a rewrite actually does
 
 A table that needs a rewrite is rebuilt rather than patched, so its plan is a sequence

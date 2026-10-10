@@ -29,6 +29,8 @@
         comment=None,
         constraints=tuple(
         ),
+        contract_port=None,
+        from_contract=None,
         governed_columns=tuple(
         ),
         grants=tuple(

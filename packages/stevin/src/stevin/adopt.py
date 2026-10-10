@@ -239,6 +239,11 @@ def _adopted(spec: Relation, live: Relation) -> Relation:
 
 
 def _adopted_table(spec: Table, live: Table) -> Table:
+    if spec.from_contract is not None:
+        raise CannotAdopt(
+            f"{spec.name}'s shape lives in the contract {spec.from_contract}; "
+            "change it there"
+        )
     if spec.governance_only:
         raise CannotAdopt(
             f"{spec.name} is a governance-only spec: it says who may see a table "

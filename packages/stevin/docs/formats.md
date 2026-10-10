@@ -71,6 +71,7 @@ sqlglot learns more of Databricks SQL, this list grows.
 |  | Row filters | ✓ | — | sqlglot passes `WITH ROW FILTER` through as unparsed text |
 |  | Owner | ✓ | — | sqlglot passes `ALTER … OWNER TO` through as unparsed text |
 |  | Governance-only spec (no types: another tool's table) | ✓ | — | a stevin hint; a SQL spec is a CREATE, and this creates nothing |
+|  | Shape from a data contract (`from_contract`) | ✓ | — | a stevin hint; the shape is read from an ODCS contract, not written here |
 |  | Removing a tag or property (`null`) | ✓ | — | a SQL spec says what is there; `pii: null` in YAML says what isn't |
 |  | Column renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |
 |  | Table renames (`renamed_from`) | ✓ | — | a stevin hint; SQL has no way to say it |

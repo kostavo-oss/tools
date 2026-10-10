@@ -32,6 +32,7 @@ from stevin.bundle import (
     ask_cli,
     read_bundle,
 )
+from stevin.contract import ContractError, read_contract
 from stevin.errors import StevinError
 from stevin.manage import ASPECT_OF, EVERYTHING, MANAGEABLE, Manage, strip
 from stevin.model.function import Function, Parameter
@@ -881,6 +882,8 @@ def _read_row_filter(ctx: _Ctx, node: Node) -> RowFilter:
 
 TABLE_KEYS = {
     "table",
+    "from_contract",
+    "port",
     "comment",
     "cluster_by",
     "tags",
@@ -1171,6 +1174,15 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
 
     name = _string(ctx, _require(ctx, items, node, "table", "a spec"), "table name")
     columns, governed = _read_columns(ctx, node, items)
+    contract = None
+    if "from_contract" in items:
+        contract = _contract_shape(ctx, items, name, columns, governed)
+        columns, governed = contract.columns, ()
+    elif "port" in items:
+        raise SpecError(
+            "`port` names an object in a data contract, so it goes with `from_contract`",
+            items["port"][1],
+        )
     if not columns:
         # A governance-only spec: the shape is another tool's.
         for key in SHAPE_KEYS & set(items):
@@ -1217,6 +1229,14 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
             _read_constraint(ctx, item)
             for item in _sequence(ctx, items["constraints"][0], "constraints")
         )
+    if contract is not None:
+        # What the contract says and the spec didn't: the key, the description,
+        # the tags. A spec's tag of the same name wins.
+        if contract.primary_key is not None:
+            constraints = (contract.primary_key,)
+        if comment is None:
+            comment = contract.comment
+        tags = tuple({**dict(contract.tags), **dict(tags)}.items())
     grants: tuple[Grant, ...] = ()
     if "grants" in items:
         grants = _read_grants(ctx, items["grants"][0])
@@ -1250,6 +1270,102 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
         removed_tags=removed_tags,
         owner=_owner(ctx, items),
         governed_columns=governed,
+        from_contract=contract.written if contract is not None else None,
+        contract_port=contract.port if contract is not None else None,
+    )
+
+
+#: What a spec whose shape comes from a data contract can't say itself: the
+#: shape is the contract's. Clustering, partitioning and properties are layout,
+#: not shape, and stay the spec's.
+CONTRACT_SHAPE_KEYS = {"constraints", "seed", "renamed_from"}
+
+
+@dataclass(frozen=True, slots=True)
+class _ContractShape:
+    """A table's shape as a spec took it from a data contract."""
+
+    written: str
+    port: str | None
+    columns: tuple[Column, ...]
+    primary_key: PrimaryKey | None
+    comment: str | None
+    tags: tuple[tuple[str, str], ...]
+
+
+def _contract_shape(
+    ctx: _Ctx,
+    items: dict[str, tuple[Node, Loc]],
+    name: str,
+    columns: tuple[Column, ...],
+    governed: tuple[GovernedColumn, ...],
+) -> _ContractShape:
+    """`from_contract:` — the shape from an ODCS data contract beside the spec.
+
+    The spec names the table, as every spec does; `port` names the object in the
+    contract, and defaults to the table's own name. Columns in the spec may only
+    carry a mask, tags or a comment on top of the contract's columns: the shape
+    lives in the contract.
+    """
+    contract_node, contract_loc = items["from_contract"]
+    written = _string(ctx, contract_node, "from_contract")
+    shown = Path(written).as_posix()
+    for key in CONTRACT_SHAPE_KEYS & set(items):
+        raise SpecError(
+            f"the shape lives in the contract {shown}, so the spec can't say {key!r}",
+            items[key][1],
+        )
+    if columns:
+        raise SpecError(
+            f"the shape lives in the contract {shown}: columns here may carry a "
+            "mask, tags or a comment, and no type",
+            items["columns"][1],
+        )
+    port = None
+    if "port" in items:
+        port = _string(ctx, items["port"][0], "port")
+    try:
+        contract = read_contract(ctx.file.parent / written, shown)
+        found = (
+            contract.object(port)
+            if port is not None
+            else contract.object_or_only(name.split(".")[-1])
+        )
+    except ContractError as error:
+        if port is None and "describes no table" in str(error):
+            # The table's name is the default; say so when it isn't there.
+            raise SpecError(
+                f"{error} — name the contract's object with `port:`", contract_loc
+            ) from error
+        raise SpecError(str(error), contract_loc) from error
+    by_name = {column.name.casefold(): column for column in found.columns}
+    for spec_column in governed:
+        if spec_column.name.casefold() not in by_name:
+            raise SpecError(
+                f"column {spec_column.name!r} isn't in the contract's "
+                f"{found.name!r} (it has: {', '.join(c.name for c in found.columns)})",
+                items["columns"][1],
+            )
+    governed_by = {g.name.casefold(): g for g in governed}
+    merged = tuple(
+        _with_governance(column, governed_by.get(column.name.casefold()))
+        for column in found.columns
+    )
+    return _ContractShape(
+        written, port, merged, found.primary_key, found.comment, found.tags
+    )
+
+
+def _with_governance(column: Column, spec: GovernedColumn | None) -> Column:
+    """A contract's column with what the spec adds to it on top."""
+    if spec is None:
+        return column
+    return replace(
+        column,
+        comment=spec.comment if spec.comment is not None else column.comment,
+        tags=tuple({**dict(column.tags), **dict(spec.tags)}.items()),
+        removed_tags=spec.removed_tags,
+        mask=spec.mask,
     )
 
 
@@ -2329,6 +2445,8 @@ def spec_document(
         document["owner"] = table.owner
     if table.governance_only:
         return _governance_document(document, table)
+    if table.from_contract is not None:
+        return _contract_document(document, table)
     if table.cluster_auto:
         # The live keys are Databricks' choice; the spec only asks for AUTO.
         document["cluster_by"] = "auto"
@@ -2378,6 +2496,44 @@ def spec_document(
     if table.renamed_from:
         document["renamed_from"] = table.renamed_from
     return document
+
+
+def _contract_document(document: dict[str, object], table: Table) -> dict[str, object]:
+    """A spec whose shape is a contract's: the pointer, the layout, and what
+    governs it — columns only where they carry a mask or tags."""
+    document["from_contract"] = table.from_contract
+    if table.contract_port is not None:
+        document["port"] = table.contract_port
+    if table.cluster_auto:
+        document["cluster_by"] = "auto"
+    elif table.cluster_by:
+        document["cluster_by"] = list(table.cluster_by)
+    if table.partitioned_by is not None:
+        document["partitioned_by"] = list(table.partitioned_by)
+    properties = spec_properties(table)
+    if properties or table.removed_properties:
+        document["properties"] = _settable(
+            tuple(properties.items()), table.removed_properties
+        )
+    governed = Table(
+        name=table.name,
+        columns=(),
+        tags=table.tags,
+        removed_tags=table.removed_tags,
+        grants=table.grants,
+        row_filter=table.row_filter,
+        governed_columns=tuple(
+            GovernedColumn(
+                column.name,
+                tags=column.tags,
+                removed_tags=column.removed_tags,
+                mask=column.mask,
+            )
+            for column in table.columns
+            if column.tags or column.removed_tags or column.mask is not None
+        ),
+    )
+    return _governance_document(document, governed)
 
 
 def _governance_document(document: dict[str, object], table: Table) -> dict[str, object]:

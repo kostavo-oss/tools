@@ -296,6 +296,28 @@ carries grants and tags and a `table` materialisation would drop the masks.
 
 [Whose tables are whose →](spec.md#whose-tables-are-whose)
 
+## Shape from a data contract
+
+The producer wrote a data contract — [ODCS](https://bitol-io.github.io/open-data-contract-standard/),
+the Linux Foundation's — and it already says what the table looks like. Saying it again
+in a spec would be a second source of truth. So the spec points at the contract and adds
+only what a contract doesn't say: clustering, grants, a mask.
+
+```yaml title="contracts/orders.odcs.yaml"
+--8<-- "assets/screens/feature-contract.odcs.yaml"
+```
+
+```yaml title="tables/orders.yml"
+--8<-- "assets/screens/feature-contract.yml"
+```
+
+![A table from a data contract](assets/screens/feature-contract.svg)
+
+The key, the `NOT NULL`s, the descriptions and the classification come from the
+contract; a change to the shape is a change there, and `adopt` says so.
+
+[Shape from a data contract →](spec.md#shape-from-a-data-contract)
+
 ## Adopting drift
 
 Someone added a column by hand at 2am to unblock a load. `stevin drift` says so —
