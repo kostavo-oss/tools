@@ -295,6 +295,13 @@ def spec_schema(manage: Manage = EVERYTHING) -> Schema:
         loader.TABLE_KEYS,
         {
             "table": _text("catalog.schema.table — `${catalog}` and friends allowed."),
+            "from_contract": _text(
+                "An ODCS data contract, relative to this file: the table's shape "
+                "comes from it. The spec then adds only layout and governance."
+            ),
+            "port": _text(
+                "Which schema object in the contract; defaults to the table's name."
+            ),
             "renamed_from": _text("The table's old name, while a rename is to happen."),
             "comment": {"type": "string"},
             "owner": OWNER,

@@ -321,6 +321,14 @@ class Table(Securable):
     #: A governance-only spec's columns: a name with a mask, tags or a comment,
     #: and no type. Spec-only — `govern` folds them into the live columns.
     governed_columns: tuple[GovernedColumn, ...] = field(default=(), compare=False)
+    #: Where the shape came from, when a spec took it from a data contract: the
+    #: contract's path as the spec wrote it, and the object in it. Spec-only,
+    #: and not state: the columns are what is compared, wherever they came from.
+    from_contract: str | None = field(default=None, compare=False)
+    contract_port: str | None = field(default=None, compare=False)
+    #: What the contract says that didn't become part of the table — a
+    #: relationship into another file — for `validate` to say as a warning.
+    contract_notes: tuple[str, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         sort_governance(self)

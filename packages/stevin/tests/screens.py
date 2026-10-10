@@ -949,6 +949,51 @@ def feature_owned(studio: Studio) -> None:
     _feature(studio, "owned", {}, {"tables/orders.yml": orders}, show="stevin.yml")
 
 
+CONTRACT = """\
+    apiVersion: v3.1.0
+    kind: DataContract
+    id: 2f9e3c1a-5b77-4c1e-9f0e-6d1c7a2b8e44
+    name: orders
+    version: 2.0.0
+    status: active
+    schema:
+      - name: orders
+        description: Order facts, one row per order
+        properties:
+          - {name: order_id, logicalType: integer, physicalType: bigint, primaryKey: true}
+          - {name: customer_ref, logicalType: string, required: true}
+          - {name: email, logicalType: string, classification: pii}
+          - {name: amount, logicalType: number, physicalType: "decimal(18,2)"}
+          - {name: status, logicalType: string, enum: [{value: open}, {value: shipped}]}
+          - {name: placed, logicalType: date}
+"""
+
+
+@scene
+def feature_contract(studio: Studio) -> None:
+    """The producer wrote the contract; the spec points at it and adds the rest."""
+    spec = """\
+        table: ${catalog}.sales.orders
+        from_contract: ../contracts/orders.odcs.yaml   # the shape lives there
+        cluster_by: [placed]
+        columns:                                       # only what a contract doesn't say
+          - {name: email, mask: "${catalog}.security.mask_email"}
+        grants:
+          - {principal: analysts, privileges: [SELECT]}
+    """
+    _feature(
+        studio,
+        "contract",
+        {},
+        {
+            "contracts/orders.odcs.yaml": CONTRACT,
+            "tables/orders.yml": spec,
+            "tables/mask_email.yml": MASK_FUNCTIONS,
+        },
+    )
+    studio.quote("contracts/orders.odcs.yaml", "feature-contract.odcs.yaml")
+
+
 @scene
 def feature_adopt(studio: Studio) -> None:
     orders = """\

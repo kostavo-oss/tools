@@ -81,4 +81,4 @@ GRANT SELECT ON TABLE `dev`.`sales`.`orders` TO `analysts`;
 
 </details>
 
-<sub>stevin 0.1.0 · specs `e8f438b560f96535` · live state `62cc74bc6a28d8b3`</sub>
+<sub>stevin 0.1.0 · specs `d1a3192fe330ab6e` · live state `06aca468e47df5c8`</sub>

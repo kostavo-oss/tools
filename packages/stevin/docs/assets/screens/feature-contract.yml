@@ -1,0 +1,7 @@
+table: ${catalog}.sales.orders
+from_contract: ../contracts/orders.odcs.yaml   # the shape lives there
+cluster_by: [placed]
+columns:                                       # only what a contract doesn't say
+  - {name: email, mask: "${catalog}.security.mask_email"}
+grants:
+  - {principal: analysts, privileges: [SELECT]}

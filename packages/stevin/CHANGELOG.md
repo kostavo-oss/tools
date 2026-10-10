@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A table's shape may come from a data contract.** `from_contract:` in a table spec
+  points at an [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract
+  beside the repo's specs, and the columns, their types (maps and ODCS 3.2's vectors
+  included), which are required, the primary key, the partitioning, an `enum` as a CHECK,
+  relationships as foreign keys, the descriptions, the tags and the classification come
+  from there — the spec
+  names the table (so `${catalog}` still works), picks the object with `port:` when the
+  contract describes several, and adds only what a contract doesn't say: clustering,
+  partitioning, properties, grants, a row filter, an owner, and masks or tags by column
+  name. The producer's promise is the one source of the shape: columns with types,
+  constraints, seeds and renames next to `from_contract` are refused, and so is `adopt`.
+  A contract that can't be read is the spec's error, on its line, naming both files; a
+  relationship stevin can't follow — into another file — is a warning, and left out.
+  The contract's partitioning yields to a spec that clusters or names its own. ODCS v3.0
+  to v3.2 are read, by hand, for the fields a table needs.
 - **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
   `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
   owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,

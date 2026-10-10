@@ -201,6 +201,14 @@ FEATURES: tuple[Feature, ...] = (
     ),
     Feature(
         "Tables",
+        "Shape from a data contract (`from_contract`)",
+        True,
+        False,
+        None,
+        "a stevin hint; the shape is read from an ODCS contract, not written here",
+    ),
+    Feature(
+        "Tables",
         "Removing a tag or property (`null`)",
         True,
         False,

@@ -148,6 +148,10 @@
             ]
           }
         },
+        "from_contract": {
+          "type": "string",
+          "description": "An ODCS data contract, relative to this file: the table's shape comes from it. The spec then adds only layout and governance."
+        },
         "grants": {
           "type": "array",
           "description": "Privileges per principal. Principals not named are left alone.",
@@ -198,6 +202,10 @@
             "type": "string"
           },
           "description": "Partition columns; [] for none. Leave it out to keep the table's partitioning as it is."
+        },
+        "port": {
+          "type": "string",
+          "description": "Which schema object in the contract; defaults to the table's name."
         },
         "properties": {
           "type": "object",
