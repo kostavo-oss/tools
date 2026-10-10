@@ -52,8 +52,11 @@ ODCS data contract, the ABAC policies a table is under are read into its plan, a
   workspace moved:
 
   ```text
-  the live tables have changed since this plan was made. Plan again and review the new plan.
+  this plan was not made from the live tables as this version of stevin reads them: no table has changed, so it was most likely saved by another version. Plan again and review the new plan.
   ```
+
+  `stevin.is_stale()` says the same before an apply: it used to ask which tables moved,
+  found none, and called such a plan fine.
 
   **What to do:** plan again with 0.4, and where a plan is made in one job and applied
   in another, give both the same version.

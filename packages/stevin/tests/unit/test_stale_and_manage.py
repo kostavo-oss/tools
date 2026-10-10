@@ -94,6 +94,26 @@ def test_a_project_that_hands_something_over_can_apply() -> None:
     assert fake.tables[NAME].tags == live_table().tags
 
 
+def test_a_plan_another_version_saved_is_stale_and_says_so() -> None:
+    """What a plan holds changes between versions, and with it the fingerprint.
+    No table moved, so no table can be named: `is_stale` has to say what `apply`
+    will do, and `apply` has to say why."""
+    from stevin.executor import StalePlan, stale_tables
+
+    fake = FakeWarehouse.of(live_table())
+    desired = replace(spec(), columns=(*spec().columns, col("region", "string")))
+    made = planned(Manage(), fake, desired)
+    other = replace(made, state_fingerprint="as-another-version-read-it")
+
+    connection = Connection(runner=fake)
+    assert stale_tables(other, connection.introspector(other.manage)) == ()
+    assert api.is_stale(other, connection) is True
+    with pytest.raises(StalePlan, match="saved by another version") as refused:
+        api.apply(other, connection, history=MemoryHistory())
+    assert "have changed" not in str(refused.value)
+    assert "region" not in fake.tables[NAME].column_names, "and nothing ran"
+
+
 def test_the_handoff_travels_with_the_plan_file() -> None:
     """A plan applied somewhere else has to be read the same way there."""
     fake = FakeWarehouse.of(live_table())
