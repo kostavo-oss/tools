@@ -658,6 +658,14 @@ def verify(
             "keeps what it drops.",
         ),
     ] = True,
+    create_policy: Annotated[
+        bool,
+        typer.Option(
+            "--create-policy/--no-create-policy",
+            help="Also run the probes that create an ABAC policy on a scratch "
+            "table, read it back and drop it.",
+        ),
+    ] = False,
     keep: Annotated[
         bool, typer.Option("--keep", help="Leave the scratch schema behind.")
     ] = False,
@@ -675,6 +683,8 @@ def verify(
 
     Unlike `doctor`, this writes: it makes a schema, makes tables, views and
     functions in it, and drops the schema with everything in it when it is done.
+    It creates no ABAC policy unless `--create-policy` asks for the probes that
+    read one back.
 
     Exits 0 when every probe held, 1 when one didn't.
     """
@@ -698,6 +708,7 @@ def verify(
             principal=principal,
             slow=slow,
             undrop=undrop,
+            create_policy=create_policy,
             keep=keep,
             observer=None if output_json else _show_probe,
         )
@@ -723,9 +734,20 @@ def verify(
     else:
         held = [result for result in results if result.held]
         out.print(_probe_summary(held, results))
-        left_out = len(probes.PROBES) - len(results)
+        ran = {result.probe.name for result in results}
+        skipped = [probe for probe in probes.PROBES if probe.name not in ran]
+        writing = [
+            probe for probe in skipped if probe.creates_policy and not create_policy
+        ]
+        left_out = len(skipped) - len(writing)
         if left_out:
             out.print(f"[dim]{left_out} not run (--slow, --undrop).[/]")
+        if writing:
+            out.print(
+                f"[dim]{len(writing)} not run: reading a policy back means "
+                "creating one on a scratch table, which stevin does only when "
+                "asked (--create-policy).[/]"
+            )
     if len(results) != len([result for result in results if result.held]):
         raise typer.Exit(1)
 

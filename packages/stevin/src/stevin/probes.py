@@ -70,6 +70,10 @@ class Probe:
     #: Needs a schema that keeps what it drops. Only `UNDROP` does, and such a
     #: schema holds the metastore's table quota for its recovery period.
     keeps_dropped: bool = False
+    #: Has to create an ABAC policy — on a scratch table of its own — to read
+    #: one back. stevin's promise is that it never writes a policy, so `verify`
+    #: leaves these out unless it is asked for them by name.
+    creates_policy: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -654,7 +658,9 @@ def _materialized_views_and_streaming_tables_are_left_alone(bench: Bench) -> Non
 #: Every assumption, in the order the live suite settled them. Each is a probe
 #: `stevin verify` can run in a workspace of its own.
 # ---------------------------------------------------------------------------
-# policies — read, never written by stevin; a probe has to make one to read it
+# policies — read, never written by stevin. Two of these probes have to make
+# one to read it back: they are marked `creates_policy`, and `verify` runs them
+# only when asked (`--create-policy`). The live suite runs them all.
 # ---------------------------------------------------------------------------
 
 _SHOW_POLICIES = "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies"
@@ -668,7 +674,8 @@ def _a_table_under_a_policy(bench: Bench) -> Generator[str]:
 
     This is the one place stevin's code writes a policy, and it is a probe's
     scratch table: reading one back is the only way to learn what a workspace
-    answers.
+    answers. A probe that uses this is marked `creates_policy`, which a plain
+    `stevin verify` leaves out.
     https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-create-policy
     """
     table, function = bench.named("t"), bench.named("keep")
@@ -911,6 +918,7 @@ PROBES: tuple[Probe, ...] = (
         "called something else, plans say policies couldn't be read — or show "
         "none where there are some.",
         _show_effective_policies_lists_a_tables_policies,
+        creates_policy=True,
     ),
     Probe(
         "a table under no policy lists none, without an error",
@@ -926,6 +934,7 @@ PROBES: tuple[Probe, ...] = (
         "reads it by position. Where that is wrong, a plan still names each "
         "policy and where it is defined, and says nothing of who it reaches.",
         _describe_policy_says_function_and_principals,
+        creates_policy=True,
     ),
 )
 
@@ -950,17 +959,23 @@ def run(bench: Bench, probes: Sequence[Probe] = PROBES) -> Iterator[Result]:
             yield Result(probe, "held")
 
 
-def chosen(*, slow: bool = False, keeps_dropped: bool = True) -> tuple[Probe, ...]:
+def chosen(
+    *, slow: bool = False, keeps_dropped: bool = True, creates_policy: bool = False
+) -> tuple[Probe, ...]:
     """The probes to run: all of them, minus the ones a caller leaves out.
 
     `slow` takes minutes rather than seconds (it starts a Databricks pipeline);
     `keeps_dropped` needs a schema that holds the metastore's table quota for
-    its recovery period.
+    its recovery period; `creates_policy` creates an ABAC policy on a scratch
+    table and drops it — left out unless asked for, because stevin writes no
+    policy in anyone's workspace on its own.
     """
     return tuple(
         probe
         for probe in PROBES
-        if (slow or not probe.slow) and (keeps_dropped or not probe.keeps_dropped)
+        if (slow or not probe.slow)
+        and (keeps_dropped or not probe.keeps_dropped)
+        and (creates_policy or not probe.creates_policy)
     )
 
 

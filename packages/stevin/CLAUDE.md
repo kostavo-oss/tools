@@ -257,7 +257,9 @@ The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 run); `CLUSTER BY AUTO` without predictive optimization
 (`planner._clustering_clause`); reading ABAC policies — `SHOW EFFECTIVE POLICIES ON
 TABLE` and `DESCRIBE POLICY`, built from the manual alone
-(`introspect.Introspector._policies` and `._describe_policy`, three probes waiting); and
+(`introspect.Introspector._policies` and `._describe_policy`, three probes waiting —
+two of them `creates_policy`, which `verify` runs only with `--create-policy` — and
+`test_live_policies.py`, which no workspace has run); and
 sending a step with `wait_timeout="0s"`
 (`introspect.WarehouseRunner`), the API's documented asynchronous mode, which would
 give Ctrl-C a statement id from the first moment — not done until a workspace has

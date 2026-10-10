@@ -151,12 +151,22 @@ the source:
   report" with the labels in its example, but not its result columns, nor how several
   principals are listed. stevin reads each row by position, splits a single text column
   on its gap, and splits principals on commas (`Introspector._describe_policy`). The
-  probe *DESCRIBE POLICY says a policy's function and principals* settles it. To read a
-  policy back, two of these probes create one on a scratch table of their own with
-  `CREATE POLICY` — the only place stevin's code does — which takes `MANAGE` on that
-  table and a workspace with ABAC; elsewhere they come out *unknown*.
+  probe *DESCRIBE POLICY says a policy's function and principals* settles it.
 
-`stevin verify` runs all of these but the third as probes in a workspace of your own.
+  To read a policy back, the first and the last of these three probes create one on a
+  scratch table of their own with `CREATE POLICY` and drop it — the only place stevin's
+  code writes a policy — which takes `MANAGE` on that table and a workspace with ABAC;
+  elsewhere they come out *unknown*. Because stevin otherwise never writes a policy,
+  they are marked (`Probe.creates_policy`) and `stevin verify` runs them only with
+  `--create-policy`; a plain `verify` runs the one that only reads, and says the other
+  two were left out. The live suite runs all three, and
+  `tests/integration/test_live_policies.py` does the same for the feature itself: a
+  policy made by hand on a scratch schema, then a plan, a conflict warning and `drift`
+  read against it. It skips, with the workspace's own sentence, where `CREATE POLICY`
+  is refused.
+
+`stevin verify` runs all of these but the third as probes in a workspace of your own —
+the two policy probes that create a policy only with `--create-policy`.
 
 ### The assumptions live in `src/`, not here
 

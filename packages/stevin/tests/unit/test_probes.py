@@ -88,7 +88,43 @@ def test_the_slow_and_recoverable_ones_can_be_left_out() -> None:
     assert not [one for one in probes.chosen() if one.slow]
     assert [one for one in probes.chosen(slow=True) if one.slow]
     assert not [one for one in probes.chosen(keeps_dropped=False) if one.keeps_dropped]
-    assert len(probes.chosen(slow=True)) == len(probes.PROBES)
+    assert len(probes.chosen(slow=True, creates_policy=True)) == len(probes.PROBES)
+
+
+def test_a_probe_that_creates_a_policy_runs_only_when_asked() -> None:
+    """stevin never writes an ABAC policy. Two probes have to create one on a
+    scratch table to read it back, so they are marked, a plain `verify` leaves
+    them out, and every probe whose check sends `CREATE POLICY` carries the mark."""
+    marked = [one for one in probes.PROBES if one.creates_policy]
+    assert marked, "the probes that read a policy back are gone"
+    assert not [one for one in probes.chosen(slow=True) if one.creates_policy]
+    assert [one for one in probes.chosen(creates_policy=True) if one.creates_policy]
+
+    class Noting:
+        """Takes every statement and answers nothing, so each check goes on as
+        far as it can and what it would send is on the record."""
+
+        def __init__(self) -> None:
+            self.statements: list[str] = []
+
+        def query(self, statement: str) -> tuple[Row, ...]:
+            self.statements.append(statement)
+            return ()
+
+        @property
+        def client(self) -> None:  # pragma: no cover - never asked for
+            return None
+
+    for one in probes.PROBES:
+        noting = Noting()
+        list(run(Bench(noting, Introspector(noting), "main.scratch"), [one]))
+        writes = [
+            statement
+            for statement in noting.statements
+            if statement.split()[0] in ("CREATE", "ALTER", "DROP")
+            and "POLICY" in statement.split()[:4]
+        ]
+        assert bool(writes) == one.creates_policy, (one.name, writes)
 
 
 def test_no_probe_can_break_the_report() -> None:
@@ -105,7 +141,7 @@ def test_no_probe_can_break_the_report() -> None:
 
     refusing = Refusing()
     bench = Bench(refusing, Introspector(refusing), "main.scratch")
-    results = list(run(bench, probes.chosen(slow=True)))
+    results = list(run(bench, probes.chosen(slow=True, creates_policy=True)))
     assert len(results) == len(probes.PROBES)
     assert not [result for result in results if result.held]
 
@@ -292,6 +328,50 @@ def test_the_command_exits_0_when_everything_held(monkeypatch) -> None:  # noqa:
     assert "main.probing" in result.output, "it says where it is working"
     assert "1 held." in result.output
     assert "1 not run" in result.output, "the slow one is left out, and said so"
+
+
+def test_the_command_creates_no_policy_unless_asked(monkeypatch) -> None:  # noqa: ANN001
+    """A plain `verify` leaves out the probes that create a policy, and says so
+    in a line of its own that names the flag; with the flag they run."""
+    sent: list[str] = []
+
+    def creates(bench: Bench) -> None:
+        sent.append("CREATE POLICY")
+
+    listed = (HELD, probe("reads a policy back", creates, creates_policy=True))
+    fake = FakeWarehouse()
+    monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+    monkeypatch.setattr(probes, "PROBES", listed)
+    plain = runner.invoke(cli.app, ["verify", "--schema", "main", "--no-undrop"])
+    assert plain.exit_code == 0, plain.output
+    assert sent == []
+    assert "reads a policy back" not in plain.output
+    said = " ".join(plain.output.split())
+    assert "1 not run: reading a policy back means creating one" in said
+    assert "(--create-policy)" in said
+    assert "(--slow, --undrop)" not in said
+
+    asked = runner.invoke(
+        cli.app, ["verify", "--schema", "main", "--no-undrop", "--create-policy"]
+    )
+    assert asked.exit_code == 0, asked.output
+    assert sent == ["CREATE POLICY"]
+    assert "✓ reads a policy back" in asked.output
+    assert "not run" not in asked.output
+
+
+def test_the_sdk_verb_creates_no_policy_unless_asked(monkeypatch) -> None:  # noqa: ANN001
+    listed = (HELD, probe("reads a policy back", held, creates_policy=True))
+    monkeypatch.setattr(probes, "PROBES", listed)
+    plain = api.verify(Connection(runner=FakeWarehouse()), "main", undrop=False)
+    assert [result.probe.name for result in plain] == ["this one holds"]
+    asked = api.verify(
+        Connection(runner=FakeWarehouse()), "main", undrop=False, create_policy=True
+    )
+    assert [result.probe.name for result in asked] == [
+        "this one holds",
+        "reads a policy back",
+    ]
 
 
 def test_the_command_reports_json_for_a_host(monkeypatch) -> None:  # noqa: ANN001

@@ -185,7 +185,18 @@ inside when it is done. It will not use a schema that already exists — it drop
 made, and that has to be nothing of yours. Nothing outside that schema is read or
 touched.
 
+It creates **no ABAC policy** unless you ask. Two probes can only learn how a policy
+reads back here by creating one — a row filter policy on a scratch table of their own,
+dropped again — and stevin's promise is that it [never writes a policy](safety.md), so
+a plain `verify` leaves them out and says so in a line of its own: `2 not run: reading
+a policy back means creating one on a scratch table, which stevin does only when asked
+(--create-policy).` The probe that only reads, *a table under no policy lists none,
+without an error*, always runs.
+
 - `--slow` also runs the probes that take minutes (they start a Databricks pipeline).
+- `--create-policy` also runs the two probes that create a policy on a scratch table,
+  read it back and drop it. `CREATE POLICY` takes `MANAGE` on that table and a workspace
+  with ABAC; where it is refused they come out `!`, with the workspace's reason.
 - `--no-undrop` leaves out the one probe that needs a second schema which keeps what it
   drops — a dropped table holds the metastore's table quota for its recovery period.
 - `--keep` leaves the schema behind to look at.
