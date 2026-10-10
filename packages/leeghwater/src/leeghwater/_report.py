@@ -1,4 +1,4 @@
-"""What dlt reports about a load, as one block. `spec/001`, R7."""
+"""What dlt reports about a load, as one block. RUN-6."""
 
 import re
 from typing import Any

@@ -1,4 +1,4 @@
-"""dlt's secrets, from an Azure Key Vault. `spec/003`, R12.
+"""dlt's secrets, from an Azure Key Vault. SEC-13, SEC-14 and SEC-15.
 
 A second vault provider beside the secret-scope one, for a team whose secrets live in a
 Key Vault and not in a Databricks scope. It is asked after the scopes, and like them after

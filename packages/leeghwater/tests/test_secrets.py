@@ -1,4 +1,4 @@
-"""dlt's secrets from secret scopes: `spec/003`. The scopes here are dictionaries."""
+"""dlt's secrets from secret scopes: the SEC rules. The scopes here are dictionaries."""
 
 import dlt
 import pytest
@@ -36,7 +36,7 @@ def orders(api_key: str = dlt.secrets.value):
 
 
 def test_a_secret_is_named_by_dlts_path_joined_with_dashes():
-    """As dlt's Google provider names one: `providers/google_secrets.py`."""
+    """SEC-3. As dlt's Google provider names one: `providers/google_secrets.py`."""
     name = DatabricksSecretsProvider.get_key_name
 
     assert name("access_token", "sources", "github") == "sources-github-access_token"
@@ -45,6 +45,7 @@ def test_a_secret_is_named_by_dlts_path_joined_with_dashes():
 
 
 def test_an_argument_of_a_real_source_is_filled_from_the_scope(workspace, monkeypatch):
+    """SEC-1."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_secret_scope("ingest", workspace_client=workspace)
 
@@ -52,7 +53,7 @@ def test_an_argument_of_a_real_source_is_filled_from_the_scope(workspace, monkey
 
 
 def test_a_scope_is_listed_once_and_only_what_is_there_is_read(workspace, monkeypatch):
-    """dlt tries many paths for one value; most are not in the scope. `spec/003`, R6."""
+    """SEC-2, SEC-6. dlt tries many paths for one value; most are not in the scope."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_secret_scope("ingest", workspace_client=workspace)
 
@@ -64,7 +65,7 @@ def test_a_scope_is_listed_once_and_only_what_is_there_is_read(workspace, monkey
 
 
 def test_a_value_that_is_not_a_secret_is_never_asked_of_a_scope(workspace):
-    """`page_size` is config. It is in no scope, and no scope is asked for it."""
+    """SEC-4. `page_size` is config. It is in no scope, and no scope is asked for it."""
     register_secret_scope("ingest", workspace_client=workspace)
 
     with pytest.raises(ConfigFieldMissingException) as missing:
@@ -75,14 +76,16 @@ def test_a_value_that_is_not_a_secret_is_never_asked_of_a_scope(workspace):
 
 
 def test_a_secret_can_hold_a_whole_section(workspace):
-    """The secret `sources-orders` is a piece of TOML with its own heading."""
+    """SEC-5. The secret `sources-orders` is a piece of TOML with its own heading."""
     register_secret_scope("ingest", workspace_client=workspace)
 
     assert list(orders()) == [{"key": "key-from-fragment"}]
 
 
 def test_a_section_without_its_own_heading_lands_at_the_root():
-    """dlt merges a fragment at the root of the document, not under the secret's name.
+    """SEC-5.
+
+    dlt merges a fragment at the root of the document, not under the secret's name.
 
     `dlt/common/configuration/providers/doc.py`, `set_fragment`. So `api_key = "x"` in a
     secret named `sources-orders` is every source's `api_key`, not only orders'.
@@ -99,6 +102,7 @@ def test_a_section_without_its_own_heading_lands_at_the_root():
 
 
 def test_dlt_secrets_toml_is_read_as_a_whole_file():
+    """SEC-5."""
     scope = FakeWorkspace(
         {"ingest": {"dlt_secrets_toml": '[sources.orders]\napi_key = "from-the-file"\n'}}
     )
@@ -108,7 +112,7 @@ def test_dlt_secrets_toml_is_read_as_a_whole_file():
 
 
 def test_the_environment_wins_over_a_scope(workspace, monkeypatch):
-    """The scope is asked after dlt's own providers. `spec/003`, R1."""
+    """SEC-1. The scope is asked after dlt's own providers."""
     monkeypatch.setenv("SOURCES__GITHUB__ACCESS_TOKEN", "from-the-environment")
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_secret_scope("ingest", workspace_client=workspace)
@@ -118,6 +122,7 @@ def test_the_environment_wins_over_a_scope(workspace, monkeypatch):
 
 
 def test_the_first_scope_that_has_a_secret_answers(monkeypatch):
+    """SEC-1."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     both = FakeWorkspace(
         {
@@ -132,6 +137,7 @@ def test_the_first_scope_that_has_a_secret_answers(monkeypatch):
 
 
 def test_registering_a_scope_twice_adds_it_once(workspace):
+    """SEC-12."""
     first = register_secret_scope("ingest", workspace_client=workspace)
     second = register_secret_scope(" ingest ", workspace_client=workspace)
 
@@ -140,7 +146,7 @@ def test_registering_a_scope_twice_adds_it_once(workspace):
 
 
 def test_a_scope_that_does_not_exist_is_an_error_with_its_name(monkeypatch):
-    """Without it every secret is reported missing and nothing says why."""
+    """SEC-10. Without it every secret is reported missing and nothing says why."""
     register_secret_scope("no-such-scope", workspace_client=FakeWorkspace({}))
 
     with pytest.raises(LeeghwaterError, match="'no-such-scope' does not exist"):
@@ -148,6 +154,7 @@ def test_a_scope_that_does_not_exist_is_an_error_with_its_name(monkeypatch):
 
 
 def test_a_scope_that_refuses_says_which_scope_and_who_asked():
+    """SEC-10."""
     refused = FakeWorkspace({"ingest": {}}, broken=PermissionDenied("no"))
     register_secret_scope("ingest", workspace_client=refused)
 
@@ -160,6 +167,7 @@ def test_a_scope_that_refuses_says_which_scope_and_who_asked():
 
 
 def test_a_missing_a_refused_and_an_empty_key_are_all_not_here():
+    """SEC-11."""
     scope = FakeWorkspace(
         {"ingest": {"empty": "", "kept": "x"}}, denied={("ingest", "kept")}
     )
@@ -171,6 +179,8 @@ def test_a_missing_a_refused_and_an_empty_key_are_all_not_here():
 
 
 def test_any_other_error_is_raised_as_it_came():
+    """SEC-11."""
+
     class Down(FakeWorkspace):
         def get(self, scope, key):
             raise InternalError("the workspace is down")
@@ -187,7 +197,7 @@ def test_a_scope_needs_a_name():
 
 
 def test_a_secret_under_another_name_can_be_pointed_at(workspace, monkeypatch):
-    """`spec/003`, R7. What is pointed at wins over the scope's own name for it."""
+    """SEC-7. What is pointed at wins over the scope's own name for it."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_pointed_secrets(
         {"sources.github.access_token": "platform-shared/github-token"},
@@ -200,6 +210,7 @@ def test_a_secret_under_another_name_can_be_pointed_at(workspace, monkeypatch):
 
 
 def test_a_pointer_at_nothing_is_an_error_that_names_it(workspace):
+    """SEC-9, SEC-10."""
     register_pointed_secrets(
         {"sources.orders.api_key": "ingest/not-there"}, workspace_client=workspace
     )
@@ -216,6 +227,7 @@ def test_a_pointer_at_nothing_is_an_error_that_names_it(workspace):
 
 
 def test_pointing_again_replaces_what_was_pointed_at(workspace):
+    """SEC-12."""
     register_pointed_secrets({"a.b": "ingest/x"}, workspace_client=workspace)
     again = register_pointed_secrets({"c.d": "ingest/y"}, workspace_client=workspace)
 
@@ -227,6 +239,7 @@ def test_pointing_again_replaces_what_was_pointed_at(workspace):
 
 
 def test_a_pointer_is_a_scope_and_a_key_split_at_the_first_slash():
+    """SEC-7."""
     assert split_pointer("a.b", "scope/key/with/slashes") == ("scope", "key/with/slashes")
     for wrong in ("no-slash", "/key", "scope/", ""):
         with pytest.raises(LeeghwaterError, match="<scope>/<key>"):
@@ -234,6 +247,7 @@ def test_a_pointer_is_a_scope_and_a_key_split_at_the_first_slash():
 
 
 def test_the_pointed_provider_is_one_per_process_and_registered_once(workspace):
+    """SEC-12."""
     first = register_pointed_secrets({"a.b": "ingest/x"}, workspace_client=workspace)
     second = register_pointed_secrets({"c.d": "ingest/y"}, workspace_client=workspace)
 
@@ -244,6 +258,7 @@ def test_the_pointed_provider_is_one_per_process_and_registered_once(workspace):
 
 
 def test_no_value_is_in_what_a_provider_says_about_itself(workspace):
+    """SEC-9."""
     register_secret_scope("ingest", workspace_client=workspace)
     pointed = register_pointed_secrets(
         {"sources.github.access_token": "platform-shared/github-token"},

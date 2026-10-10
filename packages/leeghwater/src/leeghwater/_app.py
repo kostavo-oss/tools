@@ -1,4 +1,4 @@
-"""The command line leeghwater gives a project. `spec/001`.
+"""The command line leeghwater gives a project. The APP rules in `RULES.md`.
 
 A project makes an `App` and names it as its console script. The same command is what a
 developer types and what a job's wheel task calls.
@@ -134,7 +134,7 @@ def _kind(parameter: str, pipeline_name: str, function: Callable[..., Any]) -> t
 
 
 def _own_options(name: str, function: Callable[..., Any]) -> list[TyperOption]:
-    """A pipeline's parameters as options of its command. `spec/001`, R4."""
+    """A pipeline's parameters as options of its command. APP-3 to APP-6."""
     options = []
     for parameter in inspect.signature(function).parameters.values():
         if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
@@ -168,7 +168,7 @@ def _own_options(name: str, function: Callable[..., Any]) -> list[TyperOption]:
 
 @dataclass
 class _Options:
-    """The options every run takes. `spec/001`, R5."""
+    """The options every run takes."""
 
     profile: str | None = None
     catalog: str | None = None
@@ -467,7 +467,7 @@ class App:
         function(*placed, **values)
 
         if runs_so_far() == before:
-            # `spec/001`, R8: only a pipeline made by leeghwater loads where the run said.
+            # RUN-8: only a pipeline made by leeghwater loads where the run said.
             raise RunFailed(
                 f"'{name}' made no load with leeghwater.run(). The schema, destination"
                 " and limit of this run only reach a pipeline made with"

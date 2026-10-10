@@ -1,4 +1,4 @@
-"""dlt's secrets from an Azure Key Vault: `spec/003`, R12. The vault is a dictionary."""
+"""dlt's secrets from an Azure Key Vault: SEC-13 to SEC-15. The vault is a dictionary."""
 
 from types import SimpleNamespace
 
@@ -79,7 +79,7 @@ def vault():
 
 
 def test_a_secret_is_named_without_underscores():
-    """A Key Vault allows letters, digits and dashes, and nothing else."""
+    """SEC-14. A Key Vault allows letters, digits and dashes, and nothing else."""
     assert (
         secret_name("access_token", "sources", "github") == "sources-github-access-token"
     )
@@ -88,6 +88,7 @@ def test_a_secret_is_named_without_underscores():
 
 
 def test_an_argument_of_a_real_source_is_filled_from_the_vault(vault, monkeypatch):
+    """SEC-13."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_key_vault(VAULT, client=vault)
 
@@ -97,13 +98,14 @@ def test_an_argument_of_a_real_source_is_filled_from_the_vault(vault, monkeypatc
 
 
 def test_a_section_in_one_secret(vault):
+    """SEC-13."""
     register_key_vault(VAULT, client=vault)
 
     assert list(orders()) == [{"key": "key-from-vault"}]
 
 
 def test_a_scope_is_asked_before_a_vault(vault, workspace, monkeypatch):
-    """The order is the order of registration: scopes first, then vaults."""
+    """SEC-13. The order is the order of registration: scopes first, then vaults."""
     monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
     register_secret_scope("ingest", workspace_client=workspace)
     register_key_vault(VAULT, client=vault)
@@ -113,6 +115,7 @@ def test_a_scope_is_asked_before_a_vault(vault, workspace, monkeypatch):
 
 
 def test_a_missing_and_a_refused_secret_are_not_here():
+    """SEC-15."""
     vault = FakeVault({"kept": "x"}, denied={"kept"})
     provider = KeyVaultSecretsProvider(VAULT, client=vault)
 
@@ -123,6 +126,7 @@ def test_a_missing_and_a_refused_secret_are_not_here():
 
 
 def test_nobody_signed_in_is_said_in_plain_words():
+    """SEC-15."""
     vault = FakeVault({}, list_error=ClientAuthenticationError("no credential"))
     register_key_vault(VAULT, client=vault)
 
@@ -134,6 +138,7 @@ def test_nobody_signed_in_is_said_in_plain_words():
     ("status", "message"), [(403, "Key Vault Secrets User"), (404, "no Key Vault at")]
 )
 def test_a_vault_that_refuses_or_is_not_there_names_itself(status, message):
+    """SEC-15."""
     error = HttpResponseError("no")
     error.status_code = status
     register_key_vault(VAULT, client=FakeVault({}, list_error=error))
@@ -144,6 +149,7 @@ def test_a_vault_that_refuses_or_is_not_there_names_itself(status, message):
 
 
 def test_a_vault_with_nothing_for_dlt_leaves_dlts_own_error(vault):
+    """SEC-15."""
     register_key_vault(VAULT, client=FakeVault({}))
 
     with pytest.raises(ConfigFieldMissingException) as missing:
@@ -152,11 +158,13 @@ def test_a_vault_with_nothing_for_dlt_leaves_dlts_own_error(vault):
 
 
 def test_a_vault_needs_an_address():
+    """SEC-15."""
     with pytest.raises(LeeghwaterError, match="named by its address"):
         KeyVaultSecretsProvider("kv-ingest")
 
 
 def test_registering_a_vault_twice_adds_it_once(vault):
+    """SEC-12."""
     first = register_key_vault(VAULT, client=vault)
     second = register_key_vault(VAULT + "/", client=vault)
 
@@ -165,7 +173,10 @@ def test_registering_a_vault_twice_adds_it_once(vault):
 
 
 def test_prepare_names_the_vaults_and_reads_them_on_a_laptop_too(vault):
-    """A vault needs no workspace: a laptop without --profile may read one."""
+    """PRE-5, SEC-13.
+
+    A vault needs no workspace: a laptop without --profile may read one.
+    """
     setup = prepare(key_vaults=[VAULT], key_vault_client=vault)
 
     assert setup.key_vaults == [VAULT]
@@ -175,6 +186,7 @@ def test_prepare_names_the_vaults_and_reads_them_on_a_laptop_too(vault):
 
 
 def test_no_value_is_in_what_the_provider_says_about_itself(vault):
+    """SEC-9."""
     provider = register_key_vault(VAULT, client=vault)
     list(orders())
 

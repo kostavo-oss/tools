@@ -1,4 +1,4 @@
-"""A project's command line, with dlt loading into a local database. `spec/001`."""
+"""A project's command line, with dlt loading into a local database: the APP rules."""
 
 import json
 import logging
@@ -39,6 +39,7 @@ def _rows(database: str, table: str) -> list[tuple]:
 
 
 def test_list_names_the_pipelines_and_their_parameters(capsys):
+    """APP-2, APP-8."""
     _app()(["list"])
 
     said = capsys.readouterr().out
@@ -49,6 +50,7 @@ def test_list_names_the_pipelines_and_their_parameters(capsys):
 
 
 def test_list_answers_as_json(capsys):
+    """APP-8."""
     _app()(["list", "--json"])
 
     listed = json.loads(capsys.readouterr().out)["pipelines"]
@@ -66,6 +68,7 @@ def test_list_answers_as_json(capsys):
 
 
 def test_run_runs_a_pipeline_and_its_parameters_arrive_typed(capsys, monkeypatch):
+    """APP-3, APP-4."""
     monkeypatch.setenv("SOURCES__GITHUB__ACCESS_TOKEN", "abc")
 
     _app()(["run", "github", "--since", "2024-06-01", "--limit", "1", "--full", "yes"])
@@ -77,6 +80,7 @@ def test_run_runs_a_pipeline_and_its_parameters_arrive_typed(capsys, monkeypatch
 
 
 def test_a_parameter_keeps_its_default_and_its_type(monkeypatch):
+    """APP-3, APP-4."""
     seen = {}
 
     @pipeline
@@ -118,6 +122,7 @@ def _module(*functions):
 
 
 def test_a_parameter_may_have_a_name_the_app_uses_itself(monkeypatch):
+    """APP-5."""
     seen = {}
 
     @pipeline
@@ -154,6 +159,7 @@ def test_a_parameter_may_have_a_name_the_app_uses_itself(monkeypatch):
 
 
 def test_a_parameter_keeps_its_capitals_and_its_place(monkeypatch, capsys):
+    """APP-5."""
     seen = {}
 
     @pipeline
@@ -183,6 +189,7 @@ def test_a_parameter_keeps_its_capitals_and_its_place(monkeypatch, capsys):
     ],
 )
 def test_a_wrong_option_is_refused_by_name(arguments, message, capsys):
+    """APP-3, APP-4."""
     with pytest.raises(SystemExit) as exit_:
         _app()(arguments)
 
@@ -191,7 +198,10 @@ def test_a_wrong_option_is_refused_by_name(arguments, message, capsys):
 
 
 def test_the_same_words_run_the_same_pipeline_as_a_console_script(tmp_path):
-    """What a wheel task does: call the project's entry point with the words as argv."""
+    """APP-1.
+
+    What a wheel task does: call the project's entry point with the words as argv.
+    """
     code = "import sys; from my_ingest.cli import app; sys.argv[0] = 'ingest'; app()"
     done = subprocess.run(
         [sys.executable, "-c", code, "run", "orders_pipeline", "--region", "eu"],
@@ -210,7 +220,7 @@ def test_the_same_words_run_the_same_pipeline_as_a_console_script(tmp_path):
 
 
 def test_the_schemas_a_run_names_are_the_ones_dlt_loads_into(monkeypatch):
-    """`spec/002`, R12 and R13, for real: two underscores kept, and no third schema."""
+    """DST-6. For real: two underscores kept, and no third schema."""
     monkeypatch.setenv("SOURCES__GITHUB__ACCESS_TOKEN", "abc")
 
     _app()(
@@ -230,12 +240,13 @@ def test_the_schemas_a_run_names_are_the_ones_dlt_loads_into(monkeypatch):
 
 
 def test_a_pipeline_that_raises_ends_the_run_with_its_own_error():
+    """APP-11."""
     with pytest.raises(RuntimeError, match="the source is down"):
         _odd()(["run", "raises"])
 
 
 def test_a_failed_load_job_ends_with_1_even_when_dlt_was_told_not_to_raise(capsys):
-    """`spec/001`, R7. dlt calls this package `loaded`, with a table missing."""
+    """RUN-7. dlt calls this package `loaded`, with a table missing."""
     with pytest.raises(SystemExit) as exit_:
         _odd()(["run", "fails_quietly"])
 
@@ -248,7 +259,7 @@ def test_a_failed_load_job_ends_with_1_even_when_dlt_was_told_not_to_raise(capsy
 
 
 def test_a_pipeline_that_calls_dlt_itself_is_not_a_green_run(capsys):
-    """`spec/001`, R8: the run's names reach only a pipeline leeghwater made."""
+    """RUN-8. The run's names reach only a pipeline leeghwater made."""
     with pytest.raises(SystemExit) as exit_:
         _odd()(["run", "calls_dlt_itself", "--schema", "asked"])
 
@@ -265,6 +276,7 @@ def test_a_pipeline_that_returns_nothing_is_still_reported(capsys):
 
 
 def test_a_pipeline_that_ran_nothing_is_not_a_green_run(capsys):
+    """RUN-8."""
     with pytest.raises(SystemExit):
         _odd()(["run", "runs_nothing"])
 
@@ -272,7 +284,7 @@ def test_a_pipeline_that_ran_nothing_is_not_a_green_run(capsys):
 
 
 def test_a_limit_reaches_the_pipeline(capsys):
-    """Two rows, yielded one at a time: two pages. One page is one row."""
+    """RUN-5. Two rows, yielded one at a time: two pages. One page is one row."""
     _app()(["run", "orders_pipeline", "--region", "eu", "--limit", "1"])
 
     assert "1 page(s) from each resource" in capsys.readouterr().out
@@ -280,12 +292,14 @@ def test_a_limit_reaches_the_pipeline(capsys):
 
 
 def test_set_gives_dlt_any_config_value(capsys):
+    """PRE-4."""
     _odd()(["run", "reads_config", "--set", "sources.orders.page_size=50"])
 
     assert "page_size is 50" in capsys.readouterr().out
 
 
 def test_the_log_level_is_still_the_level_after_dlt_has_run(monkeypatch):
+    """PRE-4."""
     from dlt.common import logger
 
     monkeypatch.setenv("SOURCES__GITHUB__ACCESS_TOKEN", "abc")
@@ -296,11 +310,13 @@ def test_the_log_level_is_still_the_level_after_dlt_has_run(monkeypatch):
 
 
 def test_on_databricks_a_run_without_a_warehouse_stops_before_the_pipeline(on_databricks):
+    """APP-11, DST-5."""
     with pytest.raises(LeeghwaterError, match="No SQL warehouse is named"):
         _odd()(["run", "raises"])
 
 
 def test_on_a_laptop_an_error_of_leeghwaters_is_one_line(capsys):
+    """APP-11, APP-12."""
     with pytest.raises(SystemExit) as exit_:
         _odd()(["run", "raises", "--schema", ""])
 
@@ -309,7 +325,7 @@ def test_on_a_laptop_an_error_of_leeghwaters_is_one_line(capsys):
 
 
 def test_an_empty_option_from_a_bundle_is_refused_not_skipped(on_databricks):
-    """A variable that resolved to nothing must not pass for an option left out."""
+    """APP-7. A variable that resolved to nothing must not pass for an option left out."""
     with pytest.raises(LeeghwaterError, match="--staging-schema is empty"):
         _odd(warehouse="abc123")(
             ["run", "raises", "--schema", "github", "--staging-schema", ""]
@@ -317,6 +333,7 @@ def test_an_empty_option_from_a_bundle_is_refused_not_skipped(on_databricks):
 
 
 def test_a_secret_from_a_scope_reaches_a_pipeline(on_databricks, workspace, capsys):
+    """PRE-5, SEC-9."""
     app = _app(secret_scopes=["ingest"], destination="duckdb", workspace_client=workspace)
 
     app(["run", "github"])
@@ -332,6 +349,7 @@ def test_a_secret_from_a_scope_reaches_a_pipeline(on_databricks, workspace, caps
 def test_a_run_can_name_other_scopes_and_point_at_a_secret(
     on_databricks, workspace, capsys
 ):
+    """SEC-8."""
     app = _app(
         secret_scopes=["no-such-scope"], destination="duckdb", workspace_client=workspace
     )
@@ -358,7 +376,7 @@ def test_a_run_can_name_other_scopes_and_point_at_a_secret(
 def test_a_command_the_project_added_runs_and_finds_a_secret(
     on_databricks, workspace, capsys
 ):
-    """`spec/001`, R8."""
+    """APP-10."""
     import dlt
 
     app = _app(secret_scopes=["ingest"], destination="duckdb", workspace_client=workspace)
@@ -379,6 +397,8 @@ def test_a_command_the_project_added_runs_and_finds_a_secret(
 def test_a_parameter_named_like_an_option_of_every_run_is_refused_at_the_start(
     monkeypatch, capsys
 ):
+    """APP-6."""
+
     @pipeline
     def clash(schema: str = "x"):
         pass
@@ -398,6 +418,8 @@ def test_a_parameter_named_like_an_option_of_every_run_is_refused_at_the_start(
 
 
 def test_what_else_is_refused_at_the_start(monkeypatch, capsys):
+    """APP-2, APP-6."""
+
     @pipeline
     def takes_a_list(items: list[str]):
         pass
@@ -426,6 +448,7 @@ def test_what_else_is_refused_at_the_start(monkeypatch, capsys):
 
 
 def test_doctor_on_a_laptop_says_it_would_load_locally(capsys):
+    """APP-9."""
     _app()(["doctor"])
 
     said = capsys.readouterr().out
@@ -437,6 +460,7 @@ def test_doctor_on_a_laptop_says_it_would_load_locally(capsys):
 def test_doctor_checks_the_identity_the_scopes_and_the_warehouse(
     on_databricks, workspace, capsys
 ):
+    """APP-9, DST-4, SEC-9."""
     app = _app(
         secret_scopes=["ingest"],
         secrets={"sources.github.access_token": "platform-shared/github-token"},
@@ -458,6 +482,7 @@ def test_doctor_checks_the_identity_the_scopes_and_the_warehouse(
 
 
 def test_doctor_fails_by_name_and_answers_as_json(on_databricks, workspace, capsys):
+    """APP-9."""
     app = _app(
         secret_scopes=["no-such-scope"],
         secrets={"a.b": "ingest/not-there"},

@@ -1,65 +1,38 @@
 # Contributing to leeghwater
 
-Thanks for your interest! Issues and pull requests are very welcome.
+Issues and pull requests are welcome. How a change lands, the checks it has to pass, the
+toolchain and how a release is made are the same for every package of this repository:
+the root [CONTRIBUTING.md](../../CONTRIBUTING.md) has them. This file is what is
+particular to leeghwater.
 
-## How changes land
-
-Every change is a pull request, merged once **`ci`** passes: ruff (lint and format) and
-the tests on Python 3.11–3.13. The workflow itself is shared by all the Kostavo tools and
-lives in [`kostavo-oss/.github`](https://github.com/kostavo-oss/.github).
-
-## Toolchain
-
-leeghwater uses [`uv`](https://docs.astral.sh/uv/) (env / deps / run),
-[`ruff`](https://docs.astral.sh/ruff/) (lint + format) and
-[`pytest`](https://docs.pytest.org/).
+## Its tests
 
 ```sh
-uv sync                   # creates .venv and installs deps + dev tools
-uvx pre-commit install    # optional: ruff on every commit
+uv sync                                    # once, anywhere in the repository
+cd packages/leeghwater && uv run pytest    # its tests, from its own directory
+uv run ty check                            # its types, from the same directory
 ```
 
-## Day-to-day
+The tests need no workspace, no Azure and no network. Databricks is one environment
+variable and a stand-in for the workspace client (`tests/conftest.py`), a secret scope
+is a dictionary, a Key Vault is a stand-in client, and dlt loads into a DuckDB file in
+a temporary folder. They need what `uv sync` installs: dlt with its `duckdb` extra, and
+leeghwater's own `keyvault` extra. Some tests run the app in a process of its own.
+
+## Its rules and decisions
+
+- [RULES.md](RULES.md) is what must be true of the code: numbered rules, each with the
+  tests that hold it. A change to behaviour changes its rule in the same pull request,
+  and the test that holds it cites the rule's identifier.
+- [DECISIONS.md](DECISIONS.md) is why: a log that is appended to and never edited.
+- [docs/tried.md](docs/tried.md) is what ran on a real workspace, and what did not.
+- [CLAUDE.md](CLAUDE.md) has the layout and the rules of working.
+
+From the root of the repository, this checks that the rules, the code and the tests
+agree:
 
 ```sh
-uv run leeghwater                              # run the CLI
-uv run pytest                                 # tests
-uv run ruff check . && uv run ruff format .   # lint + format
+uv run pytest tests/test_rules.py
 ```
 
-## Conventions
-
-- `CHANGELOG.md` gets a line under `## [Unreleased]` for anything a user would notice.
-- By contributing you agree your work is licensed under the project's
-  [Apache-2.0 License](LICENSE).
-
-## Releasing
-
-A release is a tag. `pyproject.toml` says which version it is, and the tag has to agree.
-
-In a pull request, bump the version and move the changelog notes under it:
-
-```sh
-uv version --bump patch   # or minor / major, or: uv version 0.2.0
-```
-
-In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.2.0] - <date>` and start a fresh,
-empty `## [Unreleased]` above it. Merge it once `ci` passes, then tag that commit:
-
-```sh
-git switch main && git pull
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-The [`release`](.github/workflows/release.yml) workflow runs on the tag: it checks that
-the tag and `pyproject.toml` name the same version, runs the gate, builds the wheel and
-sdist, and publishes them to **PyPI** with Trusted Publishing — no API token.
-
-A tag that disagrees with `pyproject.toml` fails before anything is built, so nothing is
-published; delete it, fix what is wrong, and tag again.
-
-## Previewing the docs
-
-```sh
-uv run --group docs mkdocs serve
-```
+`CHANGELOG.md` gets a line under `## [Unreleased]` for anything a user would notice.

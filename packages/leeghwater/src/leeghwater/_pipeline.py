@@ -1,4 +1,4 @@
-"""The dlt pipeline of a run, made and run by leeghwater. `spec/001`, R2.
+"""The dlt pipeline of a run, made and run by leeghwater. RUN-1 to RUN-5.
 
 A project's pipeline calls these two, and never `dlt.pipeline()` or `pipeline.run()`.
 Where a run loads, into which schema and through which staging schema is the run's to say,
@@ -73,10 +73,11 @@ def _destination(setup: _prepare.Setup) -> Any:
 
     config: dict[str, Any] = {}
     if setup.schema:
-        # A name the bundle deployed is used as it is: `spec/002`, R10.
+        # A name the bundle deployed is used as it is: DST-6.
         config["enable_dataset_name_normalization"] = False
     if setup.staging_schema:
-        # Without a `%s`, dlt takes the layout as the whole name.
+        # Without a `%s`, dlt takes the layout as the whole name:
+        # `dlt/common/destination/client.py`.
         config["staging_dataset_name_layout"] = setup.staging_schema
     if setup.loads_into_databricks:
         credentials = {}

@@ -1,4 +1,4 @@
-"""Make `import dlt` mean dltHub's dlt on Databricks. `spec/002`, R3, R3b and R4.
+"""Make `import dlt` mean dltHub's dlt on Databricks. DBX-2, DBX-3 and DBX-4.
 
 Databricks has a module of its own named `dlt` (Delta Live Tables), and an import hook
 that comes with it. dlt's docs give the workarounds this module does:

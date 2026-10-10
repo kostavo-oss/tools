@@ -8,5 +8,5 @@ job; the schemas as bundle resources; every task behind `mise run`.
 uvx copier copy gh:kostavo-oss/data-product-template my-product
 ```
 
-To add leeghwater to a project you have: `uv add leeghwater`, write the two files above, and
+To add leeghwater to a project you have: `uv add leeghwater`, write the two files of [a project](project.md), and
 pass the schemas' deployed names from the bundle as shown under [In a job](run.md#in-a-job).

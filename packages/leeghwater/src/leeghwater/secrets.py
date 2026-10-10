@@ -1,4 +1,4 @@
-"""dlt's secrets, from Databricks secret scopes. `spec/003`.
+"""dlt's secrets, from Databricks secret scopes. The SEC rules in `RULES.md`.
 
 Two config providers for dlt. Both are registered after dlt's own, so an environment
 variable wins, then a `secrets.toml`, then these:
@@ -21,7 +21,7 @@ from leeghwater._errors import LeeghwaterError
 
 def _default_client() -> Any:
     # The SDK's default sign-in: a profile on a laptop, the run's own identity on
-    # Databricks. leeghwater reads no token and passes none. `spec/002`, R6.
+    # Databricks. leeghwater reads no token and passes none. DBX-6.
     from databricks.sdk import WorkspaceClient
 
     return WorkspaceClient()
@@ -147,7 +147,7 @@ class PointedSecretsProvider(ConfigProvider):
 
     `{"sources.github.access_token": "platform-shared/github-token"}` answers dlt's
     question for `sources.github.access_token` with the secret `github-token` in the scope
-    `platform-shared`. `spec/003`, R7.
+    `platform-shared`. SEC-7.
     """
 
     NAME = "Databricks secrets, pointed at"
