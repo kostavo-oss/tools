@@ -126,8 +126,7 @@ Nothing was left in the workspace.
 Nobody wrote a deploy script, a setup notebook or a workflow for this product. The plan
 was read before it ran, the thing that ran was the thing that was read, a broken promise
 was caught before it merged, and the whole of it could be removed again by name. Those
-are the gaps [the tools are for](why.md), closed within an hour by answering a few
-questions.
+are the gaps [the tools are for](why.md), closed by answering a few questions.
 
 What a team would do next is theirs: real sources in place of the example, real models,
 and a contract that says what they promise. The template's own record of what has been
