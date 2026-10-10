@@ -414,10 +414,18 @@ class Executor:
         if current == plan.state_fingerprint:
             return
         moved = _moved(plan, self._live, self._policies)
-        named = f" ({', '.join(moved)})" if moved else ""
+        if not moved:
+            # The fingerprint differs and no table does: what a plan holds changed
+            # between versions, so this one was read differently when it was made.
+            raise StalePlan(
+                "this plan was not made from the live tables as this version of "
+                "stevin reads them: no table has changed, so it was most likely "
+                "saved by another version. Plan again and review the new plan.",
+                moved,
+            )
         raise StalePlan(
-            f"the live tables have changed since this plan was made{named}. "
-            "Plan again and review the new plan.",
+            f"the live tables have changed since this plan was made "
+            f"({', '.join(moved)}). Plan again and review the new plan.",
             moved,
         )
 
@@ -436,6 +444,19 @@ def _is_true(value: object) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() == "true"
+
+
+def is_stale(plan: Plan, introspector: Introspector) -> bool:
+    """Whether `apply` would refuse this plan as stale, read fresh.
+
+    The same question `apply` asks, the same way: the fingerprint of the live
+    state against the one the plan carries. `stale_tables` names the tables that
+    moved, and can name none for a plan another version saved, which `apply`
+    refuses all the same.
+    """
+    live, policies = introspector.state(_read_from(plan), _kinds(plan))
+    current = fingerprint((live.get(name) for name in _read_from(plan)), policies)
+    return current != plan.state_fingerprint
 
 
 def stale_tables(plan: Plan, introspector: Introspector) -> tuple[str, ...]:

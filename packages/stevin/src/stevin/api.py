@@ -370,12 +370,13 @@ def kind_of(relation: Relation) -> str:
 def is_stale(plan: Plan, connection: Connection) -> bool:
     """Whether the live objects have moved since this plan was made.
 
-    `apply` refuses a stale plan; this asks first, so a host can plan again
-    before it puts a question to a person.
+    `apply` refuses a stale plan; this asks first, the same way, so a host can
+    plan again before it puts a question to a person. A plan another version
+    of stevin saved is stale too, though no table moved.
     """
-    from stevin.executor import stale_tables
+    from stevin import executor
 
-    return bool(stale_tables(plan, connection.introspector(plan.manage)))
+    return executor.is_stale(plan, connection.introspector(plan.manage))
 
 
 def history_for(

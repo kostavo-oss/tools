@@ -4,7 +4,7 @@ stevin is not a place for UDFs to accumulate: a function spec exists so the
 function a mask or a row filter names is created in the same plan, before the
 tables that use it. One that nothing in the project names is refused where
 specs are read — at `validate`, and before `plan` asks the workspace anything,
-`--select` or not — with its file and line. `import` writes only the functions a
+`--select` or not — with its file. `import` writes only the functions a
 live mask or row filter names, and says which it skipped.
 """
 

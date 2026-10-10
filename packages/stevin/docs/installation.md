@@ -36,7 +36,7 @@ stevin is a Python 3.11+ CLI, published on [PyPI](https://pypi.org/project/stevi
 
 ```sh
 git clone https://github.com/kostavo-oss/tools
-cd stevin
+cd tools
 uv sync
 uv run stevin --version
 ```

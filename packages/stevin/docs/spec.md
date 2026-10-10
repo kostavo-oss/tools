@@ -616,7 +616,7 @@ body: |
 
 - **A function spec is only for a mask or a row filter.** One that no column mask or
   row filter in the project names is refused at `validate` and before `plan` asks the
-  workspace anything, with its file and line. General SQL functions belong to your
+  workspace anything, with its file. General SQL functions belong to your
   transformation tool or your bundle; stevin is not the place UDFs accumulate.
 - **SQL functions only.** Python UDFs aren't modelled; `import` skips them and `plan`
   leaves them alone. `import` writes only the functions a live mask or row filter

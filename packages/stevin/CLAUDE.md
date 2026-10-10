@@ -222,9 +222,9 @@ clustering; removing a tag or property with `null`; `command: apply` in the Acti
 the tables and access that a transformation tool (dbt, Lakeflow, SQLMesh) doesn't
 own — the tables notebooks and external systems write into, lookup tables, filtered
 views, and who may see what. It puts in place what a spec says; it does not decide
-what a spec may say. Removed on `main`, leaving with 0.4.0: `hooks:`, and SQL
+what a spec may say. Removed in 0.4.0: `hooks:`, and SQL
 functions as a thing of their own (a function spec stays valid only when a mask or a
-row filter names it). Views and seeds stay. Built on `main`, in no release yet: an
+row filter names it). Views and seeds stay. Built, and released in 0.4.0a1: an
 *owned elsewhere* map (`owned.py`: a `stevin.yml` list, dbt's manifest, dlt's `_dlt_*`
 tables) with governance-only specs for tables dlt or a notebook owns (tags, grants,
 masks, filters, owner — never columns, never a claim) and an outright refusal for
