@@ -22,6 +22,8 @@ most workspaces. These are four small tools, one per gap, each with a closed sco
 
 Every tool is a package of its own on PyPI, with its own version, changelog and docs;
 none needs another. They share this repository: one lock file, one test gate, one site.
+A fifth is in the making, as a spec and no code:
+[contracts](packages/contracts), a consumer's gate for data contracts.
 A data product that uses them together starts from
 [data-product-template](https://github.com/kostavo-oss/data-product-template), a template.
 

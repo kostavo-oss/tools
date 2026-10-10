@@ -1,4 +1,4 @@
-# The workspace: four tools, one lock file, one virtualenv. Each package under
+# The workspace: four tools and one in the making, one lock file, one virtualenv. Each package under
 # packages/ is a PyPI project of its own with its own version and changelog;
 # this file only ties them together for development. Nothing here is published.
 [project]
@@ -13,6 +13,8 @@ dependencies = [
     "lely",
     "leeghwater[keyvault]",
     "caland",
+    # a spec and no code yet: packages/contracts/spec
+    "contracts",
 ]
 
 [tool.uv]
@@ -28,6 +30,7 @@ stevin = { workspace = true }
 lely = { workspace = true }
 leeghwater = { workspace = true }
 caland = { workspace = true }
+contracts = { workspace = true }
 
 # The union of what the packages' tests and docs need. A package's own floors
 # stay in its pyproject.toml; `mise run test:lowest` holds them package by package.

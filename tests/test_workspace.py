@@ -25,6 +25,7 @@ def test_the_workspace_lists_every_package_and_nothing_else() -> None:
         "lely",
         "leeghwater[keyvault]",
         "caland",
+        "contracts",
     }
     named = {name.split("[")[0] for name in config["project"]["dependencies"]}
     assert named == set(PACKAGES)

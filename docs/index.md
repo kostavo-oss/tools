@@ -45,6 +45,15 @@ copy values; put a certificate in from a file.
 
 [caland →](caland/index.md){ .md-button }
 
+## In the making: contracts
+
+**A consumer's gate for data contracts.** One data product reads another's
+tables, and the producer wrote down what they look like. Pull that contract
+into your own repository, and check it before every run. A spec so far, and
+no code.
+
+[contracts →](contracts/index.md){ .md-button }
+
 ## Named after
 
 Dutch water engineers. Simon Stevin (1548–1620) designed sluices and introduced decimal

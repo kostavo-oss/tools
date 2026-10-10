@@ -1,0 +1,55 @@
+[project]
+# A working name. `contracts` is someone else's project on PyPI, so this package
+# cannot be published under it: the name is the owner's to choose (spec/README.md,
+# Still open) and the folder is renamed with it. Until then the classifier below
+# makes PyPI refuse an upload, and release.yml does not know this package.
+name = "contracts"
+version = "0.0.0"
+description = "A consumer's gate for data contracts on Databricks: pull the contract of what you read, check it before every run"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Misja Pronk" }]
+keywords = ["databricks", "data-contracts", "odcs", "odps", "data-products"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Private :: Do Not Upload",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# Nothing is built yet, so nothing is needed. spec/002 says what will be, and why
+# the Data Contract CLI is run as a command rather than installed beside this.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kostavo-oss/tools"
+Documentation = "https://kostavo-oss.github.io/tools/contracts/"
+Repository = "https://github.com/kostavo-oss/tools"
+Issues = "https://github.com/kostavo-oss/tools/issues"
+Changelog = "https://github.com/kostavo-oss/tools/blob/main/packages/contracts/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contracts"]
+
+# A source package holds what is listed here and nothing else — not whatever
+# happens to lie in the folder when it is built.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+
+[tool.ty.environment]
+python-version = "3.11"
+root = ["src"]

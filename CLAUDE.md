@@ -12,6 +12,8 @@ packages/stevin       tables and access no transformation tool owns (plan/apply,
 packages/lely         one plan for the whole deploy (plan/apply/destroy around a bundle)
 packages/leeghwater   a dlt pipeline, the same on a laptop and in a job
 packages/caland       a local page for a workspace's secrets
+packages/contracts    a consumer's gate for data contracts: a spec, no code, a working
+                      name; not in ci's matrix, mise's loops or release.yml until it has code
 pyproject.toml        the workspace: members, the dev/docs groups, ruff for everything
 mise.toml             the tasks; `mise run check` is the gate
 mkdocs.yml, docs/     the site's front page; each package's docs are included under /<name>/

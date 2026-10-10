@@ -1,0 +1,13 @@
+site_name: contracts
+site_description: "A consumer's gate for data contracts on Databricks"
+site_author: Misja Pronk
+site_url: https://kostavo-oss.github.io/tools/contracts/
+
+repo_name: kostavo-oss/tools
+repo_url: https://github.com/kostavo-oss/tools
+edit_uri: edit/main/packages/contracts/docs/
+
+copyright: Apache-2.0 © Misja Pronk
+
+nav:
+  - Home: index.md

@@ -95,3 +95,4 @@ nav:
   - lely: '!include packages/lely/mkdocs.yml'
   - leeghwater: '!include packages/leeghwater/mkdocs.yml'
   - caland: '!include packages/caland/mkdocs.yml'
+  - contracts: '!include packages/contracts/mkdocs.yml'
