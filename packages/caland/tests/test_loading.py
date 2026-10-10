@@ -30,12 +30,14 @@ def again(loader: Loader, scope: str | None = None) -> None:
 
 
 def test_it_starts_out_connecting_with_nothing_to_show():
+    """VIEW-3."""
     loader = Loader(lambda: WorkspaceService(seeded_store(), "test"))
     assert loader.progress().phase == CONNECTING
     assert loader.service is None
 
 
 def test_it_ends_ready_with_every_scope_read():
+    """VIEW-3."""
     loader = loaded()
     progress = loader.progress()
     assert (progress.phase, progress.done, progress.total) == (READY, 2, 2)
@@ -47,6 +49,7 @@ def test_it_ends_ready_with_every_scope_read():
 
 
 def test_no_value_is_read_while_loading():
+    """VAL-2."""
     store = seeded_store()
     loaded(store)
     assert store.reads() == 0
@@ -60,6 +63,8 @@ def test_every_change_moves_the_version():
 
 
 def test_a_connection_that_fails_says_why():
+    """VIEW-4."""
+
     def connect():
         raise AuthError("the browser sign-in was cancelled")
 
@@ -84,6 +89,7 @@ def test_scopes_that_cannot_be_listed_say_why():
 
 
 def test_a_scope_out_of_reach_is_empty_not_an_error():
+    """VIEW-4."""
     store = FakeSecretStore(scopes=[Scope("open"), Scope("shut")], no_read={"shut"})
     loader = loaded(store)
     assert loader.progress().phase == READY
@@ -110,6 +116,7 @@ def test_at_most_eight_scopes_are_asked_for_at_once():
 
 
 def test_one_scope_can_be_read_again():
+    """VIEW-5."""
     store = seeded_store()
     loader = loaded(store)
     before = (store.count("list_secrets"), loader.progress().version)
@@ -120,6 +127,7 @@ def test_one_scope_can_be_read_again():
 
 
 def test_the_whole_workspace_can_be_read_again():
+    """VIEW-5."""
     store = seeded_store()
     loader = loaded(store)
     again(loader)

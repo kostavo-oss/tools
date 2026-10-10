@@ -1,4 +1,4 @@
-"""The local server — caland's page, for the one person who started it.
+"""The local server — caland's page, for the one person who started it. GATE.
 
 It listens on this machine only, answers to nothing the gate (`gate.py`) does
 not let through, and gives a secret's value to one request only: a `POST` from

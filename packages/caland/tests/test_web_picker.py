@@ -78,6 +78,7 @@ def connect(served, **body):
 
 
 def test_with_no_workspace_yet_the_state_says_there_is_one_to_choose(served):
+    """WSP-8."""
     told = state(served)
     assert told["phase"] == "choosing" and told["scopes"] == []
     assert told["workspace"] == {"name": "", "host": ""} and told["identity"] is None
@@ -111,6 +112,7 @@ def test_what_there_is_to_choose_from_is_said_with_where_it_was_found(served):
 
 
 def test_a_workspace_is_gone_to_by_its_name(served):
+    """WSP-5."""
     assert connect(served, name="prod")[0] == 202
     told = ready(served)
     assert told["phase"] == "ready" and told["workspace"]["name"] == "prod"
@@ -140,6 +142,7 @@ def test_which_workspace_said_badly(served, body):
 
 
 def test_a_workspace_is_signed_in_to_by_its_address(served):
+    """WSP-5."""
     assert connect(served, url="adb-123.azuredatabricks.net/")[0] == 202
     told = ready(served)
     assert told["phase"] == "ready"
@@ -169,18 +172,21 @@ def test_a_workspace_is_signed_in_to_by_its_address(served):
     ],
 )
 def test_an_address_is_https_a_host_and_nothing_more(served, url):
+    """WSP-6."""
     status, told = connect(served, url=url)
     assert status == 400 and "address" in told["error"]
     assert served.connector.stores == {} and state(served)["phase"] == "choosing"
 
 
 def test_an_address_is_kept_as_a_profile_once_the_sign_in_has_worked(served):
+    """WSP-7."""
     assert connect(served, url="https://new.example.com", save_as="new-one")[0] == 202
     assert ready(served)["phase"] == "ready"
     assert served.profiles.saved == [("new-one", "https://new.example.com", None)]
 
 
 def test_an_address_that_cannot_be_signed_in_to_is_kept_nowhere(served):
+    """WSP-7."""
     served.connector.refuse.add("https://new.example.com")
     assert connect(served, url="https://new.example.com", save_as="new-one")[0] == 202
     told = ready(served)
@@ -211,6 +217,7 @@ def test_a_profiles_name_is_a_name_and_one_that_is_free(served, name, status):
 
 
 def test_going_to_another_workspace_keeps_nothing_of_the_one_that_is_left(served):
+    """WSP-9."""
     connect(served, name="dev")
     first = ready(served)
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
@@ -237,6 +244,7 @@ def test_the_version_never_comes_round_again_across_workspaces(served):
 
 
 def test_choosing_a_workspace_changes_none_and_so_read_only_does_not_mind():
+    """ASK-4, WSP-11."""
     connector = Connector()
     page = Page(
         onboarding=OnboardingService(connector, StubProfiles([DEV]), StubBundle()),
@@ -264,6 +272,7 @@ def test_choosing_a_workspace_changes_none_and_so_read_only_does_not_mind():
 
 
 def test_a_page_with_nothing_to_choose_from_says_so():
+    """WSP-8."""
     page = Page()
     server = Server(page)
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
@@ -325,7 +334,7 @@ def wrote(store) -> list[str]:
 def test_a_page_left_showing_another_workspace_changes_and_reads_nothing(
     served, method, path, body
 ):
-    """A second tab still on dev, or a key pressed before the switch: what it
+    """WSP-10. A second tab still on dev, or a key pressed before the switch: what it
     asks was meant for dev, and must not be done to prod."""
     connect(served, name="dev")
     ready(served)
@@ -341,6 +350,7 @@ def test_a_page_left_showing_another_workspace_changes_and_reads_nothing(
 
 
 def test_the_state_says_which_workspace_it_is_counted_from_the_first(served):
+    """WSP-10."""
     assert state(served)["turn"] == 0
     connect(served, name="dev")
     assert ready(served)["turn"] == 1
@@ -520,6 +530,7 @@ def test_two_that_were_found_under_one_name_are_told_apart_by_their_address():
     ],
 )
 def test_a_host_is_one_as_workspaces_have_them(served, url):
+    """WSP-6."""
     status, told = connect(served, url=url, save_as="new-one")
     assert status == 400 and "address" in told["error"]
     assert served.connector.stores == {} and served.profiles.saved == []

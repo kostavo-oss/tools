@@ -15,14 +15,17 @@ BUNDLE = Workspace(
 
 
 def test_by_name():
+    """WSP-4."""
     assert stub_onboarding([DEV, PROD]).choose("prod") is PROD
 
 
 def test_a_bundle_target_by_its_name():
+    """WSP-4."""
     assert stub_onboarding([DEV], BUNDLE).choose("shop") is BUNDLE
 
 
 def test_a_name_that_is_not_there_says_what_is():
+    """CMD-4."""
     with pytest.raises(
         AuthError, match="No workspace “nope” found. There is: dev, prod."
     ):
@@ -30,10 +33,12 @@ def test_a_name_that_is_not_there_says_what_is():
 
 
 def test_without_a_name_the_bundles_default():
+    """CMD-5."""
     assert stub_onboarding([DEV, PROD], BUNDLE).choose() is BUNDLE
 
 
 def test_without_a_name_the_only_one_there_is():
+    """CMD-5."""
     assert stub_onboarding([DEV]).choose() is DEV
 
 
@@ -54,12 +59,14 @@ AT_THE_BUNDLES = Workspace(profile="shop-sp", host="https://b.example")
 
 
 def test_two_profiles_at_one_address_are_both_offered_and_asked_for_by_name():
+    """WSP-1."""
     board = stub_onboarding([ME, SP, DEV])
     assert board.available_workspaces() == [ME, SP, DEV]
     assert board.choose("sp") is SP and board.choose("me") is ME
 
 
 def test_a_profile_at_the_bundles_address_is_listed_beside_it_and_the_bundle_first():
+    """WSP-1."""
     board = stub_onboarding([AT_THE_BUNDLES, DEV], BUNDLE)
     assert board.available_workspaces() == [BUNDLE, AT_THE_BUNDLES, DEV]
     assert board.choose("shop-sp") is AT_THE_BUNDLES
@@ -75,7 +82,7 @@ def test_asked_for_by_name_a_profile_comes_before_a_bundles_target_of_that_name(
 
 
 def test_a_profile_at_the_bundles_address_signs_in_as_the_profile_does():
-    """Its token, or its service principal: not the browser, as the bundle's
+    """WSP-5. Its token, or its service principal: not the browser, as the bundle's
     target does at the same address."""
     from caland.application import OnboardingService
     from fakes import ConnectingStubConnector, StubBundle, StubProfiles

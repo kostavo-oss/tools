@@ -27,7 +27,9 @@ _SOURCE_LABELS = {
 def same_name(one: str, other: str) -> bool:
     """Whether two names are one name to Databricks, which does not tell a scope
     or a secret apart by its case: `Api-Key` and `api-key` are the same secret.
-    (Tried on a workspace, 2026-10-06: the second put overwrote the first.)"""
+    SEC-8. (Tried on a workspace, 2026-10-06: `Case-Key` and then `case-key` was one
+    secret, the second put over the first, and a scope asked for in capitals was said
+    to exist already.)"""
     return one.casefold() == other.casefold()
 
 

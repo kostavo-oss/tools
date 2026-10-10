@@ -1,4 +1,4 @@
-"""Opening the page in the person's browser, without telling the machine the key.
+"""Opening the page in the person's browser, without telling the machine the key. GATE-8.
 
 The address of the page carries a one-time key. Handing that address to the
 browser the plain way puts it on a command line (`open …`, `xdg-open …`), and a

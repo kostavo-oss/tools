@@ -6,6 +6,7 @@ from caland.application import format_dotenv, parse_dotenv
 
 
 def test_parse_ignores_noise_and_strips_quotes():
+    """ENV-1."""
     text = """
 # a comment
 export API_KEY=abc123
@@ -24,6 +25,7 @@ not a kv line
 
 
 def test_multiline_values_round_trip():
+    """ENV-7."""
     pem = "-----BEGIN KEY-----\nline1\nline2\n-----END KEY-----\n"
     text = format_dotenv([("TLS_KEY", pem), ("PLAIN", "abc")])
     assert parse_dotenv(text) == {"TLS_KEY": pem, "PLAIN": "abc"}
@@ -37,7 +39,7 @@ PEM = (
 
 
 def test_a_value_quoted_over_several_lines_is_one_value():
-    """Read line by line, the key's own lines — some end in `=` — would be taken
+    """ENV-1. Read line by line, the key's own lines — some end in `=` — would be taken
     for secrets of their own, named after pieces of the key."""
     text = f'BEFORE=1\nTLS_KEY="{PEM}"\nAFTER=2\n'
     assert parse_dotenv(text) == {"BEFORE": "1", "TLS_KEY": PEM, "AFTER": "2"}
@@ -45,6 +47,7 @@ def test_a_value_quoted_over_several_lines_is_one_value():
 
 
 def test_a_quote_that_is_never_closed_is_refused_not_guessed_at():
+    """ENV-2."""
     import pytest
 
     from caland.application.dotenv import DotenvError
@@ -78,6 +81,7 @@ def test_quotes_inside_quotes_on_one_line_are_as_they_were():
 
 
 def test_what_is_written_is_read_back_the_same():
+    """ENV-7."""
     import random
 
     values = [

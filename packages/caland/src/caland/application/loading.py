@@ -1,4 +1,4 @@
-"""Loader — connect to a workspace and warm it, in the background.
+"""Loader — connect to a workspace and warm it, in the background. VIEW-3.
 
 The use-case behind "the page is there before the workspace is": something that
 shows a workspace starts a `Loader`, draws at once, and asks `progress()` how far

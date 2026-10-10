@@ -1,8 +1,8 @@
 """caland as a page: a server on this machine, and a browser tab.
 
 `run` is the whole of it — choose the workspace, start loading it, serve the page
-until it is stopped. What the server will and will not answer is in `gate.py`;
-spec/008-the-page.md says why.
+until it is stopped. What the server will and will not answer is in `gate.py`. The
+rules are `CMD` and `GATE` in `RULES.md`, and `DECISIONS.md` says why.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from .server import Page, Server
 
 __all__ = ["IDLE", "Page", "Server", "run"]
 
-#: Left alone this long, caland stops and forgets what it held.
+#: Left alone this long, caland stops and forgets what it held. CMD-8.
 IDLE = 30 * 60
 
 

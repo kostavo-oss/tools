@@ -1,141 +1,102 @@
 # CLAUDE.md
 
-Guidance for Claude / agents working in this repo. **Caland** manages Databricks
-secrets by hand: a keyboard-driven page in the browser, served from the person's
-own machine.
+`caland`: Databricks secrets by hand. A small server on the person's own machine and a
+hand-written page in the browser, talking to Databricks only through the SDK.
 
-## The spec
+## Where a fact lives
 
-`spec/` says *what* each part of the tool must do; `docs/` tells a user how to use it, and
-`docs/architecture.md` how it is built. Read the spec of a part before changing it, and
-change the spec in the same pull request when the behaviour changes. Where the spec, the
-docs and the code disagree, say so instead of silently picking one. Don't build past a
-"To decide" that is still open — those are the owner's to answer.
+One place per fact. Write a fact where it lives, and link to it from anywhere else.
 
-## The page
+| The fact | Its one place |
+|---|---|
+| What caland is for, when not to use it, when it is no longer needed | `README.md` |
+| What must be true of the code | `RULES.md`: numbered rules, each with the tests that hold it |
+| Why it is so, and what was turned down | `DECISIONS.md`: a log, appended to and never edited |
+| What ran on a real workspace, and what did not | `docs/tried.md` |
+| How to use it | `docs/`, and only there: the README has a quickstart and links to the pages |
+| What changed for a user, per release | `CHANGELOG.md` |
+| What Databricks or the SDK does that the code leans on | the docstring of the code or the test that leans on it |
+| An idea that is wanted and not built | a GitHub issue |
+| How it came to be | git |
 
-Caland is a page in the browser (`spec/008-the-page.md`), served from the person's own
-machine. There is no terminal version: the terminal app it was until 0.6 is `isolinear`, a
-separate tool on PyPI that the owner leaves as it is. Caland installs no command under that
-name and reads none of its settings — don't bring either back.
+There is no `spec/` folder, and none comes back. `SECURITY.md` is the repository's
+policy page and repeats what `docs/security.md` says; `tests/test_repository.py` holds
+the two together.
 
-- The page is `src/caland/interface/web/`: `gate.py` (which requests are answered — pure),
-  `server.py`, `views.py` (what the page is told — pure), `opening.py`, and `static/`.
-- The gate is the security of it. A change there, or a new thing the server answers, gets
-  a test in `tests/test_web_gate.py` or `test_web_server.py`, and a second pair of eyes.
-- No cookie, no script or style written into the page, nothing from another origin, no
-  `innerHTML`: what a workspace says is text. Tests hold each of these.
-- `tests/test_page_in_a_browser.py` drives the real page in Chrome (`tests/chrome.py`, over
-  Chrome's debugging pipe — no package). It skips without Chrome; CI has one. Run it after
-  any change to `static/`.
-- Only the SDK: no query, no warehouse, no system table (`spec/000`).
-- A change goes through `WorkspaceService`, which takes one at a time and asks the
-  workspace what is there *now* before it writes, moves or puts back. Two names that differ
-  only in case are one name (`domain.same_name`): Databricks says so.
-- A request about a workspace says which one it means (`gate.WORKSPACE_HEADER`, the `turn`
-  the state gave) and the server takes `Page.current()` once per request: nothing asked of
-  one workspace is done to, or shown under, another. On the page `ask()` drops an answer
-  that comes after the page has moved on, and `inTurn` a change that was queued before.
-- `~/.databrickscfg` holds tokens: it is written through `profiles._replace` only, and the
-  page keeps a profile with `add`, which never writes over one that is there.
-- One dialog is open at a time (`open()` in `page.js`) — but a question over the grants —
-  and a dialog asked for before an `await` checks `moment` after it: what comes back late
-  does not open over what the person has gone on to do. `y` must only ever reach the
-  question that is showing.
-- A file is somebody else's bytes: `application/files.py` never does work the file sets
-  the size of, and never raises. Nothing there opens a PKCS#12 bundle.
+## Rules of working
 
-## Toolchain — use these, nothing else
+- **A change to behaviour changes its rule, in the same pull request.** Find the rule in
+  `RULES.md`, change it or add one with the next number of its area, and name the tests
+  that hold it under `Held by:`. Each of those tests cites the identifier in its
+  docstring. A number is never reused. `tests/test_rules.py` at the root of the
+  repository fails when a citation, a rule and a test disagree.
+- **A rule is checked against the code before it is written, and states the whole
+  promise.** What the code does not keep yet gets an issue, and the rule says
+  `Not kept yet:` with its number.
+- **A decision goes in `DECISIONS.md` only with its reason, or with what was turned
+  down.** No entry is edited: a new one names the one it supersedes.
+- **A run on a workspace is recorded in `docs/tried.md`**, with its date, and nowhere
+  else. Nothing under "Not yet" there is written about as if it had run.
+- The gate is the security of it (`GATE`). A change to `gate.py`, or a new thing the
+  server answers, gets a test in `tests/test_web_gate.py` or `tests/test_web_server.py`,
+  and a second pair of eyes.
+- What a workspace says is text: no `innerHTML`, no script or style written into the
+  page, no cookie, nothing from another origin (VIEW-9, VIEW-10, GATE-9).
+- Run `tests/test_page_in_a_browser.py` after any change to `static/`. It needs Chrome
+  and is skipped without one.
+- `base.css` is the look caland shares with lely's page and stevin's. Change it in all
+  three packages, in one pull request: a test at the root holds the copies equal.
+  `page.css` is caland's own.
+- A change to a workspace goes through `WorkspaceService` (SEC-11), and a request about
+  a workspace says which one it means (WSP-10). On the page `ask()` drops an answer that
+  comes late and `inTurn` a change that was queued before.
+- One dialog is open at a time (`open()` in `page.js`), and a dialog asked for before an
+  `await` checks `moment` after it (ASK-2).
+- `~/.databrickscfg` holds tokens. It is written through `profiles._replace` only, and a
+  profile is kept with `add`, which never writes over one that is there (KEPT-2, WSP-7).
+- A file is somebody else's bytes: `application/files.py` never raises and never opens a
+  PKCS#12 bundle (FILE-3, FILE-4).
+- No value is printed, logged or written to a file (VAL-1).
+- Nothing in the package answers to the name `isolinear`, and caland has no terminal
+  version (CMD-1). Don't bring either back.
+- Small pull-request-sized commits, conventional commit messages. A release is a pull
+  request of its own, opened when the owner says.
 
-This project is **all-[Astral](https://astral.sh)**, version-managed by
-**[mise](https://mise.jdx.dev)**. Reach for exactly these four tools:
+## Layout
 
-| Tool | Role | How it's provided |
-|------|------|-------------------|
-| **mise** | Provisions the toolchain (Python 3.14, uv) | `mise.toml` → `mise install` |
-| **uv** | Env, deps, and command runner (`.venv`) | installed by mise |
-| **ruff** | Lint **and** format | `uv run ruff` |
-| **ty** | Type checking | `uv run ty` |
+```
+src/caland/app.py               the command: reads what was asked, wires it together (CMD)
+src/caland/domain/              the model, the rules and the ports; imports nothing outward
+src/caland/application/         use-cases: WorkspaceService, OnboardingService, Loader,
+                                the read model, .env, and what a picked file is
+src/caland/infrastructure/      the adapters; the only place the Databricks SDK is imported
+src/caland/interface/web/       gate.py (which requests are answered), server.py,
+                                views.py (what the page is told), opening.py
+src/caland/interface/web/static page.html, base.css, page.css, page.js
+tests/test_<part>.py            unit tests, and the server asked over real HTTP
+tests/test_page_in_a_browser.py the real page, driven in Chrome through tests/chrome.py
+tests/fakes.py                  the stand-in workspace everything is tested against
+tests/test_layers.py            the layering, read from the source (CODE)
+tests/test_repository.py        the shape of the package itself
+docs/                           the pages of the site, listed in mkdocs.yml
+```
 
-**Rules:**
-
-- **Never** use system `python`/`python3`, bare `pip`, `virtualenv`, `poetry`,
-  `pipenv`, `conda`, `black`, `flake8`, `isort`, `mypy`, or hand-rolled `.venv`s.
-  uv replaces pip/virtualenv; ruff replaces black/flake8/isort; ty replaces mypy.
-- **Always** invoke project tools through `uv run …` (uv comes from mise, so it
-  resolves the right Python and the project `.venv` automatically).
-- Need a one-off dependency for a script? Use `uv run --with <pkg> python script.py`
-  — **do not** install it into the project or create a separate venv.
-- Add a real dependency with `uv add <pkg>` (runtime) or `uv add --dev <pkg>`
-  (dev tooling). This edits `pyproject.toml` + `uv.lock` — never edit `.venv`
-  by hand.
-
-> If `uv` isn't on `PATH` in a non-interactive shell, it's because mise hasn't
-> activated. Use `mise exec -- uv …` (or `eval "$(mise activate bash)"` first).
+The server answers each request on a thread of its own, and a workspace is read in the
+background. Nothing the page asks may wait on a workspace it did not ask about.
 
 ## Commands
 
+uv and ruff, as in every package of this repository. Never pip, black or mypy.
+
 ```sh
-mise install            # one-time: install Python + uv per mise.toml
-uv sync                 # create/refresh .venv from pyproject + uv.lock (incl. dev group)
-
-uv run caland           # run it: opens the page (--no-open prints the link)
-uv run pytest           # tests (units, the server over HTTP, the page in Chrome)
-uv run ruff check .     # lint
-uv run ruff format .    # format
-uv run ty check         # type check
+uv sync                          # once, anywhere in the repository
+uv run caland --no-open          # run it; prints the link
+uv run pytest                    # from packages/caland: its tests
+uv run ty check                  # from packages/caland: its types
+uv run ruff check . && uv run ruff format --check .   # from the root: every package
+uv run pytest tests              # from the root: the rules file, and what holds across packages
+uv run --group docs mkdocs build --strict             # from the root: the site
 ```
 
-**Before committing**, all of these must pass: `uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest`.
-
-The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks` lists
-them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
-`test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
-assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
-`docs` keeps running until it is stopped, so it is not for an assistant to start and wait
-on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
-an assistant that asks mise for it.
-
-`mise.toml`, `.mcp.json` and the workflows are the repository's, at its root, since the
-tools moved into `kostavo-oss/tools`: what every tool shares is changed there, once. The
-copier template the tools were first made from is gone.
-
-## Architecture
-
-Hexagonal / DDD — dependencies point **inward**, all I/O sits behind domain
-ports, so the domain is unit-testable with no network. Respect the layering:
-
-```
-src/caland/
-  domain/          model, rules + ports (SecretStore, WorkspaceConnector, ProfileStore,
-                   BundleStore, SettingsStore)
-  application/     use-cases (WorkspaceService, OnboardingService) + read model
-  infrastructure/  adapters — the ONLY place the Databricks SDK is imported
-  interface/web/   the page: a server on this machine, and what it serves
-  app.py           the command (reads what was asked, wires it all together)
-```
-
-- The `interface/` layer never touches the SDK or infra directly — it talks to
-  `application/` services. The `domain/` layer imports nothing outward.
-- The page's look is two files in `interface/web/static/`, loaded in this order.
-  `base.css` is the look the three Kostavo pages share (caland, lely's plan as a page,
-  stevin's): the colours and what they mean, the type, a table, a badge, a button, a key,
-  where the keyboard is. It is in each of the three packages, byte for byte, and the
-  repository's `tests/test_workspace.py` holds the copies equal: change all three in one
-  pull request, never one. `page.css` is caland's own layout and parts, written with the
-  base's names. Light or dark is the system's.
-
-## Conventions
-
-- Python ≥ 3.11 syntax (`from __future__ import annotations` is used throughout).
-- ruff: line length **90**, rules `E,F,I,UP,B,SIM` (see `pyproject.toml`).
-- ty must report no errors.
-- The server answers each request on a thread of its own; a workspace is read in the
-  background (`application/loading.py`). Nothing the page asks may wait on a workspace
-  it did not ask about.
-
-## The name
-
-Caland was `isolinear` up to 0.4.1, and a terminal app until 0.6. `isolinear` is still on
-PyPI as that terminal app; the owner leaves it as it is (`spec/007`). Nothing in this
-repository answers to the old name any more.
+`mise run check` at the root runs the gate for every package. Python is 3.11 and later,
+with `from __future__ import annotations`; lines are 90 long.

@@ -84,6 +84,4 @@ nav:
       - Connecting: connecting.md
       - Using the page: page.md
   - Security: security.md
-  - Develop:
-      - Architecture: architecture.md
-      - Contributing: contributing.md
+  - Tried, and not yet: tried.md

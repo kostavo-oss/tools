@@ -92,12 +92,13 @@ def served():
 
 # ── where it listens ─────────────────────────────────────────────────
 def test_it_listens_on_this_machine_only(served):
+    """GATE-1."""
     assert served.server.server_address[0] == "127.0.0.1"
     assert served.server.address == f"http://127.0.0.1:{served.server.port}/"
 
 
 def test_it_cannot_be_reached_by_the_machines_other_address(served):
-    """Skipped where the machine has no other address to try."""
+    """GATE-1. Skipped where the machine has no other address to try."""
     try:
         other = socket.gethostbyname(socket.gethostname())
     except OSError:
@@ -137,6 +138,7 @@ def test_a_new_key_ends_the_one_before_it(served):
 
 
 def test_entering_is_told_to_who_holds_the_file_with_the_key(served):
+    """GATE-8."""
     told = []
     served.page.entered = lambda: told.append("entered")
     served.enter()
@@ -144,6 +146,7 @@ def test_entering_is_told_to_who_holds_the_file_with_the_key(served):
 
 
 def test_the_token_is_long_and_differs_from_run_to_run(served):
+    """GATE-4."""
     other = Page(served.page.loader, workspace=served.page.workspace)
     assert len(served.page.token) >= 40 and served.page.token != other.token
     assert served.page.new_key() != served.page.new_key()
@@ -170,6 +173,7 @@ def test_nothing_is_answered_without_the_token(served, method, path, body):
 
 
 def test_a_site_whose_name_points_here_gets_nothing(served):
+    """GATE-2."""
     served.enter()
     status, _, text = served.ask(
         "GET", "/api/keys", headers={"Host": f"evil.example:{served.server.port}"}
@@ -206,6 +210,7 @@ def test_asking_for_permission_from_another_site_is_refused(served):
 
 # ── what it tells ────────────────────────────────────────────────────
 def test_state_says_who_and_what_and_how_far(served):
+    """VIEW-1."""
     served.enter()
     status, told = served.json("GET", "/api/state")
     assert status == 200
@@ -226,6 +231,7 @@ def test_state_says_who_and_what_and_how_far(served):
 
 
 def test_a_scope_says_its_secrets_and_its_grants(served):
+    """VIEW-1."""
     served.enter()
     status, told = served.json("GET", "/api/scope?name=prod")
     assert status == 200
@@ -238,6 +244,7 @@ def test_a_scope_says_its_secrets_and_its_grants(served):
 
 
 def test_keys_says_every_name_and_no_value(served):
+    """VIEW-6."""
     served.enter()
     status, _, text = served.ask("GET", "/api/keys")
     assert status == 200
@@ -246,6 +253,7 @@ def test_keys_says_every_name_and_no_value(served):
 
 
 def test_no_get_ever_reads_a_value(served):
+    """VAL-2."""
     served.enter()
     for path in (
         "/api/state",
@@ -282,6 +290,7 @@ def test_a_value_asked_for_again_is_what_the_workspace_holds_now(served):
 
 
 def test_forgetting_drops_every_value_held(served):
+    """VAL-5."""
     served.enter()
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     assert served.json("POST", "/api/forget", {})[0] == 200
@@ -337,6 +346,7 @@ def test_reading_again_is_started_and_answered_at_once(served):
     "path", ["/", "/base.css", "/page.css", "/page.js", "/api/state", "/nope"]
 )
 def test_every_answer_carries_the_same_care(served, path):
+    """GATE-10."""
     served.enter()
     _, headers, _ = served.ask("GET", path)
     for name, value in HEADERS.items():
@@ -346,12 +356,14 @@ def test_every_answer_carries_the_same_care(served, path):
 
 
 def test_the_policy_lets_the_page_load_only_what_is_calands_own():
+    """GATE-10."""
     policy = HEADERS["Content-Security-Policy"]
     assert "default-src 'none'" in policy and "frame-ancestors 'none'" in policy
     assert "script-src 'self'" in policy and "unsafe" not in policy and "*" not in policy
 
 
 def test_the_page_is_four_files_and_holds_no_secret_and_no_token(served):
+    """GATE-6, VIEW-10."""
     served.enter()
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     for path, kind in [
@@ -367,6 +379,7 @@ def test_the_page_is_four_files_and_holds_no_secret_and_no_token(served):
 
 
 def test_the_page_has_no_script_or_style_written_into_it(served):
+    """VIEW-10."""
     _, _, text = served.ask("GET", "/", token=None)
     page = text.decode()
     assert "<style" not in page and " style=" not in page and "onclick" not in page
@@ -384,6 +397,7 @@ def test_the_page_has_no_script_or_style_written_into_it(served):
 
 
 def test_the_script_writes_text_never_markup():
+    """VIEW-9."""
     from importlib import resources
 
     script = (
@@ -415,12 +429,14 @@ def test_the_script_writes_text_never_markup():
     ],
 )
 def test_no_other_file_is_served(served, path):
+    """VIEW-10."""
     status, _, text = served.ask("GET", path, token=None)
     assert status == 404 and b"caland" not in text.replace(b'"error"', b"")
 
 
 # ── what it will not take ────────────────────────────────────────────
 def test_too_much_is_refused_unread(served):
+    """GATE-11."""
     served.enter()
     status, _, _ = served.ask(
         "POST", "/api/value", raw=b"", headers={"Content-Length": str(BODY_LIMIT + 1)}
@@ -430,6 +446,7 @@ def test_too_much_is_refused_unread(served):
 
 @pytest.mark.parametrize("raw", [b"not json", b"[1, 2]", b'"text"', b"\xff\xfe", b"{"])
 def test_what_is_not_a_json_object_is_refused(served, raw):
+    """GATE-11."""
     served.enter()
     assert served.ask("POST", "/api/value", raw=raw)[0] == 400
 
@@ -483,6 +500,7 @@ def test_what_the_server_refuses_by_itself_is_refused_like_everything_else(
 
 
 def test_a_request_that_cannot_be_read_is_refused_the_same_way(served):
+    """GATE-10."""
     with socket.create_connection(("127.0.0.1", served.server.port), timeout=5) as raw:
         raw.sendall(b"NOT A REQUEST AT ALL\r\n\r\n")
         answer = b""
@@ -494,6 +512,7 @@ def test_a_request_that_cannot_be_read_is_refused_the_same_way(served):
 
 
 def test_a_connection_that_breaks_prints_nothing(served, capfd):
+    """GATE-13."""
     import struct
 
     for _ in range(5):
@@ -517,6 +536,7 @@ def test_a_connection_that_breaks_prints_nothing(served, capfd):
 
 
 def test_connections_left_hanging_do_not_use_the_server_up(served):
+    """GATE-12."""
     from caland.interface.web.server import CONNECTIONS
 
     hanging = [
@@ -553,6 +573,7 @@ def test_connections_left_hanging_do_not_use_the_server_up(served):
 
 
 def test_a_failure_inside_says_nothing_of_what_failed(served):
+    """GATE-14."""
     served.enter()
 
     def broken(*args, **kwargs):
@@ -564,7 +585,9 @@ def test_a_failure_inside_says_nothing_of_what_failed(served):
 
 
 def test_a_failure_inside_is_said_in_the_terminal_and_not_what_it_said(served, capfd):
-    """Which request, what kind of failure, and where: enough to find it. Never
+    """GATE-14, VAL-1.
+
+    Which request, what kind of failure, and where: enough to find it. Never
     the failure's own words — they can quote a value — and no traceback. The
     page is told what it was told before."""
     import re
@@ -628,7 +651,7 @@ def test_a_terminal_is_not_filled_by_failures(served, capfd):
 
 
 def test_a_path_that_is_not_as_calands_own_are_is_not_said_in_the_terminal(served, capfd):
-    """What a request says could colour a terminal, or clear it."""
+    """GATE-14. What a request says could colour a terminal, or clear it."""
     served.enter()
     served.page.touch = None
     asked = (
@@ -646,6 +669,7 @@ def test_a_path_that_is_not_as_calands_own_are_is_not_said_in_the_terminal(serve
 
 
 def test_nothing_a_request_says_is_printed(served, capfd):
+    """GATE-13, VAL-1."""
     served.enter()
     served.json("POST", "/api/value", {"scope": "prod", "key": "api-key"})
     served.ask("GET", "/api/scope?name=prod")
@@ -680,6 +704,7 @@ def test_before_the_workspace_is_there_the_state_says_so():
 
 
 def test_idle_counts_from_the_last_thing_asked():
+    """CMD-8."""
     now = [100.0]
     page = Page(
         Loader(lambda: WorkspaceService(seeded_store(), "t")),

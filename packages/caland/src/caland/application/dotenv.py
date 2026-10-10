@@ -1,4 +1,4 @@
-"""Parse and format .env content for bulk secret import/export.
+"""Parse and format .env content for bulk secret import/export. ENV-1, ENV-2, ENV-7.
 
 Pure text transforms — no I/O. Values with newlines or other awkward characters
 are written JSON-quoted and read back the same way, so multiline secrets

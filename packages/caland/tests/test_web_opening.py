@@ -27,6 +27,7 @@ def path_of(address: str) -> Path:
 
 
 def test_the_browser_is_handed_a_file_and_never_the_key():
+    """GATE-8."""
     opener, seen = opened_with()
     assert opener.open(LINK) is True
     assert seen[0].startswith("file://") and "the-one-time-key" not in seen[0]
@@ -35,6 +36,7 @@ def test_the_browser_is_handed_a_file_and_never_the_key():
 
 
 def test_the_file_is_its_owners_alone():
+    """GATE-8."""
     opener, seen = opened_with()
     opener.open(LINK)
     page = path_of(seen[0])

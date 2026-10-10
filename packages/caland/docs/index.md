@@ -54,6 +54,8 @@ asks which. ++ctrl+c++ in the terminal stops it and forgets every value it held.
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
 - [Connecting](connecting.md) — which workspace, and how it is found.
 - [Using the page](page.md) — what it does, its keys, and how it is kept yours.
+- [Security](security.md) — what it keeps to, and what it holds of a value.
+- [Tried, and not yet](tried.md) — what has run against a real workspace.
 
 ## Where it fits
 

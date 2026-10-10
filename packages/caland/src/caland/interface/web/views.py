@@ -1,4 +1,4 @@
-"""What the page is told, as plain data.
+"""What the page is told, as plain data. VAL-2.
 
 Pure: a workspace as the application layer holds it goes in, dictionaries that
 become JSON come out. No secret's value is in anything here — a value is only

@@ -67,7 +67,8 @@ the bundle's target is where Caland goes when you name nothing.
 ### 3. An address
 
 Type a workspace's address into the field under the list and press ++enter++: you are
-signed in through the browser. An address is `https`, a host, and nothing after it.
+signed in through the browser. An address is `https`, a host, and nothing after it but
+a port.
 
 Tick *keep it as a profile* and give it a name to come back to it by. What is written to
 `~/.databrickscfg` is the address and that you sign in through the browser
