@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-10
+
+Nothing Caland does has changed. This is the first release from its new home.
+
+### Changed
+
+- **Caland lives in `kostavo-oss/tools`**, one repository for the four Kostavo tools.
+  The package, its name on PyPI and its command are what they were. The links on PyPI —
+  repository, docs, issues, changelog — point at the new place, and the docs are at
+  `kostavo-oss.github.io/tools/caland/`. The old repository is gone, so a link to it, or
+  to the tag of a release up to 0.7.1, no longer opens; from this release on a tag is
+  `caland-v<version>`.
+- **The README says why Caland exists, when not to use it, and when you no longer need
+  it**: the day a Databricks workspace has a page of its own for secret scopes.
+
 ## [0.7.1] - 2026-10-09
 
 ### Changed
@@ -477,7 +492,8 @@ Initial release.
 - Pre-loads and caches scopes/secrets/ACLs on startup.
 - Three switchable themes (violet, amber Okudagram, phosphor green).
 
-[Unreleased]: https://github.com/kostavo-oss/tools/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/kostavo-oss/tools/compare/caland-v0.7.2...HEAD
+[0.7.2]: https://github.com/kostavo-oss/tools/releases/tag/caland-v0.7.2
 [0.7.1]: https://github.com/kostavo-oss/tools/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/kostavo-oss/tools/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kostavo-oss/tools/compare/v0.5.2...v0.6.0
