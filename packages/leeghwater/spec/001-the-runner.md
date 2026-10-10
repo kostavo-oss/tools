@@ -74,8 +74,10 @@ the run names those, and leeghwater makes the pipeline from what the run named.
   date or a time in ISO format, or a yes or no. A yes or no takes a word — `true`, `1`,
   `yes`, `y`, and their opposites — and is not a flag: a job's parameter comes from a bundle
   variable, and a variable can set a word. A value that doesn't parse is refused with the
-  option's name. A parameter of another type, or one named like an option of R5, is refused
-  when the app starts, not when the pipeline is run. *(decided)*
+  option's name. A parameter may have any other name, `name` and `self` included, and
+  keeps its capitals: `Since` is `--Since`. A parameter of another type, or one named like
+  an option of R5 or like `--help`, is refused when the app starts, not when the pipeline
+  is run. *(decided)*
 - **R5 — Every run takes the same few options,** for what differs between a laptop, a dev
   target and a prod target. None is needed for a first run. *(decided)*
 

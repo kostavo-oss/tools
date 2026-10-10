@@ -143,7 +143,7 @@ def _own_options(name: str, function: Callable[..., Any]) -> list[TyperOption]:
                 " name, to be an option of the command."
             )
         flag = _flag(parameter.name)
-        if flag in _EVERY_RUN:
+        if flag in ("--help", *_EVERY_RUN):
             raise LeeghwaterError(
                 f"Pipeline '{name}' has a parameter '{parameter.name}', and {flag} is an"
                 " option every run takes. Give the parameter another name."
@@ -151,7 +151,9 @@ def _own_options(name: str, function: Callable[..., Any]) -> list[TyperOption]:
         required = parameter.default is inspect.Parameter.empty
         options.append(
             TyperOption(
-                param_decls=[flag],
+                # With its own name beside the flag: click would make one up from the
+                # flag, and before typer 0.21 it made `Since` into `since`.
+                param_decls=[parameter.name, flag],
                 type=_TYPES[_kind(parameter.name, name, function)],
                 required=required,
                 default=None if required else parameter.default,
@@ -447,14 +449,22 @@ class App:
             typer.echo(line)
 
     def _run_command(
-        self, name: str, function: Callable[..., Any], **values: Any
+        self, name: str, function: Callable[..., Any], /, **values: Any
     ) -> None:
+        # The app's own arguments are before the `/`: `values` are the pipeline's
+        # parameters by name, and one may be called `name`, `function` or `self`.
         options = _Options.take(values)
         setup = self._prepare(options, require_warehouse=True)
         self._say(f"run {name}", setup)
         before = runs_so_far()
 
-        function(**values)
+        # A parameter before a `/` of the pipeline's own is not taken by name.
+        placed = [
+            values.pop(parameter.name)
+            for parameter in inspect.signature(function).parameters.values()
+            if parameter.kind is parameter.POSITIONAL_ONLY
+        ]
+        function(*placed, **values)
 
         if runs_so_far() == before:
             # `spec/001`, R8: only a pipeline made by leeghwater loads where the run said.
