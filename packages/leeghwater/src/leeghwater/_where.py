@@ -1,4 +1,4 @@
-"""Where the process runs: on a laptop or on Databricks. `spec/002`, R1."""
+"""Where the process runs: on a laptop or on Databricks. DBX-1."""
 
 import os
 from collections.abc import Mapping

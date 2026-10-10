@@ -1,7 +1,7 @@
 """leeghwater: your dlt pipeline, the same on your laptop and in a Databricks job.
 
 Importing this package changes nothing and does not import dlt: everything happens in
-`prepare()`, which an `App` calls for you. `spec/002`, R2.
+`prepare()`, which an `App` calls for you. PRE-1.
 """
 
 from importlib.metadata import version

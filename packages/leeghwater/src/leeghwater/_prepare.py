@@ -1,4 +1,4 @@
-"""Set the process up for dlt, wherever it runs. `spec/002`, and `spec/003` for secrets.
+"""Set the process up for dlt, wherever it runs. The PRE, DBX and DST rules.
 
 Everything leeghwater does for a run happens here and is returned as a `Setup`, which says
 what was decided. `create_pipeline` and `run` go by that `Setup`. Four things are handed
@@ -57,7 +57,7 @@ class Setup:
         return self.destination == "databricks"
 
     def lines(self) -> list[str]:
-        """Every item of `spec/002`, R11. Names only: no secret's value and no token."""
+        """Every item of PRE-5. Names only: no secret's value and no token."""
         rows = [
             ("where", self.where.describe()),
             ("workspace", self._workspace()),
@@ -282,7 +282,7 @@ def _existing(path: str) -> str:
 
 
 def _point_at_the_wheels_config(setup: Setup, project: str | None) -> bool:
-    """`spec/002`, R8 and R8a. Returns whether dlt was pointed somewhere new."""
+    """DBX-7 and DBX-8. Returns whether dlt was pointed somewhere new."""
     if not project:
         return False
     try:
@@ -322,7 +322,7 @@ def _env_name(key: str) -> str:
 
 
 def _set_schemas(setup: Setup, schema: str | None, staging_schema: str | None) -> None:
-    """`spec/002`, R10."""
+    """APP-7, DST-6 and DST-7."""
     if staging_schema is not None:
         if not staging_schema.strip():
             raise LeeghwaterError(
@@ -352,7 +352,7 @@ def _set_schemas(setup: Setup, schema: str | None, staging_schema: str | None) -
 
 
 def _set_warehouse(setup: Setup, warehouse: str | None, required: bool) -> None:
-    """`spec/002`, R7: the warehouse is named, not found."""
+    """DST-4 and DST-5: the warehouse is named, not found."""
     if warehouse:
         # https://docs.databricks.com/aws/en/integrations/compute-details
         setup.warehouse = warehouse

@@ -1,4 +1,4 @@
-"""What `prepare()` sets up, on a laptop and on a made-up Databricks. `spec/002`."""
+"""What `prepare()` sets up, on a laptop and on a made-up Databricks: PRE, DBX, DST."""
 
 import logging
 import os
@@ -21,6 +21,7 @@ def _scopes() -> list[str]:
 
 
 def test_on_a_laptop_it_loads_locally_and_reads_no_scope(workspace):
+    """DST-1."""
     setup = prepare(secret_scopes=["ingest"], workspace_client=workspace)
 
     assert setup.destination == "duckdb"
@@ -33,6 +34,7 @@ def test_on_a_laptop_it_loads_locally_and_reads_no_scope(workspace):
 
 
 def test_with_a_profile_a_laptop_loads_into_the_workspace(workspace):
+    """PRE-4, DBX-5, DST-1."""
     setup = prepare(profile="dev", secret_scopes=["ingest"], workspace_client=workspace)
 
     assert setup.destination == "databricks"
@@ -44,6 +46,7 @@ def test_with_a_profile_a_laptop_loads_into_the_workspace(workspace):
 def test_on_databricks_it_loads_into_databricks_and_reads_the_scopes(
     on_databricks, workspace
 ):
+    """DST-1."""
     setup = prepare(
         secret_scopes=["ingest", "platform-shared"], workspace_client=workspace
     )
@@ -56,12 +59,13 @@ def test_on_databricks_it_loads_into_databricks_and_reads_the_scopes(
 
 
 def test_a_profile_is_refused_on_databricks(on_databricks):
+    """DBX-5."""
     with pytest.raises(LeeghwaterError, match="--profile is for a laptop"):
         prepare(profile="dev")
 
 
 def test_a_second_call_changes_nothing(on_databricks, workspace):
-    """`spec/002`, R2."""
+    """PRE-2."""
     arguments = dict(
         secret_scopes=["ingest"],
         secrets={"a.b": "ingest/x"},
@@ -83,7 +87,10 @@ def test_a_second_call_changes_nothing(on_databricks, workspace):
 
 
 def test_a_later_call_decides_again_from_scratch():
-    """Nothing from an earlier call is kept: there is no state but the last Setup."""
+    """PRE-3.
+
+    Nothing from an earlier call is kept: there is no state but the last Setup.
+    """
     first = prepare(profile="dev", schema="s", staging_schema="t", warehouse="w", limit=2)
     assert (first.destination, first.schema, first.limit) == ("databricks", "s", 2)
 
@@ -98,11 +105,12 @@ def test_a_later_call_decides_again_from_scratch():
 
 
 def test_no_destination_leaves_it_to_dlt():
+    """DST-2."""
     assert prepare(local_destination=None).destination is None
 
 
 def test_a_schema_is_given_to_dlt_as_it_is(on_databricks):
-    """`spec/002`, R12 and R13: no normalized name, and no derived staging name."""
+    """DST-3, DST-6. No normalized name, and no derived staging name."""
     setup = prepare(schema="github__anna", staging_schema="github_staging__anna")
 
     assert (setup.schema, setup.staging_schema) == (
@@ -113,6 +121,7 @@ def test_a_schema_is_given_to_dlt_as_it_is(on_databricks):
 
 
 def test_on_databricks_a_schema_needs_its_staging_schema(on_databricks):
+    """DST-7."""
     with pytest.raises(LeeghwaterError, match="without --staging-schema") as error:
         prepare(schema="github__anna")
 
@@ -121,6 +130,7 @@ def test_on_databricks_a_schema_needs_its_staging_schema(on_databricks):
 
 
 def test_locally_a_schema_alone_is_enough():
+    """DST-7."""
     assert prepare(schema="github__anna").schema == "github__anna"
 
 
@@ -135,11 +145,13 @@ def test_locally_a_schema_alone_is_enough():
     ],
 )
 def test_what_is_refused(arguments, message):
+    """APP-7, DST-7."""
     with pytest.raises(LeeghwaterError, match=message):
         prepare(**arguments)
 
 
 def test_a_warehouse_is_kept_as_its_id_and_its_path(on_databricks):
+    """DST-4."""
     setup = prepare(warehouse="abc123")
 
     assert setup.warehouse == "abc123"
@@ -147,16 +159,18 @@ def test_a_warehouse_is_kept_as_its_id_and_its_path(on_databricks):
 
 
 def test_a_run_through_the_app_stops_without_a_warehouse(on_databricks):
-    """`spec/002`, R7: dlt would take the first warehouse on the workspace's list."""
+    """DST-5. dlt would take the first warehouse on the workspace's list."""
     with pytest.raises(LeeghwaterError, match="No SQL warehouse is named"):
         prepare_run(prepare_process(), require_warehouse=True)
 
 
 def test_a_notebook_is_told_that_dlt_will_choose(on_databricks):
+    """DST-5."""
     assert "no warehouse is named" in "\n".join(prepare().lines())
 
 
 def test_a_warehouse_named_another_way_counts(on_databricks, monkeypatch):
+    """DST-5."""
     monkeypatch.setenv("DATABRICKS_WAREHOUSE_ID", "from-the-sdk")
     by_sdk = prepare_run(prepare_process(), require_warehouse=True)
     monkeypatch.delenv("DATABRICKS_WAREHOUSE_ID")
@@ -168,10 +182,12 @@ def test_a_warehouse_named_another_way_counts(on_databricks, monkeypatch):
 
 
 def test_locally_no_warehouse_is_asked_for():
+    """DST-5."""
     assert prepare_run(prepare_process(), require_warehouse=True).warehouse is None
 
 
 def test_a_catalog_and_any_config_value_reach_dlt(on_databricks):
+    """PRE-4."""
     setup = prepare(catalog="main", config={"sources.orders.page_size": "50"})
 
     assert setup.catalog == "main"
@@ -180,6 +196,7 @@ def test_a_catalog_and_any_config_value_reach_dlt(on_databricks):
 
 
 def test_the_log_level_is_dlts_and_stays_after_dlt_makes_its_logger_again():
+    """PRE-4."""
     from dlt.common import logger
 
     from leeghwater import _dlt
@@ -205,7 +222,7 @@ def _project(tmp_path, monkeypatch, name, files):
 def test_a_wheels_config_is_found_where_the_working_directory_has_none(
     tmp_path, monkeypatch
 ):
-    """`spec/002`, R5: in a job the working directory is not the project."""
+    """PRE-4, DBX-7. In a job the working directory is not the project."""
     package = _project(
         tmp_path,
         monkeypatch,
@@ -222,6 +239,7 @@ def test_a_wheels_config_is_found_where_the_working_directory_has_none(
 
 
 def test_a_config_in_the_working_directory_is_left_to_dlt(tmp_path, monkeypatch):
+    """DBX-7."""
     _project(tmp_path, monkeypatch, "wheel_b", {"config.toml": "x = 1\n"})
     (tmp_path / ".dlt").mkdir()
 
@@ -231,6 +249,7 @@ def test_a_config_in_the_working_directory_is_left_to_dlt(tmp_path, monkeypatch)
 
 
 def test_a_project_dir_that_was_set_is_left(tmp_path, monkeypatch):
+    """DBX-7."""
     _project(tmp_path, monkeypatch, "wheel_c", {"config.toml": "x = 1\n"})
     monkeypatch.setenv("DLT_PROJECT_DIR", "/somewhere/else")
 
@@ -242,7 +261,7 @@ def test_a_project_dir_that_was_set_is_left(tmp_path, monkeypatch):
 def test_a_wheel_with_a_secrets_toml_is_refused_on_databricks(
     tmp_path, monkeypatch, on_databricks
 ):
-    """`spec/002`, R5a. Refused by name, before anything is read from it."""
+    """DBX-8, SEC-9. Refused by name, before anything is read from it."""
     _project(tmp_path, monkeypatch, "wheel_d", {"secrets.toml": 'token = "t0p-s3cret"\n'})
 
     with pytest.raises(LeeghwaterError, match="carries a secrets.toml") as error:
@@ -252,11 +271,12 @@ def test_a_wheel_with_a_secrets_toml_is_refused_on_databricks(
 
 
 def test_a_project_that_is_not_installed_is_no_error():
+    """DBX-7."""
     assert prepare(project="no_such_project_anywhere").destination == "duckdb"
 
 
 def test_the_first_lines_say_everything_and_no_secret(on_databricks, workspace):
-    """`spec/002`, R9, and `spec/003`, R8."""
+    """PRE-5, SEC-9."""
     setup = prepare(
         secret_scopes=["ingest"],
         secrets={"sources.github.access_token": "platform-shared/github-token"},

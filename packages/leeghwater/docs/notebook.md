@@ -13,7 +13,8 @@ leeghwater.run(p, github_source())
 ```
 
 `prepare()` is everything the app does before a run, and returns what it decided;
-`create_pipeline` and `run` go by the last `prepare()`, or by a `setup=` you pass them.
+`create_pipeline` and `run` go by the last `prepare()`, and `create_pipeline` by a
+`setup=` when you pass it one.
 Importing `leeghwater` changes nothing and does not import dlt.
 
 

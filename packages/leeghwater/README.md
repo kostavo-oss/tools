@@ -193,7 +193,7 @@ A serverless job retries a failed task once by itself unless the task sets
 
 A source asks dlt for a secret: `access_token: str = dlt.secrets.value`. dlt looks in the
 environment, then in `.dlt/secrets.toml`, then in the secret scopes the app or the run
-names. Three ways to give it one, and when to use each:
+names. Four ways to give it one, and when to use each:
 
 1. **By dlt's name, in a scope.** The path dlt asks for, joined with `-`:
 
@@ -262,7 +262,8 @@ leeghwater.run(p, github_source())
 ```
 
 `prepare()` is everything the app does before a run, and returns what it decided;
-`create_pipeline` and `run` go by the last `prepare()`, or by a `setup=` you pass them.
+`create_pipeline` and `run` go by the last `prepare()`, and `create_pipeline` by a
+`setup=` when you pass it one.
 Importing `leeghwater` changes nothing and does not import dlt.
 
 ## Commands of your own
@@ -296,28 +297,13 @@ finds the same secrets.
 
 ## Tried, and not yet
 
-On 2026-10-07 a project made by `leeghwater init` was deployed to a workspace as a bundle
-and run, and the same project was run from a laptop with a profile.
+On 2026-10-07 a project ran as a serverless job on a workspace, and from a laptop with a
+profile: the bundle, the secrets from a scope, a pipeline that fails its task, and from
+the laptop a load into Unity Catalog. A full load from a serverless job, a notebook, a
+classic cluster and a real Azure Key Vault have not been tried.
 
-Held, for real:
-
-- a bundle made from the former `leeghwater init` validates, deploys and destroys, and the
-  job's entry point is the project's own command;
-- the job is told the deployed names of the bundle's schemas, and finds the `config.toml`
-  its wheel carries;
-- a pipeline that raises fails its task;
-- a secret scope is read as the job's identity and from a laptop, and a secret is redacted
-  in the job's output;
-- from a laptop, a load into Unity Catalog; and with schemas named with two underscores, a
-  load into exactly those, with no third schema made.
-
-Not yet:
-
-- **a full load from a serverless job.** The workspace it was tried on limits the outbound
-  network of serverless compute, and dlt's upload to storage was refused. Everything before
-  the upload ran;
-- a notebook and a classic cluster, which is where the name `dlt` is said to bite;
-- the job's `ingest` task with leeghwater installed from PyPI, which 0.1.0 makes possible.
+[Tried, and not yet](https://kostavo-oss.github.io/tools/leeghwater/tried/) is the
+record: what held, what did not, and why.
 
 ## When not to use it
 

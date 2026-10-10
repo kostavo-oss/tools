@@ -15,7 +15,7 @@ packages/caland       a local page for a workspace's secrets
 pyproject.toml        the workspace: members, the dev/docs groups, ruff for everything
 mise.toml             the tasks; `mise run check` is the gate
 mkdocs.yml, docs/     the site's front page; each package's docs are included under /<name>/
-tests/                what holds across packages (no cross-imports, every package's files)
+tests/                what holds across packages (no cross-imports, every package's files, a RULES.md that is true)
 .github/workflows     ci (path-filtered per package), release (per package), integration (stevin), docs
 ```
 
@@ -38,6 +38,34 @@ tests/                what holds across packages (no cross-imports, every packag
   `TODO(verify)`, never a guess.
 - Never `git add -A` or `git add .`: name the paths. A report a tool wrote can hold the
   environment of the machine it ran on, and one was committed that way once.
+
+## Where a fact lives
+
+One place per fact, in every package. A fact written in two places goes stale in one of
+them.
+
+| The fact | Its one place in `packages/<name>/` |
+|---|---|
+| What the tool is for, when not to use it, when it is no longer needed | `README.md` |
+| What must be true of the code | `RULES.md`: numbered rules in the present tense, each with the tests that hold it |
+| Why it is so, and what it replaced | `DECISIONS.md`: a log with dates, appended to and never edited |
+| What ran on a real workspace, and what did not | the docs page for it (`docs/tried.md` in leeghwater) |
+| What changed for a user, per release | `CHANGELOG.md` |
+| How to work in the package: its layout, its commands, its rules of working | `CLAUDE.md` |
+| An idea that is wanted and not built | a GitHub issue |
+| How it came to be | git |
+
+A rule has an identifier, an area and a number such as `APP-3`, that code, tests and
+docs cite. A number is never reused. `tests/test_rules.py` holds every package that has
+a `RULES.md` to it: a cited rule exists, a rule is cited by the tests it names or says
+`Not tested:` and why, no identifier is used twice, and there is no `spec/` folder
+beside it.
+
+**leeghwater follows this.** lely and caland still have a `spec/` folder that holds
+rules, decisions, runs and history together, and stevin keeps its rules in its
+`CLAUDE.md` and its docs. Each is converted in a pull request of its own, with
+leeghwater's `RULES.md`, `DECISIONS.md` and `CLAUDE.md` as the pattern. Until then a
+package's rules are where its own `CLAUDE.md` says they are.
 
 ## How changes land
 

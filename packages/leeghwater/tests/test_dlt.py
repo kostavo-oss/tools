@@ -1,10 +1,14 @@
-"""One test per place leeghwater reaches into dlt: `src/leeghwater/_dlt.py`.
+"""One test per place leeghwater reaches into dlt: `src/leeghwater/_dlt.py`. DLT-2.
 
 When a dlt upgrade breaks one of these, that is the place to look, and the only one.
 """
 
+import inspect
 import logging
 import os
+import re
+from importlib.metadata import requires
+from pathlib import Path
 
 import dlt
 import pytest
@@ -53,6 +57,7 @@ class _Canary(EnvironProvider):
 
 
 def test_a_provider_is_registered_after_dlts_own_and_once():
+    """SEC-1."""
     provider = _Canary()
     before = [p.name for p in _dlt.registered_providers()]
 
@@ -64,7 +69,10 @@ def test_a_provider_is_registered_after_dlts_own_and_once():
 
 
 def test_a_destination_takes_its_config_fields_in_the_call(monkeypatch):
-    """The call wins over dlt's config: tried with the two fields leeghwater sets."""
+    """DST-6.
+
+    The call wins over dlt's config: tried with the two fields leeghwater sets.
+    """
     monkeypatch.setenv("DESTINATION__STAGING_DATASET_NAME_LAYOUT", "from_env")
 
     factory = _dlt.destination(
@@ -89,3 +97,57 @@ def test_failed_jobs_are_read_from_each_package():
 
     assert _dlt.failed_jobs(info) == []
     assert info.load_packages[0].jobs["completed_jobs"]
+
+
+def test_every_reach_into_dlt_has_a_canary():
+    """DLT-2. A function added to `_dlt.py` gets a test in this file that calls it."""
+    reaches = [
+        name
+        for name, value in vars(_dlt).items()
+        if inspect.isfunction(value)
+        and value.__module__ == _dlt.__name__
+        and not name.startswith("_")
+    ]
+    here = Path(__file__).read_text(encoding="utf-8")
+
+    assert reaches
+    assert [name for name in reaches if f"_dlt.{name}(" not in here] == []
+
+
+def test_only_the_provider_modules_import_from_inside_dlt():
+    """DLT-2.
+
+    `import dlt` is the face dlt documents. `from dlt.common...` is inside it.
+    """
+    inside = re.compile(r"^\s*(?:from|import)\s+dlt\.", re.MULTILINE)
+    source = Path(_dlt.__file__).parent
+
+    importing = sorted(
+        file.name
+        for file in source.glob("*.py")
+        if inside.search(file.read_text(encoding="utf-8"))
+    )
+
+    assert importing == ["_dlt.py", "keyvault.py", "secrets.py"]
+
+
+def _project(requirement: str) -> str:
+    name = re.match(r"[A-Za-z0-9_.-]+", requirement)
+    assert name, requirement
+    return name.group(0).lower()
+
+
+def test_dlt_is_the_one_dependency_with_an_upper_bound():
+    """DLT-3.
+
+    leeghwater is installed on compute it does not own, beside a project's own dlt:
+    few dependencies, each with a lower bound. The provider's base class in dlt is why
+    dlt alone is capped."""
+    needed = requires("leeghwater") or []
+    always = [r for r in needed if "extra ==" not in r]
+    extra = [r for r in needed if "extra ==" in r]
+
+    assert sorted(map(_project, always)) == ["databricks-sdk", "dlt", "typer"]
+    assert [_project(r) for r in always if "<" in r] == ["dlt"]
+    assert sorted(map(_project, extra)) == ["azure-identity", "azure-keyvault-secrets"]
+    assert all("keyvault" in r and "<" not in r for r in extra)

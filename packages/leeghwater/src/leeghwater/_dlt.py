@@ -1,4 +1,4 @@
-"""Every place leeghwater reaches into dlt beyond its documented API, in one file.
+"""Every place leeghwater reaches into dlt beyond its documented API, in one file. DLT-2.
 
 Each function here rests on something read in dlt's source, named in its docstring, and
 has a test in `tests/test_dlt.py` that fails when dlt moves it. A dlt upgrade that breaks

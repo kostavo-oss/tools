@@ -1,9 +1,9 @@
-"""`import dlt` on a made-up Databricks. `spec/002`, R3, R3b and R4.
+"""`import dlt` on a made-up Databricks: DBX-2, DBX-3 and DBX-4.
 
 A stand-in `dlt` and a stand-in import hook play Databricks' part. Each case runs in a
 process of its own: it takes dlt out of `sys.modules`, which no other test should see.
 
-TODO(verify): the real hook, on a real runtime. `spec/002`, "To verify on a workspace".
+TODO(verify): the real hook, on a real runtime. `docs/tried.md`, "Not yet".
 """
 
 import subprocess
@@ -47,6 +47,7 @@ def _run(case: str) -> str:
 
 
 def test_with_the_hook_in_the_way_import_dlt_is_still_dlthubs():
+    """DBX-2, DBX-3."""
     said = _run(
         """
         sys.meta_path.insert(0, hook)
@@ -66,6 +67,7 @@ def test_with_the_hook_in_the_way_import_dlt_is_still_dlthubs():
 
 
 def test_what_databricks_had_loaded_under_the_name_is_dropped_and_said():
+    """DBX-2, DBX-4."""
     said = _run(
         """
         sys.meta_path.insert(0, hook)
@@ -89,8 +91,10 @@ def test_what_databricks_had_loaded_under_the_name_is_dropped_and_said():
 
 
 def test_without_a_hook_it_goes_on_and_says_what_it_got():
-    """Databricks' `dlt` is a folder too. Ahead on `sys.path` it wins, and that is said:
-    `spec/002`, R3b. leeghwater moves no path entries, only the hook."""
+    """DBX-3, DBX-4.
+
+    Databricks' `dlt` is a folder too. Ahead on `sys.path` it wins, and that is said.
+    leeghwater moves no path entries, only the hook."""
     said = _run(
         """
         sys.path.insert(0, folder)
@@ -106,6 +110,7 @@ def test_without_a_hook_it_goes_on_and_says_what_it_got():
 
 
 def test_on_a_laptop_nothing_is_touched():
+    """DBX-3."""
     said = _run(
         """
         sys.meta_path.insert(0, hook)
@@ -120,6 +125,7 @@ def test_on_a_laptop_nothing_is_touched():
 
 
 def test_dlthubs_dlt_is_told_from_databricks_own():
+    """DBX-2."""
     theirs = types.ModuleType("dlt")
     theirs.__file__ = "/databricks/spark/python/dlt/__init__.py"
     theirs.pipeline = object()
@@ -131,6 +137,8 @@ def test_dlthubs_dlt_is_told_from_databricks_own():
 
 
 def test_a_hook_is_known_by_the_names_in_dlts_docs():
+    """DBX-2."""
+
     class PostImportHook:
         pass
 
@@ -143,6 +151,7 @@ def test_a_hook_is_known_by_the_names_in_dlts_docs():
 
 
 def test_the_modules_that_hold_a_dlt_are_named():
+    """DBX-4."""
     holder = types.ModuleType("holds_it")
     holder.dlt = dlt
     sys.modules["holds_it"] = holder

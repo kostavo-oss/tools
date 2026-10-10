@@ -9,6 +9,7 @@ def rows():
 
 
 def test_a_report_names_each_job_and_where_it_went():
+    """RUN-6."""
     info = dlt.pipeline("report", destination="duckdb", dataset_name="shop").run(rows())
 
     report = load_report(info)
@@ -25,6 +26,7 @@ def test_a_report_names_each_job_and_where_it_went():
 
 
 def test_a_second_run_is_not_a_first_run():
+    """RUN-6."""
     pipeline = dlt.pipeline("report_twice", destination="duckdb", dataset_name="shop")
     pipeline.run(rows())
 
@@ -32,6 +34,7 @@ def test_a_second_run_is_not_a_first_run():
 
 
 def test_sizes_read_like_sizes():
+    """RUN-6."""
     assert _size(150) == "150 B"
     assert _size(2048) == "2.0 kB"
     assert _size(5 * 1024 * 1024) == "5.0 MB"
@@ -39,6 +42,7 @@ def test_sizes_read_like_sizes():
 
 
 def test_a_failed_job_is_one_line_not_a_traceback():
+    """RUN-6."""
     message = (
         "Traceback (most recent call last):\n"
         '  File "x.py", line 1, in run\n'

@@ -2,7 +2,7 @@
 
 A source asks dlt for a secret: `access_token: str = dlt.secrets.value`. dlt looks in the
 environment, then in `.dlt/secrets.toml`, then in the secret scopes the app or the run
-names. Three ways to give it one, and when to use each:
+names. Four ways to give it one, and when to use each:
 
 1. **By dlt's name, in a scope.** The path dlt asks for, joined with `-`:
 
