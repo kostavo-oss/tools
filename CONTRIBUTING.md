@@ -15,8 +15,8 @@ stevin's, for one, has the architecture and the house rules of a plan/apply tool
   tests on Python 3.11–3.14 (stevin also on macOS and Windows, caland on macOS), the
   tests on the lowest dependency versions its `pyproject.toml` allows, and the wheel and
   source package. The docs site in strict mode and the workflows, always.
-- **`integration`** — stevin's live suite, against a real workspace. Once a week, and
-  when a maintainer starts it; never on a pull request, and not required. A pull request
+- **`integration`** — stevin's live suite, against a real workspace. Only when a
+  maintainer starts it: never on a schedule or a pull request, and not required. A pull request
   that changes what stevin sends to Databricks asks for the `smoke` tests on its branch
   (`gh workflow run integration.yml --ref <branch>`). The workspace is its owner's own
   and every table counts against its quota: never a full run for a change `smoke` or

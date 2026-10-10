@@ -306,8 +306,9 @@ tables for the probes instead of 17.
 
 ### When the suite runs
 
-- **Once a week**, on Monday at 03:00 UTC, all of it. Databricks changes too.
 - **When somebody starts it** (`workflow_dispatch`), `smoke` unless they ask for `full`.
+- **Never on a schedule.** The workspace is its owner's own, and a run that nobody
+  chose to start is a run nobody is watching.
 - **Never on a pull request.** A pull request that changes what stevin sends to
   Databricks is checked by starting `smoke` on its branch, by whoever may start the
   workflow: a maintainer. Say in the pull request that it wants one.

@@ -44,7 +44,7 @@ tests/                what holds across packages (no cross-imports, every packag
 `main` is protected; every change is a pull request, one package per PR where possible.
 `ci` lints everything and runs types, tests, lowest-dependency tests and the build only
 for packages that changed; docs (strict) and the workflows always. stevin's live suite
-(`integration`) runs weekly and when it is started by hand, from the `databricks-test`
+(`integration`) runs only when it is started by hand, from the `databricks-test`
 environment; never on a pull request, and it isn't required. It costs the owner's
 workspace tables against a quota: never start a full run for a change `smoke` or `-k`
 can check, never more than one full run a day, and as an agent never start one unasked

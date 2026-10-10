@@ -16,8 +16,8 @@
 
 `main` is protected: every change is a pull request, and the repository's `ci`
 must pass (the root `CLAUDE.md` says what it runs, and for which packages).
-`integration` — the live suite against the workspace — runs once a week and when
-somebody starts it, never on a pull request, and isn't required. A pull request that
+`integration` — the live suite against the workspace — runs only when somebody
+starts it, never on a schedule or a pull request, and isn't required. A pull request that
 changes the SQL stevin sends is checked by starting `smoke` on its branch (below).
 Its workspace is three variables in the GitHub environment `databricks-test`
 (`DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, `STEVIN_TEST_CATALOG`) and its token
@@ -270,8 +270,8 @@ owner could not create a table in their own workspace. So:
 - **Never more than one full run a day** on a workspace somebody else uses.
 - **Never start a live run of any kind without being asked to**, if you are a coding
   agent: the workspace is the owner's. Ask, and say which suite and why.
-- `integration.yml` runs weekly (full) and by hand (`smoke` by default, `-f suite=full`,
-  `-f k=<test>`); it does not run on pull requests. Do not put that trigger back.
+- `integration.yml` runs by hand only (`smoke` by default, `-f suite=full`,
+  `-f k=<test>`): no schedule and no pull-request trigger. Do not put either back.
 - A run has a budget and keeps to it: `tests/table_budget.py` (`FULL_BUDGET` 60,
   `SMOKE_BUDGET` 15). The live conftest counts every table the suite's one runner
   creates, prints the total and the ten biggest spenders, fails a session over its
