@@ -102,8 +102,8 @@ fake can say, and one less than the live suite — which is why the live suite s
 `tests/integration/` is the only source of truth about Databricks. Each test works in a
 schema the suite makes and drops: one of its own when it changes a table, one its module
 shares when it only reads. They are marked `@pytest.mark.integration` and skip themselves
-without credentials, so forks and laptops stay green. In CI they run once a week, and
-when somebody starts them: [never on a pull request](#when-the-suite-runs).
+without credentials, so forks and laptops stay green. In CI they run only when somebody
+starts them: [never on a schedule or a pull request](#when-the-suite-runs).
 
 They assert the things nothing else can:
 
