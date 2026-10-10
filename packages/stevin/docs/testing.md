@@ -102,8 +102,8 @@ fake can say, and one less than the live suite — which is why the live suite s
 `tests/integration/` is the only source of truth about Databricks. Each test works in a
 schema the suite makes and drops: one of its own when it changes a table, one its module
 shares when it only reads. They are marked `@pytest.mark.integration` and skip themselves
-without credentials, so forks and laptops stay green. In CI they run once a week, and
-when somebody starts them: [never on a pull request](#when-the-suite-runs).
+without credentials, so forks and laptops stay green. In CI they run only when somebody
+starts them: [never on a schedule or a pull request](#when-the-suite-runs).
 
 They assert the things nothing else can:
 
@@ -306,8 +306,9 @@ tables for the probes instead of 17.
 
 ### When the suite runs
 
-- **Once a week**, on Monday at 03:00 UTC, all of it. Databricks changes too.
 - **When somebody starts it** (`workflow_dispatch`), `smoke` unless they ask for `full`.
+- **Never on a schedule.** The workspace is its owner's own, and a run that nobody
+  chose to start is a run nobody is watching.
 - **Never on a pull request.** A pull request that changes what stevin sends to
   Databricks is checked by starting `smoke` on its branch, by whoever may start the
   workflow: a maintainer. Say in the pull request that it wants one.

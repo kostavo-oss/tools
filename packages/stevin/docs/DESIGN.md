@@ -253,7 +253,7 @@ Plan: 0 add, 1 change, 0 destroy · 6 steps · 0 rewrites · 1 warning
 ## Testing
 
 - Unit: differ and planner with golden plan snapshots. No workspace needed.
-- Integration: real workspace, ephemeral schemas, weekly in CI and by hand, with a budget of tables per run. Marked `@pytest.mark.integration`, skipped without credentials.
+- Integration: real workspace, ephemeral schemas, started by hand in CI, with a budget of tables per run. Marked `@pytest.mark.integration`, skipped without credentials.
 - Every discovered Databricks limitation becomes a test.
 
 **(since)** Two layers sit between those: a fake warehouse that interprets stevin's own

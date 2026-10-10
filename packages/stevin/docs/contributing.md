@@ -63,7 +63,7 @@ rather than picking one silently. Beyond that:
   everything else against a fake warehouse that interprets stevin's own SQL. Fast,
   offline, and the bar for every PR.
 - `tests/integration/` — marked `@pytest.mark.integration`, skipped without credentials,
-  and run weekly against a real workspace. Not on pull requests: one that changes what
+  and run by hand against a real workspace. Not on pull requests: one that changes what
   stevin sends to Databricks asks a maintainer for the `smoke` tests on its branch.
   [Testing](testing.md#what-a-run-costs) says what a run costs the workspace, and the
   rule that follows: never a full run for a change `smoke` or `-k` can check.
