@@ -27,7 +27,7 @@ replaced whole when it differs, because there is nothing to match on.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 import yaml
@@ -52,8 +52,13 @@ def merge_into(
     wanted: Mapping[str, object],
     *,
     rendered: Rendered = str,
+    settled: Collection[str] = (),
 ) -> str:
     """The file, edited until reading it gives `wanted` — and not edited further.
+
+    `settled` names top-level keys the caller knows the file already says, in a
+    spelling of its own that `wanted` can't have: `primary_key: [id]` for
+    `primary_key: {columns: [id]}`. They stay as they are written.
 
     Raises `ValueError` if the file isn't a YAML mapping, which is the only
     shape a spec has.
@@ -64,7 +69,7 @@ def merge_into(
     if not isinstance(node, MappingNode):
         raise ValueError("a spec file is a mapping of keys to values")
     edits: list[_Edit] = []
-    _mapping(source, node, wanted, edits, rendered)
+    _mapping(source, node, wanted, edits, rendered, settled)
     return _applied(source, edits)
 
 
@@ -87,9 +92,12 @@ def _mapping(
     wanted: Mapping[str, object],
     edits: list[_Edit],
     rendered: Rendered,
+    settled: Collection[str] = (),
 ) -> None:
     present = {str(key.value): (key, value) for key, value in node.value}
     for key, value in wanted.items():
+        if key in present and key in settled:
+            continue
         if key in present:
             _value(source, present[key][1], value, edits, rendered)
         else:

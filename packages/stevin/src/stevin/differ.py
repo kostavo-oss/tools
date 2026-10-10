@@ -17,6 +17,8 @@ Two rules shape everything here:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from stevin.model.change import CREATE_KINDS, Change
 from stevin.model.function import Function
 from stevin.model.schema import Schema
@@ -25,6 +27,7 @@ from stevin.model.table import (
     MANAGED_PROPERTY,
     SEED_PROPERTY,
     Check,
+    Constraint,
     ForeignKey,
     PrimaryKey,
     Securable,
@@ -751,7 +754,7 @@ def _diff_constraints(desired: Table, actual: Table) -> list[Change]:
     # with any name. Live keys nobody declared are someone else's.
     live_keys = actual.foreign_keys()
     for key in desired.foreign_keys():
-        match = next((live for live in live_keys if live.same_as(key)), None)
+        match = _same_foreign_key(key, live_keys)
         if match is None:
             same_name = next(
                 (live for live in live_keys if key.name and live.name == key.name), None
@@ -771,6 +774,42 @@ def _primary_key_differs(desired: PrimaryKey, live: PrimaryKey | None) -> bool:
     if desired.columns != live.columns:
         return True
     return desired.name is not None and desired.name != live.name
+
+
+def _same_foreign_key(
+    key: ForeignKey, live_keys: Sequence[ForeignKey]
+) -> ForeignKey | None:
+    """The live key that means what `key` means, whatever it is called."""
+    return next((live for live in live_keys if live.same_as(key)), None)
+
+
+def as_declared(desired: Table, actual: Table) -> tuple[Constraint, ...]:
+    """The live constraints, each key unnamed where the spec leaves it unnamed.
+
+    Databricks names every key, so a live one always has a name, and
+    `_diff_constraints` plans nothing for a key the spec doesn't name as long as
+    its columns are the live ones. `adopt` writes a file by the same rule: such a
+    key stays as the spec declares it, and every other constraint is the live one.
+    A CHECK has no part in this: it can't be declared without a name.
+    """
+    key = desired.primary_key()
+    live_keys = actual.foreign_keys()
+    unnamed = {
+        match: declared
+        for declared in desired.foreign_keys()
+        if not declared.name
+        and (match := _same_foreign_key(declared, live_keys)) is not None
+    }
+    constraints: list[Constraint] = []
+    for live in actual.constraints:
+        if isinstance(live, PrimaryKey):
+            same = key is not None and not _primary_key_differs(key, live)
+            constraints.append(key if key is not None and same else live)
+        elif isinstance(live, ForeignKey):
+            constraints.append(unnamed.get(live, live))
+        else:
+            constraints.append(live)
+    return tuple(constraints)
 
 
 def is_applied(change: Change, live: Relation | None) -> bool:

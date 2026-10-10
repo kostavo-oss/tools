@@ -22,7 +22,15 @@ from stevin.adopt import CannotAdopt, adopt
 from stevin.cli import app
 from stevin.connect import Connection
 from stevin.loader import LoadedSpec, load_spec_text
-from stevin.model.table import MANAGED_PROPERTY, Grant, Seed, Table
+from stevin.model.table import (
+    MANAGED_PROPERTY,
+    Check,
+    ForeignKey,
+    Grant,
+    PrimaryKey,
+    Seed,
+    Table,
+)
 from stevin.model.view import View
 
 runner = CliRunner()
@@ -79,18 +87,21 @@ def run(
     live: Table | View,
     monkeypatch: pytest.MonkeyPatch,
     *args: str,
+    others: tuple[Table, ...] = (),
 ) -> tuple[str, int]:
     """`stevin adopt` against a workspace holding `live`."""
-    fake = FakeWarehouse.of(live)
+    fake = FakeWarehouse.of(live, *others)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(app, ["adopt", *args])
     return result.output, result.exit_code
 
 
-def drifted(tmp_path: Path, live: Table | View, monkeypatch: pytest.MonkeyPatch) -> int:
+def drifted(
+    tmp_path: Path, live: Table | View, monkeypatch: pytest.MonkeyPatch, *others: Table
+) -> int:
     """What `stevin drift` says now: 0 in sync, 2 drifted."""
-    fake = FakeWarehouse.of(live)
+    fake = FakeWarehouse.of(live, *others)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
     monkeypatch.chdir(tmp_path)
     return runner.invoke(app, ["drift"]).exit_code
@@ -226,6 +237,116 @@ def test_a_grant_is_adopted_only_for_a_principal_the_spec_names(
     after = path.read_text()
     assert "MODIFY" in after, "the privileges of a principal the spec names"
     assert "everyone" not in after, "and nobody else's"
+
+
+# ---------------------------------------------------------------------------
+# a constraint's name
+# ---------------------------------------------------------------------------
+
+#: The table the orders point at, with a key for a foreign key to mean.
+CUSTOMERS = replace(
+    table(col("id", "bigint", nullable=False), name="main.sales.customers"),
+    constraints=(PrimaryKey(("id",), "customers_pk"),),
+)
+
+UNNAMED_KEY = "constraints:\n  - primary_key: [id]\n"
+UNNAMED_REFERENCE = (
+    "constraints:\n"
+    "  - foreign_key:\n"
+    "      columns: [id]\n"
+    "      references: ${catalog}.sales.customers\n"
+    "      referenced_columns: [id]\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("declared", "constraint"),
+    [
+        (UNNAMED_KEY, PrimaryKey(("id",), "orders_pk")),
+        (
+            UNNAMED_REFERENCE,
+            ForeignKey(("id",), "main.sales.customers", ("id",), "orders_id_fk"),
+        ),
+    ],
+    ids=["primary key", "foreign key"],
+)
+def test_a_constraint_the_spec_leaves_unnamed_stays_unnamed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    declared: str,
+    constraint: PrimaryKey | ForeignKey,
+) -> None:
+    """Databricks names every key, so a live one always carries a name. The spec
+    said "a key on this column" and the table has one: the differ plans nothing
+    for it, and adopt writes nothing for it — the column is the whole diff."""
+    path = at(tmp_path, SPEC + declared)
+    in_sync = replace(IN_SYNC, constraints=(constraint,))
+    assert drifted(tmp_path, in_sync, monkeypatch, CUSTOMERS) == 0, "nothing drifted"
+    output, code = run(tmp_path, in_sync, monkeypatch, others=(CUSTOMERS,))
+    assert code == 0, output
+    assert "already says what is live" in output
+    assert path.read_text() == SPEC + declared
+
+    live = replace(in_sync, columns=(*in_sync.columns, col("region", "string")))
+    output, code = run(tmp_path, live, monkeypatch, others=(CUSTOMERS,))
+    assert code == 0, output
+    assert "+ columns: region string" in output
+    assert "constraints" not in output
+    after = path.read_text()
+    assert declared in after, "the constraint reads as it was written"
+    assert str(constraint.name) not in after
+    assert drifted(tmp_path, live, monkeypatch, CUSTOMERS) == 0
+
+
+def test_a_check_is_matched_by_its_name_and_so_has_nothing_to_leave_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CHECK can't be declared without a name, and Databricks doesn't make one
+    up: there is no generated name for adopt to bring back."""
+    declared = "constraints:\n  - check: {name: id_positive, expression: id > 0}\n"
+    path = at(tmp_path, SPEC + declared)
+    live = replace(IN_SYNC, constraints=(Check("id_positive", "id > 0"),))
+    output, code = run(tmp_path, live, monkeypatch)
+    assert code == 0, output
+    assert "already says what is live" in output
+    assert path.read_text() == SPEC + declared
+
+
+def test_a_key_the_spec_names_takes_the_live_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    declared = "constraints:\n  - primary_key: {columns: [id], name: orders_key}\n"
+    path = at(tmp_path, SPEC + declared)
+    live = replace(IN_SYNC, constraints=(PrimaryKey(("id",), "orders_pk"),))
+    output, code = run(tmp_path, live, monkeypatch)
+    assert code == 0, output
+    assert "~ constraints" in output
+    assert "name: orders_pk" in path.read_text()
+    assert drifted(tmp_path, live, monkeypatch) == 0
+
+
+def test_an_unnamed_key_on_other_columns_is_adopted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the name is the workspace's choice. A key that moved did drift."""
+    spec = SPEC.replace(
+        "{name: placed, type: date}", "{name: placed, type: date, nullable: false}"
+    )
+    path = at(tmp_path, spec + UNNAMED_KEY)
+    live = replace(
+        IN_SYNC,
+        columns=(
+            col("id", "bigint", nullable=False),
+            col("placed", "date", nullable=False),
+        ),
+        constraints=(PrimaryKey(("id", "placed"), "orders_pk"),),
+    )
+    output, code = run(tmp_path, live, monkeypatch)
+    assert code == 0, output
+    assert "~ constraints" in output
+    after = path.read_text()
+    assert "placed" in after.partition("constraints:")[2]
+    assert drifted(tmp_path, live, monkeypatch) == 0
 
 
 # ---------------------------------------------------------------------------
