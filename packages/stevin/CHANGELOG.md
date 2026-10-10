@@ -68,7 +68,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   older runtime, no `READ METADATA` — doesn't fail the plan, which says *policies could
   not be read* once and goes on; `manage: {policies: false}` stops stevin asking.
   **Not yet run against a workspace**: the statements and their columns are the
-  manual's, and three new probes in `stevin verify` are waiting to settle them.
+  manual's, and three new probes are waiting to settle them. One only reads and runs
+  in every `stevin verify`. The other two have to create a policy on a scratch table
+  to read it back, so a plain `verify` leaves them out and says so; `stevin verify
+  --create-policy` (`api.verify(create_policy=True)`) runs them, and so does stevin's
+  own live suite.
 
 ### Changed
 
