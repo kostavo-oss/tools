@@ -1,0 +1,29 @@
+# serializer version: 1
+# name: test_the_report_in_a_terminal
+  '''
+  main.sales.customers   access
+    owner crm-team
+  
+    Granted
+      account users
+        SELECT          inherited from catalog main
+      analysts
+        MODIFY          the table's own
+        SELECT          inherited from schema main.sales
+      etl
+        MODIFY, SELECT  the table's own
+  
+    What narrows a read
+      · row filter main.security.by_region on region
+      · mask on email with main.security.mask_email
+      · policy mask_pii (column mask, on schema main.sales) masks columns matching has_tag('pii') AS c
+        with main.governance.redact, for account users except data_admins
+  
+    This lists what is granted and what is in scope. It does not:
+      · evaluate a policy's condition for a given reader
+      · resolve who is in a group
+      · run a query as someone else
+      · list USE CATALOG and USE SCHEMA, which a reader needs as well
+  
+  '''
+# ---

@@ -1,9 +1,9 @@
 """The `stevin` command line.
 
 `validate` lints specs offline; `import` writes specs for what already exists,
-and `adopt` rewrites them from live state; `plan`, `show`, `drift` and `doctor`
-read; `apply`, `force-unlock` and `verify` are the only commands that write to a
-workspace.
+and `adopt` rewrites them from live state; `plan`, `show`, `drift`, `access` and
+`doctor` read; `apply`, `force-unlock` and `verify` are the only commands that
+write to a workspace.
 """
 
 import json
@@ -50,6 +50,7 @@ from stevin.loader import (
     owned_diagnostics,
     shared_names,
     spec_files,
+    substitute,
     unreferenced_functions,
     validate_spec,
 )
@@ -58,6 +59,8 @@ from stevin.model.plan import Plan, Step
 from stevin.owned import OwnedError
 from stevin.planning import cycles
 from stevin.probes import Result
+from stevin.render.access import dumps as access_json
+from stevin.render.access import render_access
 from stevin.render.html import render_html
 from stevin.render.json import PlanFileError
 from stevin.render.json import dumps as plan_json
@@ -940,6 +943,76 @@ def adopt(
         f"[green]Adopted {count(len(written), 'spec')}.[/] "
         "`stevin plan` is quiet now: read the diff, and commit it."
     )
+
+
+@app.command()
+def access(
+    table: Annotated[
+        str,
+        typer.Argument(
+            help="The table, as catalog.schema.table. ${var} is the target's variable."
+        ),
+    ],
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Which target's variables and workspace."),
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    output_json: Annotated[
+        bool, typer.Option("--json", help="Print the report as JSON.")
+    ] = False,
+) -> None:
+    """Who may see a table, and through what. Reads; changes nothing.
+
+    The grants on the table and the ones it inherits from its schema and
+    catalog, the row filter, the column masks, the ABAC policies in scope, and
+    the owner.
+
+    It lists what is granted and what is in scope. It does not evaluate a
+    policy's condition for a given reader, does not resolve who is in a group,
+    and cannot run a query as someone else.
+    """
+    project = _optional_project(config)
+    chosen = _target(project, target) if project else None
+    name = table
+    if VARIABLE.search(name):
+        if chosen is None:
+            err.print(
+                f"[red]{escape(name)} uses a variable, and there is no stevin.yml "
+                "here to say what it is. Write the name out.[/]"
+            )
+            raise typer.Exit(1)
+        try:
+            name = substitute(name, chosen.variables_map(), chosen.unresolved_map())
+        except KeyError as error:
+            err.print(f"[red]{escape(str(error.args[0]))}[/]")
+            raise typer.Exit(1) from error
+    if len(name.split(".")) != 3:
+        err.print(
+            "[red]Give the table as catalog.schema.table, e.g. main.sales.orders[/]"
+        )
+        raise typer.Exit(1)
+    connection = _connect(warehouse_id, chosen, profile)
+    try:
+        report = api.access(
+            connection,
+            name,
+            parallel=parallel,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    if output_json:
+        typer.echo(access_json(report), nl=False)
+    else:
+        render_access(report, out)
 
 
 @app.command()

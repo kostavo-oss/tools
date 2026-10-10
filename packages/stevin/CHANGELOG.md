@@ -88,6 +88,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   out and says so; `stevin verify --create-policy` (`api.verify(create_policy=True)`)
   runs them, and so does stevin's own live suite.
 
+- **`stevin access <table>`: who may see a table, and through what.** Who may read a
+  table is kept in three places, and a reviewer had to look in each. The new command
+  reads them for one table and prints one answer: every principal with a privilege on
+  the table, and under it what it may do and where that is granted — *the table's own*,
+  or *inherited from schema main.sales* or from the catalog; then what narrows a read —
+  the table's row filter with its columns, each masked column with its function, and
+  each ABAC policy in scope, in the words a plan uses; and the owner. It reads and
+  writes nothing: `information_schema.table_privileges` for the grants, the same reads
+  a plan makes for the rest. `--json` gives the same as data, and `api.access()`
+  returns it as a frozen `Access`. The name may use a target's variable, and the command
+  works without a `stevin.yml`. A workspace that will not list policies does not fail
+  it: the report says *policies could not be read* once and is otherwise complete, and
+  it reads grants and policies whatever `manage:` says, because it only reads and a team
+  whose grants another tool sets is who needs to see them. **It says what it is not**, in its
+  output, its JSON and the docs: it lists what is granted and what is in scope; it does
+  not evaluate a policy's condition for a given reader, does not resolve who is in a
+  group, cannot run a query as someone else, and leaves out `USE CATALOG` and `USE
+  SCHEMA`. **Run against a workspace on 2026-10-10** for a grant on the table and one
+  inherited from its schema, a row filter and a policy on the schema; a grant inherited
+  from a catalog is read the same way and has not been seen on a workspace. One new
+  probe holds what was settled, and each access recipe now names the command that
+  checks it.
+
 ### Changed
 
 - **The page has the look of the other Kostavo pages.** `stevin ui` and `-f html` now

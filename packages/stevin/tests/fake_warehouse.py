@@ -138,6 +138,14 @@ INFORMATION_SCHEMA_COLUMNS: dict[str, frozenset[str]] = {
 }
 
 
+#: The privileges a table can hold, and so inherits from its schema or catalog.
+#: `USE SCHEMA`, `CREATE TABLE` and the like stay with the schema.
+#: https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/privileges
+_REACHES_A_TABLE = frozenset(
+    {"ALL PRIVILEGES", "APPLY TAG", "MANAGE", "MODIFY", "SELECT"}
+)
+
+
 class FakeSqlError(Exception):
     """The fake doesn't know this statement — or the statement is wrong."""
 
@@ -167,6 +175,10 @@ class FakeWarehouse:
     #: ABAC policies, wherever each is defined. One on a schema or a catalog is
     #: in scope of every table below it, as `SHOW EFFECTIVE POLICIES` lists it.
     policies: list[Policy] = field(default_factory=list)
+    #: Grants on a catalog, by catalog. stevin never writes one, so there is
+    #: no statement for it: a test puts them here. A table below inherits the
+    #: ones that reach a table.
+    catalog_grants: dict[str, tuple[Grant, ...]] = field(default_factory=dict)
     #: Substring -> what the warehouse says when it refuses a statement it
     #: understood: an older runtime, a missing privilege. Raised as the real
     #: runner raises a failed statement (`IntrospectionError`), where
@@ -586,7 +598,18 @@ class FakeWarehouse:
                 )
             return tuple(filtered)
         if "information_schema.table_privileges" in flat:
-            return tuple(
+            # A table's own grants, then what it inherits. A workspace lists a
+            # `SELECT` on the schema again for each table, with `SCHEMA`, and
+            # leaves `USE SCHEMA` out — seen live on 2026-10-10. That the other
+            # privileges a table can hold are listed the same way, and that a
+            # catalog's say `CATALOG`, is the manual's.
+            # https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges
+            only = _literal_after(flat, "table_name = ")
+            above = (
+                ("SCHEMA", self._schema_def(f"{catalog}.{schema}".lower()).grants),
+                ("CATALOG", self.catalog_grants.get(catalog, ())),
+            )
+            held: list[Row] = [
                 {
                     "table_name": table.short_name,
                     "grantee": grant.principal,
@@ -594,9 +617,25 @@ class FakeWarehouse:
                     "inherited_from": "NONE",
                 }
                 for table in governed
+                if only is None or table.short_name == only
                 for grant in table.grants
                 for privilege in grant.privileges
-            )
+            ]
+            held += [
+                {
+                    "table_name": table.short_name,
+                    "grantee": grant.principal,
+                    "privilege_type": privilege.replace(" ", "_"),
+                    "inherited_from": source,
+                }
+                for table in governed
+                if only is None or table.short_name == only
+                for source, grants in above
+                for grant in grants
+                for privilege in grant.privileges
+                if privilege in _REACHES_A_TABLE
+            ]
+            return tuple(held)
         if "information_schema.table_tags" in flat:
             return tuple(
                 {"table_name": table.short_name, "tag_name": key, "tag_value": value}

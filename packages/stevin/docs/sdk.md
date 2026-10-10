@@ -185,6 +185,24 @@ file (`before`, `after`), what changed in it (`notes`), and what a plan would
 still say afterwards (`remaining`). No workspace object is touched. `select`
 narrows it the way it does for `plan`.
 
+## Who may see a table
+
+```python
+report = stevin.access(conn, "main.sales.orders")
+for principal in report.principals:
+    for level, on, privileges in report.held_by(principal):
+        print(principal, privileges, level, on)
+print(report.row_filter, report.masks, report.policies, report.owner)
+print(stevin.access_text(report))  # as the command prints it
+print(stevin.access_to_json(report))  # as `--json` prints it
+```
+
+One table's grants — its own and the ones it inherits, each a `stevin.Held` — what
+narrows a read, and the owner, as a frozen `stevin.Access`. Nothing is written. It
+lists what is granted and what is in scope: it does not evaluate a policy's condition
+for a given reader, does not resolve who is in a group, and cannot run a query as
+someone else. A name that is not a table raises `stevin.AccessError`.
+
 ## Verifying a workspace
 
 ```python
@@ -213,6 +231,7 @@ Every error stevin raises on purpose descends from `StevinError`, so one
 | `NotConnected` | no workspace, or no warehouse | check the profile or the id |
 | `PlanningError` | the specs can't be planned together | show it |
 | `IntrospectionError` | the workspace can't be read | retry, or show it |
+| `AccessError` | `access` was asked about something that is not a table here | show it |
 | `StalePlan` | the world moved; `.tables` names it | plan again |
 | `DestructiveRefused` | it would destroy something; `.tables` names it | ask a person |
 | `ExecutionError` | anything else that stops a run | show it |

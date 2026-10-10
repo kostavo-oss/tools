@@ -9,7 +9,7 @@
   copy of your schema, and nothing to leak or drift.
 - **Plans are inert, and three commands write.** `stevin plan` only reads
   (`information_schema`, `DESCRIBE DETAIL`, `DESCRIBE HISTORY`, `SHOW CREATE TABLE`,
-  `SHOW TBLPROPERTIES`), and so do `drift`, `import`, `adopt` and `doctor`. A statement
+  `SHOW TBLPROPERTIES`), and so do `drift`, `access`, `import`, `adopt` and `doctor`. A statement
   that changes one of your tables is executed by `apply` and nowhere else: from a saved
   plan that was reviewed first, or — without a plan file — from a plan it makes on the
   spot, shows, and asks about before it runs (`--yes` skips the question, so then nobody

@@ -247,10 +247,68 @@ still named and placed. `manage: {policies: false}` in `stevin.yml` stops stevin
 asking at all. [`drift`](cli.md#drift) lists them the same way and never counts one as
 drift; [`doctor`](cli.md#doctor) says whether this warehouse will list them.
 
-!!! warning "Not yet run against a workspace"
-    Both statements are used as the manual documents them, and no workspace has answered
-    them for stevin yet. `stevin verify` has three probes that settle it in yours.
+!!! note "Run against a workspace on 2026-10-10"
+    Settled: a SQL warehouse accepts both statements, for a row filter policy on a schema
+    and on a table, with one principal. `SHOW EFFECTIVE POLICIES` answers in the
+    documented columns, and `DESCRIBE POLICY` gives the function and the principal.
+    Still read from the manual alone: a column mask policy, a policy on a catalog,
+    several principals, `EXCEPT`, `WHEN`, `MATCH COLUMNS`, and what a refusal looks like.
+    Where one of those reads back differently, a plan still names the policy and where
+    it is defined. `stevin verify --create-policy` runs the three probes in your
+    workspace.
     [What is still open →](testing.md#what-the-live-suite-has-not-settled)
+
+## Who may see a table
+
+Who may read a table is kept in three places: the grants on the table and on its schema
+and catalog, the row filter and masks the table carries, and the
+[ABAC policies](#the-policies-a-table-is-under) defined above it. `stevin access` reads
+the three for one table and prints one answer. It writes nothing.
+
+```sh
+stevin access dev.sales.customers
+```
+
+![Who may see a table, and through what](assets/screens/feature-access.svg)
+
+- **Granted** lists each principal, and under it what it may do and where that is
+  granted: *the table's own*, or *inherited from* the schema or the catalog, by name. A
+  principal with both has a line for each, because revoking one leaves the other.
+- **What narrows a read** lists the table's row filter with its columns, each masked
+  column with its function, and each policy in scope, in the words a
+  [plan](#the-policies-a-table-is-under) uses for it.
+- The **owner** is on the second line.
+
+The table is named in full, or with a target's variable: `stevin access
+'${catalog}.sales.customers' -t prod`. `--json` prints the same as data, for a review
+script or an audit file.
+
+A workspace that will not list policies does not fail the report. It says *policies
+could not be read*, once, with the workspace's reason, and the rest is complete.
+
+The report reads grants and policies whatever [`manage:`](spec.md#what-stevin-manages)
+says. `manage:` says what a project hands to another tool, so that stevin does not plan
+or change it. The report changes nothing, and it is there to show what is true of a
+table, including what another tool put there. A team whose grants live in Terraform is
+exactly who needs to see them.
+
+**What it is not.** The report lists what is granted and what is in scope. It does not:
+
+- evaluate a policy's condition for a given reader. A policy with `WHEN` or `MATCH
+  COLUMNS` is shown with its condition, and Databricks works out whether it applies
+  when the table is queried;
+- resolve who is in a group. `analysts` is a name here, not a list of people;
+- run a query as someone else. There is no run-as on a warehouse, so what a person
+  sees is only known when that person runs the query;
+- list `USE CATALOG` and `USE SCHEMA`, which a reader needs as well. The workspace does
+  not list them for a table.
+
+Grants come from
+[`information_schema.table_privileges`](https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges),
+whose `inherited_from` says where each one is granted. A grant on the table and one
+inherited from its schema were read from a workspace on 2026-10-10; one inherited from
+a catalog is read the same way, and no workspace has shown it to stevin yet.
+[What is still open →](testing.md#what-the-live-suite-has-not-settled)
 
 ## Views
 

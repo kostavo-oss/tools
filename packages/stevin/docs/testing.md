@@ -126,8 +126,8 @@ says `TODO(verify)` rather than pretending.
 Most of what stevin assumes about Databricks has been run against a workspace: the
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
-*a seed's INSERT OVERWRITE with a column list is accepted*). These are still open, and each
-says so in the source:
+*a seed's INSERT OVERWRITE with a column list is accepted*). Four things are still open.
+They are five `TODO(verify)` marks in the source, because reading policies has two:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
@@ -149,6 +149,15 @@ says so in the source:
   `._describe_policy`). The suite makes nothing outside its scratch schema, has only
   `account users` to name, and a `MATCH COLUMNS` condition wants a governed tag. Where a
   label is wrong, a plan still names the policy and where it is defined.
+
+- **A grant inherited from a catalog.** `stevin access` reads where a privilege is
+  granted from `table_privileges.inherited_from`. `NONE` for the table's own and
+  `SCHEMA` for one on its schema were read from a workspace on 2026-10-10
+  (`tests/integration/test_live_access.py`, and the probe *table_privileges says where
+  an inherited grant comes from*). `CATALOG` is read the same way
+  (`introspect.Introspector.privileges`), and the suite grants nothing outside its
+  scratch schema, so no workspace has said it to stevin. Another value is shown as the
+  workspace spelled it.
 
 `stevin verify` runs the first of these as a probe in a workspace of your own.
 

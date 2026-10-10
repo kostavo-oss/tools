@@ -26,15 +26,18 @@ mention are the implementation, and move without notice.
 Errors all descend from `StevinError`, so one `except` reports any failure
 and a subclass reacts to a particular one. Rendering a plan is separate from
 making one: `render_plan` for a terminal, `render_markdown` for a pull request,
-`plan_to_json` for a file or a queue.
+`plan_to_json` for a file or a queue. `access` answers who may see one table, and
+`render_access`, `access_text` and `access_to_json` show the answer.
 """
 
 from __future__ import annotations
 
+from stevin.access import AccessError
 from stevin.adopt import Adoption, CannotAdopt
 from stevin.api import (
     ImportedSchema,
     ImportedSpec,
+    access,
     adopt,
     apply,
     drift,
@@ -73,6 +76,7 @@ from stevin.loader import (
     validate_spec,
 )
 from stevin.manage import MANAGEABLE, Manage
+from stevin.model.access import Access, Held
 from stevin.model.function import Function
 from stevin.model.plan import Plan, Risk, Step, Summary, TableDiff, TableFacts
 from stevin.model.policy import Policy
@@ -90,6 +94,8 @@ from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
 from stevin.planning import PlanningError, plan_tables
 from stevin.probes import PROBES, Bench, Disagrees, Probe, Result
+from stevin.render.access import access_text, render_access
+from stevin.render.access import dumps as access_to_json
 from stevin.render.html import render_html
 from stevin.render.json import PlanFileError
 from stevin.render.json import dumps as plan_to_json
@@ -99,6 +105,11 @@ from stevin.render.rich import plan_text, render_plan
 
 __all__ = [
     "__version__",
+    "Access",
+    "access",
+    "access_text",
+    "access_to_json",
+    "AccessError",
     "adopt",
     "Adoption",
     "apply",
@@ -124,6 +135,7 @@ __all__ = [
     "ForeignKey",
     "Function",
     "Grant",
+    "Held",
     "history_for",
     "HistoryStore",
     "import_schema",
@@ -156,6 +168,7 @@ __all__ = [
     "PROBES",
     "Project",
     "Relation",
+    "render_access",
     "render_html",
     "render_markdown",
     "render_plan",

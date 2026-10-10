@@ -220,6 +220,7 @@ stevin plan -t dev [-o plan.json] [--select sales.orders] [--format rich|md|json
 stevin show plan.json -f md        # render a saved plan, no warehouse needed
 stevin apply plan.json [--allow-destructive]   # run a reviewed plan, as CI does
 stevin drift -t dev                # exit code 2 on drift, for CI
+stevin access main.sales.orders    # who may see a table, and through what
 stevin force-unlock -t dev
 ```
 

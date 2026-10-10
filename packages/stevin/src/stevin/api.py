@@ -37,6 +37,7 @@ from stevin.loader import (
     unreferenced_functions,
 )
 from stevin.manage import EVERYTHING, Manage
+from stevin.model.access import Access
 from stevin.model.plan import Plan, Step
 from stevin.model.table import Table
 from stevin.model.view import Relation, View
@@ -119,6 +120,38 @@ def drift(
     business.
     """
     return plan(project, target, connection, select=select, parallel=parallel)
+
+
+def access(
+    connection: Connection,
+    table: str,
+    *,
+    parallel: int = 8,
+) -> Access:
+    """Who may see `catalog.schema.table`, and through what. Reads; writes nothing.
+
+    What comes back is the privileges granted on the table and the ones it
+    inherits, each with the schema or catalog it is granted on; what narrows a
+    read — the table's row filter, its column masks and the ABAC policies in
+    scope; and the owner.
+
+    It lists what is granted and what is in scope (`stevin.model.access.LIMITS`
+    says the rest): it does not evaluate a policy's condition for a given
+    reader, does not resolve who is in a group, cannot run a query as someone
+    else, and leaves out `USE CATALOG` and `USE SCHEMA`.
+
+    It takes no `manage`. What a project hands to another tool is what stevin
+    doesn't plan or change there; this changes nothing, and shows what is true
+    of the table whoever put it there. So grants and policies are always asked
+    for. A workspace that refuses to list policies doesn't fail it: the result
+    says why (`policies_unread`) and holds the rest.
+
+    Raises `AccessError` for a name that isn't a table in this workspace, and
+    `IntrospectionError` if the workspace can't be read.
+    """
+    from stevin.access import read
+
+    return read(connection.introspector(EVERYTHING, parallel), table)
 
 
 def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:

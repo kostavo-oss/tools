@@ -86,6 +86,8 @@ partitioning — can't: that is what stevin is for.
 Handing one over means the key is refused in a spec (where you write it, with the line
 number), left out of the editors' JSON Schema, never written by `import`, and never in a
 plan. For grants and policies it also means the workspace isn't asked about them at all.
+The one exception is the [`access`](cli.md#access) report, which reads both anyway,
+because it only reads.
 
 `policies` is different in kind. stevin never writes an ABAC policy, so there is
 nothing to refuse in a spec: `policies: false` only stops it *reading* the
