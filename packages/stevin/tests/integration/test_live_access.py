@@ -157,7 +157,7 @@ def test_the_report_says_what_is_inherited_and_what_is_the_tables_own(
 
     assert report.row_filter == RowFilter(f"{catalog}.{schema}.keep", ("region",))
     assert report.masks == ()
-    assert report.policies_unread is None and report.policies_asked
+    assert report.policies_unread is None
     [policy] = report.policies
     assert (policy.kind, policy.level, policy.on.lower()) == (
         "row_filter",

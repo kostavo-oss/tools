@@ -247,9 +247,15 @@ still named and placed. `manage: {policies: false}` in `stevin.yml` stops stevin
 asking at all. [`drift`](cli.md#drift) lists them the same way and never counts one as
 drift; [`doctor`](cli.md#doctor) says whether this warehouse will list them.
 
-!!! warning "Not yet run against a workspace"
-    Both statements are used as the manual documents them, and no workspace has answered
-    them for stevin yet. `stevin verify` has three probes that settle it in yours.
+!!! note "Run against a workspace on 2026-10-10"
+    Settled: a SQL warehouse accepts both statements, for a row filter policy on a schema
+    and on a table, with one principal. `SHOW EFFECTIVE POLICIES` answers in the
+    documented columns, and `DESCRIBE POLICY` gives the function and the principal.
+    Still read from the manual alone: a column mask policy, a policy on a catalog,
+    several principals, `EXCEPT`, `WHEN`, `MATCH COLUMNS`, and what a refusal looks like.
+    Where one of those reads back differently, a plan still names the policy and where
+    it is defined. `stevin verify --create-policy` runs the three probes in your
+    workspace.
     [What is still open →](testing.md#what-the-live-suite-has-not-settled)
 
 ## Who may see a table
@@ -278,10 +284,13 @@ The table is named in full, or with a target's variable: `stevin access
 script or an audit file.
 
 A workspace that will not list policies does not fail the report. It says *policies
-could not be read*, once, with the workspace's reason, and the rest is complete. With
-`manage: {policies: false}` no policy is asked for, and the report says so. The same
-holds for `manage: {grants: false}`: the workspace is not asked about grants, and the
-report says *grants were not read*.
+could not be read*, once, with the workspace's reason, and the rest is complete.
+
+The report reads grants and policies whatever [`manage:`](spec.md#what-stevin-manages)
+says. `manage:` says what a project hands to another tool, so that stevin does not plan
+or change it. The report changes nothing, and it is there to show what is true of a
+table, including what another tool put there. A team whose grants live in Terraform is
+exactly who needs to see them.
 
 **What it is not.** The report lists what is granted and what is in scope. It does not:
 

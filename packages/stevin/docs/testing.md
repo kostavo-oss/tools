@@ -126,8 +126,8 @@ says `TODO(verify)` rather than pretending.
 Most of what stevin assumes about Databricks has been run against a workspace: the
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
-*a seed's INSERT OVERWRITE with a column list is accepted*). These are still open, and each
-says so in the source:
+*a seed's INSERT OVERWRITE with a column list is accepted*). Four things are still open.
+They are five `TODO(verify)` marks in the source, because reading policies has two:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted

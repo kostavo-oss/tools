@@ -31,7 +31,7 @@ from stevin import api, cli
 from stevin.access import AccessError
 from stevin.connect import Connection
 from stevin.introspect import Introspector, Row
-from stevin.manage import EVERYTHING, Manage
+from stevin.manage import Manage
 from stevin.model.access import LIMITS, LISTS, Access, Held
 from stevin.model.policy import Policy
 from stevin.model.schema import Schema
@@ -83,8 +83,8 @@ def warehouse(*policies: Policy) -> FakeWarehouse:
     return fake
 
 
-def read(fake: FakeWarehouse, name: str = NAME, *, manage: Manage = EVERYTHING) -> Access:
-    return api.access(Connection(runner=fake), name, manage=manage)
+def read(fake: FakeWarehouse, name: str = NAME) -> Access:
+    return api.access(Connection(runner=fake), name)
 
 
 def held(report: Access, principal: str) -> list[tuple[str, str, tuple[str, ...]]]:
@@ -182,24 +182,20 @@ def test_grants_are_asked_of_this_table_only_with_every_name_quoted() -> None:
     )
 
 
-def test_a_project_that_hands_grants_over_reads_none_and_says_so() -> None:
-    """`grants: false` means the workspace isn't asked about grants. The rest
-    of the report is read as ever."""
-    fake = warehouse(MASK_PII)
-    report = read(fake, manage=Manage(("grants",)))
-    assert [s for s in fake.statements if "_privileges" in s] == []
-    assert report.grants == () and not report.grants_asked
-    assert report.row_filter is not None and report.policies == (MASK_PII,)
-    said = access_text(report)
-    assert "· grants were not read: `manage: grants: false`" in said
-    assert "nothing on the table" not in said
-    assert loads(dumps(report)) == report
-
-
-def test_what_else_a_project_hands_over_changes_nothing_here() -> None:
-    """Masks, row filters and owners are read whatever the project declares."""
-    handed = Manage(("masks", "owner", "row_filters", "tags"))
-    assert read(warehouse(MASK_PII), manage=handed) == read(warehouse(MASK_PII))
+def test_the_reader_asks_for_grants_whatever_the_project_manages() -> None:
+    """`grants: false` keeps handed-over grants out of plans, through one gate.
+    The report's read doesn't go through it: it changes nothing, and a team
+    whose grants another tool sets is who needs to see them."""
+    fake = warehouse()
+    handed = Introspector(fake, Manage(("grants",)))
+    assert {held.principal for held in handed.privileges(NAME)} == {
+        "account users",
+        "analysts",
+        "etl",
+    }
+    # The plan's own read of the same table still asks nothing.
+    live = handed.table(NAME)
+    assert live is not None and live.table.grants == ()
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +242,8 @@ def test_policies_that_could_not_be_read_are_said_once() -> None:
     said = access_text(report, width=400)
     assert said.count("policies could not be read") == 1
     assert f"⚠ policies could not be read: FAILED: {REFUSAL}" in said
-    assert "`manage: policies: false` stops asking" in said
+    assert "(the report is otherwise complete)" in said
+    assert "manage:" not in said
     assert "· row filter main.security.by_region on region" in said
 
 
@@ -255,17 +252,6 @@ def test_without_a_filter_or_a_mask_unread_policies_are_not_called_nothing() -> 
     said = access_text(bare)
     assert "· no row filter and no mask on the table" in said
     assert "no policy in scope" not in said
-
-
-def test_a_project_that_hands_policies_over_reads_none_and_says_so() -> None:
-    fake = warehouse(MASK_PII)
-    report = read(fake, manage=Manage(("policies",)))
-    assert [s for s in fake.statements if "POLIC" in s.upper()] == []
-    assert report.policies == () and not report.policies_asked
-    assert report.policies_unread is None
-    said = access_text(report)
-    assert "· policies were not read: `manage: policies: false`" in said
-    assert "could not be read" not in said
 
 
 # ---------------------------------------------------------------------------
@@ -422,15 +408,32 @@ def test_a_variable_without_a_project_is_an_error(at: FakeWarehouse) -> None:
     assert "there is no stevin.yml here" in result.output
 
 
-def test_the_command_reads_no_policies_where_the_project_hands_them_over(
+def test_the_command_reads_grants_and_policies_whatever_the_project_hands_over(
+    at: FakeWarehouse, tmp_path: Path
+) -> None:
+    """`manage:` is about what stevin plans and changes. The report only reads,
+    and shows what another tool put there: the same answer as without it."""
+    plain = CliRunner().invoke(cli.app, ["access", NAME])
+    handed = CONFIG + "manage:\n  grants: false\n  policies: false\n  masks: false\n"
+    (tmp_path / "stevin.yml").write_text(handed)
+    result = CliRunner().invoke(cli.app, ["access", NAME])
+    assert result.exit_code == 0, result.output
+    assert result.output == plain.output
+    assert "SELECT          inherited from schema main.sales" in result.output
+    assert "policy mask_pii (column mask, on schema main.sales)" in result.output
+    assert "not read" not in result.output
+    assert at.ddl == []
+
+
+def test_a_refusal_is_said_once_in_a_project_that_hands_policies_over(
     at: FakeWarehouse, tmp_path: Path
 ) -> None:
     (tmp_path / "stevin.yml").write_text(CONFIG + "manage:\n  policies: false\n")
+    at.refusals["SHOW EFFECTIVE POLICIES"] = REFUSAL
     result = CliRunner().invoke(cli.app, ["access", NAME])
     assert result.exit_code == 0, result.output
-    assert "policies were not read: `manage: policies: false`" in result.output
-    assert "policy mask_pii" not in result.output
-    assert [s for s in at.statements if "POLIC" in s.upper()] == []
+    assert result.output.count("policies could not be read") == 1
+    assert "inherited from schema main.sales" in result.output
 
 
 def test_the_command_says_once_that_policies_could_not_be_read(

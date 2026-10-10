@@ -424,8 +424,9 @@ class Introspector:
         `SELECT` when it has one. `USE SCHEMA` on the schema is not listed for
         the table at all.
 
-        Through the same gate as every other privilege read (`_privileges`):
-        a project that hands grants over isn't asked about these either.
+        Not through `_privileges`, the gate that keeps handed-over grants out
+        of plans: this is for the access report, which changes nothing and
+        reads grants whatever the project manages.
 
         TODO(verify): `CATALOG` for a grant on the catalog. It is read here the
         way `SCHEMA` is, but the live suite grants nothing outside its scratch
@@ -434,7 +435,7 @@ class Introspector:
         https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges
         """
         catalog, schema, short = _split(name)
-        rows = self._privileges(
+        rows = self.runner.query(
             "SELECT grantee, privilege_type, inherited_from "
             f"FROM {_information_schema(catalog)}.table_privileges "
             f"WHERE table_schema = {quote_literal(schema)} "

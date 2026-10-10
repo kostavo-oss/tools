@@ -5,10 +5,11 @@ grants on the table and on its parents, the row filter and masks it carries,
 and the ABAC policies defined somewhere above it. This reads the three for one
 table and hands them back as one `Access`. It writes nothing.
 
-`manage:` holds here as it does for a plan. A project that hands grants or
-policies to another tool has said the workspace isn't asked about them
-(docs/spec.md, What stevin manages), and a report is no exception: it reads the
-rest, and says which of the two it did not read.
+`manage:` doesn't reach it. That line says what a project hands to another
+tool, so stevin doesn't plan or change it. This changes nothing, and a team
+whose grants live in Terraform is exactly who needs to see them: grants and
+policies are read whatever the project manages (`api.access` reads with
+everything managed).
 """
 
 from __future__ import annotations
@@ -47,16 +48,12 @@ def read(introspector: Introspector, name: str) -> Access:
         if other is not None:
             raise AccessError(f"{name} is a {other}; `stevin access` reads Delta tables")
         raise AccessError(f"there is no table {name}")
-    asked = introspector.manage.manages("policies")
-    grants_asked = introspector.manage.manages("grants")
     return Access(
         table=name,
         owner=live.table.owner,
         grants=introspector.privileges(name),
-        grants_asked=grants_asked,
         row_filter=live.table.row_filter,
         masks=tuple((c.name, c.mask) for c in live.table.columns if c.mask is not None),
         policies=live.policies,
-        policies_asked=asked,
-        policies_unread=live.policies_unread if asked else None,
+        policies_unread=live.policies_unread,
     )

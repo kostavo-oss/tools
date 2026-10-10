@@ -1004,7 +1004,6 @@ def access(
         report = api.access(
             connection,
             name,
-            manage=project.manage if project else EVERYTHING,
             parallel=parallel,
         )
     except StevinError as error:

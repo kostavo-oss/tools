@@ -126,7 +126,6 @@ def access(
     connection: Connection,
     table: str,
     *,
-    manage: Manage = EVERYTHING,
     parallel: int = 8,
 ) -> Access:
     """Who may see `catalog.schema.table`, and through what. Reads; writes nothing.
@@ -141,20 +140,18 @@ def access(
     reader, does not resolve who is in a group, cannot run a query as someone
     else, and leaves out `USE CATALOG` and `USE SCHEMA`.
 
-    `manage` is the project's (`project.manage`). A project that hands grants
-    or policies to another tool doesn't ask the workspace about them, here as
-    in a plan, and the result says which were not read (`grants_asked`,
-    `policies_asked`). Nothing else in `manage` changes what is read.
+    It takes no `manage`. What a project hands to another tool is what stevin
+    doesn't plan or change there; this changes nothing, and shows what is true
+    of the table whoever put it there. So grants and policies are always asked
+    for. A workspace that refuses to list policies doesn't fail it: the result
+    says why (`policies_unread`) and holds the rest.
 
     Raises `AccessError` for a name that isn't a table in this workspace, and
     `IntrospectionError` if the workspace can't be read.
     """
     from stevin.access import read
 
-    # Masks, row filters and owners are read whatever the project manages:
-    # only these two are "not asked" rather than "not declared".
-    unasked = tuple(a for a in ("grants", "policies") if not manage.manages(a))
-    return read(connection.introspector(Manage(unasked), parallel), table)
+    return read(connection.introspector(EVERYTHING, parallel), table)
 
 
 def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:

@@ -100,8 +100,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returns it as a frozen `Access`. The name may use a target's variable, and the command
   works without a `stevin.yml`. A workspace that will not list policies does not fail
   it: the report says *policies could not be read* once and is otherwise complete, and
-  with `manage: {policies: false}` or `{grants: false}` it does not ask about them and
-  says so. **It says what it is not**, in its
+  it reads grants and policies whatever `manage:` says, because it only reads and a team
+  whose grants another tool sets is who needs to see them. **It says what it is not**, in its
   output, its JSON and the docs: it lists what is granted and what is in scope; it does
   not evaluate a policy's condition for a given reader, does not resolve who is in a
   group, cannot run a query as someone else, and leaves out `USE CATALOG` and `USE

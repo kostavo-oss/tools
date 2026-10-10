@@ -454,8 +454,9 @@ spec does; outside one, write it out. It works without a `stevin.yml`, with `--p
 and `--warehouse-id`.
 
 Where the workspace refuses to list policies, the report says so once and is otherwise
-complete. With `manage: {policies: false}` it reads none and says that instead, and
-with `manage: {grants: false}` it reads no grants and says so.
+complete. Grants and policies are read whatever [`manage:`](spec.md#what-stevin-manages)
+says: the report only reads, and what another tool put on the table is part of the
+answer.
 
 The last four lines are part of the report on purpose. It lists; it does not decide
 what one reader sees. `--json` gives the same as data, with those four under `does_not`.

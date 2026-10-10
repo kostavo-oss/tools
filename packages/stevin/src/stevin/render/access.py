@@ -36,11 +36,7 @@ def render_access(access: Access, console: Console) -> None:
 
     console.print()
     console.print(Text("  Granted", style="bold"))
-    if not access.grants_asked:
-        console.print(
-            Text("    · grants were not read: `manage: grants: false`", style="dim")
-        )
-    elif not access.grants:
+    if not access.grants:
         console.print(
             Text("    · nothing on the table, and nothing inherited", style="dim")
         )
@@ -73,12 +69,10 @@ def render_access(access: Access, console: Console) -> None:
         _item(
             console,
             f"policies could not be read: {access.policies_unread} (the report is "
-            "otherwise complete — `manage: policies: false` stops asking)",
+            "otherwise complete)",
             style="yellow",
             mark="⚠",
         )
-    elif not access.policies_asked:
-        _item(console, "policies were not read: `manage: policies: false`", style="dim")
 
     console.print()
     console.print(Text(f"  {LISTS}", style="dim"))
@@ -125,7 +119,7 @@ def _mask_line(column: str, mask: Mask) -> str:
 
 
 def _nothing(access: Access) -> str:
-    if access.policies_unread or not access.policies_asked:
+    if access.policies_unread:
         return "no row filter and no mask on the table"
     return "nothing: no row filter, no mask, no policy in scope"
 
@@ -150,7 +144,6 @@ def access_to_dict(access: Access) -> dict[str, Any]:
             }
             for held in access.grants
         ],
-        "grants_asked": access.grants_asked,
         "row_filter": (
             None
             if access.row_filter is None
@@ -168,7 +161,6 @@ def access_to_dict(access: Access) -> dict[str, Any]:
             for column, mask in access.masks
         ],
         "policies": [_policy_to_dict(policy) for policy in access.policies],
-        "policies_asked": access.policies_asked,
         "policies_unread": access.policies_unread,
         # What the report is not, where the report goes.
         "does_not": list(LIMITS),
@@ -192,7 +184,6 @@ def loads(text: str) -> Access:
                 Held(g["principal"], g["privilege"], g["level"], g["on"])
                 for g in data["grants"]
             ),
-            grants_asked=data["grants_asked"],
             row_filter=(
                 None
                 if row_filter is None
@@ -203,7 +194,6 @@ def loads(text: str) -> Access:
                 for m in data["masks"]
             ),
             policies=tuple(_policy_from_dict(p) for p in data["policies"]),
-            policies_asked=data["policies_asked"],
             policies_unread=data["policies_unread"],
         )
     except (ValueError, KeyError, TypeError) as error:

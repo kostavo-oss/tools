@@ -233,7 +233,8 @@ table's shape read from an ODCS data contract; ABAC policies *read* into plans, 
 and `doctor`; and `stevin access <table>` (`access.py`, `model/access.py`,
 `render/access.py`), a read-only report of who may see one table and through what —
 grants with where each is granted, row filter, masks, policies in scope, owner — which
-lists and never evaluates. **Never written: ABAC management is cut for good**
+lists and never evaluates, and reads grants and policies whatever `manage:` says,
+because it only reads. **Never written: ABAC management is cut for good**
 (Terraform's). Still not a policy engine: no rules about
 who may have what, no approvals, no audit beyond its own run history; no catalogs,
 external tables, governed-tag definitions, groups or quality checks; no notebook entry
@@ -266,8 +267,9 @@ workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 (`tests/integration/test_live_assumptions.py`), and a seed's `INSERT OVERWRITE …
-(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Four are
-open, and `grep -rn "TODO(verify)" src/` is the list: `CLUSTER BY AUTO` without
+(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Four things
+are open, in five marks — `grep -rn "TODO(verify)" src/` is the list, and reading
+policies has two of them: `CLUSTER BY AUTO` without
 predictive optimization
 (`planner._clustering_clause`); the rest of reading ABAC policies — `SHOW EFFECTIVE
 POLICIES` and `DESCRIBE POLICY` were settled on 2026-10-10 for a row filter policy

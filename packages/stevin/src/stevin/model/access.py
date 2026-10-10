@@ -60,19 +60,13 @@ class Access:
     table: str
     owner: str | None = None
     grants: tuple[Held, ...] = ()
-    #: False when the project hands grants over (`manage: grants: false`):
-    #: nothing was asked, so `grants` being empty says nothing.
-    grants_asked: bool = True
     row_filter: RowFilter | None = None
     #: Each masked column, and its mask.
     masks: tuple[tuple[str, Mask], ...] = ()
     #: The ABAC policies in scope: defined on the table or on a parent of it.
     policies: tuple[Policy, ...] = ()
-    #: False when the project hands policies over (`manage: policies: false`):
-    #: nothing was asked, so `policies` being empty says nothing.
-    policies_asked: bool = True
     #: Why they couldn't be read, in the workspace's words. None when they
-    #: were read, and when nobody asked.
+    #: were read.
     policies_unread: str | None = None
 
     @property

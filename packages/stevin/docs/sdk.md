@@ -188,7 +188,7 @@ narrows it the way it does for `plan`.
 ## Who may see a table
 
 ```python
-report = stevin.access(conn, "main.sales.orders", manage=project.manage)
+report = stevin.access(conn, "main.sales.orders")
 for principal in report.principals:
     for level, on, privileges in report.held_by(principal):
         print(principal, privileges, level, on)
