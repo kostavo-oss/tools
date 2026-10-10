@@ -33,7 +33,7 @@ them in place.
 - **Your code stays yours.** The pipelines are dlt, the models are dbt, the contracts
   are an open standard. The tools are the Databricks edge around them; take one away and
   the product still runs.
-- **Each works alone.** None needs another, and none needs anything from Kostavo.
+- **Each works alone.** None needs another, and none needs a service behind it.
 - **Complete as it is.** Apache-2.0, nothing held back for a paid edition, no telemetry.
 
 ## The tools
