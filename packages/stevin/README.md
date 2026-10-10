@@ -82,6 +82,10 @@ source of truth.
   — and it runs from CI at deploy time, or
   [from a job](https://kostavo-oss.github.io/tools/stevin/running-from-a-job/) where
   CI can't reach the workspace.
+- **Tables your notebooks write.** A spec declares the table and stevin creates it. The
+  notebook writes to it, and may add a column. `drift` shows the change the next
+  morning, and `adopt` puts it into the spec as a diff to review:
+  [the loop, step by step](https://kostavo-oss.github.io/tools/stevin/tables-your-notebooks-write/).
 - **What another tool owns stays theirs.** `stevin.yml` says which tables another tool
   owns (`owned_elsewhere:`), a dbt `manifest.json` says it for dbt, and a schema that
   holds dlt's `_dlt_loads` and `_dlt_version` tables is dlt's. A plan reports those

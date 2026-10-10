@@ -1,0 +1,18 @@
+# Sensor readings, appended by the ingest notebook
+table: ${catalog}.iot.readings
+comment: One row per reading
+cluster_by: [taken_at]
+
+grants:
+  - principal: analysts            # who may read it
+    privileges: [SELECT]
+
+columns:
+  - name: reading_id               # the key the notebook merges on
+    type: bigint
+    nullable: false
+  - {name: taken_at, type: timestamp}
+  - {name: value, type: double}
+
+constraints:
+  - primary_key: {columns: [reading_id], name: readings_pk}

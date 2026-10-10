@@ -99,6 +99,7 @@ nav:
       - In CI: ci.md
   - With other tools:
       - Next to other tools: next-to-other-tools.md
+      - Tables your notebooks write: tables-your-notebooks-write.md
       - Access recipes: access-recipes.md
       - Running from a job: running-from-a-job.md
   - Security: security.md

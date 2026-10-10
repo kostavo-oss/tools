@@ -1203,6 +1203,47 @@ def feature_sql_limits(studio: Studio) -> None:
     studio.shoot("feature-sql-limits", "stevin validate")
 
 
+# ---------------------------------------------------------------------------
+# tables your notebooks write: declare, write, drift, adopt
+# ---------------------------------------------------------------------------
+
+READINGS = """\
+    # Sensor readings, appended by the ingest notebook
+    table: ${catalog}.iot.readings
+    comment: One row per reading
+    cluster_by: [taken_at]
+
+    grants:
+      - principal: analysts            # who may read it
+        privileges: [SELECT]
+
+    columns:
+      - name: reading_id               # the key the notebook merges on
+        type: bigint
+        nullable: false
+      - {name: taken_at, type: timestamp}
+      - {name: value, type: double}
+
+    constraints:
+      - primary_key: {columns: [reading_id], name: readings_pk}
+"""
+
+
+@scene
+def notebook(studio: Studio) -> None:
+    """The page on tables a notebook writes into: the whole loop, in order."""
+    studio.write("tables/readings.yml", READINGS)
+    studio.quote("tables/readings.yml", "notebook-readings.yml")
+    studio.apply()
+    # The notebook appended with `mergeSchema`: a new nullable column, at the end.
+    studio.fake.query("ALTER TABLE `dev`.`iot`.`readings` ADD COLUMNS (sensor STRING)")
+    studio.shoot("notebook-drift", "stevin drift")
+    studio.shoot("notebook-adopt", "stevin adopt")
+    # The file as adopt left it: the comments and the variable are still there.
+    studio.quote("tables/readings.yml", "notebook-adopted.yml")
+    studio.shoot("notebook-plan", "stevin plan")
+
+
 def main() -> None:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("docs/assets/screens")
     for path in make(out):
