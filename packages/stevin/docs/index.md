@@ -54,6 +54,11 @@ touches anything.
 - [Writing a spec](spec.md) — the YAML format, types, and renames.
 - [Commands](cli.md) — `validate`, `import`, `plan`, `apply`, `drift`.
 - [Safety model](safety.md) — ownership, risk classes, and what stevin refuses to do.
+- [Next to other tools](next-to-other-tools.md) — where dbt, dlt, Lakeflow, the bundle
+  and Terraform stop, and stevin starts.
+- [Access recipes](access-recipes.md) — groups per schema, rows by region, PII by tag;
+  and what stays hard.
+- [Running from a job](running-from-a-job.md) — when CI can't reach the workspace.
 
 ---
 

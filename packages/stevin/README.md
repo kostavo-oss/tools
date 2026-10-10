@@ -68,7 +68,12 @@ source of truth.
   SQLMesh own what they build. stevin owns what they read and what they leave to a
   setup job: the tables notebooks and external systems write into, lookup tables,
   filtered views, and who may see what — grants, column masks, row filters. It never
-  touches what another tool built, and it runs from CI at deploy time.
+  touches what another tool built —
+  [where the line is, per tool](https://kostavo-oss.github.io/tools/stevin/next-to-other-tools/)
+  and [three access recipes](https://kostavo-oss.github.io/tools/stevin/access-recipes/)
+  — and it runs from CI at deploy time, or
+  [from a job](https://kostavo-oss.github.io/tools/stevin/running-from-a-job/) where
+  CI can't reach the workspace.
 - **Unity Catalog is the state.** There is no state file to store, lock or repair.
   stevin reads the live catalog — `information_schema` and the tables' own definitions —
   every time it plans, and the one thing it has to remember, that it made a table, is a
