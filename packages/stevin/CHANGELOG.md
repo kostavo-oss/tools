@@ -53,6 +53,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Seeds have run on a workspace.** Loading reference data with `seed:` was the one
+  feature the live suite had never taken: its `INSERT OVERWRITE … (columns) VALUES …` was
+  the documented grammar and nothing more. On 2026-10-10 a workspace loaded, typed and
+  replaced a seed, and loading it twice replaced rather than appended. The warning in the
+  README is gone with it.
 - **What stevin is for, said plainly.** stevin puts in place the tables and access
   that your transformation tool doesn't own. dbt, Lakeflow or SQLMesh own what they
   build; stevin owns what they read and what they leave to a setup job — the tables
