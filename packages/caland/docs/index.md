@@ -6,9 +6,10 @@ values; put a certificate in from a file.
 
 ![Caland with a secret's value shown](img/page-browse.png)
 
-Databricks secrets have an API and a CLI, and no screen. Caland is the screen: everything
-about a workspace's secrets at once, a keystroke away, with a value read only when you ask
-for it and written nowhere.
+Databricks secrets have an API and a CLI, and no screen. Rotating a key is a command
+copied from a wiki, and who may read which scope is a question nobody can answer quickly.
+Caland is the screen: everything about a workspace's secrets at once, a keystroke away,
+with a value read only when you ask for it and written nowhere.
 
 ## Highlights
 
@@ -53,6 +54,15 @@ asks which. ++ctrl+c++ in the terminal stops it and forgets every value it held.
 - [Installation](installation.md) — install with uvx, uv tool, or pipx.
 - [Connecting](connecting.md) — which workspace, and how it is found.
 - [Using the page](page.md) — what it does, its keys, and how it is kept yours.
+
+## Where it fits
+
+Caland is one of the [Kostavo tools](https://kostavo-oss.github.io/tools/): small tools
+for the ugly gaps on Databricks, one gap each. Its gap is the secret you reach through an
+API. Each works alone. [Why the tools exist](https://kostavo-oss.github.io/tools/why/)
+has the rules they keep, and the README says
+[when not to use it](https://github.com/kostavo-oss/tools/tree/main/packages/caland#when-not-to-use-it)
+and when you no longer need it.
 
 ---
 

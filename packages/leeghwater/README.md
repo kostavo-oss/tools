@@ -7,7 +7,7 @@ kept out of your code.
 [![ci](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kostavo-oss/tools/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/leeghwater.svg)](https://pypi.org/project/leeghwater/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/kostavo-oss/tools/blob/main/packages/leeghwater/LICENSE)
 
 > **Early.** It has run as a serverless job and from a laptop against a real workspace;
 > what was tried and what was not is under [Tried, and not yet](#tried-and-not-yet).
@@ -16,6 +16,14 @@ leeghwater is a package your [dlt](https://dlthub.com) project imports. Your sou
 ordinary dlt code. leeghwater gives the project a command line, and for each run it makes
 the dlt pipeline from what the run names: a local file on a laptop, the schema your bundle
 deployed in a job.
+
+## Why
+
+A dlt pipeline on Databricks tends to run only on a cluster. Every change is a deploy and
+a wait, and the secrets are in one place on a laptop and another in a job. So nobody runs
+the pipeline locally, and finding a typo takes ten minutes. With leeghwater the same
+command runs the pipeline on a laptop into a local file and unchanged in a job, with its
+secrets from one place.
 
 ## A project is two files
 
@@ -311,24 +319,46 @@ Not yet:
 - a notebook and a classic cluster, which is where the name `dlt` is said to bite;
 - the job's `ingest` task with leeghwater installed from PyPI, which 0.1.0 makes possible.
 
+## When not to use it
+
+- **Lakeflow Connect has a connector for your source** and it does what you need.
+- **dlt runs somewhere else** — Airflow, GitHub Actions — and only loads into Databricks.
+  dlt does that alone.
+- **The data needs Spark to move it.** dlt is Python on one machine, and leeghwater
+  doesn't change that.
+
+leeghwater is a library for one kind of code, dlt ingestion. It will not:
+
+- deploy, schedule, or order one pipeline after another. That is a job's, and a bundle's;
+- add a file format for pipelines, or patch anything in dlt;
+- make, change or rotate secrets. That is the Databricks CLI's, and caland's;
+- change tables, or set table properties and clustering. dlt's own `databricks_adapter`
+  does the second, in your source;
+- change anything on a cluster: no init script, no file outside the run's own
+  directories.
+
+## When you no longer need it
+
+When dlt reads Databricks secret scopes by itself and runs in a job with nothing around
+it — the right `dlt` imported, the bundle's schema names used as they are — use dlt
+alone. Today dlt has no provider for secret scopes, and its Databricks
+page gives workarounds for the import.
+
 ## Where it fits
 
-> **Terraform for your platform, Asset Bundles for your code, stevin for your data model.**
+leeghwater is one of the [Kostavo tools](https://github.com/kostavo-oss/tools): small tools for the ugly gaps on
+Databricks, one gap each. Its gap is the pipeline that only runs on a cluster: every
+change a deploy and a wait, and the secrets in one place on a laptop and another in a job.
+Each works alone. Kostavo is the company behind them: it builds
+[a governance platform for Databricks workspaces](https://kostavo.com), and the tools are
+complete without it.
 
-leeghwater is one of the [Kostavo tools](https://github.com/kostavo-oss) for Databricks.
-It is a library for one kind of code, dlt ingestion, and not a layer of its own: it deploys
-nothing and schedules nothing. The bundle it writes is deployed by the Databricks CLI, or
-by lely.
-
-When not to use it: when Lakeflow Connect has a connector for your source; when dlt runs
-somewhere else and only loads into Databricks; when the data needs Spark to move it.
+Community project, not affiliated with or endorsed by Databricks or dltHub.
 
 ## Named after
 
 Jan Adriaanszoon Leeghwater — the millwright who drained the Beemster with windmills, dry in 1612. He moved water from where it lay to where it was wanted.
 
-Community project, not affiliated with or endorsed by Databricks or dltHub.
-
 ## License
 
-[Apache-2.0](LICENSE).
+[Apache-2.0](https://github.com/kostavo-oss/tools/blob/main/packages/leeghwater/LICENSE).

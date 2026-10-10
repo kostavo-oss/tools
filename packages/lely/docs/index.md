@@ -10,10 +10,11 @@ say so.
     [what has been tried](tried.md) says exactly what was and wasn't. Try it on a
     development target first.
 
-A real deploy to Databricks is an Asset Bundle and the things around it: a model version
-looked up and handed to the bundle, a job that has to run once the bundle is there, a seed,
-a migration. The bundle has a plan and a deploy. The things around it have a shell script.
-lely replaces that script.
+`databricks bundle deploy` deploys the bundle. A real deploy is more than that: the schema
+that has to exist first, a model version looked up and handed to the bundle, the job that
+has to run once after, the table that has to change. The bundle has a plan and a deploy.
+The things around it have a shell script, and a script has no dry run. lely replaces that
+script.
 
 ```
 lely plan · target dev · https://dbc-example.cloud.databricks.com as jane@example.com
@@ -66,11 +67,19 @@ Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
   stays. Destroy first, then remove the step.
 - **Your CI isn't GitHub Actions**, for now.
 
+## When you no longer need it
+
+When a bundle plans its own before-and-after steps — `databricks bundle plan` shows what
+runs before and after the deploy, and `bundle destroy` takes it down again — use the
+bundle alone. Today `bundle plan` shows the bundle's resources and nothing around them.
+
 ## Where it fits
 
-> Terraform for your platform, Asset Bundles for your code,
-> [stevin](https://github.com/kostavo-oss/tools) for your data model — and lely to deploy
-> them as one.
+lely is one of the [Kostavo tools](https://kostavo-oss.github.io/tools/): small tools for
+the ugly gaps on Databricks, one gap each. Its gap is the deploy that is more than a
+deploy: the steps before and after `databricks bundle deploy`, kept in a script with no
+dry run. Each works alone. [Why the tools exist](https://kostavo-oss.github.io/tools/why/)
+has the rules they keep.
 
 lely borrows Terraform's words — plan, apply, destroy — because everyone knows what they
 promise. The job is not the same: lely manages no resource itself and remembers nothing. It

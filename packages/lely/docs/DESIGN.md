@@ -552,12 +552,13 @@ Source: https://docs.databricks.com/aws/en/mlflow3/genai/prompt-version-mgmt/pro
 
 ## Suite
 
-"Terraform for your platform, Asset Bundles for your code, stevin for your data model — and lely to
-deploy them as one." lely is not a fourth layer: it carries the layers out together. stevin stays a
-standalone CLI; caland is a page in the browser, for people.
+lely is one of the Kostavo tools: small tools for the ugly gaps on Databricks, one gap each.
+Its gap is the deploy that is more than a deploy. Each works alone: stevin stays a standalone
+CLI, leeghwater is a package a dlt project imports, and caland is
+a page in the browser, for people.
 
-All three live in the `kostavo-oss` GitHub organisation as **stevin**, **lely** and **caland**.
-Package names are plain, with no `kostavo-` prefix, so `uvx lely` works.
+All four are packages of one repository, `kostavo-oss/tools`. Package names are plain, with
+no `kostavo-` prefix, so `uvx lely` works.
 
 ## Open questions
 
