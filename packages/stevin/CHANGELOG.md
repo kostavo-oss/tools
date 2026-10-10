@@ -23,6 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   relationship stevin can't follow — into another file — is a warning, and left out.
   The contract's partitioning yields to a spec that clusters or names its own. ODCS v3.0
   to v3.2 are read, by hand, for the fields a table needs.
+- **Three pages.** *Next to other tools* draws the line once per tool — dbt, dlt,
+  Lakeflow pipelines, SQLMesh, the bundle, Terraform, data contracts — and lists the
+  sentences stevin refuses with. *Access recipes* writes out groups per schema, rows by
+  region and PII by tag, the last one with the schema-level policy stevin doesn't
+  write, and says plainly what stays hard. *Running from a job* is the apply for a
+  workspace CI can't reach: the same plan file, as a job task.
 - **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
   `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
   owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,
