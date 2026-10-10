@@ -79,13 +79,19 @@ manage:
   tags: false        # and the tags its ABAC rules read
 ```
 
-What can be handed over: `grants`, `tags`, `owner`, `properties`, `comments`, `masks`
-and `row_filters`. The shape of a table — its columns, types, constraints,
+What can be handed over: `grants`, `tags`, `owner`, `properties`, `comments`, `masks`,
+`row_filters` and `policies`. The shape of a table — its columns, types, constraints,
 partitioning — can't: that is what stevin is for.
 
 Handing one over means the key is refused in a spec (where you write it, with the line
 number), left out of the editors' JSON Schema, never written by `import`, and never in a
-plan. For grants it also means the workspace isn't asked about them at all.
+plan. For grants and policies it also means the workspace isn't asked about them at all.
+
+`policies` is different in kind. stevin never writes an ABAC policy, so there is
+nothing to refuse in a spec: `policies: false` only stops it *reading* the
+[policies in scope of each table](features.md#the-policies-a-table-is-under) — one
+`SHOW EFFECTIVE POLICIES` per table it plans — so they are no longer shown in a plan,
+warned about, or part of what makes a plan stale.
 
 `comments` is worth a word: a spec that says nothing about a comment normally means
 *remove it*, so handing comments over also stops stevin comparing them — a

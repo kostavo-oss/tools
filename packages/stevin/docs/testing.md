@@ -142,7 +142,31 @@ the source:
   (`introspect.WarehouseRunner`). It changes how every step is sent, so it waits for a
   run against a workspace.
 
-`stevin verify` runs the first two as probes in a workspace of your own.
+- **Reading ABAC policies.** `SHOW EFFECTIVE POLICIES ON TABLE` and its eight result
+  columns are used as [the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) lists them, and no workspace has answered it
+  for stevin (`introspect.Introspector._policies`). Two probes settle it: *SHOW EFFECTIVE
+  POLICIES lists a table's policies in the documented columns* and *a table under no
+  policy lists none, without an error*.
+- **A policy's details.** [`DESCRIBE POLICY`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy) is documented as "a formatted
+  report" with the labels in its example, but not its result columns, nor how several
+  principals are listed. stevin reads each row by position, splits a single text column
+  on its gap, and splits principals on commas (`Introspector._describe_policy`). The
+  probe *DESCRIBE POLICY says a policy's function and principals* settles it.
+
+  To read a policy back, the first and the last of these three probes create one on a
+  scratch table of their own with `CREATE POLICY` and drop it — the only place stevin's
+  code writes a policy — which takes `MANAGE` on that table and a workspace with ABAC;
+  elsewhere they come out *unknown*. Because stevin otherwise never writes a policy,
+  they are marked (`Probe.creates_policy`) and `stevin verify` runs them only with
+  `--create-policy`; a plain `verify` runs the one that only reads, and says the other
+  two were left out. The live suite runs all three, and
+  `tests/integration/test_live_policies.py` does the same for the feature itself: a
+  policy made by hand on a scratch schema, then a plan, a conflict warning and `drift`
+  read against it. It skips, with the workspace's own sentence, where `CREATE POLICY`
+  is refused.
+
+`stevin verify` runs all of these but the third as probes in a workspace of your own —
+the two policy probes that create a policy only with `--create-policy`.
 
 ### The assumptions live in `src/`, not here
 

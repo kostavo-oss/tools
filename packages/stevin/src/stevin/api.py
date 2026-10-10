@@ -194,6 +194,7 @@ def verify(
     principal: str = "account users",
     slow: bool = False,
     undrop: bool = True,
+    create_policy: bool = False,
     keep: bool = False,
     observer: Callable[[Result], None] | None = None,
 ) -> tuple[Result, ...]:
@@ -211,6 +212,9 @@ def verify(
 
     `slow` includes the probes that start a Databricks pipeline; `undrop`
     includes the one that needs a second schema which keeps what it drops.
+    `create_policy` includes the probes that create an ABAC policy on a scratch
+    table of their own, read it back and drop it: without it no policy is
+    written, and how a policy reads back here stays unsettled.
     `keep` leaves the schemas behind to look at.
 
     Raises `StevinError` if the scratch schema can't be made — a probe that
@@ -246,7 +250,10 @@ def verify(
             principal=principal,
             recoverable=recoverable if undrop else None,
         )
-        for result in probes.run(bench, probes.chosen(slow=slow, keeps_dropped=undrop)):
+        picked = probes.chosen(
+            slow=slow, keeps_dropped=undrop, creates_policy=create_policy
+        )
+        for result in probes.run(bench, picked):
             if observer is not None:
                 observer(result)
             results.append(result)
@@ -286,7 +293,8 @@ def adopt(
     if not loaded:
         return ()
     schemas = live_schemas(
-        [one.table for one in loaded], connection.introspector(project.manage, parallel)
+        [one.table for one in loaded],
+        connection.introspector(project.manage.without_policies(), parallel),
     )
     adoptions: list[Adoption] = []
     for one in loaded:
@@ -471,7 +479,8 @@ def import_schema(
     catalog, _, name = schema.partition(".")
     if not name or "." in name:
         raise PlanningError(f"a schema is named catalog.schema, not {schema!r}")
-    live = connection.introspector(manage, parallel).schema(catalog, name)
+    reader = connection.introspector(manage.without_policies(), parallel)
+    live = reader.schema(catalog, name)
     owned = {key.lower(): value for key, value in (owned_elsewhere or {}).items()}
 
     def written(relation: Relation, stem: str) -> ImportedSpec:

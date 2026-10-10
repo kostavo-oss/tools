@@ -42,6 +42,9 @@
         "owner": {
           "type": "boolean"
         },
+        "policies": {
+          "type": "boolean"
+        },
         "properties": {
           "type": "boolean"
         },

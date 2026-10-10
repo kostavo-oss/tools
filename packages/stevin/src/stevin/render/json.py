@@ -19,6 +19,7 @@ from stevin.errors import StevinError
 from stevin.model.change import Change
 from stevin.model.function import Function, Parameter
 from stevin.model.plan import Plan, Step, TableDiff, TableFacts
+from stevin.model.policy import Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     Check,
@@ -89,6 +90,7 @@ def _diff_to_dict(diff: TableDiff) -> dict[str, Any]:
         "facts": _facts_to_dict(diff.facts),
         "unmanaged": list(diff.unmanaged),
         "notes": list(diff.notes),
+        "cautions": list(diff.cautions),
         # Both sides are kept: a rewrite needs the shape it builds towards, and a
         # plan file that records what was compared is one you can audit later.
         "desired": _relation_to_dict(diff.desired) if diff.desired else None,
@@ -107,7 +109,43 @@ def _facts_to_dict(facts: TableFacts) -> dict[str, Any]:
         "properties": dict(facts.properties),
         "schema_exists": facts.schema_exists,
         "features": list(facts.features),
+        # Read, never written: here so a host can report who is filtered or
+        # masked by what, and so `apply` can tell a policy has moved.
+        "policies": [_policy_to_dict(policy) for policy in facts.policies],
+        "policies_unread": facts.policies_unread,
     }
+
+
+def _policy_to_dict(policy: Policy) -> dict[str, Any]:
+    return {
+        "name": policy.name,
+        "kind": policy.kind,
+        "on": policy.on,
+        "level": policy.level,
+        "function": policy.function,
+        "to": list(policy.to),
+        "except": list(policy.except_),
+        "when": policy.when,
+        "match_columns": policy.match_columns,
+        "on_column": policy.on_column,
+        "comment": policy.comment,
+    }
+
+
+def _policy_from_dict(entry: dict[str, Any]) -> Policy:
+    return Policy(
+        name=str(entry["name"]),
+        kind=str(entry["kind"]),
+        on=str(entry.get("on", "")),
+        level=str(entry.get("level", "")),
+        function=entry.get("function"),
+        to=tuple(entry.get("to", ())),
+        except_=tuple(entry.get("except", ())),
+        when=entry.get("when"),
+        match_columns=entry.get("match_columns"),
+        on_column=entry.get("on_column"),
+        comment=entry.get("comment"),
+    )
 
 
 def _change_to_dict(change: Change) -> dict[str, Any]:
@@ -405,11 +443,15 @@ def _diff_from_dict(entry: dict[str, Any]) -> TableDiff:
             unmodelled=tuple(facts.get("unmodelled", ())),
             schema_exists=bool(facts.get("schema_exists", True)),
             features=tuple(facts.get("features", ())),
+            # A plan from a version that read no policies had none to record.
+            policies=tuple(_policy_from_dict(p) for p in facts.get("policies", ())),
+            policies_unread=facts.get("policies_unread"),
         ),
         unmanaged=tuple(entry.get("unmanaged", ())),
         desired=_relation_from_dict(entry["desired"]) if entry.get("desired") else None,
         live=_relation_from_dict(entry["live"]) if entry.get("live") else None,
         notes=tuple(entry.get("notes", ())),
+        cautions=tuple(entry.get("cautions", ())),
     )
 
 

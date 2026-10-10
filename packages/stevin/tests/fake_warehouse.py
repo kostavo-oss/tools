@@ -24,7 +24,9 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from typing import TypeVar
 
+from stevin.introspect import IntrospectionError
 from stevin.model.function import Function, Parameter
+from stevin.model.policy import Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     FEATURE_FLAG_PREFIX,
@@ -162,6 +164,14 @@ class FakeWarehouse:
     column_features: dict[tuple[str, str], Row] = field(default_factory=dict)
     #: Substring -> error message, so a test can make any statement fail.
     failures: dict[str, str] = field(default_factory=dict)
+    #: ABAC policies, wherever each is defined. One on a schema or a catalog is
+    #: in scope of every table below it, as `SHOW EFFECTIVE POLICIES` lists it.
+    policies: list[Policy] = field(default_factory=list)
+    #: Substring -> what the warehouse says when it refuses a statement it
+    #: understood: an older runtime, a missing privilege. Raised as the real
+    #: runner raises a failed statement (`IntrospectionError`), where
+    #: `failures` raise the fake's own error.
+    refusals: dict[str, str] = field(default_factory=dict)
     #: What a `blocked` precheck should answer.
     blocked: bool = False
     #: What an `ok` postcheck should answer — the fake has no rows to count.
@@ -193,12 +203,20 @@ class FakeWarehouse:
             fake.versions.setdefault(relation.name, 1)
         return fake
 
+    def under(self, *policies: Policy) -> FakeWarehouse:
+        """The same warehouse, with these ABAC policies defined in it."""
+        self.policies.extend(policies)
+        return self
+
     # -- the SqlRunner protocol -------------------------------------------
     def query(self, statement: str) -> tuple[Row, ...]:
         self.statements.append(statement)
         for fragment, message in self.failures.items():
             if fragment in statement:
                 raise FakeSqlError(message)
+        for fragment, message in self.refusals.items():
+            if fragment in statement:
+                raise IntrospectionError(f"FAILED: {message}\n  {statement}")
         return self._dispatch(" ".join(statement.split()), statement)
 
     @property
@@ -327,6 +345,22 @@ class FakeWarehouse:
             return self._alter_table(flat)
         if upper.startswith("GRANT ") or upper.startswith("REVOKE "):
             return self._grant(flat)
+        # The two statements stevin reads policies with, and no other: it never
+        # writes one, so CREATE, ALTER and DROP POLICY stay unknown below.
+        if match := re.fullmatch(
+            r"SHOW EFFECTIVE POLICIES ON (TABLE|SCHEMA) (\S+)", flat
+        ):
+            return self._effective_policies(
+                match.group(1).lower(), _unquote(match.group(2))
+            )
+        if match := re.fullmatch(
+            r"DESCRIBE POLICY (\S+) ON (CATALOG|SCHEMA|TABLE) (\S+)", flat
+        ):
+            return self._describe_policy(
+                _unquote(match.group(1)),
+                match.group(2).lower(),
+                _unquote(match.group(3)),
+            )
         raise FakeSqlError(f"the fake warehouse does not know this statement: {flat}")
 
     # -- reads -------------------------------------------------------------
@@ -618,6 +652,68 @@ class FakeWarehouse:
                     )
             return tuple(found)
         raise FakeSqlError(f"unknown information_schema query: {flat}")
+
+    def _effective_policies(self, level: str, name: str) -> tuple[Row, ...]:
+        """`SHOW EFFECTIVE POLICIES ON TABLE` or `ON SCHEMA`: the policies on
+        the securable and on its parents, in the columns the manual lists.
+        https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies
+        """
+        if level == "table":
+            name = self._table(name).name
+        catalog, schema = name.split(".")[:2]
+        above = {"schema": f"{catalog}.{schema}", "catalog": catalog}
+        if level == "table":
+            above["table"] = name
+        rows: list[Row] = []
+        for policy in self.policies:
+            if above.get(policy.level) != policy.on:
+                continue
+            parts = [*policy.on.split("."), None, None][:3]
+            rows.append(
+                {
+                    "Policy Name": policy.name,
+                    "Policy Type": policy.kind.upper(),
+                    "Catalog": parts[0],
+                    "Schema": parts[1],
+                    "Table": parts[2],
+                    "Comment": policy.comment,
+                    "on_securable_type": policy.level.upper(),
+                    "on_securable_fullname": policy.on,
+                }
+            )
+        return tuple(rows)
+
+    def _describe_policy(self, name: str, level: str, on: str) -> tuple[Row, ...]:
+        """`DESCRIBE POLICY`: label-and-value rows, with the labels of the
+        manual's example and without the ones the policy doesn't set. The two
+        column names are the fake's own — the manual doesn't give them, and
+        stevin reads the rows by position.
+        https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy
+        """
+        for policy in self.policies:
+            if (policy.name, policy.level, policy.on) == (name, level, on):
+                break
+        else:
+            raise FakeSqlError(f"POLICY_NOT_FOUND: {name} on {level} {on}")
+        said: list[tuple[str, str | None]] = [
+            ("Name", policy.name),
+            ("On Securable Type", policy.level.upper()),
+            ("On Securable", policy.on),
+            ("Comment", policy.comment),
+            ("To Principals", ", ".join(policy.to) or None),
+            ("Except Principals", ", ".join(policy.except_) or None),
+            ("For Securable Type", "TABLE"),
+            ("When Condition", policy.when),
+            ("Match Columns", policy.match_columns),
+            ("On Column", policy.on_column),
+            ("Policy Type", policy.kind.upper()),
+            ("  Function Name", policy.function),
+        ]
+        return tuple(
+            {"property": label, "value": value}
+            for label, value in said
+            if value is not None
+        )
 
     def _describe_detail(self, flat: str) -> tuple[Row, ...]:
         table = self._table(_unquote(flat[len("DESCRIBE DETAIL ") :]))

@@ -27,8 +27,11 @@ from stevin.model.plan import Plan, Risk, Step, TableDiff
 from stevin.render.labels import (
     describe,
     display_name,
+    has_something_to_say,
     human_bytes,
     listed,
+    policies_unread,
+    policy_line,
     table_verb,
 )
 
@@ -49,7 +52,7 @@ def render_plan(plan: Plan, console: Console) -> None:
     printed = False
     offset = 0
     for diff in plan.diffs:
-        if diff.changes or diff.unmanaged or diff.notes:
+        if has_something_to_say(diff):
             if printed:
                 console.print()
             _render_table(plan, diff, console, offset)
@@ -108,6 +111,10 @@ def render_plan(plan: Plan, console: Console) -> None:
                 style="dim",
             )
         )
+    unread = policies_unread(plan)
+    if unread:
+        console.print()
+        console.print(Text(unread, style="yellow"))
     if not changing:
         return
     console.print()
@@ -186,8 +193,14 @@ def _render_table(plan: Plan, diff: TableDiff, console: Console, offset: int) ->
 
     _render_rest([step for step in rest if step not in ahead], console, width)
 
+    for caution in diff.cautions:
+        console.print(Text(f"  ⚠ {caution}", style="yellow"))
     for item in diff.unmanaged:
         console.print(Text(f"  · {item} — unmanaged, left untouched", style="dim"))
+    for policy in diff.facts.policies:
+        console.print(
+            Text(f"  · {policy_line(policy)} — not stevin's, left untouched", style="dim")
+        )
     for note in diff.notes:
         console.print(Text(f"  · {note}", style="dim"))
 

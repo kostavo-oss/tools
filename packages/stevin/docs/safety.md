@@ -138,6 +138,24 @@ key and the descriptions have one source, `adopt` refuses to put live state over
 a change to the shape is a change to the contract, reviewed where the producer's promise
 is.
 
+**ABAC policies are read, and never written.** A policy on a catalog or a schema decides
+who sees what in every table below it, for tables stevin has never heard of as much as
+for its own; writing one from a table's spec would let a pull request about one table
+change the access to a hundred. So that stays with whatever already owns it — Terraform,
+or SQL — and no plan of stevin's holds a statement that creates, alters or drops a policy.
+The one place its code creates a policy at all is two probes of
+[`stevin verify`](cli.md#verify), which have to make one to learn how it reads back:
+on a scratch table of their own, dropped again, and only when you ask for them with
+`--create-policy` — a plain `verify` creates none and says which probes it left out.
+What it does is read the ones in scope of the tables it plans
+([`SHOW EFFECTIVE POLICIES`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies)), show them under each table, and warn where a
+spec's own mask or row filter sits beside one, because Databricks
+[refuses the query](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements) of a reader two distinct ones reach. Like a table's own masks
+they are part of what was reviewed: a policy that arrives or changes between `plan` and
+`apply` makes the plan stale. And a workspace that won't list them costs the plan
+nothing but that: it says so and goes on.
+[The policies a table is under →](features.md#the-policies-a-table-is-under)
+
 ## What a rewrite actually does
 
 A table that needs a rewrite is rebuilt rather than patched, so its plan is a sequence
