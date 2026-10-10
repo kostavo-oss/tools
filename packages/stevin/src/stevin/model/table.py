@@ -326,6 +326,9 @@ class Table(Securable):
     #: and not state: the columns are what is compared, wherever they came from.
     from_contract: str | None = field(default=None, compare=False)
     contract_port: str | None = field(default=None, compare=False)
+    #: What the contract says that didn't become part of the table — a
+    #: relationship into another file — for `validate` to say as a warning.
+    contract_notes: tuple[str, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         sort_governance(self)

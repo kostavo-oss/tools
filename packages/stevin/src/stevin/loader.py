@@ -1230,10 +1230,19 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
             for item in _sequence(ctx, items["constraints"][0], "constraints")
         )
     if contract is not None:
-        # What the contract says and the spec didn't: the key, the description,
-        # the tags. A spec's tag of the same name wins.
-        if contract.primary_key is not None:
-            constraints = (contract.primary_key,)
+        # What the contract says and the spec didn't: the key, the enums, the
+        # relationships, the description, the tags. A spec's tag of the same
+        # name wins.
+        constraints = contract.constraints
+        # Layout is the spec's to decide: the contract's partitioning is what
+        # the table gets unless the spec says its own, or clusters instead.
+        if (
+            contract.partitioned_by
+            and "partitioned_by" not in items
+            and not cluster_by
+            and not cluster_auto
+        ):
+            partitioned_by = contract.partitioned_by
         if comment is None:
             comment = contract.comment
         tags = tuple({**dict(contract.tags), **dict(tags)}.items())
@@ -1272,6 +1281,7 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
         governed_columns=governed,
         from_contract=contract.written if contract is not None else None,
         contract_port=contract.port if contract is not None else None,
+        contract_notes=contract.notes if contract is not None else (),
     )
 
 
@@ -1288,9 +1298,12 @@ class _ContractShape:
     written: str
     port: str | None
     columns: tuple[Column, ...]
-    primary_key: PrimaryKey | None
+    #: The key, then a CHECK per enum, then a foreign key per relationship.
+    constraints: tuple[Constraint, ...]
+    partitioned_by: tuple[str, ...]
     comment: str | None
     tags: tuple[tuple[str, str], ...]
+    notes: tuple[str, ...]
 
 
 def _contract_shape(
@@ -1351,8 +1364,26 @@ def _contract_shape(
         _with_governance(column, governed_by.get(column.name.casefold()))
         for column in found.columns
     )
+    # A contract's objects live in one schema — a server names one — so a
+    # relationship to another of them is a foreign key into this table's own.
+    schema = name.rsplit(".", 1)[0]
+    constraints: tuple[Constraint, ...] = (
+        *((found.primary_key,) if found.primary_key is not None else ()),
+        *found.checks,
+        *(
+            ForeignKey(ref.columns, f"{schema}.{ref.to}", ref.to_columns)
+            for ref in found.references
+        ),
+    )
     return _ContractShape(
-        written, port, merged, found.primary_key, found.comment, found.tags
+        written,
+        port,
+        merged,
+        constraints,
+        found.partitioned_by,
+        found.comment,
+        found.tags,
+        tuple(f"{shown}: {note}" for note in found.notes),
     )
 
 
@@ -2174,6 +2205,8 @@ def validate_table(table: Table, where: str) -> tuple[Diagnostic, ...]:
             f"table name {table.name!r} must be catalog.schema.table "
             "(three parts, after variable substitution)"
         )
+    for note in table.contract_notes:
+        warn(note)
     if table.governance_only:
         # Nothing here names a column the spec itself declares; what it
         # governs is checked against the live table when the plan is made.

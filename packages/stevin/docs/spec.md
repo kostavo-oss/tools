@@ -273,16 +273,29 @@ becomes the shape:
 | otherwise `logicalType` | `string`, `date`, `timestamp`, `integer` → `bigint`, `number` → `double`, `boolean` |
 | `logicalType: object` with `properties` | a struct |
 | `logicalType: array` with `items` | an array |
+| `logicalType: map` with `map: {key, value}` | a map |
+| `logicalType: vector` | an array of its `elementType`: `float` by default, `double` for `float64`, `tinyint` for `int8`, `smallint` for `uint8`; `binary` for a binary-quantized one |
 | `required: true`, or `primaryKey: true` | `nullable: false` |
 | `primaryKey: true`, in `primaryKeyPosition` order | the primary key |
+| `partitioned: true`, in `partitionKeyPosition` order | `partitioned_by` — unless the spec says its own, or `cluster_by` |
+| `enum` | a CHECK named `<column>_enum`: `status IN ('open', 'shipped')`, with `status IS NULL OR` in front when the column may be null |
+| `relationships`, on a property or on the object | foreign keys to the other object's table, in this table's own schema |
 | `description` | the comment |
 | `tags` (`key:value`, or just `key`) and `classification` | tags; the classification is the tag `classification` |
 
-`time`, `map` and `vector` have no column shape a contract spells out: give them a
-`physicalType` stevin can read, or the spec is refused naming the property. `unique`,
-`quality`, `servers` and the rest of the contract are the contract's business, not a
-table's shape. ODCS v3.0 to v3.2 are read; the fields above are checked by hand, so a
-contract from a newer minor version still reads for what it has.
+`time` has no Databricks type: give it a `physicalType` stevin can read, or the spec is
+refused naming the property. `unique`, `quality`, `servers` and the rest of the contract
+are the contract's business, not a table's shape. ODCS v3.0 to v3.2 are read; the fields
+above are checked by hand, so a contract from a newer minor version still reads for what
+it has.
+
+A relationship becomes a foreign key when it points at another object of the same
+contract — `customers.id`, or `schema/<id>/properties/<id>` — and that object's table is
+taken to be in this table's schema under the contract's name for it, since a contract's
+server names one schema. One that points into another file, or at a nested property, is
+left out and said as a warning at `validate`; it is not an error, because the contract is
+not wrong. An enum's CHECK is enforced by Delta, so adding a value to the contract is a
+constraint replaced, and rows already outside the list make that step fail.
 
 The spec adds only what a contract doesn't say: `cluster_by`, `partitioned_by`,
 `properties`, `tags`, `grants`, `row_filter`, `owner`, a `comment`, and columns that

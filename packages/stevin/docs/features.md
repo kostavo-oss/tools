@@ -313,8 +313,9 @@ only what a contract doesn't say: clustering, grants, a mask.
 
 ![A table from a data contract](assets/screens/feature-contract.svg)
 
-The key, the `NOT NULL`s, the descriptions and the classification come from the
-contract; a change to the shape is a change there, and `adopt` says so.
+The key, the `NOT NULL`s, the enum's CHECK, the descriptions and the classification
+come from the contract — and its partitioning and its relationships, as foreign keys,
+when it has them. A change to the shape is a change there, and `adopt` says so.
 
 [Shape from a data contract →](spec.md#shape-from-a-data-contract)
 

@@ -964,6 +964,7 @@ CONTRACT = """\
           - {name: customer_ref, logicalType: string, required: true}
           - {name: email, logicalType: string, classification: pii}
           - {name: amount, logicalType: number, physicalType: "decimal(18,2)"}
+          - {name: status, logicalType: string, enum: [{value: open}, {value: shipped}]}
           - {name: placed, logicalType: date}
 """
 

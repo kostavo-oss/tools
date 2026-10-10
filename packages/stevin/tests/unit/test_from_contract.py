@@ -17,9 +17,15 @@ import pytest
 from helpers import plan_against
 from stevin.adopt import CannotAdopt, adopt
 from stevin.contract import ContractError, read_contract
-from stevin.loader import LoadedSpec, SpecError, dump_spec, load_table
-from stevin.model.table import PrimaryKey
-from stevin.model.types import Mask, Primitive
+from stevin.loader import (
+    LoadedSpec,
+    SpecError,
+    dump_spec,
+    load_table,
+    validate_table,
+)
+from stevin.model.table import Check, ForeignKey, PrimaryKey
+from stevin.model.types import Mask, Primitive, render_type
 
 CONTRACT = """\
 apiVersion: v3.1.0
@@ -80,6 +86,24 @@ schema:
           properties:
             - {name: sku, logicalType: string}
             - {name: qty, logicalType: integer, physicalType: int}
+      - name: customer_id
+        logicalType: integer
+        physicalType: bigint
+        relationships:
+          - {to: customers.id}
+      - name: status
+        logicalType: string
+        enum:
+          - {value: open}
+          - {value: shipped}
+      - name: attrs
+        logicalType: map
+        map:
+          key: {logicalType: string}
+          value: {logicalType: string}
+      - name: embedding
+        logicalType: vector
+        logicalTypeOptions: {dimensions: 384}
   - name: customers
     properties:
       - {name: id, logicalType: integer, physicalType: bigint, primaryKey: true}
@@ -116,8 +140,19 @@ columns:
           struct:
             - {name: sku, type: string}
             - {name: qty, type: int}
+  - {name: customer_id, type: bigint}
+  - {name: status, type: string}
+  - {name: attrs, type: "map<string,string>"}
+  - {name: embedding, type: "array<float>"}
 constraints:
   - primary_key: {columns: [shop_id, order_id]}
+  - check:
+      name: status_enum
+      expression: status IS NULL OR status IN ('open', 'shipped')
+  - foreign_key:
+      columns: [customer_id]
+      references: dev.sales.customers
+      referenced_columns: [id]
 grants:
   - {principal: analysts, privileges: [SELECT]}
 """
@@ -261,6 +296,131 @@ def test_adopt_refuses_to_write_over_a_contract(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# partitioning, enums, relationships, maps and vectors
+# ---------------------------------------------------------------------------
+
+HEAD = "apiVersion: v3.2.0\nkind: DataContract\nid: x\nversion: 1.0.0\nschema:\n"
+
+EVENTS = (
+    HEAD
+    + """\
+  - name: events
+    properties:
+      - {name: id, logicalType: integer, primaryKey: true}
+      - {name: day, logicalType: date, partitioned: true, partitionKeyPosition: 2}
+      - {name: country, logicalType: string, partitioned: true, partitionKeyPosition: 1}
+      - {name: kind, logicalType: string, required: true, enum: [click, view]}
+      - {name: weight, logicalType: integer, enum: [{value: 1}, {value: 2}]}
+"""
+)
+EVENTS_SPEC = "table: dev.web.events\nfrom_contract: ../contracts/sales.odcs.yaml\n"
+
+
+def test_the_contracts_partitioning_is_the_tables_unless_the_spec_says(
+    tmp_path: Path,
+) -> None:
+    """Layout is the spec's to decide. The contract's partition columns, in
+    position order, are the default; a spec that clusters, or names its own
+    partitioning, has the last word."""
+    assert loaded(tmp_path, EVENTS_SPEC, EVENTS).partitioned_by == ("country", "day")
+    clustered = loaded(tmp_path, EVENTS_SPEC + "cluster_by: [day]\n", EVENTS)
+    assert clustered.partitioned_by is None
+    assert clustered.cluster_by == ("day",)
+    own = loaded(tmp_path, EVENTS_SPEC + "partitioned_by: [day]\n", EVENTS)
+    assert own.partitioned_by == ("day",)
+    assert not [d for d in validate_table(clustered, "x") if d.severity == "error"]
+
+
+def test_an_enum_is_a_check(tmp_path: Path) -> None:
+    """`IN (...)` over the allowed values — text quoted, numbers bare — and a
+    column that may be null says so, so the constraint means the same whether
+    a CHECK that evaluates to NULL passes or fails."""
+    found = loaded(tmp_path, EVENTS_SPEC, EVENTS)
+    assert found.checks() == (
+        Check("kind_enum", "kind IN ('click', 'view')"),
+        Check("weight_enum", "weight IS NULL OR weight IN (1, 2)"),
+    )
+    assert not [d for d in validate_table(found, "x") if d.severity == "error"]
+
+
+RELATED = (
+    HEAD
+    + """\
+  - name: order_lines
+    id: lines_obj
+    relationships:
+      - {from: [order_lines.shop_id, order_lines.order_id], to: [orders.shop, orders.id]}
+      - {from: order_lines.sku, to: schema/products_obj/properties/sku_prop}
+      - {from: order_lines.sku, to: "catalogue.odcs.yaml#/schema/x/properties/y"}
+    properties:
+      - {name: shop_id, logicalType: integer}
+      - {name: order_id, logicalType: integer}
+      - {name: sku, logicalType: string}
+      - name: warehouse
+        logicalType: string
+        relationships:
+          - {to: warehouses.code}
+  - name: orders
+    physicalName: fct_orders
+    properties:
+      - {name: shop, logicalType: integer, primaryKey: true}
+      - {name: id, logicalType: integer, primaryKey: true}
+  - name: products
+    id: products_obj
+    properties:
+      - {name: sku, id: sku_prop, logicalType: string, primaryKey: true}
+"""
+)
+
+
+def test_relationships_are_foreign_keys_into_the_same_schema(tmp_path: Path) -> None:
+    """A composite key by shorthand, to the other object's physical name; a
+    reference by ids. What points into another file, or at an object the
+    contract doesn't have, isn't an error: it is left out, and said."""
+    found = loaded(
+        tmp_path,
+        "table: dev.sales.order_lines\nfrom_contract: ../contracts/sales.odcs.yaml\n",
+        RELATED,
+    )
+    assert found.foreign_keys() == (
+        ForeignKey(("shop_id", "order_id"), "dev.sales.fct_orders", ("shop", "id")),
+        ForeignKey(("sku",), "dev.sales.products", ("sku",)),
+    )
+    warnings = [d.message for d in validate_table(found, "x") if d.severity == "warning"]
+    assert len(warnings) == 2
+    assert all("../contracts/sales.odcs.yaml" in w for w in warnings)
+    assert "from warehouse to warehouses.code isn't made a foreign key" in warnings[0]
+    assert "catalogue.odcs.yaml#/schema/x/properties/y" in warnings[1]
+
+
+@pytest.mark.parametrize(
+    ("element", "expected"),
+    [
+        (None, "array<float>"),
+        ("float64", "array<double>"),
+        ("int8", "array<tinyint>"),
+        ("uint8", "array<smallint>"),
+        ("binary", "binary"),
+    ],
+)
+def test_a_vector_is_an_array_of_its_element_type(
+    tmp_path: Path, element: str | None, expected: str
+) -> None:
+    options = f", logicalTypeOptions: {{elementType: {element}}}" if element else ""
+    contract = (
+        HEAD
+        + "  - name: docs\n    properties:\n"
+        + f"      - {{name: embedding, logicalType: vector{options}}}\n"
+    )
+    found = loaded(
+        tmp_path,
+        "table: dev.rag.docs\nfrom_contract: ../contracts/sales.odcs.yaml\n",
+        contract,
+    )
+    assert render_type(found.columns[0].type) == expected
+
+
+# ---------------------------------------------------------------------------
 # what is refused, and how it is said
 # ---------------------------------------------------------------------------
 
@@ -386,6 +546,22 @@ def test_what_the_contract_cannot_answer(tmp_path: Path, spec: str, message: str
             "    properties:\n"
             "      - {name: a, logicalType: string, physicalType: nvarchar2}\n",
             None,  # an unknown physical type falls back to the logical one
+        ),
+        (
+            "kind: DataContract\napiVersion: v3.2.0\nschema:\n  - name: orders\n"
+            "    properties:\n      - {name: attrs, logicalType: map}\n",
+            "property 'attrs': no Databricks type for logicalType 'map'",
+        ),
+        (
+            "kind: DataContract\napiVersion: v3.2.0\nschema:\n  - name: orders\n"
+            "    properties:\n"
+            "      - {name: m, logicalType: map, map: {key: {logicalType: string}}}\n",
+            "property 'm' is a map that needs a `key` and a `value`",
+        ),
+        (
+            "kind: DataContract\napiVersion: v3.2.0\nschema:\n  - name: orders\n"
+            "    properties:\n      - {name: kind, logicalType: string, enum: []}\n",
+            "property 'kind': `enum` must be a list of values",
         ),
     ],
 )
