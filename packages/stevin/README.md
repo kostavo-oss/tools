@@ -27,8 +27,7 @@ a change is a plan in a pull request, and a change made by hand shows up as drif
 > [changelog](https://github.com/kostavo-oss/tools/blob/main/packages/stevin/CHANGELOG.md) says why and
 > what to do. It is tested offline against a fake warehouse, and a live suite
 > runs what it assumes about Databricks against a real workspace. That suite has settled
-> most of those assumptions and not all of them: loading reference data (`seed:`) has
-> never run on a workspace, for one.
+> most of those assumptions and not all of them.
 > [How it is tested](https://kostavo-oss.github.io/tools/stevin/testing/) says what each layer
 > proves and lists what is still open, and `stevin verify` runs the same assumptions in a
 > workspace of your own. Try it on a dev catalog before production.

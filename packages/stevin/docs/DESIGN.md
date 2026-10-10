@@ -30,7 +30,7 @@ What that means for the shape of the tool:
 - **Stays:** managed Delta tables (the engine), views (query, grants, tags — the no-dbt
   shop models with them, and Delta Sharing needs a filtered view where a mask or row
   filter can't go), schemas, managed volumes, seeds (lookup tables are in the sentence
-  above; the live suite still has to take one), `using:` backfills, grants, tags, owner,
+  above; the live suite took one on 2026-10-10), `using:` backfills, grants, tags, owner,
   properties, column masks, row filters, `import`, `adopt`, `drift`, `plan --clone`, the
   history and lock tables, the Action, bundle targets, `manage:`, SQL specs, `ui`.
 - **Leaves in 0.4.0:** pre/post `hooks:`, and SQL functions as a thing of their own — a

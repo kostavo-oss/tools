@@ -436,9 +436,12 @@ def test_apply_without_a_history_schema_writes_nothing_beside_the_table(
     live = introspector.table(name)
     assert live is not None and diff(desired, live.table) == ()
     catalog = schema.split(".")[0]
+    # The scratch schemas of this suite are named stevin_it_…, this test's own among
+    # them: they are not what is looked for.
     left = runner.query(
         f"SELECT schema_name FROM {quote_qualified(f'{catalog}.information_schema')}"
         ".schemata WHERE lower(schema_name) LIKE 'stevin%'"
+        " AND lower(schema_name) NOT LIKE 'stevin_it_%'"
     )
     assert left == (), "no history schema was created anywhere"
     tables = runner.query(
