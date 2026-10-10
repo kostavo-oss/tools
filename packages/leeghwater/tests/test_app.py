@@ -117,6 +117,62 @@ def _module(*functions):
     return module
 
 
+def test_a_parameter_may_have_a_name_the_app_uses_itself(monkeypatch):
+    seen = {}
+
+    @pipeline
+    def named(
+        name: str,
+        self: int = 1,
+        cls: str = "c",
+        args: str = "a",
+        kwargs: str = "k",
+        function: str = "f",
+        pipeline: str = "p",
+        values: str = "v",
+    ):
+        seen.update(locals())
+        p = leeghwater.create_pipeline("named", schema="shop")
+        leeghwater.run(p, [{"id": 1}], table_name="rows")
+
+    monkeypatch.setitem(sys.modules, "named_pipelines", _module(named))
+    words = ["run", "named", "--name", "n", "--self", "2", "--kwargs", "kw"]
+    App(pipelines="named_pipelines")([*words, "--schema", "elsewhere"])
+
+    assert seen.pop("seen") is seen
+    assert seen == {
+        "name": "n",
+        "self": 2,
+        "cls": "c",
+        "args": "a",
+        "kwargs": "kw",
+        "function": "f",
+        "pipeline": "p",
+        "values": "v",
+    }
+    assert "elsewhere" in _schemas("named.duckdb")
+
+
+def test_a_parameter_keeps_its_capitals_and_its_place(monkeypatch, capsys):
+    seen = {}
+
+    @pipeline
+    def placed(day: str, /, Schema: str = "S", since: str = "s", Since: str = "S"):
+        seen.update(day=day, Schema=Schema, since=since, Since=Since)
+        p = leeghwater.create_pipeline("placed", schema="shop")
+        leeghwater.run(p, [{"id": 1}], table_name="rows")
+
+    monkeypatch.setitem(sys.modules, "placed_pipelines", _module(placed))
+    words = ["--day", "d", "--Schema", "mine", "--Since", "then", "--schema", "runs"]
+    App(pipelines="placed_pipelines")(["run", "placed", *words])
+
+    assert seen == {"day": "d", "Schema": "mine", "since": "s", "Since": "then"}
+    assert "runs" in _schemas("placed.duckdb")
+
+    App(pipelines="placed_pipelines")(["list"])
+    assert "--Schema <str>  default 'S'" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
@@ -321,16 +377,24 @@ def test_a_command_the_project_added_runs_and_finds_a_secret(
 
 
 def test_a_parameter_named_like_an_option_of_every_run_is_refused_at_the_start(
-    monkeypatch,
+    monkeypatch, capsys
 ):
     @pipeline
     def clash(schema: str = "x"):
         pass
 
-    monkeypatch.setitem(sys.modules, "clash_pipelines", _module(clash))
+    @pipeline
+    def asks(help: str = "x"):
+        pass
 
-    with pytest.raises(SystemExit):
-        App(pipelines="clash_pipelines")(["list"])
+    for function, message in (
+        (clash, "Pipeline 'clash' has a parameter 'schema', and --schema is an option"),
+        (asks, "Pipeline 'asks' has a parameter 'help', and --help is an option"),
+    ):
+        monkeypatch.setitem(sys.modules, "clash_pipelines", _module(function))
+        with pytest.raises(SystemExit):
+            App(pipelines="clash_pipelines")(["list"])
+        assert message in capsys.readouterr().err
 
 
 def test_what_else_is_refused_at_the_start(monkeypatch, capsys):

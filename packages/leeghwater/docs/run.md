@@ -17,7 +17,9 @@ A project that loads somewhere else says so once, in the app:
 
 A pipeline's own parameters are options of its command: `since` above is `--since`, with
 the type the function gives it. Text, whole and decimal numbers, dates and times in ISO
-format, and yes or no as a word (`--full true`), so a bundle variable can set it.
+format, and yes or no as a word (`--full true`), so a bundle variable can set it. A
+parameter may have any name but that of an option below or `help`: the app refuses that
+one when it starts, and says which pipeline and which parameter.
 
 Every run also takes these:
 
