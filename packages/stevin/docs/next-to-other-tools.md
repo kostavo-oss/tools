@@ -109,8 +109,8 @@ doesn't, and the two meet at the file.
 ## Notebooks
 
 The tables a notebook writes into are exactly what stevin is for: declared once, created
-by stevin, written by the notebook, their drift seen nightly and adopted on purpose. A
-page on that is coming, once its live test has run.
+by stevin, written by the notebook, their drift seen nightly and adopted on purpose.
+[Tables your notebooks write](tables-your-notebooks-write.md) walks through that loop.
 
 ## The order of a deploy
 

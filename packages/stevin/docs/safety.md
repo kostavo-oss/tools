@@ -121,6 +121,21 @@ much as for a read), for up to five minutes on a classic warehouse; the moment i
 *running* and still refuses, the refusal is reported as it arrived, with the advice
 above. `apply` shows the wait as *warehouse starting*.
 
+## What a plan assumes about the workspace
+
+A plan is made from the specs and the live tables. It is not made from what this
+workspace's runtime accepts: the same specs and the same tables give the same plan in
+every workspace.
+
+So a plan can hold a step this workspace refuses — `CLUSTER BY AUTO` on a runtime that
+doesn't take it, say. [`stevin verify`](cli.md#verify) runs every assumption in a
+scratch schema of your own and says which hold. A plan does not read that answer.
+
+An assumption that does not hold shows up at `apply`, as a refused statement with the
+workspace's own words and stevin's [advice](#when-databricks-refuses) under it. The
+steps before it have run and stay. The remedy is the spec: say what this workspace
+does accept, and plan again. The new plan holds only what is still to do.
+
 ## What isn't stevin's
 
 A project can hand part of a table to the tool that already owns it —

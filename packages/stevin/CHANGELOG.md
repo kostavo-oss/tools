@@ -29,6 +29,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   region and PII by tag, the last one with the schema-level policy stevin doesn't
   write, and says plainly what stays hard. *Running from a job* is the apply for a
   workspace CI can't reach: the same plan file, as a job task.
+- **A page: *Tables your notebooks write*.** The loop for a table a notebook appends
+  to: a spec declares it and stevin creates it; the notebook writes, and may add a
+  column with `mergeSchema`; nightly `drift` shows the column and exits with 2; `adopt`
+  puts it into the spec as a diff to review. A change made on purpose is a spec change
+  and a reviewed plan. The page says what stevin does not do — it does not run in the
+  notebook and does not load data — and its pictures are a new scene in
+  `tests/screens.py`. A live test, `test_live_notebook_tables.py`, runs the same loop
+  against a workspace, with the notebook simulated through the warehouse, and checks
+  that the rows and the ownership marker are still there afterwards.
+- **What a plan assumes about the workspace**, in the safety model. A plan is made from
+  the specs and the live tables, not from what a runtime accepts. `stevin verify` says
+  which assumptions hold; one that does not is a refused statement at `apply`, and the
+  remedy is the spec.
 - **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
   `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
   owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,
