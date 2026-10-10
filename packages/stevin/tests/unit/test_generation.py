@@ -203,6 +203,7 @@ def test_an_identity_column_cant_be_added_to_an_existing_table() -> None:
 
 
 def test_a_table_with_identity_is_never_rewritten() -> None:
+    # RULES.md: RW-4.
     live = orders(bigint("id", identity=Identity()), Field("amount", Primitive("int")))
     desired = orders(
         bigint("id", identity=Identity()),

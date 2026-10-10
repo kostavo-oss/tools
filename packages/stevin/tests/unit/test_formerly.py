@@ -57,6 +57,7 @@ def test_what_is_written_on_tables_kept_its_name() -> None:
     """A table deltaplan made is a table stevin manages for exactly as long as
     these are the same strings. Change one and every table carrying it is a
     stranger: not claimed, seeded again, its staging table left behind."""
+    # RULES.md: NAME-1.
     assert formerly.MANAGED_PROPERTY == "deltaplan.managed"
     assert formerly.SEED_PROPERTY == "deltaplan.seed"
     assert formerly.STAGING_SUFFIX == "__deltaplan_rewrite"
@@ -64,6 +65,7 @@ def test_what_is_written_on_tables_kept_its_name() -> None:
 
 
 def test_only_formerly_spells_the_old_name() -> None:
+    # RULES.md: NAME-1.
     package = Path(stevin.__file__).parent
     spelling_it = sorted(
         path.relative_to(package).as_posix()

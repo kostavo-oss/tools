@@ -145,6 +145,7 @@ def test_no_input_is_interpolated_into_a_script(action: dict[str, Any]) -> None:
 
     https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
     """
+    # RULES.md: ACT-1.
     for step in action["runs"]["steps"]:
         script = step.get("run", "")
         assert "${{" not in script, f"step {step.get('id', step)} interpolates into run:"
@@ -324,5 +325,6 @@ def test_drift_writes_its_outputs_and_summary_once(
 
 
 def test_plan_never_applies(action: dict[str, Any], tmp_path: Path) -> None:
+    # RULES.md: ACT-1.
     calls = run_script(action, tmp_path, "plan", steps=3)
     assert not any(call.startswith("apply") for call in calls)

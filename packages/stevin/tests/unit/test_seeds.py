@@ -136,6 +136,7 @@ def test_a_new_table_is_created_then_loaded(tmp_path: Path) -> None:
 
 
 def test_loading_over_rows_that_are_there_is_destructive(tmp_path: Path) -> None:
+    # RULES.md: RISK-1.
     live = table(
         col("code", "string", nullable=False),
         col("name", "string"),

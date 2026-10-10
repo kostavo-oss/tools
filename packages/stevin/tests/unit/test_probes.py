@@ -74,6 +74,7 @@ BROKE = probe("this one couldn't be tried", breaks)
 def test_every_probe_says_what_it_is_and_what_rests_on_it() -> None:
     """A probe nobody can act on is worse than none: each names the Databricks
     page it rests on, and what stevin does because of it."""
+    # RULES.md: DBX-1.
     names = [one.name for one in probes.PROBES]
     assert len(names) == len(set(names)), "two probes share a name"
     for one in probes.PROBES:
@@ -95,6 +96,7 @@ def test_a_probe_that_creates_a_policy_runs_only_when_asked() -> None:
     """stevin never writes an ABAC policy. Two probes have to create one on a
     scratch table to read it back, so they are marked, a plain `verify` leaves
     them out, and every probe whose check sends `CREATE POLICY` carries the mark."""
+    # RULES.md: ACC-4.
     marked = [one for one in probes.PROBES if one.creates_policy]
     assert marked, "the probes that read a policy back are gone"
     assert not [one for one in probes.chosen(slow=True) if one.creates_policy]
@@ -333,6 +335,7 @@ def test_the_command_exits_0_when_everything_held(monkeypatch) -> None:  # noqa:
 def test_the_command_creates_no_policy_unless_asked(monkeypatch) -> None:  # noqa: ANN001
     """A plain `verify` leaves out the probes that create a policy, and says so
     in a line of its own that names the flag; with the flag they run."""
+    # RULES.md: ACC-4.
     sent: list[str] = []
 
     def creates(bench: Bench) -> None:

@@ -84,6 +84,7 @@ def test_the_assumption_holds(
     runtime: str | None,
     request: pytest.FixtureRequest,
 ) -> None:
+    # RULES.md: DBX-1.
     # Asked for by name, so that only one of the two is ever made.
     schema = str(request.getfixturevalue("schema" if RECORD else "shared_schema"))
     recorder = (

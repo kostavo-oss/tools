@@ -199,6 +199,7 @@ def project(tmp_path: Path, extra: str = "", manifest: bool = True) -> Project:
 
 
 def test_the_project_file_says_who_owns_what(tmp_path: Path) -> None:
+    # RULES.md: OWN-6.
     found = project(tmp_path)
     owners = found.owners(found.target("dev"))
     assert owners.owner_of("dev.silver.orders") == "dbt", "the hand list, with ${catalog}"
@@ -246,6 +247,7 @@ def test_a_spec_for_dbts_table_is_refused() -> None:
 
 
 def test_even_a_governance_only_spec_for_dbts_table_is_refused() -> None:
+    # RULES.md: OWN-7.
     govern = Table(name="dev.silver.orders", columns=(), tags=(("domain", "sales"),))
     with pytest.raises(PlanningError, match="is dbt's"):
         planned(
@@ -257,6 +259,7 @@ def test_even_a_governance_only_spec_for_dbts_table_is_refused() -> None:
 
 def test_a_governance_only_spec_governs_a_dlt_table() -> None:
     """Only governance is planned — no claim, no shape — and it converges."""
+    # RULES.md: OWN-7.
     fake = dlt_schema()
     plan = planned([GOVERN], fake)
     titles = [step.title for step in plan.steps]
@@ -296,6 +299,7 @@ def test_a_team_named_in_owned_elsewhere_counts_as_an_owner() -> None:
 
 
 def test_a_shape_spec_for_a_dlt_table_is_refused() -> None:
+    # RULES.md: OWN-7.
     with pytest.raises(PlanningError, match="is dlt's: leave the columns' types out"):
         planned([CUSTOMERS], dlt_schema())
 
@@ -317,6 +321,7 @@ def test_a_governed_table_that_is_not_there_yet_is_theirs_to_make() -> None:
 
 
 def test_owned_tables_are_theirs_not_unmanaged() -> None:
+    # RULES.md: OWN-6.
     fake = dlt_schema()
     plan = planned([GOVERN], fake)
     assert plan.unmanaged_tables == ()

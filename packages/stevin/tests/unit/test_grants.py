@@ -74,6 +74,7 @@ def test_privileges_are_normalised_and_checked() -> None:
 
 
 def test_a_named_principal_is_managed_exactly() -> None:
+    # RULES.md: ACC-1.
     live = orders(Grant("etl", ("MODIFY", "SELECT")), Grant("bi", ("SELECT",)))
     desired = orders(Grant("etl", ("SELECT",)), Grant("analysts", ("SELECT",)))
     changes = diff(desired, live)
@@ -109,6 +110,7 @@ def test_sql_and_convergence() -> None:
 
 
 def test_principals_are_quoted() -> None:
+    # RULES.md: SQL-1.
     live = orders()
     desired = orders(Grant("data team`; DROP", ("SELECT",)))
     _, plan = plan_against(desired, live)
@@ -148,6 +150,7 @@ def test_a_rewrite_keeps_everyone_s_access() -> None:
 
 
 def test_inherited_grants_are_not_the_tables_to_manage() -> None:
+    # RULES.md: ACC-1.
     from helpers import fake_runner
     from stevin.introspect import Introspector as RowIntrospector
 

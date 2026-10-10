@@ -347,6 +347,7 @@ def test_a_policy_that_cant_be_described_is_still_shown() -> None:
 
 
 def test_policies_are_facts_and_never_a_step_or_a_change() -> None:
+    # RULES.md: ACC-3.
     plan = planned(warehouse(MASK_PII, OWN_REGION))
     [diff] = plan.diffs
     assert diff.facts.policies == (MASK_PII, OWN_REGION)
@@ -462,6 +463,7 @@ def test_a_plan_is_not_stale_the_moment_it_is_made() -> None:
 def test_a_policy_that_arrives_after_the_plan_makes_it_stale() -> None:
     """What was reviewed was a table under one policy. Under two it is not the
     table that was reviewed — and the new one may meet the spec's own mask."""
+    # RULES.md: ACC-5.
     fake = warehouse(MASK_PII)
     plan = planned(fake, replace(CUSTOMERS, comment="Customers"), ORDERS)
     fake.under(ON_THE_TABLE)
@@ -593,6 +595,7 @@ def test_drift_lists_them_as_not_stevins_and_stays_in_sync(
 ) -> None:
     """A policy is present and somebody else's, like a grant no spec names: it
     is said, and it is not drift."""
+    # RULES.md: ACC-5.
     project_at(tmp_path)
     fake = warehouse(MASK_PII, OWN_REGION)
     monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
@@ -690,6 +693,7 @@ def test_the_fake_knows_the_statements_stevin_reads_with_and_no_other(
 ) -> None:
     """stevin never writes a policy. A statement that would is one the fake
     has never heard of, so no test can pass by sending it."""
+    # RULES.md: ACC-3.
     with pytest.raises(FakeSqlError, match="does not know this statement"):
         warehouse(MASK_PII).query(statement)
 

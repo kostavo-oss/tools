@@ -112,6 +112,7 @@ def test_unsupported_widenings(before: str, after: str) -> None:
 
 
 def test_a_rename_inserts_column_mapping_first() -> None:
+    # RULES.md: RISK-1.
     live = table(col("cust_id", "string"))
     desired = table(col("customer_ref", "string", renamed_from="cust_id"))
     plan = plan_of(desired, live)
@@ -214,6 +215,7 @@ def test_not_null_on_a_nested_field_is_an_alter() -> None:
 
 
 def test_dropping_a_column_is_destructive_and_needs_column_mapping() -> None:
+    # RULES.md: RISK-1.
     live = table(col("keep", "int"), col("legacy_flag", "boolean"))
     desired = table(col("keep", "int"))
     plan = plan_of(desired, live)
@@ -340,6 +342,7 @@ def test_reordering_walks_the_columns_into_place() -> None:
 
 
 def test_identifiers_are_always_quoted() -> None:
+    # RULES.md: SQL-1.
     live = table(col("odd name", "int"), name="main.sales.odd table")
     desired = table(
         col("odd name", "bigint"), col("new`col", "int"), name="main.sales.odd table"
@@ -493,12 +496,14 @@ def test_using_wins_over_anything_stevin_would_have_written() -> None:
     ],
 )
 def test_the_projection_refuses_rather_than_inventing(before: str, after: str) -> None:
+    # RULES.md: RISK-3.
     projection = build_projection(table(col("c", after)), table(col("c", before)))
     assert not projection.complete
     assert projection.problems == ("c",)
 
 
 def test_replace_table_sql(snapshot: SnapshotAssertion) -> None:
+    # RULES.md: RW-1.
     desired = table(
         col("order_id", "bigint", nullable=False, comment="Surrogate key"),
         col("amount", "string"),

@@ -1,183 +1,76 @@
 # Contributing to stevin
 
-Thanks for your interest! Issues and pull requests are very welcome.
+Issues and pull requests are welcome. How a change lands, the checks it has to pass, the
+toolchain and how a release is made are the same for every package of this repository:
+the root [CONTRIBUTING.md](../../CONTRIBUTING.md) has them. This file is what is
+particular to stevin.
 
-`stevin` is alpha: every milestone in the design is built, most of what it assumes about
-Databricks has been run against a live workspace ([docs/testing.md](docs/testing.md) lists
-what hasn't), and the spec format may still change. [`docs/DESIGN.md`](docs/DESIGN.md) is
-the source of truth — if the code and the design disagree, that is a bug in one of them,
-so please say which.
+stevin is alpha, and the spec format may still change before the first stable release.
 
-## How changes land
-
-`main` is protected: every change is a pull request, merged once its checks pass.
-
-- **`ci`** — lint, types, the unit tests on Python 3.11–3.14, on macOS and Windows, and
-  on the lowest dependency versions `pyproject.toml` allows, the docs in strict mode,
-  the wheel, and the workflows. These are required.
-- **`integration`** — the live suite, against a real workspace. It runs only when a
-  maintainer starts it: not on a schedule, not on pull requests, and it isn't required.
-
-**A pull request that changes what stevin sends to Databricks** is checked by starting
-the `smoke` tests on its branch. Say in the pull request that it wants one; a
-maintainer starts it and reads it before merging:
+## Its tests
 
 ```sh
-gh workflow run integration.yml --ref <branch>                          # smoke
+uv sync                                            # once, anywhere in the repository
+cd packages/stevin && uv run pytest tests/unit     # its offline tests, from its own directory
+uv run ty check                                    # its types, from the same directory
+```
+
+The unit tests need no workspace and no network. A fake warehouse interprets the SQL
+stevin sends, and every test runs with the Databricks CLI and any signed-in workspace
+hidden. [docs/testing.md](docs/testing.md) says what each layer of tests proves, and
+where a new test goes.
+
+Three things are made by a command, and a test fails when one is stale:
+
+```sh
+uv run python tests/screens.py docs/assets/screens   # the docs' terminal pictures (`mise run screens`)
+uv run python -m stevin.features docs/formats.md     # the table of what YAML and SQL specs can say
+uv run python -m stevin.spec_schema docs/schema      # the JSON Schemas editors use
+```
+
+Run the first after changing anything a user sees in a terminal, and look at the
+pictures. A new feature gets a scene in `tests/screens.py` and a section in
+`docs/features.md`.
+
+## The live suite
+
+`tests/integration/` runs against a real workspace, and only when a maintainer starts
+it: never on a schedule and never on a pull request. A pull request that changes what
+stevin sends to Databricks says that it wants the `smoke` tests on its branch, and a
+maintainer starts them and reads the result before merging:
+
+```sh
+gh workflow run integration.yml --ref <branch>                            # smoke
 gh workflow run integration.yml --ref <branch> -f suite=full -f k=<test>  # one test
 ```
 
-The suite runs in a workspace that is its owner's own, and every table it makes counts
-against that metastore's quota for a while after it is dropped. So the rule, for people
-and for coding agents: **never a full live run for a change that `smoke` or `-k` can
-check, and never more than one full run a day on a workspace somebody else uses.**
-[docs/testing.md](docs/testing.md) says what a run costs and what `smoke` covers.
-
-Run `mise run check` before pushing; it is the `ci` gate minus the matrix. If you
-changed anything a user sees in the terminal, `mise run screens` remakes the docs'
-pictures, and the check fails until you do.
-
-## Toolchain
-
-stevin uses [`mise`](https://mise.jdx.dev) to pin tools and the all-Astral
-stack — [`uv`](https://docs.astral.sh/uv/) (env / deps / run),
-[`ruff`](https://docs.astral.sh/ruff/) (lint + format), and
-[`ty`](https://docs.astral.sh/ty/) (type check).
-
-```sh
-mise install             # installs the pinned Python + uv (optional but recommended)
-uv sync                  # creates .venv and installs deps + dev tools
-uvx pre-commit install   # optional: ruff on every commit
-```
-
-## Day-to-day
-
-```sh
-uv run stevin                  # run the CLI
-uv run pytest tests/unit          # fast tests, no workspace needed
-uv run ruff check . && uv run ruff format .   # lint + format
-uv run ty check                   # type check
-```
-
-`mise run check` runs the whole gate (lint, format check, types, unit tests) in one
-go; `mise tasks` lists the rest.
-
-All of these run in CI on every push/PR — please make sure they're green before
-opening a PR. New behaviour should come with a test.
-
-## Architecture
-
-```
-spec (YAML, SQL) ─┐
-                  ├─> differ ─> changes ─> planner ─> plan (JSON) ─> renderer
-live (UC) ────────┘                                        │
-                                                           └─> executor ─> history
-```
-
-The dependency rule is simple: **the middle of the pipeline does no I/O.**
-
-- **`model/`** — frozen, slotted stdlib dataclasses holding tuples, so everything is
-  hashable. No Pydantic, no SDK. Tables, views, functions, schemas and volumes.
-- **Reading files** — `loader.py` reads `stevin.yml` and YAML specs and is the only
-  place that validates; `sqlspec.py` reads `.sql` specs into the same model;
-  `bundle.py` reads a Databricks Asset Bundle, leniently, because it is someone else's
-  file; `yamledit.py` edits a spec's text for `adopt`.
-- **Talking to a workspace** — `connect.py` makes the client and finds the warehouse,
-  and `introspect.py` reads live state through it. `doctor.py` and `probes.py` ask
-  their own questions over the same connection, and `bundle.py` runs the Databricks
-  CLI, which asks the workspace on stevin's behalf.
-- **`differ.py` / `planner.py`** — pure functions: no I/O, no SDK imports, no clock,
-  no environment. They must be unit-testable without a workspace.
-- **`render/`** — rich / markdown / json / html views of the same `Plan` object,
-  sharing their wording through `render/labels.py` and their rows through
-  `render/compare.py`.
-- **`planning.py`** — specs and a warehouse in, a plan out: the pipeline `plan`,
-  `drift` and the GitHub Action share.
-- **Running SQL that changes something** — `executor.py` runs a plan's steps, and is
-  the only thing that changes a table a spec describes. `history.py` writes stevin's
-  own three tables in the `history_schema`, and `probes.py` (`stevin verify`) makes
-  and drops a scratch schema. Nothing else writes.
-- **`api.py`** / **`cli.py`** — the verbs as functions, and the fourteen commands
-  around them: parsing arguments and printing, nothing else.
-- **`action.yml`** + **`action/`** — the GitHub Action, at the package's root so
-  `uses: kostavo-oss/tools/packages/stevin@stevin-v0` finds it.
-
-House rules worth repeating:
-
-- Never build SQL by concatenating unquoted identifiers — there is one
-  `quote_ident()` helper, and it is used everywhere.
-- Anything not modelled on a live table is reported as **unmanaged** and never
-  diffed away. Only tables stevin created can be drop candidates.
-- No destructive step without the `destructive` risk class.
-- Every Databricks behaviour assumption gets a test and a link to the docs in the
-  test docstring. If a behaviour is unclear, add a `TODO(verify)` and say so — don't
-  guess.
-
-## Tests
-
-Four layers, each honest about what it proves:
-
-1. **Unit tests** (`tests/unit/`) — the pure middle of the pipeline, with golden plans
-   in `tests/snapshots/`.
-2. **Convergence against a fake warehouse** (`tests/fake_warehouse.py`) — an in-memory
-   catalog that interprets the statements the planner generates, so `plan → apply →
-   re-plan is empty` can be asserted offline, for every kind of change. It proves our
-   SQL means what our changes mean; it cannot prove Databricks accepts it.
-3. **Transcripts** (`tests/transcripts/`) — what a workspace answered, recorded by a
-   live run and replayed offline. Built, and empty until one is recorded.
-4. **Integration tests** (`tests/integration/`) — marked `@pytest.mark.integration`,
-   skipped without credentials, run by hand against a real workspace in schemas the
-   suite makes and drops. The only source of truth about Databricks. A run has a table
-   budget: a test that only reads shares a table with its module, and a test that
-   changes one has its own.
+The workspace is its owner's own, and every table a run makes counts against that
+metastore's quota for a while after it is dropped. So, for people and for coding agents:
+**never a full run for a change that `smoke` or `-k` can check, and never more than one
+full run a day.** [docs/testing.md](docs/testing.md#what-a-run-costs) says what a run
+costs, what `smoke` covers and how to write a live test that keeps to the budget.
 
 An assumption about what Databricks does is a probe in `src/stevin/probes.py`, with a
-link to the documentation, which the live suite and `stevin verify` both run; anything
-else Databricks turns out to refuse becomes a test in layer 4. There is a fuller
-description in [docs/testing.md](docs/testing.md).
+link to the documentation. The live suite and `stevin verify` both run that list.
 
-## Commits & PRs
+## Its rules and decisions
 
-- Small, PR-sized commits with [conventional commit](https://www.conventionalcommits.org/)
-  messages (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
-- Describe the *why*, not just the *what*.
-- By contributing you agree your work is licensed under the project's
-  [Apache-2.0 License](LICENSE).
+- [RULES.md](RULES.md) is what must be true of the code: numbered rules, each with the
+  tests that hold it. A change to behaviour changes its rule in the same pull request,
+  and the test that holds it cites the rule's identifier.
+- [DECISIONS.md](DECISIONS.md) is why: a log that is appended to and never edited.
+- [docs/how-it-works.md](docs/how-it-works.md) is how stevin works: the pipeline, the
+  model, what a plan holds, how ownership is known. If the code and that page disagree,
+  one of them has a bug: say which.
+- [docs/testing.md](docs/testing.md) is how it is tested, what has run on a real
+  workspace, and what is still open.
+- [CLAUDE.md](CLAUDE.md) has the layout and the rules of working.
 
-## Releasing
-
-A release is a version. `pyproject.toml` says what it is, and merging the bump is what
-ships it.
-
-In a pull request, bump the version and move the changelog notes under it:
-
-```sh
-uv version 0.1.0a7          # or: uv version --bump patch / minor / major
-```
-
-In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.1.0a7] - <date>` and start a fresh,
-empty `## [Unreleased]` above it. Merge it once `ci` passes — that is the whole release.
-
-The [`release`](.github/workflows/release.yml) workflow watches `pyproject.toml` on
-`main`. When it finds a version that isn't tagged and isn't on PyPI, it runs the gate on
-that commit, publishes to **PyPI** (Trusted Publishing — no API token), and creates the
-GitHub release with the changelog's notes, which is what makes the `v0.1.0a7` tag. A
-version with `a`, `b` or `rc` is marked a pre-release. The Action's `v0` tag moves to
-every 0.x release, so `uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the newest.
-
-Nothing else triggers it, so a `pyproject.toml` change that isn't a bump — a dependency,
-a ruff rule — costs one run that says "nothing to release" and stops: a push that leaves
-the version as it was releases nothing, even when that version was never published. A
-bump without changelog notes under that version fails instead of publishing something
-unexplained.
-
-If a release fails halfway, fix what broke and run the workflow again from the Actions
-tab: whatever already landed (the PyPI file, the tag) makes it stop rather than repeat
-itself. Started by hand is also the only way a version that is on `main` but was never
-published goes out — a later push won't pick it up.
-
-## Previewing the docs
+From the root of the repository, this checks that the rules, the code and the tests
+agree:
 
 ```sh
-uv run --group docs mkdocs serve
+uv run pytest tests/test_rules.py
 ```
+
+`CHANGELOG.md` gets a line under `## [Unreleased]` for anything a user would notice.

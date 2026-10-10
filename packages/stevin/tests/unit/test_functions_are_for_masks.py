@@ -105,6 +105,7 @@ def test_functions_a_mask_or_filter_names_are_fine_whatever_the_case() -> None:
 
 @pytest.mark.usefixtures("stray")
 def test_validate_refuses_a_function_nothing_names() -> None:
+    # RULES.md: SPEC-2.
     result = runner.invoke(app, ["validate"])
     assert result.exit_code == 1, result.output
     assert "tables/order_band.yml" in result.output

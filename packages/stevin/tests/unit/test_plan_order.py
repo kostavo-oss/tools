@@ -72,6 +72,7 @@ def test_a_function_is_planned_after_the_table_its_body_reads() -> None:
 
 def test_the_whole_chain_lands_in_one_order() -> None:
     """lookup table → function reading it → table whose row filter calls it."""
+    # RULES.md: PLAN-4.
     lookup = table(col("mailbox", "string"), name=LOOKUP)
     filtered = replace(
         table(col("id", "bigint"), col("mailbox", "string"), name=FILTERED),

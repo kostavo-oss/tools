@@ -400,6 +400,7 @@ def apply_now(project: Path, *args: str, answer: str | None = None) -> Result:
 
 
 def test_apply_plans_shows_and_asks(project: Path, warehouse: FakeWarehouse) -> None:
+    # RULES.md: APL-7.
     result = apply_now(project, answer="y\n")
     assert result.exit_code == 0, result.output
     assert "sales.orders   ~ update" in result.output, "the plan is shown first"
@@ -413,6 +414,7 @@ def test_no_answer_is_no(
     project: Path, warehouse: FakeWarehouse, answer: str | None
 ) -> None:
     """`n`, or a closed stdin as in CI without --yes: nothing runs."""
+    # RULES.md: APL-7.
     result = apply_now(project, answer=answer)
     assert result.exit_code == 1
     assert "Nothing applied." in result.output
@@ -436,6 +438,7 @@ def test_nothing_to_do_asks_nothing(project: Path, warehouse: FakeWarehouse) -> 
 def test_a_destructive_plan_is_refused_before_asking(
     project: Path, warehouse: FakeWarehouse
 ) -> None:
+    # RULES.md: RISK-2.
     (project / "tables" / "orders.yml").write_text(
         SPEC.replace(
             "  - {name: customer_ref, type: string, renamed_from: cust_id}\n", ""
@@ -495,6 +498,7 @@ def test_a_selection_never_drops_what_it_leaves_out(
 ) -> None:
     """The schema is strict, and `orders` is managed: planned without it, a
     selection must not take it for a table whose spec is gone."""
+    # RULES.md: OWN-2.
     config = ["--config", str(two_tables / "stevin.yml")]
     result = runner.invoke(app, ["plan", *config, "--select", "customers"])
     assert result.exit_code == 0, result.output

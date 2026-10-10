@@ -14,6 +14,7 @@ COMMITTED = Path(__file__).parents[2] / "docs" / "assets" / "screens"
 
 
 def test_the_docs_pictures_match_what_the_cli_prints(tmp_path: Path) -> None:
+    # RULES.md: TEST-2.
     made = {path.name: path for path in screens.make(tmp_path)}
     committed = {path.name: path for path in COMMITTED.iterdir()}
     assert sorted(made) == sorted(committed), "remake the pictures (see the docstring)"

@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The design page is now *How it works*.** The docs had the original design, kept as
+  it was written with corrections on top. In its place is a page that says how stevin
+  works today: the pipeline, the model, what a plan holds, how ownership is known. Its
+  address changed from `…/stevin/DESIGN/` to `…/stevin/how-it-works/`. The README is
+  shorter and links to the docs, and what stevin promises is a numbered list with the
+  tests that hold each promise, in `RULES.md` in the repository. No behaviour changed.
+
 - **`stevin verify` makes fewer tables in your workspace.** A plain `verify` made 23
   tables in its scratch schema and makes 14 now; with `--slow` and `--create-policy` it
   was 28 and is 17. Unity Catalog counts a table against the metastore's table quota

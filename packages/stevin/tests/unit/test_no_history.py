@@ -37,6 +37,7 @@ def planned(desired: Table, fake: FakeWarehouse) -> Plan:
 
 
 def test_nothing_is_created_and_the_change_is_made() -> None:
+    # RULES.md: APL-5.
     fake = FakeWarehouse()
     fake.schemas.add("main.sales")
     desired = table(col("id", "bigint"), name=NAME)
@@ -105,6 +106,7 @@ def test_an_interrupted_run_is_finished_by_planning_again() -> None:
 
 def test_a_risky_step_still_takes_a_restore_point() -> None:
     """Kept on the run rather than in a table: `RESTORE` is still one command."""
+    # RULES.md: APL-5.
     fake = FakeWarehouse.of(LIVE)
     fake.versions[NAME] = 41
     desired = table(col("id", "bigint"), name=NAME)  # drops `legacy`

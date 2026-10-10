@@ -59,6 +59,7 @@ def test_everything_is_managed_unless_a_project_says_otherwise(tmp_path: Path) -
 
 
 def test_a_handed_over_key_is_refused_in_a_spec(tmp_path: Path) -> None:
+    # RULES.md: ACC-6.
     path = spec(
         tmp_path,
         f"table: main.sales.orders\n{COLUMNS}"
@@ -130,6 +131,7 @@ def test_the_plan_says_what_it_could_not_have_changed(tmp_path: Path) -> None:
 
 def test_the_workspace_is_not_even_asked_about_grants() -> None:
     """A query that never runs can't put someone else's grants in a plan."""
+    # RULES.md: ACC-6.
     live = replace(
         table(col("id", "bigint"), name=NAME, properties=MANAGED),
         grants=(Grant("analysts", ("SELECT",)),),
@@ -167,6 +169,7 @@ def load_spec_text(text: str, tmp: Path | None = None) -> object:
 
 def test_handing_something_over_does_not_make_stevin_blind() -> None:
     """The rewrite refusal rests on knowing a table is masked. Still true."""
+    # RULES.md: RW-4.
     masked = replace(
         table(col("id", "bigint"), name=NAME, properties=MANAGED),
         columns=(replace(col("id", "bigint"), mask=Mask("main.sales.hide")),),

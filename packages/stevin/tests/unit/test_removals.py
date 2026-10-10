@@ -95,6 +95,7 @@ def test_an_empty_value_is_not_a_removal(tmp_path: Path) -> None:
 
 
 def test_the_ownership_marker_cannot_be_removed(tmp_path: Path) -> None:
+    # RULES.md: OWN-1.
     with pytest.raises(SpecError, match="deltaplan.managed can't be removed"):
         spec(
             tmp_path,

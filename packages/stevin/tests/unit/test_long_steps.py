@@ -146,6 +146,7 @@ def test_a_statement_that_outlives_its_budget_is_cancelled_before_it_is_reported
     None
 ):
     """The bug: a budget that gave up on a statement without stopping it."""
+    # RULES.md: APL-6.
     client = SlowClient(polls=1_000_000)
     with pytest.raises(IntrospectionError) as raised:
         patient(client, timeout_seconds=0).query("CREATE OR REPLACE TABLE t AS SELECT 1")
@@ -234,6 +235,7 @@ def test_the_way_a_person_says_how_long() -> None:
 
 
 def test_reads_have_a_budget_and_apply_has_none() -> None:
+    # RULES.md: APL-6.
     connection = Connection(
         client=cast("WorkspaceClient", SlowClient(polls=0)), warehouse_id="w1"
     )
@@ -420,6 +422,7 @@ def test_ctrl_c_before_the_statement_had_an_id_does_not_claim_a_cancel(
     to cancel. It may be running, and Query History is where to look.
     https://docs.databricks.com/aws/en/sql/user/queries/query-history
     """
+    # RULES.md: APL-6.
     said = _interrupt_apply(
         tmp_path, monkeypatch, Interrupted("REPLACE TABLE t"), "--yes"
     )

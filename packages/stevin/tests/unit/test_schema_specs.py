@@ -149,6 +149,7 @@ def test_what_a_schema_spec_leaves_out_is_left_alone() -> None:
 
 
 def test_a_schema_is_never_dropped() -> None:
+    # RULES.md: OWN-4.
     fake = FakeWarehouse.of(SALES, ORDERS)
     plan = planned([ORDERS], fake, strict=True)
     assert plan.empty
