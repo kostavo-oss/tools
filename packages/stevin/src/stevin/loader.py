@@ -701,6 +701,45 @@ FIELD_KEYS = {
 }
 
 
+def _depth(text: str) -> int:
+    """How many `(` and `<` in a type are still open at its end."""
+    return sum((c in "(<") - (c in ")>") for c in text)
+
+
+def _whole_types(
+    ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]], *keys: str
+) -> None:
+    """Refuse a type that flow style cut in two, and say how to write it.
+
+    Inside `{ }` a comma ends the entry, so `{name: a, type: decimal(18,2)}` is a
+    type `decimal(18` followed by a key `2)` that has no value. Left alone, that is
+    an unknown key in a field, which says nothing of the cause. `keys` are the keys
+    of this mapping that hold a type.
+    """
+    if not (isinstance(node, MappingNode) and node.flow_style):
+        return
+    names = list(items)
+    for key in keys:
+        value = items[key][0] if key in items else None
+        if not isinstance(value, ScalarNode) or value.style is not None:
+            continue
+        text = str(value.value)
+        for rest in names[names.index(key) + 1 :]:
+            if _depth(text) <= 0:
+                break
+            piece = items[rest][0]
+            if not (isinstance(piece, ScalarNode) and piece.value == ""):
+                break
+            text += f",{rest}"
+            if _depth(text) == 0:
+                raise SpecError(
+                    "a type with a comma has to be quoted inside { }: write "
+                    f'`{key}: "{text}"` (in flow style YAML reads the comma as the '
+                    "end of the entry)",
+                    ctx.loc(value),
+                )
+
+
 def _read_type(ctx: _Ctx, node: Node, what: str) -> DataType:
     """A type is either a Databricks type string or the nested YAML form."""
     if isinstance(node, ScalarNode):
@@ -734,6 +773,7 @@ def _read_array(ctx: _Ctx, node: Node) -> Array:
     if isinstance(node, ScalarNode):
         return Array(_read_type(ctx, node, "array element"))
     items = _mapping(ctx, node, "array")
+    _whole_types(ctx, node, items, "element")
     _known_keys(items, allowed=ARRAY_KEYS, what="array")
     element_node = _require(ctx, items, node, "element", "an array")
     contains_null = True
@@ -744,6 +784,7 @@ def _read_array(ctx: _Ctx, node: Node) -> Array:
 
 def _read_map(ctx: _Ctx, node: Node) -> Map:
     items = _mapping(ctx, node, "map")
+    _whole_types(ctx, node, items, "key", "value")
     _known_keys(items, allowed=MAP_KEYS, what="map")
     key_node = _require(ctx, items, node, "key", "a map")
     value_node = _require(ctx, items, node, "value", "a map")
@@ -755,6 +796,7 @@ def _read_map(ctx: _Ctx, node: Node) -> Map:
 
 def _read_field(ctx: _Ctx, node: Node) -> Field:
     items = _mapping(ctx, node, "a field")
+    _whole_types(ctx, node, items, "type")
     _known_keys(items, allowed=FIELD_KEYS, what="a field", manage=ctx.manage)
     name = _string(ctx, _require(ctx, items, node, "name", "a field"), "field name")
     field_type = _read_type(
@@ -1102,6 +1144,7 @@ def _read_function_spec(
     if "parameters" in items:
         for item in _sequence(ctx, items["parameters"][0], "parameters"):
             entry = _mapping(ctx, item, "a parameter")
+            _whole_types(ctx, item, entry, "type")
             _known_keys(entry, allowed=PARAMETER_KEYS, what="a parameter")
             parameter_name = _string(
                 ctx, _require(ctx, entry, item, "name", "a parameter"), "parameter name"
