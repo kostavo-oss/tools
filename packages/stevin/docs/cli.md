@@ -9,6 +9,7 @@ stevin apply plan.json     # run a saved plan, as CI does
 stevin show plan.json [--format rich|md|json|html]
 stevin ui [plan.json]      # the plan as a page in a browser
 stevin drift -t <target>   # exit code 2 on drift, for CI
+stevin access <catalog.schema.table>   # who may see a table, and through what
 stevin adopt [<name>...]   # drift, written back into the specs
 stevin doctor              # check the setup; changes nothing
 stevin verify --schema <catalog.schema>   # run the Databricks assumptions
@@ -408,6 +409,59 @@ is, and the exit code stays `0`. Point a
 
 When the hand edit was the right call, [`adopt`](#adopt) writes it into the spec instead
 of planning it away.
+
+## `access`
+
+```sh
+stevin access prod.sales.orders
+stevin access '${catalog}.sales.orders' -t prod [--json]
+```
+
+Says who may see one table, and through what. It reads, and changes nothing.
+
+```
+prod.sales.orders   access
+  owner sales-platform
+
+  Granted
+    analysts
+      SELECT          inherited from schema prod.sales
+    etl
+      MODIFY, SELECT  the table's own
+
+  What narrows a read
+    · row filter prod.security.by_region on region
+    · mask on customer_email with prod.security.mask_email
+    · policy mask_pii (column mask, on schema prod.sales) masks columns matching
+      has_tag('pii') AS c with prod.security.redact, for account users except
+      pii_readers
+
+  This lists what is granted and what is in scope. It does not:
+    · evaluate a policy's condition for a given reader
+    · resolve who is in a group
+    · run a query as someone else
+    · list USE CATALOG and USE SCHEMA, which a reader needs as well
+```
+
+- **Granted**: each principal with a privilege on the table, and where it is granted —
+  the table's own, or inherited from the schema or the catalog.
+- **What narrows a read**: the table's row filter, its column masks, and the
+  [ABAC policies](features.md#the-policies-a-table-is-under) in scope.
+- The owner.
+
+The name is `catalog.schema.table`. In a project it may use a target's variable, as a
+spec does; outside one, write it out. It works without a `stevin.yml`, with `--profile`
+and `--warehouse-id`.
+
+Where the workspace refuses to list policies, the report says so once and is otherwise
+complete. With `manage: {policies: false}` it reads none and says that instead, and
+with `manage: {grants: false}` it reads no grants and says so.
+
+The last four lines are part of the report on purpose. It lists; it does not decide
+what one reader sees. `--json` gives the same as data, with those four under `does_not`.
+It exits 0 when the table could be read, and 1 when it could not: no such table, a
+view, no connection.
+[Who may see a table →](features.md#who-may-see-a-table)
 
 ## `force-unlock`
 

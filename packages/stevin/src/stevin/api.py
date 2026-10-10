@@ -37,6 +37,7 @@ from stevin.loader import (
     unreferenced_functions,
 )
 from stevin.manage import EVERYTHING, Manage
+from stevin.model.access import Access
 from stevin.model.plan import Plan, Step
 from stevin.model.table import Table
 from stevin.model.view import Relation, View
@@ -119,6 +120,41 @@ def drift(
     business.
     """
     return plan(project, target, connection, select=select, parallel=parallel)
+
+
+def access(
+    connection: Connection,
+    table: str,
+    *,
+    manage: Manage = EVERYTHING,
+    parallel: int = 8,
+) -> Access:
+    """Who may see `catalog.schema.table`, and through what. Reads; writes nothing.
+
+    What comes back is the privileges granted on the table and the ones it
+    inherits, each with the schema or catalog it is granted on; what narrows a
+    read — the table's row filter, its column masks and the ABAC policies in
+    scope; and the owner.
+
+    It lists what is granted and what is in scope (`stevin.model.access.LIMITS`
+    says the rest): it does not evaluate a policy's condition for a given
+    reader, does not resolve who is in a group, cannot run a query as someone
+    else, and leaves out `USE CATALOG` and `USE SCHEMA`.
+
+    `manage` is the project's (`project.manage`). A project that hands grants
+    or policies to another tool doesn't ask the workspace about them, here as
+    in a plan, and the result says which were not read (`grants_asked`,
+    `policies_asked`). Nothing else in `manage` changes what is read.
+
+    Raises `AccessError` for a name that isn't a table in this workspace, and
+    `IntrospectionError` if the workspace can't be read.
+    """
+    from stevin.access import read
+
+    # Masks, row filters and owners are read whatever the project manages:
+    # only these two are "not asked" rather than "not declared".
+    unasked = tuple(a for a in ("grants", "policies") if not manage.manages(a))
+    return read(connection.introspector(Manage(unasked), parallel), table)
 
 
 def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:

@@ -30,6 +30,7 @@ from stevin.advice import WAREHOUSE_BUSY, with_advice
 from stevin.ddl import DdlError, read_columns
 from stevin.errors import StevinError
 from stevin.manage import EVERYTHING, Manage
+from stevin.model.access import Held
 from stevin.model.function import Function, Parameter
 from stevin.model.policy import Policy
 from stevin.model.schema import Schema
@@ -411,6 +412,45 @@ class Introspector:
             policies=policies,
             policies_unread=unread,
         )
+
+    def privileges(self, name: str) -> tuple[Held, ...]:
+        """Every privilege held on one table: its own, and what it inherits.
+
+        `table_privileges` lists both, and `inherited_from` says which. Settled
+        on 2026-10-10 against a workspace (`test_live_access.py` and the probe
+        *table_privileges says where an inherited grant comes from*): the
+        table's own grant says `NONE`, and a `SELECT` granted on the schema is
+        listed again for the table with `SCHEMA`, beside the table's own
+        `SELECT` when it has one. `USE SCHEMA` on the schema is not listed for
+        the table at all.
+
+        Through the same gate as every other privilege read (`_privileges`):
+        a project that hands grants over isn't asked about these either.
+
+        TODO(verify): `CATALOG` for a grant on the catalog. It is read here the
+        way `SCHEMA` is, but the live suite grants nothing outside its scratch
+        schema, so no workspace has said it to stevin. Any other value is kept
+        as the workspace spelled it, in lower case, and placed nowhere.
+        https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges
+        """
+        catalog, schema, short = _split(name)
+        rows = self._privileges(
+            "SELECT grantee, privilege_type, inherited_from "
+            f"FROM {_information_schema(catalog)}.table_privileges "
+            f"WHERE table_schema = {quote_literal(schema)} "
+            f"AND table_name = {quote_literal(short)}"
+        )
+        above = {"schema": f"{catalog}.{schema}", "catalog": catalog}
+        held: set[Held] = set()
+        for row in rows:
+            grantee, privilege = row.get("grantee"), row.get("privilege_type")
+            if grantee is None or privilege is None:
+                continue
+            source = (row.get("inherited_from") or "NONE").strip().lower()
+            level = "table" if source == "none" else source
+            on = name if level == "table" else above.get(level, "")
+            held.add(Held(grantee, normalise_privilege(privilege), level, on))
+        return tuple(sorted(held, key=lambda h: (h.principal, h.level, h.privilege)))
 
     def latest_version(self, name: str) -> int | None:
         """The table's current Delta version — the restore point for a plan."""

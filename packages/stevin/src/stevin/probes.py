@@ -614,6 +614,34 @@ def _a_grant_on_the_schema_is_not_the_tables(bench: Bench) -> None:
     )
 
 
+def _table_privileges_says_where_a_grant_comes_from(bench: Bench) -> None:
+    wanted = spec(col("id", "int"), name=bench.full("w"))
+    bench.apply(bench.planned([wanted]))
+    bench.sql(
+        f"GRANT SELECT ON SCHEMA {quote_qualified(bench.schema)} "
+        f"TO {quote_ident(bench.principal)}"
+    )
+    bench.sql(
+        f"GRANT MODIFY ON TABLE {bench.named('w')} TO {quote_ident(bench.principal)}"
+    )
+    # Only this principal's: who else holds what here is not for a report.
+    mine = {
+        (held.privilege, held.level, held.on.lower())
+        for held in bench.introspector.privileges(wanted.name)
+        if held.principal == bench.principal
+    }
+    own = ("MODIFY", "table", wanted.name.lower())
+    inherited = ("SELECT", "schema", bench.schema.lower())
+    bench.expect(
+        own in mine and inherited in mine,
+        f"a MODIFY on the table and a SELECT on its schema read back as {sorted(mine)}",
+    )
+    bench.expect(
+        ("SELECT", "table", wanted.name.lower()) not in mine,
+        "the schema's SELECT reads back as the table's own",
+    )
+
+
 def _materialized_views_and_streaming_tables_are_left_alone(bench: Bench) -> None:
     source = spec(col("id", "int"), name=bench.full("src"))
     bench.apply(bench.planned([source]))
@@ -900,6 +928,14 @@ PROBES: tuple[Probe, ...] = (
         "`table_privileges` lists inherited grants too. If stevin read one as "
         "the table's own, a strict spec would plan to revoke it — and couldn't.",
         _a_grant_on_the_schema_is_not_the_tables,
+    ),
+    Probe(
+        "table_privileges says where an inherited grant comes from",
+        "https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges",
+        "`stevin access` says of each privilege whether it is the table's own or "
+        "inherited from its schema. If the workspace marked them otherwise, the "
+        "report would name the wrong place to change a grant.",
+        _table_privileges_says_where_a_grant_comes_from,
     ),
     Probe(
         "materialized views and streaming tables are left alone",

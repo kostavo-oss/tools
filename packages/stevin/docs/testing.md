@@ -150,6 +150,15 @@ says so in the source:
   `account users` to name, and a `MATCH COLUMNS` condition wants a governed tag. Where a
   label is wrong, a plan still names the policy and where it is defined.
 
+- **A grant inherited from a catalog.** `stevin access` reads where a privilege is
+  granted from `table_privileges.inherited_from`. `NONE` for the table's own and
+  `SCHEMA` for one on its schema were read from a workspace on 2026-10-10
+  (`tests/integration/test_live_access.py`, and the probe *table_privileges says where
+  an inherited grant comes from*). `CATALOG` is read the same way
+  (`introspect.Introspector.privileges`), and the suite grants nothing outside its
+  scratch schema, so no workspace has said it to stevin. Another value is shown as the
+  workspace spelled it.
+
 `stevin verify` runs the first of these as a probe in a workspace of your own.
 
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE

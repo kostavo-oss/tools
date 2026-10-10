@@ -83,7 +83,7 @@ The dependency rule is simple: **the middle of the pipeline does no I/O.**
   the only thing that changes a table a spec describes. `history.py` writes stevin's
   own three tables in the `history_schema`, and `probes.py` (`stevin verify`) makes
   and drops a scratch schema. Nothing else writes.
-- **`api.py`** / **`cli.py`** — the verbs as functions, and the thirteen commands
+- **`api.py`** / **`cli.py`** — the verbs as functions, and the fourteen commands
   around them: parsing arguments and printing, nothing else.
 - **`action.yml`** + **`action/`** — the GitHub Action, at the package's root so
   `uses: kostavo-oss/tools/packages/stevin@stevin-v0` finds it.

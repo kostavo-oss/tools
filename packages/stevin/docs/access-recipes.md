@@ -24,6 +24,9 @@ name are reported and left alone.
 **Gotcha:** `USE CATALOG` on the catalog is still needed, and catalogs are not stevin's.
 Grant it once, in Terraform or by hand.
 
+**Check it:** `stevin access prod.sales.orders` lists `analysts` with `SELECT`,
+*inherited from schema prod.sales*.
+
 ## Rows by region
 
 **Goal:** a sales rep sees the orders of their region; a regional lead sees the region.
@@ -87,6 +90,9 @@ in it is paid every time; keep the mapping table small and the predicate simple.
 filter is additive: stevin sets or replaces it and never removes one — remove it by hand,
 on purpose. A table with a filter is not rewritten by stevin, since the staged copy would
 hold what the applying principal can see.
+
+**Check it:** `stevin access prod.sales.orders` shows *row filter
+prod.security.by_region on region* under what narrows a read.
 
 ## PII columns by tag
 
@@ -152,13 +158,16 @@ account admin defined at account level. A tag with a key nobody governed is just
 label, and the policy won't match it. stevin sets tags with the same `SET TAGS` either
 way; make `pii` a governed key before you rely on the policy.
 
-What the plan shows: the tag steps on each table, and nothing about the policy — stevin
-doesn't write policies. Showing the policies that apply to a table, in the plan and in
-drift, is planned.
+What the plan shows: the tag steps on each table, and no step for the policy — stevin
+doesn't write policies. Once the policy exists, a plan lists it under each table it is
+in scope of, as not stevin's.
 
 **Gotcha:** a table-level mask on a column the policy also masks is a conflict, and
 Databricks resolves a conflict by blocking access. Pick one: the schema policy for
 everything tagged, table-level masks for the few tables with their own rules.
+
+**Check it:** `stevin access prod.sales.orders` shows *policy mask_pii (column mask, on
+schema prod.sales)* with its function, for whom and except whom.
 
 ## What stays hard
 
@@ -180,4 +189,6 @@ Plainly, because no tool removes it:
   a table with a row filter or a column mask**. The sharing shape is a filtered view, and
   a [view](spec.md#views) is a stevin spec.
 - **There is no run-as on a warehouse.** Nobody can check what another user sees except
-  that user. Ask one person from each group to run the query before the go-live.
+  that user. [`stevin access`](cli.md#access) lists what is granted and what is in
+  scope, and stops there. Ask one person from each group to run the query before the
+  go-live.

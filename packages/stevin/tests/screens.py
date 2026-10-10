@@ -40,6 +40,7 @@ from stevin.connect import Connection
 from stevin.executor import Executor
 from stevin.history import MemoryHistory
 from stevin.model.policy import Policy
+from stevin.model.table import Grant
 
 #: Columns in every picture: a docs page scales a wider terminal down until its
 #: text is too small to read, so this is a standard terminal's width.
@@ -852,6 +853,56 @@ def feature_policies(studio: Studio) -> None:
     )
     studio.write("tables/mask_email.yml", MASK_FUNCTIONS)
     studio.shoot("feature-policies-conflict", "stevin plan")
+
+
+@scene
+def feature_access(studio: Studio) -> None:
+    """One table, and everything that decides who sees what in it."""
+    studio.write(
+        "tables/_schema.yml",
+        """\
+        schema: ${catalog}.sales
+        grants:
+          - {principal: analysts, privileges: [USE SCHEMA, SELECT]}
+        """,
+    )
+    studio.write(
+        "tables/customers.yml",
+        """\
+        table: ${catalog}.sales.customers
+        owner: crm-team
+        grants:
+          - {principal: analysts, privileges: [MODIFY]}
+          - {principal: etl, privileges: [SELECT, MODIFY]}
+        columns:
+          - {name: customer_id, type: bigint}
+          - {name: email, type: string, mask: "${catalog}.security.mask_email"}
+          - {name: region, type: string}
+        row_filter:
+          function: ${catalog}.security.by_region
+          columns: [region]
+        """,
+    )
+    studio.write("tables/mask_email.yml", MASK_FUNCTIONS)
+    studio.write("tables/by_region.yml", ROW_FILTER_FUNCTION)
+    studio.apply()
+    # Not stevin's to write: a grant on the catalog, and a policy on the schema.
+    studio.fake.catalog_grants["dev"] = (Grant("account users", ("SELECT",)),)
+    studio.fake.under(
+        Policy(
+            "mask_pii",
+            "column_mask",
+            "dev.sales",
+            "schema",
+            function="dev.governance.redact",
+            to=("account users",),
+            except_=("data_admins",),
+            match_columns="has_tag('pii') AS c",
+            on_column="c",
+        )
+    )
+    studio.shoot("feature-access", "stevin access dev.sales.customers")
+    assert studio.exit_code == 0
 
 
 @scene

@@ -252,6 +252,55 @@ drift; [`doctor`](cli.md#doctor) says whether this warehouse will list them.
     them for stevin yet. `stevin verify` has three probes that settle it in yours.
     [What is still open →](testing.md#what-the-live-suite-has-not-settled)
 
+## Who may see a table
+
+Who may read a table is kept in three places: the grants on the table and on its schema
+and catalog, the row filter and masks the table carries, and the
+[ABAC policies](#the-policies-a-table-is-under) defined above it. `stevin access` reads
+the three for one table and prints one answer. It writes nothing.
+
+```sh
+stevin access dev.sales.customers
+```
+
+![Who may see a table, and through what](assets/screens/feature-access.svg)
+
+- **Granted** lists each principal, and under it what it may do and where that is
+  granted: *the table's own*, or *inherited from* the schema or the catalog, by name. A
+  principal with both has a line for each, because revoking one leaves the other.
+- **What narrows a read** lists the table's row filter with its columns, each masked
+  column with its function, and each policy in scope, in the words a
+  [plan](#the-policies-a-table-is-under) uses for it.
+- The **owner** is on the second line.
+
+The table is named in full, or with a target's variable: `stevin access
+'${catalog}.sales.customers' -t prod`. `--json` prints the same as data, for a review
+script or an audit file.
+
+A workspace that will not list policies does not fail the report. It says *policies
+could not be read*, once, with the workspace's reason, and the rest is complete. With
+`manage: {policies: false}` no policy is asked for, and the report says so. The same
+holds for `manage: {grants: false}`: the workspace is not asked about grants, and the
+report says *grants were not read*.
+
+**What it is not.** The report lists what is granted and what is in scope. It does not:
+
+- evaluate a policy's condition for a given reader. A policy with `WHEN` or `MATCH
+  COLUMNS` is shown with its condition, and Databricks works out whether it applies
+  when the table is queried;
+- resolve who is in a group. `analysts` is a name here, not a list of people;
+- run a query as someone else. There is no run-as on a warehouse, so what a person
+  sees is only known when that person runs the query;
+- list `USE CATALOG` and `USE SCHEMA`, which a reader needs as well. The workspace does
+  not list them for a table.
+
+Grants come from
+[`information_schema.table_privileges`](https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges),
+whose `inherited_from` says where each one is granted. A grant on the table and one
+inherited from its schema were read from a workspace on 2026-10-10; one inherited from
+a catalog is read the same way, and no workspace has shown it to stevin yet.
+[What is still open →](testing.md#what-the-live-suite-has-not-settled)
+
 ## Views
 
 A view's shape is its query. A changed query replaces the view, and its tags and

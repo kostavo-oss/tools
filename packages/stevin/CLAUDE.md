@@ -34,7 +34,8 @@ merging a bump PR; it ships. CONTRIBUTING.md has the details.
 src/stevin/
   model/          types.py, table.py, view.py, function.py, schema.py, volume.py,
                   change.py, plan.py — frozen dataclasses; Relation = any of the five;
-                  policy.py — an ABAC policy as read, never written
+                  policy.py — an ABAC policy as read, never written;
+                  access.py — who may see one table, as read
   typeparser.py   Databricks type strings -> the type tree
   sql.py          quote_ident() and literals: every identifier goes through here
   loader.py       stevin.yml and YAML specs -> model; the only validator
@@ -58,12 +59,14 @@ src/stevin/
   yamledit.py     editing YAML text through its node tree, for adopt
   probes.py       what stevin assumes about Databricks, as runnable probes
   doctor.py       the checks behind `stevin doctor`
+  access.py       one table's grants, filters, policies and owner (`stevin access`)
   advice.py       what stevin knows about common Databricks refusals
   api.py          the verbs as functions: plan, apply, drift, adopt, verify, …
-  cli.py          the thirteen commands: argument parsing and printing
+  cli.py          the fourteen commands: argument parsing and printing
   serve.py        the localhost page server for `stevin ui`
   errors.py       StevinError, the root of every deliberate error
-  render/         rich.py, markdown.py, json.py, html.py, compare.py, labels.py
+  render/         rich.py, markdown.py, json.py, html.py, compare.py, labels.py,
+                  access.py
                   base.css — the look the page shares with lely's and caland's
 tests/
   unit/           offline: fake warehouse, snapshots, the docs' pictures
@@ -226,9 +229,12 @@ row filter names it). Views and seeds stay. Built on `main`, in no release yet: 
 tables) with governance-only specs for tables dlt or a notebook owns (tags, grants,
 masks, filters, owner — never columns, never a claim) and an outright refusal for
 tables dbt owns (dbt's config does that); and `from_contract` (`contract.py`), a
-table's shape read from an ODCS data contract. Not built: ABAC policies *read* into
-plans, `drift`, an `access` report and `doctor` — and **never written: ABAC
-management is cut for good** (Terraform's). Still not a policy engine: no rules about
+table's shape read from an ODCS data contract; ABAC policies *read* into plans, `drift`
+and `doctor`; and `stevin access <table>` (`access.py`, `model/access.py`,
+`render/access.py`), a read-only report of who may see one table and through what —
+grants with where each is granted, row filter, masks, policies in scope, owner — which
+lists and never evaluates. **Never written: ABAC management is cut for good**
+(Terraform's). Still not a policy engine: no rules about
 who may have what, no approvals, no audit beyond its own run history; no catalogs,
 external tables, governed-tag definitions, groups or quality checks; no notebook entry
 point — stevin applies from CI, or as a job task where CI can't reach the workspace.
@@ -260,7 +266,7 @@ workspace in a throwaway `stevin_probe_*` schema and drop the schema after.
 
 The `TODO(verify)` list was settled against a live workspace on 2026-09-19
 (`tests/integration/test_live_assumptions.py`), and a seed's `INSERT OVERWRITE …
-(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Three are
+(columns) VALUES …` on 2026-10-10, by `test_live_seeds.py` and its probe. Four are
 open, and `grep -rn "TODO(verify)" src/` is the list: `CLUSTER BY AUTO` without
 predictive optimization
 (`planner._clustering_clause`); the rest of reading ABAC policies — `SHOW EFFECTIVE
@@ -268,7 +274,10 @@ POLICIES` and `DESCRIBE POLICY` were settled on 2026-10-10 for a row filter poli
 with one principal (`test_live_policies.py` and three probes, two of them
 `creates_policy`, which `verify` runs only with `--create-policy`), and a column mask
 policy, several principals, `EXCEPT`, `WHEN`, `MATCH COLUMNS` and a refusal are still
-the manual's (`introspect.Introspector._policies` and `._describe_policy`); and
+the manual's (`introspect.Introspector._policies` and `._describe_policy`);
+`inherited_from = CATALOG` in `table_privileges`, which `stevin access` reads the way
+it reads `SCHEMA` — settled on 2026-10-10 by `test_live_access.py` and a probe — while
+the live suite grants nothing on a catalog (`introspect.Introspector.privileges`); and
 sending a step with `wait_timeout="0s"`
 (`introspect.WarehouseRunner`), the API's documented asynchronous mode, which would
 give Ctrl-C a statement id from the first moment — not done until a workspace has
