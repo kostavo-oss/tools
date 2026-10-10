@@ -239,6 +239,11 @@ def _adopted(spec: Relation, live: Relation) -> Relation:
 
 
 def _adopted_table(spec: Table, live: Table) -> Table:
+    if spec.governance_only:
+        raise CannotAdopt(
+            f"{spec.name} is a governance-only spec: it says who may see a table "
+            "another tool makes, and adopt doesn't read that back yet — edit it by hand"
+        )
     return replace(
         _claimed(spec, live),
         comment=live.comment,

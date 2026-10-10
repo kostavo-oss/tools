@@ -193,6 +193,14 @@ FEATURES: tuple[Feature, ...] = (
     ),
     Feature(
         "Tables",
+        "Governance-only spec (no types: another tool's table)",
+        True,
+        False,
+        None,
+        "a stevin hint; a SQL spec is a CREATE, and this creates nothing",
+    ),
+    Feature(
+        "Tables",
         "Removing a tag or property (`null`)",
         True,
         False,

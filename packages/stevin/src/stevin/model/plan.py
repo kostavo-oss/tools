@@ -197,6 +197,9 @@ class Plan:
     #: Tables stevin created whose spec has gone, in a schema that is
     #: additive — so they stay. In a strict schema they would be dropped.
     orphaned_tables: tuple[str, ...] = ()
+    #: Live tables no spec describes that another tool owns — (name, owner):
+    #: dbt's, dlt's, a team's. Reported as theirs; never touched.
+    owned_tables: tuple[tuple[str, str], ...] = ()
     #: What this project hands to another tool (`manage:` in stevin.yml).
     #: Said out loud, so a reviewer knows what this plan could not have changed.
     not_managed: tuple[str, ...] = ()

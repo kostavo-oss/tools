@@ -355,6 +355,12 @@ def _left_alone(plan: Plan) -> list[str]:
     if plan.unmanaged_tables:
         names = ", ".join(_code(display_name(n)) for n in plan.unmanaged_tables)
         lines += [f"<sub>Unmanaged, left untouched: {names}</sub>", ""]
+    if plan.owned_tables:
+        names = ", ".join(
+            f"{_code(display_name(n))} ({_html(owner)}'s)"
+            for n, owner in plan.owned_tables
+        )
+        lines += [f"<sub>Another tool's, left untouched: {names}</sub>", ""]
     if plan.not_managed:
         # A reviewer should be able to tell what this plan could not have
         # changed, not just what it will.

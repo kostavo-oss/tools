@@ -332,6 +332,14 @@ def _asides(plan: Plan) -> list[str]:
                 plan.unmanaged_tables,
             )
         )
+    if plan.owned_tables:
+        sections.append(
+            _aside(
+                f"{count(len(plan.owned_tables), 'table')} another tool's, left "
+                "untouched",
+                tuple(f"{name} — {owner}'s" for name, owner in plan.owned_tables),
+            )
+        )
     if plan.not_managed:
         sections.append(
             '<section class="aside"><p class="footnote">'

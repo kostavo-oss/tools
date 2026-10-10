@@ -91,8 +91,6 @@ def test_everything_import_writes_validates() -> None:
             },
             "boolean",
         ),
-        ({"table": "c.s.t", "columns": [{"name": "id"}]}, "type"),
-        ({"table": "c.s.t"}, "columns"),
         ({"table": "c.s.t", "columns": []}, "columns"),
         ({"table": "c.s.t", "columns": ID, "cluster_by": "id"}, "cluster_by"),
         ({"table": "c.s.t", "columns": ID, "properties": {"a": True}}, "string"),

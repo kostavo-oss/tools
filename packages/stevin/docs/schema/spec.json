@@ -23,9 +23,17 @@
           ]
         },
         "columns": {
+          "description": "The columns with their types \u2014 or, for a table another tool makes, just names with a mask, tags or a comment: a governance-only spec.",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/field"
+            "oneOf": [
+              {
+                "$ref": "#/definitions/field"
+              },
+              {
+                "$ref": "#/definitions/governed_column"
+              }
+            ]
           },
           "minItems": 1
         },
@@ -254,10 +262,9 @@
       },
       "additionalProperties": false,
       "required": [
-        "columns",
         "table"
       ],
-      "description": "A Delta table."
+      "description": "A Delta table. Without `columns` \u2014 or with columns that have no `type` \u2014 the spec only governs a table another tool makes."
     },
     {
       "type": "object",
@@ -764,6 +771,58 @@
         "name",
         "type"
       ]
+    },
+    "governed_column": {
+      "type": "object",
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "mask": {
+          "description": "A column mask: a function name, or with using_columns.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "function": {
+                  "type": "string"
+                },
+                "using_columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "function"
+              ]
+            }
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "A column of a table another tool makes."
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "description": "A column named only to govern it: no type."
     }
   }
 }

@@ -898,6 +898,58 @@ def feature_ownership(studio: Studio) -> None:
 
 
 @scene
+def feature_govern(studio: Studio) -> None:
+    """A dlt pipeline landed the customers; stevin only says who may see them."""
+    from stevin.model.table import Table
+    from stevin.model.types import Field
+    from stevin.typeparser import parse_type
+
+    def landed(name: str, *columns: tuple[str, str]) -> None:
+        studio.fake.tables[f"dev.raw.{name}"] = Table(
+            name=f"dev.raw.{name}",
+            columns=tuple(Field(n, parse_type(kind)) for n, kind in columns),
+            comment="Landed by the crm pipeline" if name == "customers" else None,
+        )
+        studio.fake.sizes[f"dev.raw.{name}"] = 3 * GB
+
+    landed("customers", ("id", "bigint"), ("email", "string"), ("region", "string"))
+    landed("_dlt_loads", ("load_id", "string"), ("status", "bigint"))
+    landed("_dlt_version", ("version", "bigint"))
+    spec = """\
+        table: ${catalog}.raw.customers      # dlt lands it; stevin says who may see it
+        tags: {domain: sales, source: crm}
+        columns:                             # names only — the shape is dlt's
+          - {name: email, mask: "${catalog}.security.mask_email", tags: {pii: email}}
+        grants:
+          - {principal: analysts, privileges: [SELECT]}
+    """
+    _feature(
+        studio,
+        "govern",
+        {},
+        {"tables/customers.yml": spec, "tables/mask_email.yml": MASK_FUNCTIONS},
+        show="tables/customers.yml",
+    )
+
+
+@scene
+def feature_owned(studio: Studio) -> None:
+    """dbt's tables take no spec: a plan says so, naming the file."""
+    studio.write(
+        "stevin.yml", PROJECT + "\nowned_elsewhere:\n  ${catalog}.silver.*: dbt\n"
+    )
+    orders = """\
+        table: ${catalog}.silver.orders
+        columns:
+          - {name: order_id, type: bigint}
+          - {name: amount, type: "decimal(18,2)"}
+        grants:
+          - {principal: analysts, privileges: [SELECT]}
+    """
+    _feature(studio, "owned", {}, {"tables/orders.yml": orders}, show="stevin.yml")
+
+
+@scene
 def feature_adopt(studio: Studio) -> None:
     orders = """\
         # Orders, from the ingest pipeline

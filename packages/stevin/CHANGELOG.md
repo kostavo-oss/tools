@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Whose tables are whose.** `stevin.yml` can say which tables another tool owns —
+  `owned_elsewhere:` maps `catalog.schema.table` patterns (`*` for any part) to an
+  owner, and `dbt: manifest:` reads what dbt builds from its `manifest.json` (models,
+  seeds and snapshots; not sources, which are the tables dbt *reads* and stevin's to
+  make). A dlt pipeline's schema needs no telling: the `_dlt_loads` and `_dlt_version`
+  tables beside its tables say so. A plan then reports those tables as *theirs* —
+  "dbt's", "dlt's", "the data-science team's" — instead of *unmanaged*, and `import`
+  skips dbt's and writes a governance-only spec (below) for the others.
+- **A spec for dbt's table is refused**, at `validate` and at `plan`, with the file
+  and line: dbt's own config carries grants and tags, and a `table` materialisation
+  recreates the table and drops its masks, so two writers would fight every run. For
+  PII in dbt's tables, use a schema-level policy.
+- **Governance-only specs.** A table spec without the columns' types — or with
+  columns that are just a name with a `mask`, `tags` or a `comment` — says who may see
+  a table another tool makes, and nothing about its shape: `tags`, `grants`,
+  `row_filter`, `owner`, column masks and tags. The plan lays it over the live table
+  and finds only governance to change; the table is never claimed, reshaped or
+  dropped, and one that isn't there yet stops the plan, because whoever owns it makes
+  it first. It is how PII in a dlt pipeline's landing tables, or a notebook team's
+  tables, gets its grants and masks without a setup job. Valid for dlt's tables and
+  for any owner `owned_elsewhere` names; a spec with types for such a table is refused.
+
 ### Changed
 
 - **What stevin is for, said plainly.** stevin puts in place the tables and access

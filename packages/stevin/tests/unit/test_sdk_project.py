@@ -134,7 +134,7 @@ def test_without_a_cli_at_all_the_file_stands_in(tmp_path: Path, monkeypatch) ->
 
 def test_every_unreadable_spec_is_reported_at_once(tmp_path: Path) -> None:
     write(tmp_path, "stevin.yml", "specs: [tables]\ntargets:\n  dev: {}\n")
-    write(tmp_path, "tables/a.yml", "table: main.sales.a\ncolumns:\n  - {name: id}\n")
+    write(tmp_path, "tables/a.yml", "table: main.sales.a\ncolumns:\n  - {type: int}\n")
     write(tmp_path, "tables/b.yml", "table: main.sales.b\nwat: true\n")
     write(tmp_path, "tables/c.yml", SPEC)
     project = Project.load(tmp_path / "stevin.yml")

@@ -87,6 +87,18 @@ def render_plan(plan: Plan, console: Console) -> None:
         )
         for name in plan.unmanaged_tables:
             console.print(Text(f"  · {name}", style="dim"))
+    if plan.owned_tables:
+        console.print()
+        console.print(
+            Text(
+                f"{len(plan.owned_tables)} "
+                f"{'table is' if len(plan.owned_tables) == 1 else 'tables are'} "
+                "another tool's, left untouched:",
+                style="dim",
+            )
+        )
+        for name, owner in plan.owned_tables:
+            console.print(Text(f"  · {name} — {owner}'s", style="dim"))
     if plan.not_managed:
         console.print()
         console.print(

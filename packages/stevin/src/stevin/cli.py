@@ -47,6 +47,7 @@ from stevin.loader import (
     find_project_file,
     load_project,
     load_spec,
+    owned_diagnostics,
     shared_names,
     spec_files,
     unreferenced_functions,
@@ -54,6 +55,7 @@ from stevin.loader import (
 )
 from stevin.manage import EVERYTHING
 from stevin.model.plan import Plan, Step
+from stevin.owned import OwnedError
 from stevin.planning import cycles
 from stevin.probes import Result
 from stevin.render.html import render_html
@@ -251,6 +253,19 @@ def validate(
     ):
         _print_diagnostic(diagnostic)
         problems += 1
+    # Whose table a spec names, as far as the project's files say: dbt's is
+    # refused; a spec without types for a table nobody is known to own is a
+    # warning, since a dlt pipeline's is only known from the workspace.
+    owners = None
+    if found is not None and chosen is not None:
+        try:
+            owners = found.owners(chosen)
+        except OwnedError as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            problems += 1
+    for diagnostic in owned_diagnostics(read, owners, _shown):
+        _print_diagnostic(diagnostic)
+        problems += diagnostic.severity == "error"
 
     unsettled = _mentioned(files, standing_in)
     if unsettled:
@@ -362,6 +377,7 @@ def import_schema(
             owned_elsewhere=chosen.owned_by_the_bundle() if chosen else None,
             spec_format=spec_format.value,
             parallel=parallel,
+            owners=project.owners(chosen) if project and chosen else None,
         )
     except StevinError as error:
         err.print(f"[red]{escape(str(error))}[/]")

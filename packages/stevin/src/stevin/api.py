@@ -32,13 +32,16 @@ from stevin.loader import (
     Project,
     Specs,
     Target,
+    owned_diagnostics,
     shared_names,
     unreferenced_functions,
 )
 from stevin.manage import EVERYTHING, Manage
 from stevin.model.plan import Plan, Step
-from stevin.model.view import Relation
+from stevin.model.table import Table
+from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
+from stevin.owned import DBT, OwnedError, Owners, dbt_refusal, is_dlt_schema
 from stevin.planning import PlanningError, cycles, plan_tables
 from stevin.probes import Result
 
@@ -73,10 +76,15 @@ def plan(
     workspace can't be read.
     """
     specs = specs if specs is not None else project.load_specs(target)
-    # Two files for one name, and a function spec nothing masks or filters with:
-    # refused here rather than in `plan_tables`, which has no files to name —
-    # and before `select`, which must not hide either.
-    refused = (*shared_names(specs.files), *unreferenced_functions(specs.files))
+    owners = project.owners(target)
+    # Two files for one name, a function spec nothing masks or filters with, a
+    # spec for dbt's table: refused here rather than in `plan_tables`, which has
+    # no files to name — and before `select`, which must not hide any of them.
+    refused = (
+        *shared_names(specs.files),
+        *unreferenced_functions(specs.files),
+        *(d for d in owned_diagnostics(specs.files, owners) if d.severity == "error"),
+    )
     if refused:
         raise PlanningError("\n".join(f"{d.where}: {d.message}" for d in refused))
     chosen = _selector(select, [relation.name for relation in specs.relations])
@@ -91,6 +99,7 @@ def plan(
         select=chosen,
         owned_elsewhere=target.owned_by_the_bundle(),
         manage=project.manage,
+        owners=owners,
     )
 
 
@@ -117,7 +126,19 @@ def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:
     be read; what parses but is wrong comes back as diagnostics — and so does
     what is wrong between specs: two files for one name, objects in a cycle."""
     specs = project.load_specs(target)
-    return (*specs.diagnostics, *cycles(specs.files))
+    try:
+        owners: Owners | None = project.owners(target)
+        about_owners: tuple[Diagnostic, ...] = ()
+    except OwnedError as error:
+        # The manifest can't be read: said once, where the project file is.
+        owners = None
+        about_owners = (Diagnostic("error", str(error), str(project.root)),)
+    return (
+        *specs.diagnostics,
+        *cycles(specs.files),
+        *about_owners,
+        *owned_diagnostics(specs.files, owners),
+    )
 
 
 def apply(
@@ -420,6 +441,7 @@ def import_schema(
     owned_elsewhere: Mapping[str, str] | None = None,
     spec_format: str = "yaml",
     parallel: int = 8,
+    owners: Owners | None = None,
 ) -> ImportedSchema:
     """Specs for what already exists in `catalog.schema`, as text.
 
@@ -434,6 +456,12 @@ def import_schema(
     anything an Asset Bundle declares (`owned_elsewhere`, which
     `target.owned_by_the_bundle()` gives you). `catalog_variable` writes the
     catalog as `${name}`, so one spec serves every target.
+
+    `owners` (`project.owners(target)`) says whose tables are whose. dbt's are
+    skipped and said to be dbt's; a dlt pipeline's — known by the `_dlt_*`
+    tables beside them — and any other owner's get a governance-only spec,
+    with the tags, grants, masks and row filter they carry and nothing about
+    their shape, or are skipped when they carry none.
 
     Raises `IntrospectionError` if the schema can't be read.
     """
@@ -484,6 +512,12 @@ def import_schema(
         ),
     ]
 
+    dlt = is_dlt_schema(entry.table.name for entry in live.tables)
+
+    def owner_of(name: str) -> str | None:
+        found = owners.owner_of(name) if owners else None
+        return found if found is not None or not dlt else "dlt"
+
     seen: set[str] = set()
     for relation in (
         *(entry.table for entry in live.tables),
@@ -493,6 +527,23 @@ def import_schema(
     ):
         if relation.name.lower() in owned:
             continue
+        owner = owner_of(relation.name) if isinstance(relation, Table | View) else None
+        if owner == DBT:
+            skipped.append((relation.name, dbt_refusal(relation.name)))
+            continue
+        if owner is not None:
+            if not isinstance(relation, Table):
+                skipped.append((relation.name, f"{owner}'s"))
+                continue
+            relation = relation.governance_spec()
+            if not (
+                relation.tags
+                or relation.grants
+                or relation.row_filter
+                or relation.governed_columns
+            ):
+                skipped.append((relation.name, f"{owner}'s, with nothing to govern"))
+                continue
         stem = relation.short_name
         if stem in seen:
             # Functions and volumes don't share a namespace with tables, so one
