@@ -18,6 +18,11 @@ longer stevin's to *declare*: the key is refused in a spec, left out of the
 editors' JSON Schema, and never written by `import` — so it can never appear in
 a plan either.
 
+`policies` is the odd one out. stevin never writes an ABAC policy, so there is
+nothing to hand over: it only reads the ones in scope of the tables it plans,
+to show them. `policies: false` stops that read — one statement per table —
+and nothing else changes.
+
 Switched off is not the same as invisible. stevin keeps reading what it needs
 to avoid destroying someone else's work: a masked table still refuses a rewrite,
 and a renamed column's tags are still put back afterwards. It reads less only
@@ -42,6 +47,9 @@ MANAGEABLE: dict[str, tuple[str, ...]] = {
     "grants": ("grants",),
     "masks": ("mask",),
     "owner": ("owner",),
+    # No spec key: a policy is never declared here. Handing policies over only
+    # stops stevin *reading* the ones in scope of its tables.
+    "policies": (),
     "properties": ("properties",),
     "row_filters": ("row_filter",),
     "tags": ("tags",),
@@ -73,6 +81,13 @@ class Manage:
         if not self.elsewhere:
             return allowed
         return {key for key in allowed if self.allows(key)}
+
+    def without_policies(self) -> Manage:
+        """The same line, for a read that shows no policies — `import`,
+        `adopt` — and so needn't ask the workspace for any."""
+        if not self.manages("policies"):
+            return self
+        return Manage(tuple(sorted((*self.elsewhere, "policies"))))
 
     def __bool__(self) -> bool:
         """True when something has been handed over."""

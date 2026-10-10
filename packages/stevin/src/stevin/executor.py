@@ -38,7 +38,8 @@ from stevin.history import (
 )
 from stevin.introspect import Introspector, Progress, SqlRunner, duration
 from stevin.model.change import Change
-from stevin.model.plan import Plan, Step, fingerprint
+from stevin.model.plan import Plan, Step, fingerprint, policies_read
+from stevin.model.policy import Policy
 from stevin.model.view import Relation
 
 #: Risk classes whose steps get a restore point recorded before they run.
@@ -131,6 +132,8 @@ class Executor:
     #: it has been going, when the runner can say (`Heartbeating`).
     observer: Callable[[Step, Status, str | None], None] | None = None
     _live: dict[str, Relation | None] = field(default_factory=dict)
+    #: The policies in scope of each table, as read beside `_live`.
+    _policies: dict[str, tuple[Policy, ...]] = field(default_factory=dict)
     #: `(table, version)` for every restore point this run took.
     _restore_points: list[tuple[str, int]] = field(default_factory=list)
     #: `(table, why)` for every risky step that ran without one.
@@ -164,7 +167,9 @@ class Executor:
             # Read under the lock, not before it: a run that finished between a
             # check and the lock would have changed the tables behind a check
             # that had already passed.
-            self._live = self.introspector.tables(_read_from(plan), _kinds(plan))
+            self._live, self._policies = self.introspector.state(
+                _read_from(plan), _kinds(plan)
+            )
             if resumed is None:
                 self._refuse_stale(plan)
             with self._watching():
@@ -403,10 +408,12 @@ class Executor:
             )
 
     def _refuse_stale(self, plan: Plan) -> None:
-        current = fingerprint(self._live.get(name) for name in _read_from(plan))
+        current = fingerprint(
+            (self._live.get(name) for name in _read_from(plan)), self._policies
+        )
         if current == plan.state_fingerprint:
             return
-        moved = _moved(plan, self._live)
+        moved = _moved(plan, self._live, self._policies)
         named = f" ({', '.join(moved)})" if moved else ""
         raise StalePlan(
             f"the live tables have changed since this plan was made{named}. "
@@ -438,11 +445,16 @@ def stale_tables(plan: Plan, introspector: Introspector) -> tuple[str, ...]:
     what `apply` insists on. Asking first lets a host plan again rather than
     put a stale plan to a person.
     """
-    return _moved(plan, introspector.tables(_read_from(plan), _kinds(plan)))
+    return _moved(plan, *introspector.state(_read_from(plan), _kinds(plan)))
 
 
-def _moved(plan: Plan, live: Mapping[str, Relation | None]) -> tuple[str, ...]:
-    """Which tables differ from the live state the plan was built against.
+def _moved(
+    plan: Plan,
+    live: Mapping[str, Relation | None],
+    policies: Mapping[str, tuple[Policy, ...]],
+) -> tuple[str, ...]:
+    """Which tables differ from the live state the plan was built against —
+    themselves, or the policies in scope of them.
 
     The plan carries that state, so a name is better than a pair of hashes
     nobody can act on.
@@ -450,8 +462,11 @@ def _moved(plan: Plan, live: Mapping[str, Relation | None]) -> tuple[str, ...]:
     return tuple(
         diff.table
         for diff in plan.diffs
-        if fingerprint([diff.live])
-        != fingerprint([live.get(diff.live.name if diff.live else diff.table)])
+        if fingerprint([diff.live], policies_read([diff]))
+        != fingerprint(
+            [live.get(diff.read_as)],
+            {diff.read_as: policies.get(diff.read_as, ())},
+        )
     )
 
 

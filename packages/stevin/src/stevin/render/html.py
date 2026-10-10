@@ -23,7 +23,14 @@ from html import escape
 
 from stevin.model.plan import Plan, Step, TableDiff
 from stevin.render.compare import Comparison, Row, compare
-from stevin.render.labels import count, human_bytes, listed
+from stevin.render.labels import (
+    count,
+    has_something_to_say,
+    human_bytes,
+    listed,
+    policies_unread,
+    policy_line,
+)
 
 #: Risk classes, worst first — the order the filter offers them in.
 RISKS = ("destructive", "rewrite", "feature", "meta")
@@ -156,7 +163,7 @@ def render_html(plan: Plan, *, title: str | None = None) -> str:
     `title` names it in the browser tab; by default the target does.
     """
     heading = title or f"stevin · {plan.target}"
-    shown = [diff for diff in plan.diffs if diff.changes or diff.unmanaged or diff.notes]
+    shown = [diff for diff in plan.diffs if has_something_to_say(diff)]
     body = [
         f"<h1>{escape(heading)}</h1>",
         f'<p class="meta">{_meta(plan)}</p>',
@@ -223,6 +230,9 @@ def _object(plan: Plan, diff: TableDiff) -> str:
         + "</summary>"
     )
     parts = [head, _rows(seen), _steps(plan, diff)]
+    parts.extend(
+        f'<div class="warn">⚠ {escape(caution)}</div>' for caution in diff.cautions
+    )
     if diff.notes:
         parts.append(
             '<p class="note">' + "<br>".join(escape(note) for note in diff.notes) + "</p>"
@@ -231,6 +241,12 @@ def _object(plan: Plan, diff: TableDiff) -> str:
         parts.append(
             '<p class="footnote">not modelled, left alone: '
             + escape(", ".join(diff.unmanaged))
+            + "</p>"
+        )
+    if diff.facts.policies:
+        parts.append(
+            '<p class="footnote">in scope, not stevin\'s, left alone:<br>'
+            + "<br>".join(escape(policy_line(p)) for p in diff.facts.policies)
             + "</p>"
         )
     return (
@@ -345,6 +361,11 @@ def _asides(plan: Plan) -> list[str]:
             '<section class="aside"><p class="footnote">'
             f"{escape(listed(list(plan.not_managed)))} are managed elsewhere: "
             "stevin doesn't read or change them here.</p></section>"
+        )
+    unread = policies_unread(plan)
+    if unread:
+        sections.append(
+            f'<section class="aside"><p class="footnote">{escape(unread)}</p></section>'
         )
     return sections
 

@@ -1,0 +1,18 @@
+# serializer version: 1
+# name: test_the_terminal_shows_them_under_the_table
+  '''
+  sales.customers   ~ update  (0 B)
+    + signed_up DATE
+      1. ADD COLUMN signed_up         [meta]
+    · policy mask_pii (column mask, on schema main.sales) masks columns matching has_tag('pii') AS c 
+  with main.governance.redact, for account users except data_admins — not stevin's, left untouched
+    · policy own_region (row filter, on catalog main) filters rows with main.governance.in_region when
+  has_tag('regional'), for analysts — not stevin's, left untouched
+  
+  1 managed table has no spec; the schema is additive, so they stay:
+    · main.sales.orders
+  
+  Plan: 0 add, 1 change, 0 destroy · 1 step · 0 rewrites · 0 warnings
+  
+  '''
+# ---

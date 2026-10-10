@@ -208,6 +208,50 @@ them, so it never exists unprotected, even for a moment.
 
 [Masks and row filters →](spec.md#column-masks-and-row-filters)
 
+## The policies a table is under
+
+An [ABAC policy](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/policies) is defined on a catalog, a schema or a table and reaches every
+table below it. So a table you plan can be filtered or masked by something none of its
+spec mentions — written with Terraform or SQL, by someone else. stevin **reads** those
+policies and shows them under the table. It never writes one, and a policy never makes
+a step: the plan below adds a column, and says what the table is under while it does.
+
+```yaml title="tables/customers.yml"
+--8<-- "assets/screens/feature-policies.yml"
+```
+
+![A plan for a table under two policies](assets/screens/feature-policies.svg)
+
+One line per policy: its name, what kind it is, where it is defined, and — in the
+policy's own words — what it matches, with which function, for whom. *In scope* is what
+is shown: the policy is defined on the table or on a parent of it. Whether it resolves
+for a given reader hangs on its conditions, the table's tags and who is asking, which
+Databricks works out when the table is queried.
+
+Where a spec sets a mask or a row filter of its own on a table that also has a policy
+of that kind in scope, the plan warns. Databricks resolves one row filter per table and
+one mask per column for each reader, and the
+[requirements page](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements) says what happens otherwise: "If multiple
+distinct row filters or column masks apply to the same user and table or column,
+Databricks blocks access and returns an error." A table's own filter or mask
+[counts as one of them](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/policy-evaluation#conflicting-filters-and-masks).
+
+![A spec's mask beside a mask policy](assets/screens/feature-policies-conflict.svg)
+
+They are read with [`SHOW EFFECTIVE POLICIES ON TABLE`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) and
+[`DESCRIBE POLICY`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy), which take Databricks SQL or Runtime 16.4 and above, and
+`READ METADATA` or `MANAGE` on the securable, or owning it. A workspace that refuses
+doesn't fail the plan: it says *policies could not be read*, once, with the workspace's
+reason, and is otherwise complete. A policy that can be listed but not described is
+still named and placed. `manage: {policies: false}` in `stevin.yml` stops stevin
+asking at all. [`drift`](cli.md#drift) lists them the same way and never counts one as
+drift; [`doctor`](cli.md#doctor) says whether this warehouse will list them.
+
+!!! warning "Not yet run against a workspace"
+    Both statements are used as the manual documents them, and no workspace has answered
+    them for stevin yet. `stevin verify` has three probes that settle it in yours.
+    [What is still open →](testing.md#what-the-live-suite-has-not-settled)
+
 ## Views
 
 A view's shape is its query. A changed query replaces the view, and its tags and

@@ -28,6 +28,8 @@ from stevin.render.labels import (
     display_name,
     human_bytes,
     listed,
+    policies_unread,
+    policy_line,
     table_verb,
 )
 
@@ -94,6 +96,7 @@ def _render(
     else:
         lines += [f"**{plan.summary}**", ""]
         lines += _alerts(plan)
+    lines += _cautions(plan)
 
     for diff in changed:
         lines += _table_block(plan, diff, include_sql=include_sql, comparison=comparison)
@@ -109,6 +112,7 @@ def _render_summary_only(plan: Plan, heading: str) -> str:
     lines = [marker(heading, plan.target), _title(plan, heading), ""]
     lines += [f"**{plan.summary}**", ""]
     lines += _alerts(plan)
+    lines += _cautions(plan)
     lines += ["| Table | | Steps |", "|---|---|--:|"]
     for diff in plan.diffs:
         if diff.changes:
@@ -179,6 +183,30 @@ def _alerts(plan: Plan) -> list[str]:
     return lines
 
 
+def _cautions(plan: Plan) -> list[str]:
+    """What holds of a table whether or not it changes — said above the
+    tables, so it is read even when its table has nothing else to show."""
+    lines: list[str] = []
+    for diff in plan.diffs:
+        for caution in diff.cautions:
+            lines += [
+                "> [!WARNING]",
+                f"> {_code(display_name(diff.table))}: {_html(caution)}",
+                "",
+            ]
+    return lines
+
+
+def _policy_lines(diff: TableDiff, *, named: bool = False) -> list[str]:
+    """The policies a table is under: read, shown, not stevin's."""
+    prefix = f"{_code(display_name(diff.table))}: " if named else ""
+    lines: list[str] = []
+    for policy in diff.facts.policies:
+        said = _html(policy_line(policy))
+        lines += [f"<sub>{prefix}{said} — not stevin's, left untouched</sub>", ""]
+    return lines
+
+
 def _table_block(
     plan: Plan, diff: TableDiff, *, include_sql: bool, comparison: bool = True
 ) -> list[str]:
@@ -213,6 +241,7 @@ def _table_block(
         lines += [f"<sub>Left untouched (unmanaged): {listed}</sub>", ""]
     for note in diff.notes:
         lines += [f"<sub>{_html(note)}</sub>", ""]
+    lines += _policy_lines(diff)
 
     lines += ["</details>", ""]
     return lines
@@ -345,6 +374,12 @@ def _left_alone(plan: Plan) -> list[str]:
     ]
     for name, note in quiet:
         lines += [f"<sub>{_code(display_name(name))}: {_html(note)}</sub>", ""]
+    for diff in plan.diffs:
+        if not diff.changes:
+            lines += _policy_lines(diff, named=True)
+    unread = policies_unread(plan)
+    if unread:
+        lines += [f"<sub>{_html(unread)}</sub>", ""]
     if plan.orphaned_tables:
         names = ", ".join(_code(display_name(n)) for n in plan.orphaned_tables)
         lines += [

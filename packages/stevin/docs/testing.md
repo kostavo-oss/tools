@@ -139,7 +139,39 @@ says so in the source:
   (`introspect.WarehouseRunner`). It changes how every step is sent, so it waits for a
   run against a workspace.
 
-`stevin verify` runs the first two as probes in a workspace of your own.
+- **The rest of a policy's details.** Reading ABAC policies was settled on 2026-10-10
+  (below), for the one kind of policy the live suite makes: a row filter for one
+  principal. Still read from [the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy) alone are `DESCRIBE POLICY`'s labels
+  `Except Principals`, `When Condition`, `Match Columns` and `On Column` (the last a
+  guess from the others), how several principals are listed (stevin splits on commas),
+  the values for a column mask policy and for a policy on a catalog, and what a refusal
+  of `SHOW EFFECTIVE POLICIES` looks like (`introspect.Introspector._policies` and
+  `._describe_policy`). The suite makes nothing outside its scratch schema, has only
+  `account users` to name, and a `MATCH COLUMNS` condition wants a governed tag. Where a
+  label is wrong, a plan still names the policy and where it is defined.
+
+`stevin verify` runs the first of these as a probe in a workspace of your own.
+
+**Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
+POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns
+[the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) lists; `Policy Type` read `ROW_FILTER` and `on_securable_type` `SCHEMA` or
+`TABLE`. `DESCRIBE POLICY`, which the manual calls "a formatted report", is one row per
+property in two columns, `info_name` and `info_value`, with the function under an
+indented `  Function Name`. Three probes hold it: *SHOW EFFECTIVE POLICIES lists a
+table's policies in the documented columns*, *a table under no policy lists none,
+without an error* and *DESCRIBE POLICY says a policy's function and principals*.
+
+To read a policy back, the first and the last of those probes create one on a scratch
+table of their own with `CREATE POLICY` and drop it — the only place stevin's code
+writes a policy — which takes `MANAGE` on that table and a workspace with ABAC;
+elsewhere they come out *unknown*. Because stevin otherwise never writes a policy, they
+are marked (`Probe.creates_policy`) and `stevin verify` runs them only with
+`--create-policy`; a plain `verify` runs the one that only reads, and says the other two
+were left out. The live suite runs all three, and
+`tests/integration/test_live_policies.py` does the same for the feature itself: a
+policy made by hand on a scratch schema, then a plan, a conflict warning, `drift` and
+`doctor` read against it. It skips, with the workspace's own sentence, where `CREATE
+POLICY` is refused.
 
 ### The assumptions live in `src/`, not here
 
