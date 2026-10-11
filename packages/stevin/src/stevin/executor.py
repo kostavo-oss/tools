@@ -1,16 +1,16 @@
 """Running a plan.
 
 DDL is not transactional across statements, so this makes no rollback promise.
-It makes narrower ones, and they are what the design asks for:
+It makes narrower ones (RULES.md, APL-1 to APL-6):
 
 * **Nothing runs from a stale plan.** A fresh run recomputes the state
   fingerprint over exactly the tables the plan was built from, and refuses if the
   world has moved. It does so holding the lock, so no other run moves it between
   the check and the first step.
 * **Steps are idempotent.** Before each one the executor asks whether the change
-  it implements is already true of the live table (`differ.is_applied`). That is
-  the design's precheck, asked of the model rather than of a bespoke query —
-  reusing code that is tested rather than adding assumptions that aren't.
+  it implements is already true of the live table (`differ.is_applied`). The
+  question is asked of the model rather than of a bespoke query — reusing code
+  that is tested rather than adding assumptions that aren't.
 * **A failed run resumes.** Every step's outcome is recorded, so the next
   `apply` of the same plan picks up where it stopped instead of starting over.
 * **One run at a time.** A lock row, taken with a conditional update and

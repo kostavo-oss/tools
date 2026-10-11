@@ -120,3 +120,10 @@ document, the changelog and git; each carries the date of the decision.
     key out only where that is the safe side, when the target is `additive`. The file
     would then be read by two rules, and a `strict` that does nothing is still not
     what it says.
+26. **2026-10-11 — A nested field's name is quoted in a statement and bare where it is
+    shown** (SQL-1). Why: `STRUCT<select:INT>` leaves it to Databricks whether `select`
+    is a name there, and a rule with an exception for types is a rule a reader has to
+    check each time. A type is compared as a value, so the two spellings cannot turn
+    into drift. Rejected: saying in the rule that a plain nested name is left bare,
+    with a probe for a reserved word. That keeps a second way to put a name into SQL.
+    A quoted nested name is read from the manual and has not been sent to a workspace.

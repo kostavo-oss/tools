@@ -1,8 +1,9 @@
 """YAML in, model out.
 
-This is one of the three modules that touch the outside world (with `introspect`
-and `executor`), and the only place that validates. Everything downstream can
-assume a well-formed model.
+This is where the project file and the spec files are read, and the only place
+that validates a spec. Everything downstream can assume a well-formed model.
+How the modules fit together, and which of them change a workspace, is in
+`docs/how-it-works.md`.
 
 Specs are read through the YAML *node* tree rather than plain `safe_load`, so
 every error can point at the file, line and column it came from, and unknown keys

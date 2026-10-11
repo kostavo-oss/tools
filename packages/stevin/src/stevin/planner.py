@@ -1510,9 +1510,7 @@ class _Planner:
             self.need_column_mapping(facts, change.path)
         # A column is always added nullable: on a table with rows, every existing
         # row would violate NOT NULL. The constraint is a separate step.
-        definition = (
-            f"{column_path_sql(change.path)} {render_type(column.type, upper=True)}"
-        )
+        definition = f"{column_path_sql(change.path)} {type_sql(column.type)}"
         if column.comment is not None:
             definition += f" COMMENT {quote_literal(column.comment)}"
         self.emit(
@@ -1600,7 +1598,7 @@ class _Planner:
         widened = as_data_type(after)
         if widened is not None:
             self.need_timestamp_ntz(facts, change.path, widened)
-        rendered = render_type(widened, upper=True) if widened is not None else ""
+        rendered = type_sql(widened) if widened is not None else ""
         self.emit(
             change.table,
             "ALTER COLUMN TYPE",
@@ -1747,7 +1745,10 @@ class _Planner:
             sql=None,
             est_bytes=facts.size_bytes,
             undo_hint=_restore_hint(facts),
-            note=f"{note}. Rewrites are planned but not generated in v1 (milestone 3)",
+            note=(
+                f"{note}. The planner was handed the change without the spec and "
+                "the live table, so it cannot write the rewrite"
+            ),
         )
 
 
@@ -1759,6 +1760,19 @@ class _Planner:
 def column_path_sql(path: str) -> str:
     """Quote a nested column path segment by segment: ``address.zip``."""
     return ".".join(quote_ident(part) for part in path.split("."))
+
+
+def type_sql(data_type: DataType) -> str:
+    """A type as a statement spells it: keywords in upper case, and every nested
+    field's name through `quote_ident()`, as every other name in a statement is.
+
+    ``STRUCT<`select`:INT,`from`:STRING>``, never `STRUCT<select:INT,from:STRING>`.
+    A field's name in a type is an identifier, and an identifier may be quoted:
+    https://docs.databricks.com/aws/en/sql/language-manual/data-types/struct-type
+    TODO(verify): read from the manual. No workspace has been sent a type with
+    its nested names quoted.
+    """
+    return render_type(data_type, upper=True, quoted=True)
 
 
 def set_tags_sql(
@@ -1845,12 +1859,11 @@ def create_function_sql(function: Function, *, replace: bool = False) -> str:
     """
     verb = "CREATE OR REPLACE FUNCTION" if replace else "CREATE FUNCTION IF NOT EXISTS"
     parameters = ", ".join(
-        f"{quote_ident(p.name)} {render_type(p.type, upper=True)}"
-        for p in function.parameters
+        f"{quote_ident(p.name)} {type_sql(p.type)}" for p in function.parameters
     )
     lines = [
         f"{verb} {quote_qualified(function.name)}({parameters})",
-        f"RETURNS {render_type(function.returns, upper=True)}",
+        f"RETURNS {type_sql(function.returns)}",
     ]
     if function.comment is not None:
         lines.append(f"COMMENT {quote_literal(function.comment)}")
@@ -1911,7 +1924,7 @@ def create_table_sql(table: Table) -> str:
 
 
 def _column_definition(column: Field) -> str:
-    definition = f"{quote_ident(column.name)} {render_type(column.type, upper=True)}"
+    definition = f"{quote_ident(column.name)} {type_sql(column.type)}"
     if not column.nullable:
         definition += " NOT NULL"
     if column.comment is not None:
@@ -2170,7 +2183,7 @@ def _live_counterpart(column: Field, live: Table) -> Field | None:
 def _value_expression(column: Field, source: Field | None) -> str | None:
     if source is None:
         # A column that isn't there yet starts out empty.
-        return f"CAST(NULL AS {render_type(column.type, upper=True)})"
+        return f"CAST(NULL AS {type_sql(column.type)})"
     return _convert(column.type, source.type, quote_ident(source.name))
 
 
@@ -2186,7 +2199,7 @@ def _convert(desired: DataType, live: DataType, reference: str) -> str | None:
     if _is_scalar(desired) and _is_scalar(live):
         # Any scalar to any other scalar is a cast. Whether it is a *sensible*
         # cast is Databricks' call — and `using:` is there for when it isn't.
-        return f"CAST({reference} AS {render_type(desired, upper=True)})"
+        return f"CAST({reference} AS {type_sql(desired)})"
     if type_kind(desired) != type_kind(live):
         # A struct becoming an array, or a scalar becoming a struct: there is no
         # conversion to guess at.
@@ -2226,7 +2239,7 @@ def _struct_expression(desired: Struct, live: Struct, reference: str) -> str | N
         expression = (
             _convert(member.type, source.type, child)
             if source is not None and child is not None
-            else f"CAST(NULL AS {render_type(member.type, upper=True)})"
+            else f"CAST(NULL AS {type_sql(member.type)})"
         )
         if expression is None:
             return None

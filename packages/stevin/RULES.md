@@ -198,11 +198,13 @@ DDL is not transactional across statements, so there is no rollback. There is th
 ## SQL — the statements
 
 - **SQL-1** — Every identifier in a statement goes through `quote_ident()`, which always
-  quotes, and every string through `quote_literal()`.
+  quotes, and every string through `quote_literal()`. That holds for a nested field's
+  name inside a type too: a statement says ``STRUCT<`select`:INT>``. A plan and a spec
+  file show a plain nested name bare, and a type is compared as a value, so how a name
+  is quoted is never a change.
   Held by: `tests/unit/test_planner.py::test_identifiers_are_always_quoted`,
+  `tests/unit/test_planner.py::test_a_nested_fields_name_is_quoted_in_every_statement`,
   `tests/unit/test_grants.py::test_principals_are_quoted`.
-  Not kept yet: #51 — a nested field's name inside a type, as in `STRUCT<select:INT>`,
-  goes through `maybe_quote_ident()`, which leaves a plain word bare.
 
 ## ACC — access
 

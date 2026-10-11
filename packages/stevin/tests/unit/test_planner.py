@@ -10,7 +10,7 @@ Databricks references behind the behaviour asserted here:
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from helpers import col, table
+from helpers import col, plan_against, run, table
 from stevin.differ import diff
 from stevin.model.plan import Plan, Step, TableDiff, TableFacts
 from stevin.model.table import Check, PrimaryKey, Table
@@ -178,7 +178,7 @@ def test_an_unsupported_type_change_is_a_rewrite() -> None:
     facts = TableFacts(TABLE, size_bytes=442_381_631_488, delta_version=17)
     step = only(plan_of(desired, live, facts=facts))
     assert step.risk == "rewrite"
-    assert step.sql is None  # rewrites are classified in v1, generated in milestone 3
+    assert step.sql is None  # classified; not written without both tables
     assert step.est_bytes == 442_381_631_488
     assert step.undo_hint == "RESTORE TABLE `main`.`sales`.`orders` TO VERSION AS OF 17"
 
@@ -352,6 +352,74 @@ def test_identifiers_are_always_quoted() -> None:
     assert "`odd table`" in statements
     assert "`odd name`" in statements
     assert "`new``col`" in statements
+
+
+#: A reserved word, a second one, a name with a space and a name with a backtick,
+#: the last around an array of structs: every place a nested name can stand.
+ODD_NAMES = (
+    "struct<`select`:int,`from`:string,`a b`:int,`back``tick`:array<struct<`order`:int>>>"
+)
+ODD_NAMES_SQL = (
+    "STRUCT<`select`:INT,`from`:STRING,`a b`:INT,`back``tick`:ARRAY<STRUCT<`order`:INT>>>"
+)
+
+
+def test_a_nested_fields_name_is_quoted_in_every_statement() -> None:
+    """A field's name inside a type is an identifier like any other: a reserved
+    word is sent as a name, in a new table, a new column and a cast."""
+    # RULES.md: SQL-1.
+    desired = table(col("id", "bigint"), col("a", ODD_NAMES))
+    fake, created = plan_against(desired, None)
+    assert f"`a` {ODD_NAMES_SQL}" in (created.steps[0].sql or "")
+    assert "<select:" not in (created.steps[0].sql or "")
+    run(created, fake)
+
+    fake, added = plan_against(desired, table(col("id", "bigint")))
+    [statement] = [step.sql for step in added.steps if step.title == "ADD COLUMN a"]
+    assert statement == (
+        f"ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`a` {ODD_NAMES_SQL})"
+    )
+    run(added, fake)
+
+    # A rewrite: a member changes type and another is new, so both are casts.
+    reshaped = table(
+        col("id", "bigint"),
+        col(
+            "a",
+            ODD_NAMES.replace("`select`:int", "`select`:string")[:-1]
+            + ",`new one`:struct<`table`:int>>",
+        ),
+    )
+    fake, rewrite = plan_against(reshaped, fake.tables[desired.name])
+    staged = rewrite.steps[0].sql or ""
+    assert "'select', CAST(`a`.`select` AS STRING)" in staged
+    assert "'back`tick', `a`.`back``tick`" in staged
+    assert "'new one', CAST(NULL AS STRUCT<`table`:INT>)" in staged
+    run(rewrite, fake)
+    assert plan_against(reshaped, fake.tables[desired.name])[1].empty
+
+
+@pytest.mark.parametrize(
+    "live_says",
+    [
+        # As `SHOW CREATE TABLE` prints a reserved word: bare.
+        "struct<select:int,from:string,`a b`:int,`back``tick`:array<struct<order:int>>>",
+        # And with every name quoted, as stevin sends it.
+        ODD_NAMES,
+    ],
+    ids=["bare", "quoted"],
+)
+def test_quoting_a_nested_name_is_never_drift(live_says: str) -> None:
+    """A type is compared as a value. However the workspace spells a nested
+    name, quoted or bare, a spec that names the same fields plans nothing."""
+    desired = table(col("id", "bigint"), col("a", ODD_NAMES))
+    assert parse_type(live_says) == parse_type(ODD_NAMES)
+    live = table(
+        col("id", "bigint"),
+        col("a", live_says),
+        properties=(("deltaplan.managed", "true"), ("delta.columnMapping.mode", "name")),
+    )
+    assert plan_against(desired, live)[1].empty
 
 
 # ---------------------------------------------------------------------------

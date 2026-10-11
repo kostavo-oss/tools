@@ -1,8 +1,8 @@
 """The plan: what will run, in what order, and how much it can hurt.
 
-A `Plan` is data. The CLI renders it, `-o plan.json` writes it out, and (from
-milestone 2) the executor runs it — all from this one object, so what you
-reviewed and what runs cannot drift apart.
+A `Plan` is data. The CLI renders it, `-o plan.json` writes it out, and the
+executor runs it — all from this one object, so what you reviewed and what runs
+cannot drift apart.
 """
 
 from __future__ import annotations
@@ -219,9 +219,6 @@ class Plan:
     #: Live tables no spec describes that another tool owns — (name, owner):
     #: dbt's, dlt's, a team's. Reported as theirs; never touched.
     owned_tables: tuple[tuple[str, str], ...] = ()
-    #: What this project hands to another tool (`manage:` in stevin.yml).
-    #: Said out loud, so a reviewer knows what this plan could not have changed.
-    not_managed: tuple[str, ...] = ()
     #: What this project hands to another tool (`manage:` in stevin.yml).
     #: Said out loud, so a reviewer knows what this plan could not have changed.
     not_managed: tuple[str, ...] = ()

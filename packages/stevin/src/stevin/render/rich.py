@@ -1,9 +1,8 @@
 """The terminal view of a plan.
 
-The layout is the one in the design document: a table header with its size, one
-line per change with a marker, nested changes as a tree under the column they
-belong to, and the numbered steps that implement each change with their risk
-class and warnings.
+The layout: a table header with its size, one line per change with a marker,
+nested changes as a tree under the column they belong to, and the numbered steps
+that implement each change with their risk class and warnings.
 
     sales.orders   ~ update  (412 GB)
       ~ amount  DECIMAL(10,2) → (18,2)
@@ -48,7 +47,7 @@ TITLE_WIDTH = 28
 
 
 def render_plan(plan: Plan, console: Console) -> None:
-    """Print a plan the way the design document draws it."""
+    """Print a plan: each table, its changes, and the steps under each change."""
     printed = False
     offset = 0
     for diff in plan.diffs:

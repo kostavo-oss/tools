@@ -35,6 +35,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `validate` asks no Databricks CLI, so for a name only the CLI knows it reads the key
   and the specs with the same name standing in, and says which names it left unsettled.
 
+- **A nested field's name in a type is always quoted in a statement.** A struct was
+  sent as `STRUCT<street:STRING>`, and a field called `select` or `from` went out bare.
+  Every statement now says ``STRUCT<`street`:STRING>``: in `CREATE TABLE`, `ADD
+  COLUMNS`, a function's parameters and the casts of a rewrite. A plan still shows the
+  type without the backticks, and nothing is planned for a table because of it. This
+  has not been sent to a workspace yet.
+
 - **A table under an ABAC row filter or column mask policy is no longer rewritten.** A
   change that needs a rewrite, such as a type that cannot be widened or new
   partitioning, was planned for such a table like for any other. The rewrite reads the

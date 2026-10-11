@@ -277,7 +277,7 @@ def _type_change(change: Change) -> str:
     rendered_before = render_type(before, upper=True)
     rendered_after = render_type(after, upper=True)
     if isinstance(before, Decimal) and isinstance(after, Decimal):
-        # `DECIMAL(10,2) → (18,2)` — the design's shorthand for when only the
+        # `DECIMAL(10,2) → (18,2)` — the shorthand for when only the
         # parameters moved.
         rendered_after = f"({after.precision},{after.scale})"
     return f"{rendered_before} → {rendered_after}"

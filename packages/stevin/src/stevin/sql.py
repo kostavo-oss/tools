@@ -17,8 +17,8 @@ from sqlglot import exp
 from sqlglot.errors import ParseError, TokenError
 from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
 
-# Unquoted identifiers Databricks accepts as-is, and which we therefore leave
-# bare inside type strings for readability (never inside statements).
+# Unquoted identifiers Databricks accepts as-is, and which are therefore left bare
+# where a type or a name is shown or written into a spec file (never in a statement).
 _BARE_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
@@ -69,10 +69,12 @@ def _split_qualified(name: str) -> list[str]:
 
 
 def maybe_quote_ident(name: str) -> str:
-    """Quote only when needed. For *type strings*, where readability matters.
+    """Quote only when needed. For what a person reads: a type in a plan, a
+    spec file that `import` writes.
 
-    Statements never use this — they use `quote_ident()`. A rendered type string is
-    compared and round-tripped, so gratuitous backticks would be noise.
+    Statements never use this — they use `quote_ident()`, and a type in a
+    statement is rendered with `render_type(..., quoted=True)`. Both spellings
+    parse back to the same name, so nothing is compared by its quoting.
     """
     if _BARE_IDENT.fullmatch(name):
         return name
