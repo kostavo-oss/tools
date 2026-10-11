@@ -105,6 +105,37 @@ def test_a_profile_in_the_environment_is_named_when_the_run_loads_with_it(monkey
     assert "mine" not in "\n".join(setup.lines())
 
 
+def test_a_catalog_and_a_warehouse_are_named_only_when_the_run_loads_into_databricks(
+    workspace,
+):
+    """PRE-8. An app names its catalog and its warehouse once, for every run. A load
+    into DuckDB goes into no catalog and through no warehouse."""
+    labels = ("catalog", "warehouse")
+    named = dict(catalog="main", warehouse="abc123")
+
+    def lines(setup) -> dict[str, str]:
+        said = (line.split(None, 1) for line in setup.lines() if "note:" not in line)
+        return {label: value for label, value in said if label in labels}
+
+    for local in (prepare(**named), prepare(**named, local_destination=None)):
+        assert (local.catalog, local.warehouse, local.http_path) == (None, None, None)
+        assert lines(local) == {}
+        assert "main" not in "\n".join(local.lines())
+        assert "abc123" not in "\n".join(local.lines())
+
+    loads = prepare(**named, profile="dev", workspace_client=workspace)
+
+    assert (loads.catalog, loads.warehouse) == ("main", "abc123")
+    assert lines(loads) == {"catalog": "main", "warehouse": "abc123"}
+
+    # With its profile, and loading elsewhere: the scopes are read, and no warehouse.
+    elsewhere = prepare(
+        **named, profile="dev", destination="duckdb", workspace_client=workspace
+    )
+
+    assert (elsewhere.catalog, elsewhere.warehouse, lines(elsewhere)) == (None, None, {})
+
+
 def test_on_databricks_it_loads_into_databricks_and_reads_the_scopes(
     on_databricks, workspace
 ):

@@ -15,6 +15,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `"profile": null`, and the note says
   `the profile in DATABRICKS_CONFIG_PROFILE (<name>) is not used: give --profile to load into a workspace`.
   Where a run loads does not change.
+- **The first lines no longer name a catalog and a warehouse the run does not use.** A
+  run that loads locally showed the `catalog` and the `warehouse` the app or the run
+  names, though it loads into no catalog and through no warehouse. Those lines are shown
+  only for a run that loads into Databricks, and `doctor --json` gives null for
+  `catalog`, `warehouse` and `http_path` otherwise. Where a run loads and what `doctor`
+  checks do not change.
 - A run that was given `--profile` and loads somewhere other than Databricks is no
   longer told to give `--profile`.
 
