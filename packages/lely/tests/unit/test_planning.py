@@ -182,6 +182,37 @@ def test_the_same_project_in_pyproject_gives_the_same_plan(tmp_path: Path) -> No
     project.write(yml)
     project.write(toml, toml=True)
     assert plan(yml) == plan(toml)
+    # a number and a yes that YAML spells its own way are the values TOML writes
+    for folder in (yml, toml):
+        (folder / "kinds.py").write_text(KINDS)
+    (yml / "lely.yml").write_text(
+        "steps:\n  - name: kinds\n    uses: ./kinds.py:Kinds\n"
+        "    with: {ratio: 1.10, loud: yes, text: 1.10}\n"
+    )
+    (toml / "pyproject.toml").write_text(
+        '[[tool.lely.steps]]\nname = "kinds"\nuses = "./kinds.py:Kinds"\n'
+        'with = { ratio = 1.10, loud = true, text = "1.10" }\n'
+    )
+    assert plan(yml) == plan(toml)
+    assert plan(yml).steps[0].plan.outputs == {"said": "1.1 True 1.10"}
+
+
+KINDS = """\
+from dataclasses import dataclass
+from lely.model import Output, StepPlan
+class Kinds:
+    @dataclass(frozen=True)
+    class Options:
+        ratio: float
+        loud: bool
+        text: str
+    outputs = (Output("said"),)
+    def plan(self, ctx):
+        o = ctx.options
+        return StepPlan(outputs={"said": f"{o.ratio} {o.loud} {o.text}"})
+    def apply(self, ctx, plan):
+        return {}
+"""
 
 
 def test_made_from_follows_what_the_config_says_not_how(tmp_path: Path) -> None:
@@ -776,9 +807,9 @@ def test_what_a_step_is_made_from_follows_the_text_a_plugin_is_handed(
         "    with: {vars: {model_version: 1.10}}\n"
     )
     project.write(tmp_path, text)
-    before = planning.made_from(load(tmp_path / "lely.yml").steps[0])
+    [before] = planning.made_from_each(load(tmp_path / "lely.yml"))
     project.write(tmp_path, text.replace("1.10", "1.1"))
-    assert planning.made_from(load(tmp_path / "lely.yml").steps[0]) != before
+    assert planning.made_from_each(load(tmp_path / "lely.yml")) != [before]
 
 
 def test_a_bundle_variable_can_be_a_null_from_another_step(tmp_path: Path) -> None:

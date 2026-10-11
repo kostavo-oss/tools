@@ -59,12 +59,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_planning.py::test_targets_skip_a_step_and_the_plan_says_so`.
 - **CFG-4** — The config is `lely.yml`, or `[tool.lely]` in `pyproject.toml` with the same
   keys and the same meaning. The same project written either way gives the same plan and
-  the same made-from hashes, so a plan made from one is accepted with the other.
+  the same made-from hashes, so a plan made from one is accepted with the other. The
+  same project is one that hands every plugin the same options: `1.10` and `yes` in a
+  `lely.yml` are `1.10` and `true` in a `pyproject.toml` for an option that wants a
+  number or a yes or no, and `"1.10"` and `"yes"` for one that wants text (CFG-10).
   Held by: `tests/unit/test_cli.py::test_a_project_in_pyproject`,
-  `tests/unit/test_planning.py::test_the_same_project_in_pyproject_gives_the_same_plan`.
-  Not kept yet: #52 — a number or a boolean that a `lely.yml` spells in a way that is not
-  canonical (`1.10`, `yes`) is hashed as its text, and the same value in a
-  `pyproject.toml` as its value: the two hashes differ.
+  `tests/unit/test_planning.py::test_the_same_project_in_pyproject_gives_the_same_plan`,
+  `tests/unit/test_options.py::test_a_value_counts_the_same_in_yaml_and_in_toml`.
 - **CFG-5** — Without `--config`, the config is found by walking up from the working
   directory to the first folder that has a `lely.yml`, or a `pyproject.toml` with a
   `[tool.lely]` section. A step's paths are relative to the config file, not to where the
@@ -101,7 +102,8 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **CFG-10** — An option that wants text gets what was written: a number or a boolean in a
   `lely.yml` is passed on as its own text (`1.10` stays `1.10`, `0123` is not read as
   octal, `yes` stays `yes`), and what a step is made from follows that text. In a
-  `pyproject.toml` a number is a number.
+  `pyproject.toml` a number is a number: text that has to stay as written is written
+  there as a string.
   Held by: `tests/unit/test_config.py::test_a_yaml_number_keeps_the_text_it_was_written_as`,
   `tests/unit/test_options.py::test_a_number_meant_as_text_is_passed_on_as_it_was_written`.
 
@@ -570,15 +572,21 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_planfile.py::test_another_format_is_refused_and_says_to_plan_again`,
   `tests/unit/test_planfile.py::test_a_plan_file_is_read_strictly`.
 - **PLAN-4** — A plan file is held to the project. It is refused when the project's steps,
-  or any step's plugin, targets or options as written, differ from what it was planned
-  with, and when a value a step took that was known at plan is another value now. What is
-  compared is the config as lely reads it, not the file's text, with a value from the
-  environment counted by name. The same value means the same kind of value: `1` is not
-  `true`, `14` is not `14.0` and not `"14"`. A secret is never compared, and stays one.
+  or any step's plugin, targets or options, differ from what it was planned with, and
+  when a value a step took that was known at plan is another value now. What is compared
+  is the config as lely reads it, not the file's text: each option as its plugin is
+  handed it, with a reference as it was written, so a value from the environment counts
+  by name. `1.10` edited to `1.1` is a change for an option that wants text, and none for
+  one that wants a number. For a value a step took, the same value means the same kind
+  of value: `1` is not `true`, `14` is not `14.0` and not `"14"`. A secret is never
+  compared, and stays one. Where a step differs and the plan was made by another
+  version of lely, the refusal says so and names both versions: that lely may have
+  counted the same options another way.
   Held by: `tests/unit/test_approval.py::test_the_same_value_means_the_same_as_it_would_be_written`,
   `tests/unit/test_cli.py::test_a_file_is_refused_when_a_steps_options_changed`,
   `tests/unit/test_cli.py::test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository`,
-  `tests/unit/test_config.py::test_what_a_step_is_made_from_is_what_was_spelled`,
+  `tests/unit/test_options.py::test_what_a_step_is_made_from_is_what_its_plugin_is_handed`,
+  `tests/unit/test_approval.py::test_a_plan_another_lely_made_says_so_where_a_hash_differs`,
   `tests/unit/test_running.py::test_an_input_that_changed_since_the_plan_stops_the_run`,
   `tests/unit/test_running.py::test_a_destroy_is_held_to_the_inputs_the_plan_showed`.
 - **PLAN-5** — Every plan, every question lely asks and every plan file names the

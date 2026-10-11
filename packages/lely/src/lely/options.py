@@ -21,9 +21,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from lely.config import Map, Node, Scalar, Seq
+from lely.config import Map, Node, Scalar, Seq, written
 from lely.errors import LelyError
-from lely.model import Linked, Secret, Value
+from lely.model import Json, Linked, Secret, Value
 from lely.refs import Unknown
 from lely.step import quietly
 
@@ -135,6 +135,58 @@ def build(
         raise OptionsError(
             f"{where}: its options can't be built: {type(error).__name__}: {error}"
         ) from error
+
+
+def handed(cls: type, block: Map | None) -> Json:
+    """A `with:` block as its plugin is handed it, with references as they
+    were written: what a step is made from (CFG-4).
+
+    The value counts, not its spelling, and which value that is depends on the
+    option. One that wants text is handed the text: `1.10` in a `lely.yml` is
+    `"1.10"`, and so is `"1.10"` in a `pyproject.toml`. One that wants a number
+    or a yes or no is handed that: `1.10` is `1.1` in either file, `yes` in
+    YAML is `true` in TOML, and `5` for a decimal option is `5.0`. So the same
+    project hashes the same in both files, and `1.10` edited to `1.1` is a
+    change exactly where a plugin would be handed another text.
+
+    Nothing is checked here: an option that doesn't fit is `build`'s to say.
+    """
+    if block is None:
+        return None
+    try:
+        hints = typing.get_type_hints(cls) if dataclasses.is_dataclass(cls) else {}
+    except Exception:  # `registry.find` says what is wrong with it
+        hints = {}
+    return {
+        entry.key: _handed(hints.get(entry.key, object), entry.value)
+        for entry in block.entries
+    }
+
+
+def _handed(tp: Any, node: Node) -> Json:
+    origin = typing.get_origin(tp)
+    args = typing.get_args(tp)
+    if origin in (types.UnionType, typing.Union):
+        members = [a for a in args if a is not type(None)]
+        return _handed(members[0], node) if len(members) == 1 else written(node)
+    if isinstance(node, Seq):
+        element = args[0] if origin in (tuple, list) and args else object
+        return [_handed(element, child) for child in node.items]
+    if isinstance(node, Map):
+        mapping = origin in (dict, Mapping) or tp in (dict, Mapping)
+        element = args[1] if mapping and len(args) == 2 else object
+        return {entry.key: _handed(element, entry.value) for entry in node.entries}
+    value = node.value
+    if isinstance(value, str) or value is None:
+        return value  # text, a reference as it was written, or a null
+    if tp is str or tp is Secret:
+        return _text(value, node)
+    if tp is float and not isinstance(value, bool):
+        try:
+            return float(value)
+        except OverflowError:
+            return value
+    return value
 
 
 def _by_reference(item: Scalar) -> bool:

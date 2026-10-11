@@ -445,9 +445,7 @@ def _read(plan_file: Path, solo: _Solo, target: str | None) -> Plan:
             f"not for this step alone (`{solo.step.name}`): `lely apply` runs it."
         )
     approval.same_workspace(approved, solo.run.workspace)
-    approval.same_project(
-        approved, [(s.name, s.uses, planning.made_from(s)) for s in solo.config.steps]
-    )
+    approval.same_project(approved, planning.made_from_each(solo.config))
     approval.same_source(approved, source.read(solo.config.root, plan_file))
     return approved
 

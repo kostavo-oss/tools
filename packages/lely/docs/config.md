@@ -155,6 +155,11 @@ uses = "bundle"
 with = { vars = { model_version = "${steps.model.version}" } }
 ```
 
+The same project written either way gives the same plan, and a plan made from one file
+is accepted with the other. One difference to know: an option that wants text is handed
+a number as it was written in a `lely.yml`, so `version: 1.10` is the text `1.10`. In
+TOML a number is a number, and `version = 1.10` is `1.1`. Write `version = "1.10"`.
+
 ## What lely does not have
 
 - **No default target.** `-t` is always given, and each plugin reads it its own way — for the

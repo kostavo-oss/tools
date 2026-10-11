@@ -35,7 +35,6 @@ from lely.config import (
     Scalar,
     Seq,
     StepConfig,
-    spelled,
     written,
 )
 from lely.errors import LelyError, Refused
@@ -135,16 +134,35 @@ def check(config: Config) -> tuple[Wire, ...]:
     return tuple(wires)
 
 
-def made_from(step: StepConfig) -> str:
-    """A step's plugin, targets and options as written, as one hash.
+def made_from(step: StepConfig, cls: type) -> str:
+    """A step's plugin, targets and options, as one hash. `cls` is the
+    plugin's `Options`.
 
-    References stay as they were written, so a value from the environment
-    counts by name and a rotated token isn't a new plan; and the config file's
-    format doesn't matter, only what it says.
+    The options count as the plugin is handed them (`options.handed`), so the
+    config file's format doesn't matter, nor how a value is spelled: only what
+    it says. References stay as they were written, so a value from the
+    environment counts by name and a rotated token isn't a new plan.
     """
-    said = {"uses": step.uses, "targets": step.targets, "with": spelled(step.options)}
+    said = {
+        "uses": step.uses,
+        "targets": step.targets,
+        "with": options.handed(cls, step.options),
+    }
     text = json.dumps(said, sort_keys=True, default=str)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def made_from_each(config: Config) -> list[tuple[str, str, str]]:
+    """Every step of the project as (name, uses, made-from hash), in order:
+    what a plan file is held to (`approval.same_project`)."""
+    return [
+        (
+            step.name,
+            step.uses,
+            made_from(step, registry.find(step.uses, config.root).options),
+        )
+        for step in config.steps
+    ]
 
 
 def _offline(
@@ -609,7 +627,8 @@ def plan(
     steps: list[PlannedStep] = []
     for step in config.steps:
         if not step.runs_for(target):
-            steps.append(_skipped(step, f"not for target `{target}`"))
+            cls = registry.find(step.uses, config.root).options
+            steps.append(_skipped(step, cls, f"not for target `{target}`"))
             continue
         prepared = session.prepare(step)
         if kind == "apply":
@@ -639,8 +658,8 @@ def runs_for(config: Config, target: str) -> None:
     )
 
 
-def _skipped(step: StepConfig, why: str) -> PlannedStep:
-    return PlannedStep(step.name, step.uses, made_from(step), skipped=why)
+def _skipped(step: StepConfig, cls: type, why: str) -> PlannedStep:
+    return PlannedStep(step.name, step.uses, made_from(step, cls), skipped=why)
 
 
 def _plan_step(session: Session, prepared: Prepared) -> PlannedStep:
@@ -651,7 +670,7 @@ def _plan_step(session: Session, prepared: Prepared) -> PlannedStep:
         return PlannedStep(
             step.name,
             step.uses,
-            made_from(step),
+            made_from(step, prepared.found.options),
             inputs=prepared.inputs,
             waits_for=prepared.waits_for,
             every_deploy=prepared.every_deploy,
@@ -659,7 +678,7 @@ def _plan_step(session: Session, prepared: Prepared) -> PlannedStep:
     return PlannedStep(
         step.name,
         step.uses,
-        made_from(step),
+        made_from(step, prepared.found.options),
         plan=session.plan(prepared),
         inputs=prepared.inputs,
     )
@@ -670,14 +689,21 @@ def _plan_destroy_step(session: Session, prepared: Prepared) -> PlannedStep:
     if prepared.waits_for:
         session.unplanned(prepared)
         return dataclasses.replace(
-            _skipped(step, missing(prepared.waits_for)), inputs=prepared.inputs
+            _skipped(step, prepared.found.options, missing(prepared.waits_for)),
+            inputs=prepared.inputs,
         )
     session.plan(prepared)
     result = session.plan_destroy(prepared)
     if isinstance(result, Skip):
-        return dataclasses.replace(_skipped(step, result.reason), inputs=prepared.inputs)
+        return dataclasses.replace(
+            _skipped(step, prepared.found.options, result.reason), inputs=prepared.inputs
+        )
     return PlannedStep(
-        step.name, step.uses, made_from(step), plan=result, inputs=prepared.inputs
+        step.name,
+        step.uses,
+        made_from(step, prepared.found.options),
+        plan=result,
+        inputs=prepared.inputs,
     )
 
 

@@ -302,8 +302,9 @@ class Source:
 class PlannedStep:
     """A step as planned.
 
-    `made_from` is a hash of the step's plugin and its options as written, so a
-    plan whose step was reconfigured since is refused rather than applied.
+    `made_from` is a hash of the step's plugin and its options as the plugin is
+    handed them, so a plan whose step was reconfigured since is refused rather
+    than applied.
     `waits_for` names the outputs it takes that aren't known yet; `every_deploy`
     says one of them is only ever produced by a run, so the step waits not just
     the first time. `skipped` says why the step isn't part of this run.

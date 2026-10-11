@@ -1205,10 +1205,7 @@ def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
     """A plan file is held to the workspace, the project and the tree it was
     made for, before anything runs."""
     approval.same_workspace(approved, run.workspace)
-    approval.same_project(
-        approved,
-        [(s.name, s.uses, planning.made_from(s)) for s in run.config.steps],
-    )
+    approval.same_project(approved, planning.made_from_each(run.config))
     approval.same_source(approved, source.read(run.config.root, plan_file))
 
 

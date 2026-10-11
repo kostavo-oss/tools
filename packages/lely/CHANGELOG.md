@@ -19,6 +19,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **A plan made from `lely.yml` is accepted with the same project in `pyproject.toml`,
+  whatever the spelling.** What a step is made from is now each option as its plugin is
+  handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a
+  yes or no, and `"1.10"` and `"yes"` for text. A plan file saved by 0.3.1 for a step
+  with a number or a boolean in its options is refused once, and the refusal names both
+  versions and says to plan again.
+
 - **A stevin plan shows every step with its risk class**, and a table that is rewritten
   says so in its own line. A risk class lely does not know is destructive; it was read as
   an update.

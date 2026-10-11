@@ -141,30 +141,6 @@ def written(node: Node | None) -> Json:
     return node.value
 
 
-def spelled(node: Node | None) -> Json:
-    """A `with:` block as it was spelled: like `written`, but a number or a
-    boolean keeps its text where that says more than its value — `1.10`,
-    `0123`, `yes` — because an option that wants text is handed that text.
-    What a step is made from is this, so `1.10` edited to `1.1` is a change."""
-    if node is None:
-        return None
-    if isinstance(node, Seq):
-        return [spelled(child) for child in node.items]
-    if isinstance(node, Map):
-        return {entry.key: spelled(entry.value) for entry in node.entries}
-    if node.raw is not None and node.raw != _canonical(node.value):
-        return {"$written": node.raw}
-    return node.value
-
-
-def _canonical(value: str | int | float | bool | None) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return (
-        "" if value is None else repr(value) if isinstance(value, float) else str(value)
-    )
-
-
 def find(start: Path) -> Path:
     """The config for a command run in `start`: the nearest one, looking up."""
     for folder in (start, *start.parents):

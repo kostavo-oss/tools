@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from lely import __version__
 from lely.errors import Refused
 from lely.model import (
     Change,
@@ -33,6 +34,12 @@ def same_project(approved: Plan, steps: Sequence[tuple[str, str, str]]) -> None:
 
     What is compared is the config as lely reads it, not the file's text — an
     unrelated edit doesn't make a plan stale — with environment values by name.
+
+    A hash is only as old as the lely that made it: another version may count
+    the same options another way (0.3.1 counted how a number was spelled, and
+    this one counts what the plugin is handed). So a plan another lely made
+    says that too, where a step's hash differs: the reader may have changed
+    nothing.
     """
     planned = [step.name for step in approved.steps]
     current = [name for name, _, _ in steps]
@@ -43,9 +50,16 @@ def same_project(approved: Plan, steps: Sequence[tuple[str, str, str]]) -> None:
         )
     for step, (name, uses, made_from) in zip(approved.steps, steps, strict=True):
         if step.uses != uses or step.made_from != made_from:
+            other = ""
+            if step.uses == uses and approved.tool_version != __version__:
+                other = (
+                    ", or this lely counts its options differently: the plan was "
+                    f"made by lely {approved.tool_version} and this is lely "
+                    f"{__version__}"
+                )
             raise Refused(
                 f"Step `{name}` is configured differently than when the plan was "
-                f"made. {AGAIN}"
+                f"made{other}. {AGAIN}"
             )
 
 

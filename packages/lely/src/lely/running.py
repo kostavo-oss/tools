@@ -156,7 +156,11 @@ def _may_apply(
                 f"nobody has seen what it will do. {again}"
             )
         now = PlannedStep(
-            step.name, step.uses, made_from(step), plan=fresh, inputs=prepared.inputs
+            step.name,
+            step.uses,
+            made_from(step, prepared.found.options),
+            plan=fresh,
+            inputs=prepared.inputs,
         )
         if not at_waiting(now):
             raise Refused(f"Step `{step.name}` wasn't approved. Nothing more was run.")

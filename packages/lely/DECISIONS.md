@@ -242,3 +242,24 @@ cannot read, as the bundle step does for an action it does not know.
 
 stevin gives a stale plan no exit code of its own, so the step knows the refusal by
 stevin's words (kostavo-oss/tools#65).
+
+## 34. 2026-10-11 — What a step is made from is what its plugin is handed
+
+The hash counted how a `lely.yml` spelled a number or a boolean (`1.10`, `yes`), and a
+`pyproject.toml` has no spelling to count: the same project hashed differently in the
+two files, and a plan made from one was refused with the other. The spelling was there
+for a reason, which stays: an option that wants text is handed `1.10` as written, so
+`1.10` edited to `1.1` is another step. So the hash now follows the option's type. Text
+counts as the text the plugin gets, anything else as its value.
+
+Rejected: hashing the value alone, as the issue put it. `1.10` edited to `1.1` in a
+bundle variable would then pass a plan file unseen, outside git. Rejected: keeping a
+number's spelling from TOML too, so both files hash a spelling. Where a TOML value was
+written is found by scanning the text, which may land on a comment: good enough for a
+position in a message, not for a value.
+
+The cost: the hash of a step with a number or a boolean in its options changes, so a
+plan file 0.3.1 saved for one is refused once. The file's format number stays, because
+a new one would refuse every saved plan, also in `lely show`. A plan file names the
+lely that made it, so the refusal says that the versions differ and that this may be
+why.
