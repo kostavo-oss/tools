@@ -54,7 +54,7 @@ with any format, "Wrote …" goes to stderr.
 | --- | --- |
 | **0** | Done. |
 | **1** | Something failed. |
-| **2** | lely refused: nothing more will come of trying again — plan again. Or the command line is one lely can't make sense of. |
+| **2** | lely refused: nothing more will come of trying the same again. Mostly that means: plan again. The message says when it means something else, as for a step that still waits for what no step above it made. Or the command line is one lely can't make sense of. |
 
 `plan`, `status`, `validate` and `doctor` change nothing, so they have nothing to refuse:
 what goes wrong in them ends with 1.

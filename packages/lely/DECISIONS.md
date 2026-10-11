@@ -432,3 +432,58 @@ out of the environment of the apply, and set variables in the bundle's target or
 the step's `vars`, which the plan is already held to. Databricks' docs say a variable in
 the environment wins over the target's value, so the first of those is the one that
 counts; that order was not tried.
+
+## 44. 2026-10-11 — The `stevin` step waits for what another tool has yet to make; the plan does not fail
+
+Decided by the owner (kostavo-oss/data-product-template#27). stevin does not plan a
+table whose schema the bundle declares and has not deployed, nor a table a spec only
+governs that its owner has not made: dlt's table before the job's first run. So the
+first `lely plan` of a target never deployed failed at the `stevin` step, and a new
+repository's first pull request got no plan at all. With a job between the bundle and
+the tables that was a deadlock: the plan that would run the job could never be made.
+The step now waits in both cases (STV-16): the plan succeeds and says why, and the
+tables are planned once the steps above have run.
+
+Why wait: lely already has a state for "cannot be planned until a step above has
+run", with rules for what a file and a terminal do with it (WAIT-3 to WAIT-6). The
+tables on a first deploy are that case. Nothing new was needed for apply: a plugin
+could already answer `plan` with `waiting`, and the core already stopped a file there
+and asked at a terminal. WAIT-7 now says so.
+
+Why the exit code: the step knows "not yet" by `stevin plan` ending with 5, as it
+knows a refusal of `apply` by 3 and 4 (entry 38's reason). It shows stevin's sentence
+and does not read it. That is also why lely's own line is one sentence that is true
+of both cases and names neither a schema nor a table, and stevin's line stands under
+it as a note.
+
+Why the waiting plan holds no change and no stevin plan: what a file showed as waiting
+must have nothing in it that could run. A reviewed file therefore applies the steps
+above and stops at the tables with 2; the tables take a second plan. On GitHub that
+is a second pull request or an apply by hand. With nothing failing it is two rounds
+and not three, though
+two things are missing: the bundle and the job's run were both shown in the first
+plan, so the first file makes the schema and the table. That is the price of never
+applying what nobody saw. It is paid on a target's first deploy, and again whenever
+the bundle gets a new schema with tables in it, or a spec governs a table that is
+loaded later: stevin then plans none of its tables until the thing is there, also not
+the ones that could be planned. Without a file there is no second round: the tables
+are planned when the run reaches them, shown and asked about (STV-20).
+
+The step needs stevin 0.4.0a3 for this, the first with the exit code. That takes the
+place of the 0.4.0a2 of entry 38; the reasons of that entry stand.
+
+Known and left: the step cannot see whether the steps that make what is missing stand
+above it. Where they do not, the plan shows the tables waiting and every apply is
+refused at them; before this entry the plan failed there, with stevin's advice. The
+docs say where the step belongs. A check in `validate` is kostavo-oss/tools#89.
+
+Rejected: a first deploy by hand that the README names. A new repository's first
+pull request would still show no plan, and on GitHub the deploy would have to be made
+by hand as the identity of the workflow. Rejected: stevin creating the bundle's
+schema, or planning the tables as if it were there. Two tools would make one schema,
+and `databricks bundle deploy` would then meet an object it did not make; and a plan
+of tables in a schema nobody has read is a guess. Rejected: lely looking in the bundle
+for the schemas itself and holding the step back. lely would have to know what
+stevin's specs name, which is stevin's to say.
+
+Not tried on a workspace, and not against a released stevin: 0.4.0a3 is not out.

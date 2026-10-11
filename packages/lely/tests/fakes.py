@@ -125,6 +125,21 @@ class FakeStevin:
         """`fail-plan`, `fail-apply`, `fail-step`, `moved`, `risk`: see the fake."""
         (self.world / name).write_text(text)
 
+    def in_a_schema_of(self, bundle: FakeDatabricks, resource: str) -> None:
+        """The tables' schema is the bundle's `resource`, such as
+        `schemas.sales`: stevin plans them only once that world has deployed
+        it (S10)."""
+        self.told("bundle", f"{bundle.world / 'state.json'}\n{resource}")
+
+    def governs_what_a_run_makes(
+        self, bundle: FakeDatabricks, resource: str, owner: str = "dlt"
+    ) -> None:
+        """The first table is one a spec only governs, and is made by a run
+        of the bundle's `resource`, such as `jobs.load`: stevin plans only
+        once that world has run it (S10). `owner` is whose stevin's project
+        file says the table is."""
+        self.told("job", f"{bundle.world / 'state.json'}\n{resource}\n{owner}")
+
     @property
     def calls(self) -> list[list[str]]:
         path = self.world / "calls.jsonl"

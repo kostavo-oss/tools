@@ -13,6 +13,15 @@ own releases.
   json`. The plan file becomes this step's payload, whole, and so travels in
   lely's plan file. Each table is one change, keyed by its full name, with one
   line per step stevin would run and that step's risk class.
+  When the plan needs what another tool has yet to make, stevin makes no plan
+  and exits 5: a table's schema is one the bundle declares and has not
+  deployed, or a spec only governs a table its owner, a dlt pipeline say, has
+  not made. That is not a failure: the step is *waiting*, with stevin's own
+  line as a note, and lely plans it again once the steps above it have run.
+  Any other exit that is not 0 fails the plan. The step does not know whether
+  a step above it makes what is missing: it belongs below the `bundle` step
+  and below the step that runs the pipeline, and where neither is above it
+  the run is refused when it reaches the step, with nothing applied.
 - **apply** runs the plan that was approved, never a new one: the approved
   payload is written to a temporary file and handed to `stevin apply <file>`.
   The core has planned the step again right before (APL-3); that fresh plan is
@@ -27,9 +36,10 @@ own releases.
 - **status** lists what stevin's specs describe, from `stevin list --json`. No
   plan is made for it.
 
-It needs stevin 0.4.0a2 or newer: the first with those exit codes and with
-`list`. Every plan file says which stevin wrote it, and one an older stevin
-wrote fails the plan with both versions and what to do.
+It needs stevin 0.4.0a3 or newer: the first whose `plan` says with an exit code
+that it needs what another tool has yet to make. The exit codes of `apply` and
+`list` are there from 0.4.0a2. Every plan file says which stevin wrote it, and
+one an older stevin wrote fails the plan with both versions and what to do.
 
 stevin's risk classes onto lely's: `meta`, `feature` and `rewrite` are not
 destructive, `destructive` is, and so is a class this does not know: lely would
@@ -40,12 +50,14 @@ the column it is about, its risk class and stevin's warnings: what stevin's
 own plan shows. A title can name the principal of a grant. It reads no owner
 and nothing else of the file.
 
-**Not run on a workspace.** What is assumed of stevin is numbered S1 to S9 in
+**Not run on a workspace.** What is assumed of stevin is numbered S1 to S10 in
 `tests/fake_stevin.py`, which the tests cite. It was read in stevin's source,
 and its docs say the exit codes of `apply` and the shape of `list --json`
-(https://kostavo-oss.github.io/tools/stevin/cli/#exit-codes). S1 to S6 and S8
-were also seen from the CLI of stevin 0.4.0a2 against its in-memory warehouse
-on 2026-10-11, with the flags used here, and S9 from stevin 0.3.0a1:
+(https://kostavo-oss.github.io/tools/stevin/cli/#exit-codes); the exit codes
+of `plan` are on that page from stevin 0.4.0a3.
+S1 to S6 and S8 were also seen from the CLI of stevin 0.4.0a2 against its
+in-memory warehouse on 2026-10-11, with the flags used here, S9 from stevin
+0.3.0a1, and S10 from the source of what is to be stevin 0.4.0a3:
 `docs/tried.md` says what that showed.
 
 Docs: https://kostavo-oss.github.io/tools/stevin/cli/
@@ -55,7 +67,9 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import tempfile
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -84,9 +98,13 @@ _RISKS: dict[str, bool] = {
     "destructive": True,
 }
 
-#: The oldest stevin this runs: the first whose `apply` says a refusal by its
-#: exit code, and the first with `list`.
-NEEDS = "0.4.0a2"
+#: The oldest stevin this runs: the first whose `plan` says by its exit code
+#: that it needs what another tool has yet to make (S10). `apply` says a refusal
+#: by its exit code, and there is a `list`, from 0.4.0a2.
+NEEDS = "0.4.0a3"
+
+#: The first stevin with `list` (S8, S9).
+_HAS_LIST = "0.4.0a2"
 
 #: `stevin apply`'s exit codes for a plan it refuses before any statement runs
 #: (stevin's rule APL-8). `_PLAN_AGAIN`: this plan will never run: it is stale,
@@ -94,6 +112,23 @@ NEEDS = "0.4.0a2"
 #: (S4, S5, S6). `_NOT_ALLOWED`: it destroys something and stevin was not given
 #: `--allow-destructive` (S3). Any other exit that is not 0 is a failure.
 _PLAN_AGAIN, _NOT_ALLOWED = 3, 4
+
+#: `stevin plan`'s exit code when the plan needs what another tool has yet to
+#: make (stevin's rule PLAN-5, S10): the bundle's schema, or a table a spec
+#: only governs. No plan was made, nothing is wrong with the specs, and the
+#: same command makes the plan once that tool has run.
+_NOT_YET = 5
+
+#: What a plan says of a step whose tables stevin can't plan yet. It is true of
+#: both cases and names neither: stevin's own line, in a note under it, says
+#: what is missing and whose it is.
+WAITING = (
+    "stevin needs something another step or tool has yet to make; "
+    "the tables are planned once it is there"
+)
+
+#: The most of stevin's own line that a plan keeps.
+_NOTE_LIMIT = 400
 
 #: What of a step may differ between two plans of the same specs and the same
 #: tables: a size estimate and a restore point follow the table's data. Every
@@ -135,7 +170,14 @@ class Stevin:
             # a destroy and a status ask only for what the step gives the ones
             # below it, and it gives nothing: stevin isn't run
             return StepPlan()
-        document = _stevin_plan(ctx)
+        try:
+            document = _stevin_plan(ctx)
+        except _NotYet as waiting:
+            # no changes and no payload: nothing of this step can run from a
+            # plan that shows it waiting (WAIT-3). It is planned again when a
+            # run reaches it, and that plan is shown before it is applied.
+            ctx.log.info(f"{ctx.name}: waiting: {WAITING}")
+            return StepPlan(waiting=WAITING, notes=waiting.notes)
         return StepPlan(changes=changes(document), payload=document)
 
     def apply(self, ctx: Context[Stevin.Options], plan: StepPlan) -> Outputs:
@@ -145,6 +187,15 @@ class Stevin:
         each of its changes was shown, and a destructive one was allowed
         (APL-3, APL-4): `--allow-destructive` goes to stevin only then.
         """
+        if plan.waiting is not None or (
+            ctx.approved is not None and ctx.approved.waiting is not None
+        ):
+            # the core stops before this (WAIT-7); said here too, because a
+            # plan that is not whole is never one to hand to stevin
+            raise Refused(
+                f"Step `{ctx.name}` is waiting: stevin has not planned its tables "
+                "yet, so there is nothing that was shown to apply."
+            )
         document = _approved(ctx, plan)
         with tempfile.TemporaryDirectory(prefix="lely-stevin-") as scratch:
             path = Path(scratch) / "plan.json"
@@ -210,8 +261,44 @@ class Stevin:
 # -- asking stevin ----------------------------------------------------------------
 
 
+class _NotYet(Exception):
+    """`stevin plan` made no plan because it needs what another tool has yet
+    to make: exit 5 (S10). `notes` hold stevin's own line, which names it."""
+
+    def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
+        super().__init__("stevin can't plan yet")
+        # the refusal is the last line stevin writes; what it says is shown
+        # and never read: the exit code alone said what this is
+        lines = [" ".join(_plain(line).split()) for line in result.stderr.splitlines()]
+        said = next((line for line in reversed(lines) if line), "")
+        if len(said) > _NOTE_LIMIT:
+            said = said[: _NOTE_LIMIT - 1] + "…"
+        self.notes: tuple[str, ...] = (f"stevin: {said}",) if said else ()
+
+
+#: A terminal's escape sequences: colour, a link, a title. stevin colours the
+#: line when it is told to (`FORCE_COLOR`), also into a pipe.
+_ESCAPES = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI: colour, the cursor
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"  # OSC: a link, a title
+    r"|\x1b[ -/]*[0-~]"  # the short ones: a reset, a character set
+)
+
+
+def _plain(line: str) -> str:
+    """A line a program wrote, without what a terminal would obey: the escape
+    sequences it is likely to hold are taken out whole, and any control
+    character that is left is a space. A rarer sequence can leave its letters
+    behind; nothing of it is obeyed."""
+    line = _ESCAPES.sub("", line)
+    return "".join(" " if unicodedata.category(char) == "Cc" else char for char in line)
+
+
 def _stevin_plan(ctx: Context[Stevin.Options]) -> dict[str, Json]:
-    """`stevin plan`, as the plan file it writes. Changes nothing."""
+    """`stevin plan`, as the plan file it writes. Changes nothing.
+
+    Raises `_NotYet` when stevin says, by its exit code, that the plan needs
+    what another tool has yet to make."""
     options = ctx.options
     with tempfile.TemporaryDirectory(prefix="lely-stevin-") as scratch:
         out = Path(scratch) / "plan.json"
@@ -231,6 +318,8 @@ def _stevin_plan(ctx: Context[Stevin.Options]) -> dict[str, Json]:
             args += ["--select", pattern]
         ctx.log.info(f"{ctx.name}: stevin plan")
         result = process.run(args, ctx.root, env=ctx.env, hint=_HINT)
+        if result.returncode == _NOT_YET:
+            raise _NotYet(result)
         if result.returncode != 0:
             raise process.failure("`stevin plan`", result)
         try:
@@ -263,7 +352,7 @@ def _stevin_list(ctx: Context[Stevin.Options]) -> list[dict[str, Json]]:
         # how a command line answers a command it doesn't have (S9)
         raise LelyError(
             f"{process.failure('`stevin list`', result)}\n"
-            f"An older stevin has no `list`: it is there from stevin {NEEDS}. If "
+            f"An older stevin has no `list`: it is there from stevin {_HAS_LIST}. If "
             f"that is what this is: {_UPGRADE}"
         )
     if result.returncode != 0:
@@ -284,8 +373,9 @@ def _stevin_list(ctx: Context[Stevin.Options]) -> list[dict[str, Json]]:
 
 
 def _new_enough(version: Json) -> None:
-    """Fail for a plan an older stevin than `NEEDS` wrote: its `apply` exits 1
-    for a refusal, which would end a run as failed where it was refused.
+    """Fail for a plan an older stevin than `NEEDS` wrote: its `plan` exits 1
+    where it needs what another tool has yet to make, which fails a plan where
+    the step is to wait; and one older still exits 1 for a refusal of `apply`.
 
     The version is the one stevin writes into every plan file, so nothing more
     is run to learn it. One that can't be read as a version (stevin run from
@@ -299,8 +389,8 @@ def _new_enough(version: Json) -> None:
         return
     raise LelyError(
         f"This plan was written by stevin {version}, and lely needs stevin {NEEDS} "
-        f"or newer: the first that says by its exit code why it refused a plan. "
-        f"{_UPGRADE}"
+        f"or newer: the first that says by its exit code that it needs what "
+        f"another tool has yet to make. {_UPGRADE}"
     )
 
 

@@ -19,6 +19,7 @@ from lely.config import Config, load
 from lely.errors import LelyError, Refused
 from lely.model import Plan, PlanKind, PlannedStep, Result, Source
 from lely.step import NullLog
+from lely.steps.stevin import WAITING
 
 
 def edges(fake: FakeDatabricks) -> dict[str, Any]:
@@ -568,6 +569,515 @@ def test_from_starts_at_a_named_step(tmp_path: Path) -> None:
     assert p.notified() == ["771"]  # it still got the bundle's output
     with pytest.raises(Refused, match="`--from nope`: no step `nope`"):
         p.apply(from_step="nope")
+
+
+# -- a step whose plugin says it is waiting -------------------------------------------
+
+LATER = '''
+from dataclasses import dataclass
+from pathlib import Path
+
+from lely.model import Change, StepPlan
+
+
+class Later:
+    """Can plan its table only once `there.txt` exists. Until then it says it
+    is waiting, and shows the one change it can already see."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        pass
+
+    def plan(self, ctx):
+        early = Change("early", "create", "early")
+        if not (Path(ctx.root) / "there.txt").exists():
+            return StepPlan((early,), waiting="there.txt is not there yet")
+        return StepPlan((early, Change("late", "create", "late")))
+
+    def apply(self, ctx, plan):
+        (Path(ctx.root) / "applied.txt").write_text(
+            ",".join(change.key for change in plan.changes)
+        )
+        return {}
+
+
+class Makes:
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        pass
+
+    def plan(self, ctx):
+        return StepPlan((Change("there", "run", "makes there.txt"),))
+
+    def apply(self, ctx, plan):
+        (Path(ctx.root) / "there.txt").touch()
+        return {}
+'''
+
+
+def later(tmp_path: Path, *, makes: bool = True) -> Project:
+    above = "  - name: makes\n    uses: ./ops/later.py:Makes\n" if makes else ""
+    p = Project(
+        tmp_path, f"steps:\n{above}  - name: later\n    uses: ./ops/later.py:Later\n"
+    )
+    (tmp_path / "ops" / "later.py").write_text(LATER)
+    return p
+
+
+def test_a_step_whose_plugin_says_it_waits_is_held_like_any_waiting_step(
+    tmp_path: Path,
+) -> None:
+    """WAIT-7: a plugin's own `waiting` makes the step waiting, with its
+    reason. From a file the run stops there and runs none of it, not even the
+    change the plan did show; in one go it is planned at its turn, shown whole
+    and asked about; the next plan shows it ready."""
+    p = later(tmp_path)
+    approved = planfile.loads(planfile.dumps(p.plan()))
+    step = approved.steps[1]
+    assert (step.state, step.waiting) == (
+        "waiting",
+        "waiting: there.txt is not there yet",
+    )
+    assert [change.key for change in step.plan.changes] == ["early"]
+
+    stopped = p.apply(approved, at_waiting=None)
+    assert stopped.outcome == "refused"
+    assert outcomes(stopped) == {"makes": "done", "later": "refused"}
+    assert stopped.message == (
+        "Step `later` was waiting when this plan was made (there.txt is not there "
+        "yet), so nobody has seen what it will do. Plan again: the next plan shows it."
+    )
+    assert not (tmp_path / "applied.txt").exists()
+
+    seen: list[PlannedStep] = []
+    no = p.apply(approved, at_waiting=lambda step: bool(seen.append(step)))
+    assert no.outcome == "refused"  # the answer was no
+    assert not (tmp_path / "applied.txt").exists()
+    assert p.apply(approved, at_waiting=run_it).outcome == "done"
+    assert [change.key for change in seen[0].plan.changes] == ["early", "late"]
+    assert (tmp_path / "applied.txt").read_text() == "early,late"
+
+    (tmp_path / "applied.txt").unlink()
+    ready = planfile.loads(planfile.dumps(p.plan()))
+    assert ready.steps[1].state == "ready"
+    assert p.apply(ready, at_waiting=None).outcome == "done"
+    assert (tmp_path / "applied.txt").read_text() == "early,late"
+
+
+def test_a_step_that_still_waits_at_its_turn_runs_nothing_whoever_is_asked(
+    tmp_path: Path,
+) -> None:
+    """WAIT-7: nothing above it makes what it waits for, so the plan made at
+    its turn is still not whole. Refused, with a file and without, and nobody
+    is asked about a plan that can't be shown in full."""
+    p = later(tmp_path, makes=False)
+    asked: list[PlannedStep] = []
+    for at_waiting in (None, lambda step: asked.append(step) is None):
+        result = p.apply(at_waiting=at_waiting)
+        assert result.outcome == "refused"
+        assert result.message == (
+            "Step `later` can't be planned in full yet: there.txt is not there "
+            "yet. No step that ran above it in this run brought that about, and a "
+            "new plan shows the same until it is there. Nothing of the step was run."
+        )
+    assert asked == []
+    assert not (tmp_path / "applied.txt").exists()
+
+
+def test_a_step_from_passes_over_that_cant_be_planned_in_full_says_so(
+    tmp_path: Path,
+) -> None:
+    """WAIT-7: `--from` a step below goes past a step that still waits, as
+    past any step. It is not applied, and the result does not say it was
+    planned."""
+    p = later(tmp_path, makes=False)
+    config = p.path.read_text() + WARM
+    p.path.write_text(config)
+    result = p.apply(at_waiting=None, from_step="warm")
+    assert outcomes(result) == {"later": "passed", "warm": "done"}
+    assert result.steps[0].detail == "before `--from`; couldn't be planned in full"
+    assert not (tmp_path / "applied.txt").exists()
+    (tmp_path / "there.txt").touch()
+    again = p.apply(at_waiting=None, from_step="warm")
+    assert again.steps[0].detail == "before `--from`; planned, not applied"
+    assert not (tmp_path / "applied.txt").exists()
+
+
+# -- a first deploy: the tables' schema is the bundle's, and not there yet -----------
+
+#: A bundle that declares the schema stevin's tables are in.
+SALES = {
+    "name": "shop",
+    "variables": {},
+    "resources": {"schemas": {"sales": {"name": "sales", "catalog_name": "dev"}}},
+}
+
+
+def first_deploy(tmp_path: Path) -> tuple[Project, FakeStevin]:
+    """A data product on a target that was never deployed: the bundle, then
+    stevin's tables in the bundle's schema, then a step below them."""
+    stevin = FakeStevin.planning(tmp_path / "stevin-world")
+    p = Project(
+        tmp_path,
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "  - name: tables\n    uses: stevin\n"
+        f"    with:\n      executable: [{', '.join(stevin.executable)}]\n{WARM}",
+        deployed=False,
+    )
+    write_bundle(tmp_path, SALES)
+    stevin.in_a_schema_of(p.fake, "schemas.sales")
+    return p, stevin
+
+
+def test_on_a_first_deploy_the_bundle_is_ready_and_the_tables_wait(
+    tmp_path: Path,
+) -> None:
+    """The plan is made, with the tables waiting and why. It reads back from
+    a plan file as it was made."""
+    p, stevin = first_deploy(tmp_path)
+    plan = p.plan()
+    assert [(s.name, s.state) for s in plan.steps] == [
+        ("app", "ready"),
+        ("tables", "waiting"),
+        ("warm", "ready"),
+    ]
+    tables_ = plan.steps[1]
+    assert tables_.waiting == f"waiting: {WAITING}"
+    assert tables_.waits_for == ()
+    assert tables_.plan.notes == (
+        "stevin: dev.sales is the bundle's schema 'sales', and isn't there yet "
+        "\u2014 run `databricks bundle deploy` first; stevin won't create it",
+    )
+    assert (tables_.plan.changes, tables_.plan.payload) == ((), None)
+    assert plan.summary.waiting == 1
+    assert [s.name for s in plan.waiting] == ["tables"]
+    assert planfile.loads(planfile.dumps(plan)) == plan
+    assert stevin.verbs == ["plan"]
+    assert p.fake.deployed() == {}  # a plan changes nothing
+
+
+def test_a_file_that_showed_the_tables_waiting_applies_none_of_them(
+    tmp_path: Path,
+) -> None:
+    """STV-18: the bundle runs, since it was reviewed. The tables were never
+    shown: stevin plans them, for lely to see they are ready, and is not asked
+    to apply. Nothing below them starts. The next plan shows them."""
+    p, stevin = first_deploy(tmp_path)
+    approved = planfile.loads(planfile.dumps(p.plan()))
+    stevin.clear_calls()
+    result = p.apply(approved, at_waiting=None)
+    assert result.outcome == "refused"
+    assert outcomes(result) == {
+        "app": "done",
+        "tables": "refused",
+        "warm": "not started",
+    }
+    assert result.message == (
+        "Step `tables` was waiting when this plan was made (stevin needs something "
+        "another step or tool has yet to make; the tables are planned once it is "
+        "there), so nobody has seen what it will do. Plan again: the next plan "
+        "shows it."
+    )
+    assert "schemas.sales" in p.fake.deployed()
+    assert stevin.verbs == ["plan"]
+    assert stevin.applied == []
+    assert not (tmp_path / "warmed.txt").exists()
+    # the same file again, and with `--from`: still nothing of the tables
+    for kwargs in ({}, {"from_step": "tables"}, {"allow_destructive": True}):
+        again = p.apply(approved, at_waiting=None, **kwargs)
+        assert (again.outcome, outcomes(again)["tables"]) == ("refused", "refused")
+    assert stevin.applied == []
+    # `--from` a step below goes past the tables, as it goes past any step:
+    # they are planned for what they give, and not applied
+    below = p.apply(approved, at_waiting=None, from_step="warm")
+    assert outcomes(below) == {"app": "passed", "tables": "passed", "warm": "done"}
+    assert "apply" not in stevin.verbs
+    assert stevin.applied == []
+    (tmp_path / "warmed.txt").unlink()
+
+    second = planfile.loads(planfile.dumps(p.plan()))
+    assert [(s.name, s.state) for s in second.steps][1] == ("tables", "ready")
+    assert [c.action for c in second.steps[1].plan.changes] == ["create"] * 3
+    # no step creates the schema: it is the bundle's
+    assert "CREATE SCHEMA" not in json.dumps(second.steps[1].plan.payload)
+    assert "CREATE TABLE" in json.dumps(second.steps[1].plan.payload)
+    stevin.clear_calls()
+    done = p.apply(second, at_waiting=None)
+    assert done.outcome == "done", done.message
+    assert stevin.handed == second.steps[1].plan.payload  # the file that was reviewed
+    assert len(stevin.applied) == 4
+    assert (tmp_path / "warmed.txt").exists()
+
+
+def test_in_one_go_the_tables_are_planned_shown_and_asked_about_after_the_bundle(
+    tmp_path: Path,
+) -> None:
+    """STV-19: the bundle is deployed first; then stevin plans, the plan is
+    shown, and what was shown is what stevin is handed. An answer that is not
+    yes applies none of it."""
+    p, stevin = first_deploy(tmp_path)
+    approved = p.plan()
+    seen: list[PlannedStep] = []
+
+    def no(step: PlannedStep) -> bool:
+        seen.append(step)
+        assert "schemas.sales" in p.fake.deployed()  # the bundle ran first
+        return False
+
+    refused = p.apply(approved, at_waiting=no)
+    assert refused.outcome == "refused"
+    assert refused.message == "Step `tables` wasn't approved. Nothing more was run."
+    assert stevin.applied == []
+    assert "apply" not in stevin.verbs
+    assert not (tmp_path / "warmed.txt").exists()
+
+    def yes(step: PlannedStep) -> bool:
+        seen.append(step)
+        return True
+
+    stevin.clear_calls()
+    result = p.apply(approved, at_waiting=yes)
+    assert result.outcome == "done", result.message
+    assert outcomes(result) == {"app": "done", "tables": "done", "warm": "done"}
+    for shown in seen:
+        assert (shown.name, shown.state) == ("tables", "ready")
+        assert [c.key for c in shown.plan.changes] == [
+            "dev.sales.customers",
+            "dev.sales.orders",
+            "dev.sales.big_orders",
+        ]
+    assert stevin.verbs == ["plan", "apply", "list"]
+    assert stevin.handed == seen[-1].plan.payload
+    assert len(stevin.applied) == 4
+
+
+def test_tables_that_still_wait_when_their_turn_comes_are_not_applied(
+    tmp_path: Path,
+) -> None:
+    """STV-19: the bundle ran and the schema is still not there, because this
+    bundle deploys another one. The run stops as refused, with or without a
+    file, and whatever is answered: nobody could be shown a plan."""
+    p, stevin = first_deploy(tmp_path)
+    stevin.in_a_schema_of(p.fake, "schemas.other")
+    asked: list[PlannedStep] = []
+    for at_waiting in (None, lambda step: asked.append(step) is None):
+        result = p.apply(p.plan(), at_waiting=at_waiting)
+        assert result.outcome == "refused"
+        assert result.message == (
+            f"Step `tables` can't be planned in full yet: {WAITING}. No step that "
+            "ran above it in this run brought that about, and a new plan shows the "
+            "same until it is there. Nothing of the step was run."
+        )
+        assert outcomes(result)["warm"] == "not started"
+    assert asked == []
+    assert "apply" not in stevin.verbs
+    assert stevin.applied == []
+
+
+def test_another_failure_of_stevin_plan_still_fails_the_plan(tmp_path: Path) -> None:
+    """Only exit 5 waits. A plan that fails is no plan, on a first
+    deploy as on any other; and one that fails when the run reaches the step
+    fails the run."""
+    p, stevin = first_deploy(tmp_path)
+    approved = p.plan()
+    stevin.told("fail-plan", "tables/orders.yml: unknown key `colums`")
+    with pytest.raises(LelyError, match=r"(?s)`stevin plan` failed \(exit 1\).*colums"):
+        p.plan()
+    result = p.apply(approved, at_waiting=run_it)
+    assert (result.outcome, outcomes(result)["tables"]) == ("failed", "failed")
+    assert stevin.applied == []
+
+
+#: A bundle with the schema dlt loads into, the schema of stevin's own tables,
+#: and the job that loads.
+LOADS = {
+    "name": "shop",
+    "variables": {},
+    "resources": {
+        "schemas": {
+            "raw": {"name": "raw", "catalog_name": "dev"},
+            "sales": {"name": "sales", "catalog_name": "dev"},
+        },
+        "jobs": {"load": {"name": "load"}},
+    },
+}
+
+#: stevin's own line for the governed table before the job has run (S10).
+NUMBERS_NOT_MADE = (
+    "stevin: dev.raw.numbers isn't there yet, and its spec only governs it "
+    "\u2014 it is dlt's, and whoever owns it makes it first; stevin won't create "
+    "a table it doesn't shape"
+)
+
+
+def new_product(tmp_path: Path) -> tuple[Project, FakeStevin]:
+    """A new data product with dbt, on a target never deployed: the bundle,
+    then the job that loads with dlt, then stevin's tables. `dev.raw.numbers`
+    is dlt's, in the bundle's schema `raw`, and stevin only governs it;
+    `dev.sales.orders` is stevin's own. The plan is one stevin made for
+    exactly that project."""
+    stevin = FakeStevin.planning(tmp_path / "stevin-world", "stevin-governed.json")
+    p = Project(
+        tmp_path,
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "  - name: load\n    uses: bundle.run\n"
+        "    with: {bundle: app, resource: jobs.load}\n"
+        "  - name: tables\n    uses: stevin\n"
+        f"    with:\n      executable: [{', '.join(stevin.executable)}]\n",
+        deployed=False,
+    )
+    write_bundle(tmp_path, LOADS)
+    stevin.in_a_schema_of(p.fake, "schemas.raw")
+    stevin.governs_what_a_run_makes(p.fake, "jobs.load")
+    return p, stevin
+
+
+#: What stevin does once the table is there: governs dlt's, creates its own.
+GOVERNED = [
+    "dev.raw.numbers|SET TAGS|domain",
+    "dev.raw.numbers|GRANT to analysts|analysts",
+    "dev.sales.orders|CREATE TABLE orders|",
+]
+
+
+def test_a_new_product_takes_two_rounds_through_files(tmp_path: Path) -> None:
+    """STV-20: the first plan is made, with the bundle and the job's run
+    ready and the tables waiting. Its file deploys the bundle and runs the
+    job, and stops at the tables: stevin applies nothing. The second plan
+    shows the tables, and its file applies them."""
+    p, stevin = new_product(tmp_path)
+    first = planfile.loads(planfile.dumps(p.plan()))
+    assert [(s.name, s.state) for s in first.steps] == [
+        ("app", "ready"),
+        ("load", "ready"),
+        ("tables", "waiting"),
+    ]
+    assert first.steps[2].waiting == f"waiting: {WAITING}"
+    assert first.steps[2].plan.notes == (
+        "stevin: dev.raw is the bundle's schema 'raw', and isn't there yet \u2014 "
+        "run `databricks bundle deploy` first; stevin won't create it",
+    )
+    stopped = p.apply(first, at_waiting=None)
+    assert stopped.outcome == "refused"
+    assert outcomes(stopped) == {"app": "done", "load": "done", "tables": "refused"}
+    assert {"schemas.raw", "schemas.sales"} <= set(p.fake.deployed())
+    assert p.fake.runs == [{"key": "jobs.load", "args": []}]
+    assert "apply" not in stevin.verbs
+    assert stevin.applied == []
+
+    second = planfile.loads(planfile.dumps(p.plan()))
+    assert [s.state for s in second.steps] == ["ready", "ready", "ready"]
+    assert [(c.key, c.action) for c in second.steps[2].plan.changes] == [
+        ("dev.raw.numbers", "update"),  # governed, never created
+        ("dev.sales.orders", "create"),
+    ]
+    done = p.apply(second, at_waiting=None)
+    assert done.outcome == "done", done.message
+    assert stevin.applied == GOVERNED
+    assert len(p.fake.runs) == 2  # a run is a run on every apply
+
+
+def test_a_new_product_is_up_after_one_apply_in_one_go(tmp_path: Path) -> None:
+    """STV-20: without a file the tables are planned when the run reaches
+    them, which is after the bundle is deployed and after the job has run.
+    Both things stevin waited for are there by then, so one apply does it."""
+    p, stevin = new_product(tmp_path)
+    seen: list[PlannedStep] = []
+
+    def asked(step: PlannedStep) -> bool:
+        assert "schemas.raw" in p.fake.deployed()
+        assert p.fake.runs == [{"key": "jobs.load", "args": []}]
+        seen.append(step)
+        return True
+
+    result = p.apply(at_waiting=asked)
+    assert result.outcome == "done", result.message
+    assert outcomes(result) == {"app": "done", "load": "done", "tables": "done"}
+    [shown] = seen
+    assert (shown.state, len(shown.plan.changes)) == ("ready", 2)
+    assert stevin.verbs == ["plan", "plan", "apply", "list"]
+    assert stevin.applied == GOVERNED
+
+
+def test_between_the_bundle_and_the_job_the_tables_still_wait(tmp_path: Path) -> None:
+    """The schema is there and dlt's table is not: stevin's other line, the
+    same waiting step. A file from that plan runs the job and stops at the
+    tables. With no run of the job above the tables, a run is refused when it
+    reaches them."""
+    p, stevin = new_product(tmp_path)
+    assert p.apply(at_waiting=lambda step: False).outcome == "refused"  # round one
+    assert stevin.applied == []
+    (p.fake.world / "state.json").write_text(
+        json.dumps({**p.fake.state, "runs": []})  # as if the job's run had failed
+    )
+    plan = p.plan()
+    assert (plan.steps[2].state, plan.steps[2].plan.notes) == (
+        "waiting",
+        (NUMBERS_NOT_MADE,),
+    )
+    stopped = p.apply(plan, at_waiting=None)
+    assert outcomes(stopped) == {"app": "done", "load": "done", "tables": "refused"}
+    assert stevin.applied == []
+
+    (p.fake.world / "state.json").write_text(json.dumps({**p.fake.state, "runs": []}))
+    p.path.write_text(
+        p.path.read_text().replace(
+            "  - name: load\n    uses: bundle.run\n"
+            "    with: {bundle: app, resource: jobs.load}\n",
+            "",
+        )
+    )
+    result = p.apply(at_waiting=run_it)
+    assert result.outcome == "refused"
+    assert "can't be planned in full yet" in result.message
+    assert stevin.applied == []
+
+
+def test_a_job_that_fails_or_a_spec_mistake_after_it_ends_the_run_as_failed(
+    tmp_path: Path,
+) -> None:
+    """A run of the job that fails stops the run there: the tables never
+    start, and the next plan shows them waiting for the table. A mistake in a
+    spec that stevin finds once the table is there fails the step, with
+    nothing of stevin applied, and fails the next plan."""
+    p, stevin = new_product(tmp_path)
+    approved = p.plan()
+    (p.fake.world / "fail-run").write_text("the job failed")
+    failed = p.apply(approved, at_waiting=run_it)
+    assert outcomes(failed) == {"app": "done", "load": "failed", "tables": "not started"}
+    assert p.plan().steps[2].plan.notes == (NUMBERS_NOT_MADE,)
+    (p.fake.world / "fail-run").unlink()
+
+    stevin.told("fail-plan", "dev.raw.numbers has no column 'email' to govern")
+    with pytest.raises(LelyError, match=r"(?s)`stevin plan` failed \(exit 1\)"):
+        p.plan()
+    mistaken = p.apply(approved, at_waiting=run_it)
+    assert outcomes(mistaken) == {"app": "done", "load": "done", "tables": "failed"}
+    assert stevin.applied == []
+
+
+def test_a_destroy_and_a_status_before_the_bundle_is_deployed(tmp_path: Path) -> None:
+    """STV-17: neither fails on a target never deployed. A destroy skips the
+    tables and stevin is not run; a status lists them, each not there."""
+    p, stevin = first_deploy(tmp_path)
+    plan = p.plan("destroy")
+    assert plan.steps[1].skipped == (
+        "stevin drops nothing on a destroy: a dropped table is its rows. The tables stay."
+    )
+    result = p.destroy(plan)
+    assert result.outcome == "done", result.message
+    assert outcomes(result)["tables"] == "skipped"
+    assert stevin.calls == []
+
+    status = running.status(p.config, target="dev", **edges(p.fake))
+    listed = status.steps[1].overview
+    assert listed is not None
+    assert [(item.name, item.deployed) for item in listed.items] == [
+        ("big_orders", False),
+        ("customers", False),
+        ("orders", False),
+    ]
+    assert stevin.verbs == ["list"]
 
 
 # -- a step that can't be planned yet ----------------------------------------------

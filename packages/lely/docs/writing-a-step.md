@@ -167,7 +167,8 @@ the bundle: what a step depends on is in its options.
   something says so with `destructive=True`.
 - `outputs` — what the step knows now, by declared name. `later` names the ones that exist
   only once the step has been applied.
-- `waiting` — why part of the plan can't be made yet.
+- `waiting` — why the plan, or part of it, can't be made yet:
+  [a step that says it is waiting](#a-step-that-says-it-is-waiting).
 - `notes` — lines shown with the plan that are not changes.
 - `payload` — the step's own data, carried through the plan file. No secret in it.
 - `view` — its own picture of the plan for [the page](page.md), as HTML.
@@ -226,6 +227,39 @@ cannot take a field of it. Give the secret as an output of its own, and it stays
 the others. lely finds a secret as the option holds it, not a part of it.
 lely looks at outputs only. A secret in a change's lines, in `notes`, in the `payload`
 or in the `view` is written as it is: keep it out of those.
+
+## A step that says it is waiting
+
+A step waits by itself when it takes an output that is not known yet. A plugin can also
+say that its step is waiting, when what it needs is not something a step above gives as
+an output: a schema that an earlier step creates, say. `plan` answers with `waiting`,
+one line that says why:
+
+```python
+def plan(self, ctx: Context[Tables.Options]) -> StepPlan:
+    if not schema_exists(ctx):
+        return StepPlan(waiting="the schema is not there yet")
+    return StepPlan(changes=...)
+```
+
+lely holds such a step as it holds one that waits for an output:
+
+- The plan succeeds and shows the step as waiting, with the reason.
+- `lely apply -t <target>` calls `plan` again when the run reaches the step. If the
+  plan is whole then, lely shows it and asks. If it still says `waiting`, the run is
+  refused there.
+- `lely apply plan.json` stops at the step: nobody has seen what it will do. The next
+  plan shows it.
+
+Say `waiting` only for what the steps above it will bring about. Anything else that
+stops a plan is an error: raise it. lely does not check that a step above does bring
+it about. If none does, the plan still shows the step waiting, and every apply is
+refused when it reaches the step. A waiting plan still gives every output the plugin
+declares as known at plan: a step below that takes one it does not give fails the
+plan. A waiting plan may show the changes it already
+knows, but none of them runs from a file, so leave out a payload that is not whole.
+In `apply`, `ctx.approved` is `None` for a step that was waiting: the plan it is
+handed is the one that was just shown.
 
 ## The rules, and how to hold your step to them
 

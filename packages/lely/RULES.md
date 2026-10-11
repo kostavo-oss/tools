@@ -490,7 +490,7 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
   `tests/unit/test_step_stevin.py::test_a_list_that_fails_or_cant_be_read_is_said`,
   `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
-- **STV-14** — The step needs stevin 0.4.0a2 or newer. It reads the version from the plan
+- **STV-14** — The step needs stevin 0.4.0a3 or newer. It reads the version from the plan
   file stevin wrote, and a plan an older stevin wrote fails when the step is planned,
   with both versions and how to upgrade. A version it cannot read as one is let through.
   Held by: `tests/unit/test_step_stevin.py::test_a_plan_of_an_older_stevin_fails_with_both_versions`,
@@ -690,6 +690,50 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   resolves no variable from the environment or by a lookup. What the CLI's plan shows
   when only such a value differs, and which of two places a variable is set in wins,
   were not tried on a workspace.
+- **STV-16** — When stevin's plan needs what another tool has yet to make, the step is
+  waiting and the plan does not fail. Two cases: a table's schema is one the bundle
+  declares and has not deployed, and a spec only governs a table its owner has not
+  made. The step knows it by the exit code of `stevin plan`, 5, and never by its
+  words. The waiting step holds no change and no stevin plan. It says why in one line
+  that is true of both cases, and shows stevin's own last line, which names what is
+  missing and whose it is, as a note. Every other exit of `stevin plan` that is not 0
+  fails the step.
+  Held by: `tests/unit/test_step_stevin.py::test_a_schema_the_bundle_has_not_deployed_makes_the_step_wait`,
+  `tests/unit/test_step_stevin.py::test_a_governed_table_its_owner_has_not_made_makes_the_step_wait`,
+  `tests/unit/test_step_stevin.py::test_only_the_exit_code_makes_it_wait_never_the_words`.
+- **STV-17** — While stevin cannot plan yet (STV-16), a destroy and a status do not
+  fail. A destroy skips the step as on any other day, and stevin is not run. A status
+  lists what stevin's specs describe, each as not there: `stevin list` makes no plan
+  and answers before the schema or the table exists.
+  Held by: `tests/unit/test_step_stevin.py::test_before_the_bundle_is_deployed_a_status_lists_and_a_destroy_skips`,
+  `tests/unit/test_running.py::test_a_destroy_and_a_status_before_the_bundle_is_deployed`.
+- **STV-18** — A plan file that showed the tables waiting applies none of them.
+  `lely apply plan.json` runs the steps above, which were reviewed, and stops at the
+  `stevin` step with 2. stevin plans, so that lely sees the step is ready, and is not
+  asked to apply; `--yes`, `--allow-destructive` and `--from` the step do not change
+  that, and no step below starts. `--from` a step below goes past the tables as past
+  any step, and applies none of them. The next plan shows the tables, and its file
+  applies them. The plugin's `apply` refuses by itself, as a refusal, a plan that says
+  `waiting` and a plan beside an approved one that said it; stevin is not run.
+  Held by: `tests/unit/test_running.py::test_a_file_that_showed_the_tables_waiting_applies_none_of_them`,
+  `tests/unit/test_cli.py::test_a_first_plan_succeeds_with_the_tables_waiting_and_a_file_stops_there`,
+  `tests/unit/test_step_stevin.py::test_a_waiting_plan_is_never_applied`.
+- **STV-19** — Without a file, the tables that waited are planned when the steps above
+  them have run, shown, and asked about or, with `--yes`, run; stevin is handed the plan that was shown then. An
+  answer that is not yes applies none of them. When stevin still cannot plan them at
+  that point, the run is refused there and nobody is asked.
+  Held by: `tests/unit/test_running.py::test_in_one_go_the_tables_are_planned_shown_and_asked_about_after_the_bundle`,
+  `tests/unit/test_cli.py::test_in_one_go_the_tables_are_shown_and_asked_about_once_the_bundle_ran`,
+  `tests/unit/test_running.py::test_tables_that_still_wait_when_their_turn_comes_are_not_applied`.
+- **STV-20** — A project of a bundle, then a run of the job that loads, then the
+  tables, on a target never deployed: the first plan is made, with the bundle and the
+  run ready and the tables waiting. Its file deploys the bundle, runs the job and
+  stops at the tables; the second plan shows the tables and its file applies them.
+  Without a file one apply does all of it: the tables are planned when the run reaches
+  them, after the bundle is deployed and after the job has run.
+  Held by: `tests/unit/test_running.py::test_a_new_product_takes_two_rounds_through_files`,
+  `tests/unit/test_running.py::test_a_new_product_is_up_after_one_apply_in_one_go`,
+  `tests/unit/test_cli.py::test_a_new_product_with_a_job_between_plans_first_and_takes_two_files`.
 
 ## WAIT — a step that cannot be planned yet
 
@@ -729,6 +773,22 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_cli.py::test_at_a_terminal_lely_asks_again_at_a_waiting_step`,
   `tests/unit/test_running.py::test_a_reviewed_file_stops_at_a_waiting_step`,
   `tests/unit/test_running.py::test_a_waiting_step_doesnt_get_past_the_other_rules`.
+- **WAIT-7** — A plugin says that its step is waiting by answering `plan` with a
+  `StepPlan` whose `waiting` says why. When it is applied, lely holds such a step as
+  it holds one that waits for an output. The plan shows it as waiting with the reason,
+  in the terminal, in Markdown, on the page and in the plan file, and the plan
+  succeeds. `lely apply plan.json` stops at it as a refusal and runs none of it, not
+  even a change the plan did show. Without a file the step is planned again when the
+  run reaches it, and then shown and asked about. A step whose plugin still says
+  `waiting` when the run reaches it is refused, with a file and without, nobody is
+  asked, and the refusal does not say to plan again. A step `--from` passes over that
+  cannot be planned in full is said to be that, and is not applied. Two things differ from a step
+  that waits for an output: its plan may show changes, and a step below that takes an
+  output it declares as known at plan and does not give fails the plan, where it would
+  wait.
+  Held by: `tests/unit/test_running.py::test_a_step_whose_plugin_says_it_waits_is_held_like_any_waiting_step`,
+  `tests/unit/test_running.py::test_a_step_that_still_waits_at_its_turn_runs_nothing_whoever_is_asked`,
+  `tests/unit/test_running.py::test_a_step_from_passes_over_that_cant_be_planned_in_full_says_so`.
 
 ## APL — apply
 
