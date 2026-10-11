@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`stevin list` says what the specs describe and whether each object is there.** One
+  line per spec: its name, its kind, and `exists` or `not there`. It makes no plan and
+  changes nothing, so it is the cheap way for a program to ask what exists: `--json`
+  gives `{"target": …, "objects": [{"name": …, "kind": …, "exists": …}]}`.
+
 ### Fixed
 
 - **`owned_elsewhere` can name a schema the way a bundle does.** A key such as
@@ -19,6 +26,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   A `${…}` reference is now one part of the key there too.
 
 ### Changed
+
+- **`apply` exits 3 or 4 for a refusal, where it exited 1.** A program could not tell
+  a plan that will never run from a step that failed. `apply` now exits `3` when the
+  plan is stale, when its file is not a plan this version reads, or when it holds a
+  step stevin could not write: plan again. It exits `4` when the plan destroys
+  something and `--allow-destructive` was not given. A failure is still `1`. `show`
+  and `ui` exit `3` too for a file that is not a plan. A script that tests for
+  exactly `1` has to change; one that tests for non-zero does not.
 
 - **A key of `schemas:` that has no value for a target is an error.** A key with a
   variable the target does not define was left out without a word, and its schema got

@@ -1,9 +1,9 @@
 """The `stevin` command line.
 
 `validate` lints specs offline; `import` writes specs for what already exists,
-and `adopt` rewrites them from live state; `plan`, `show`, `drift`, `access` and
-`doctor` read; `apply`, `force-unlock` and `verify` are the only commands that
-write to a workspace.
+and `adopt` rewrites them from live state; `plan`, `show`, `drift`, `list`,
+`access` and `doctor` read; `apply`, `force-unlock` and `verify` are the only
+commands that write to a workspace.
 """
 
 import json
@@ -29,7 +29,13 @@ from stevin.bundle import BundleError, find_cli
 from stevin.connect import Connection, NotConnected, workspace_named
 from stevin.doctor import look, worst
 from stevin.errors import StevinError
-from stevin.executor import DestructiveRefused, ExecutionError, ExecutionResult
+from stevin.executor import (
+    CannotRun,
+    DestructiveRefused,
+    ExecutionError,
+    ExecutionResult,
+    StalePlan,
+)
 from stevin.history import HistoryStore, NoHistory
 from stevin.history import Status as StepStatus
 from stevin.introspect import Interrupted, IntrospectionError
@@ -566,6 +572,13 @@ def show(
 
 #: `drift`'s exit codes, the way `terraform plan -detailed-exitcode` has them.
 IN_SYNC, FAILED, DRIFTED = 0, 1, 2
+#: A plan refused before any statement ran, for a program that runs `apply`
+#: (RULES.md, APL-8). `PLAN_AGAIN`: this plan will never run as it is — it is
+#: stale, its file is not a plan this version reads, or it holds a step without
+#: SQL. `NOT_ALLOWED`: it destroys something and `--allow-destructive` was not
+#: given. Neither is 1, a failure, nor 2, which is how the command line itself
+#: answers an option it does not know.
+PLAN_AGAIN, NOT_ALLOWED = 3, 4
 
 
 @app.command()
@@ -1076,6 +1089,70 @@ def drift(
     raise typer.Exit(DRIFTED)
 
 
+@app.command("list")
+def list_command(
+    target: Annotated[
+        str | None, typer.Option("--target", "-t", help="Which target to list for.")
+    ] = None,
+    config: Annotated[
+        Path | None, typer.Option("--config", "-c", help="Path to stevin.yml.")
+    ] = None,
+    warehouse_id: Annotated[
+        str | None, typer.Option("--warehouse-id", help="SQL warehouse to read through.")
+    ] = None,
+    profile: ProfileOption = None,
+    parallel: ParallelOption = 8,
+    select: SelectOption = None,
+    output_json: Annotated[
+        bool, typer.Option("--json", help="Print the list as JSON.")
+    ] = False,
+) -> None:
+    """List what the specs describe, and whether each is there. Reads; changes nothing.
+
+    One line per spec: its name, what kind of object it is, and whether an
+    object of that kind exists under that name. Nothing is compared with its
+    spec: `plan` and `drift` do that.
+
+    Exits 0 when the workspace could be read, whatever is missing.
+    """
+    project = _project(config)
+    chosen = _target(project, target)
+    specs = _load(project, chosen)
+    _abort_on_lint_errors(specs)
+    connection = _connect(warehouse_id, chosen, profile)
+    try:
+        listed = api.listing(
+            project,
+            chosen,
+            connection,
+            select=select or None,
+            specs=specs,
+            parallel=parallel,
+        )
+    except StevinError as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(1) from error
+    if output_json:
+        typer.echo(
+            json.dumps(
+                {
+                    "target": chosen.name,
+                    "objects": [
+                        {"name": one.name, "kind": one.kind, "exists": one.exists}
+                        for one in listed
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return
+    width = max((len(one.name) for one in listed), default=0)
+    out.print(f"[bold]{escape(chosen.name)}[/] · {count(len(listed), 'object')}")
+    for one in listed:
+        there = "[green]exists[/]" if one.exists else "[yellow]not there[/]"
+        out.print(f"  {escape(one.name.ljust(width))}  [dim]{one.kind:<8}[/]  {there}")
+
+
 def _plan_for(
     config: Path | None,
     target: str | None,
@@ -1227,7 +1304,7 @@ def apply(
                 "\n[red]This plan destroys something. Run it again with "
                 "--allow-destructive if that is what you want.[/]"
             )
-            raise typer.Exit(1)
+            raise typer.Exit(NOT_ALLOWED)
         if not yes and not _confirm(built):
             out.print("Nothing applied.")
             raise typer.Exit(1)
@@ -1250,7 +1327,12 @@ def apply(
     except DestructiveRefused as error:
         # The refusal is the library's; the flag that lifts it is this CLI's.
         err.print(f"[red]{escape(str(error))} Re-run with --allow-destructive.[/]")
-        raise typer.Exit(1) from error
+        raise typer.Exit(NOT_ALLOWED) from error
+    except (StalePlan, CannotRun) as error:
+        # Nothing ran, and nothing will from this plan: said with a code of its
+        # own, so a program need not read the words.
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(PLAN_AGAIN) from error
     except (ExecutionError, IntrospectionError) as error:
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error
@@ -1493,8 +1575,9 @@ def _read_plan(path: Path) -> Plan:
         err.print(f"[red]cannot read {escape(f'{_shown(path)}: {error}')}[/]")
         raise typer.Exit(1) from error
     except PlanFileError as error:
+        # Not a plan this version reads, and it never will be: plan again.
         err.print(f"[red]{escape(f'{_shown(path)}: {error}')}[/]")
-        raise typer.Exit(1) from error
+        raise typer.Exit(PLAN_AGAIN) from error
 
 
 def _history(

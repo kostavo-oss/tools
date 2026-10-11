@@ -77,6 +77,13 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   file, line and column, and a plan stops on it before the workspace is read.
   Held by: `tests/unit/test_schema_modes.py::test_a_key_names_a_schema_the_way_the_bundle_does`,
   `tests/unit/test_schema_modes.py::test_a_reference_with_no_value_is_an_error_at_the_key`.
+- **OWN-10** — `stevin list` reads and changes nothing. It says, for each object a spec
+  describes for the target, its name, its kind and whether an object of that kind
+  exists, and nothing about whether it matches its spec. No table is read in full and
+  no policy is asked for. `--json` is an object with `target` and `objects`, each of
+  them `name`, `kind` and `exists`.
+  Held by: `tests/unit/test_listing.py::test_it_lists_every_spec_and_whether_its_object_is_there`,
+  `tests/unit/test_listing.py::test_it_reads_and_never_writes`.
 
 ## RISK — what a step may cost
 
@@ -158,6 +165,12 @@ DDL is not transactional across statements, so there is no rollback. There is th
   anything. No answer is no: a closed stdin, as in CI, applies nothing.
   Held by: `tests/unit/test_cli_apply.py::test_apply_plans_shows_and_asks`,
   `tests/unit/test_cli_apply.py::test_no_answer_is_no`.
+- **APL-8** — A program can tell a refusal from a failure by `apply`'s exit code,
+  without reading its words. A plan that will never run exits 3: it is stale, its file
+  is not a plan this version reads, or it holds a step without SQL. A plan that
+  destroys something without `--allow-destructive` exits 4. No statement has run in
+  either case. Any other failure exits 1, and no outcome of `apply` exits 2.
+  Held by: `tests/unit/test_cli_apply.py::test_a_program_can_tell_a_refusal_from_a_failure`.
 
 ## RW — a rewrite
 

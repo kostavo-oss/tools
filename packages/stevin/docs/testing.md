@@ -214,6 +214,12 @@ schema `dev_<user>_…` was read from a real CLI (`tests/integration/test_live_b
 No live run has planned a project whose `owned_elsewhere` names a schema by that
 reference. The same holds for a key of `schemas:` (`tests/unit/test_schema_modes.py`).
 
+**`stevin list` — not tried on a workspace.** It sends no statement of its own: it is
+the read a plan gives a schema, without the per-table `SHOW CREATE TABLE` and without
+the policies, and that read runs in the live suite. The command itself and `apply`'s
+exit codes `3` and `4` are held offline only (`tests/unit/test_listing.py`,
+`tests/unit/test_cli_apply.py`).
+
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
 POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns
 [the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) lists; `Policy Type` read `ROW_FILTER` and `on_securable_type` `SCHEMA` or

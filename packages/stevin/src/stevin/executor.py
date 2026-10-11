@@ -74,6 +74,18 @@ class StalePlan(ExecutionError):
         self.tables = tables
 
 
+class CannotRun(ExecutionError):
+    """The plan holds a step stevin could not write the SQL for.
+
+    `steps` are their ids. The plan will not run as it is: each step's note says
+    what it needs, and that is a change to a spec or a change made by hand.
+    """
+
+    def __init__(self, message: str, steps: tuple[int, ...] = ()) -> None:
+        super().__init__(message)
+        self.steps = steps
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
     """What one `apply` did."""
@@ -392,9 +404,10 @@ class Executor:
                 + (f" — {step.note}" if step.note else "")
                 for step in missing
             )
-            raise ExecutionError(
+            raise CannotRun(
                 f"this plan has {len(missing)} step{'' if len(missing) == 1 else 's'} "
-                f"stevin can't run:\n{described}"
+                f"stevin can't run:\n{described}",
+                tuple(step.id for step in missing),
             )
         destructive = [step for step in plan.steps if step.risk == "destructive"]
         if destructive and not allow_destructive:

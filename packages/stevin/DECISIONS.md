@@ -142,3 +142,16 @@ document, the changelog and git; each carries the date of the decision.
     which leaves the hidden rows. The manual says a table with a row filter or column
     mask is not cloned at all. It does not say what an `UPDATE` sees. None of this has
     been tried on a workspace: the refusals are the safe side of untested questions.
+28. **2026-10-11 — A refusal is an exit code, and the listing is a command of its own**
+    (APL-8, OWN-10). A program that runs `apply` could tell a stale plan from a failed
+    step only by matching stevin's sentences. Why exit codes: `drift` already answers
+    with one, a code cannot be reworded, and it is there when the output is wrapped or
+    lost. Why 3 and 4, not 2: the command line itself exits 2 for an option it does
+    not know, and `drift` uses 2 for drifted. Why two codes: "plan again" and "say
+    `--allow-destructive`" are different things to do next. Put aside: a `--format
+    json` result for `apply`, a second output format to keep true for one field.
+    Why `list` is a command and not an option: `drift` exists to diff and its exit code
+    means drifted, `import` writes files for one schema, and `access` is about one
+    table and who may read it. An option that turns one of them into "list and do not
+    diff" would undo what that command is for. It uses `--json`, as `doctor`, `verify`
+    and `access` do; `--format` is for the renderings of a plan.
