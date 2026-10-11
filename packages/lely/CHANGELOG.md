@@ -34,6 +34,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   page is now "How it works" and says what the code does today. The `spec/` folder is
   gone: what must be true of lely is in `RULES.md`, and why in `DECISIONS.md`.
 
+### Fixed
+
+- **The editors' schema takes a list or a mapping given whole by one reference**, as
+  `lely validate` does: `tags: ${steps.model.tags}` is no longer marked as a mistake.
+  Write the schema again with `lely schema -o lely.schema.json`.
+
 ## [0.3.1] - 2026-10-10
 
 Nothing lely plans or applies has changed. This is the first release from its new home.

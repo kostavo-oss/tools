@@ -226,12 +226,15 @@ def _of(tp: Any) -> dict[str, Any]:
             "description": "The name of a step above this one.",
         }
     if origin in (tuple, list):
-        return {"type": "array", "items": _of(args[0]) if args else {}}
+        # written out, or given whole by one reference: `tags: ${steps.x.tags}`
+        listed = {"type": "array", "items": _of(args[0]) if args else {}}
+        return {"anyOf": [listed, _REFERENCE]}
     if origin in (dict, Mapping) or tp in (dict, Mapping):
-        return {
+        mapped = {
             "type": "object",
             "additionalProperties": _of(args[1]) if len(args) == 2 else {},
         }
+        return {"anyOf": [mapped, _REFERENCE]}
     if origin is Literal:
         members = [_plain_value(arg) for arg in args]
         if _NOT_JSON in members:

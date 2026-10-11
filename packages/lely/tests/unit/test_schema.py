@@ -217,6 +217,53 @@ def test_a_reference_is_let_through_where_a_number_is_wanted() -> None:
     assert typed(refs) == []
 
 
+WHOLE_PY = """\
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from lely.model import Output, StepPlan
+class Gives:
+    @dataclass(frozen=True)
+    class Options:
+        pass
+    outputs = (Output("tags"), Output("labels"))
+    def plan(self, ctx):
+        return StepPlan(outputs={"tags": ["a", "b"], "labels": {"team": "shop"}})
+    def apply(self, ctx, plan):
+        return {}
+class Takes(Gives):
+    @dataclass(frozen=True)
+    class Options:
+        tags: tuple[str, ...] = ()
+        labels: Mapping[str, str] = field(default_factory=dict)
+        maybe: tuple[str, ...] | None = None
+    outputs = ()
+"""
+WHOLE = (
+    "steps:\n  - name: gives\n    uses: ./ops/whole.py:Gives\n"
+    "  - name: takes\n    uses: ./ops/whole.py:Takes\n    with:\n"
+    "      tags: ${steps.gives.tags}\n      labels: ${steps.gives.labels}\n"
+    "      maybe: ${steps.gives.tags}\n"
+)
+
+
+def test_a_list_or_a_mapping_given_whole_by_one_reference_fits(tmp_path: Path) -> None:
+    """CFG-9: `tags: ${steps.gives.tags}` passes `lely validate`, so an editor
+    doesn't call it a mistake. Text that is no reference still is one."""
+    (tmp_path / "ops").mkdir()
+    (tmp_path / "ops" / "whole.py").write_text(WHOLE_PY)
+    assert lely_reads(tmp_path, WHOLE)
+    plugins = [
+        registry.find(f"./ops/whole.py:{name}", tmp_path) for name in ("Gives", "Takes")
+    ]
+    built = schema.build(plugins)
+    assert errors(yaml.safe_load(WHOLE), built) == []
+    wrong = WHOLE.replace(
+        "tags: ${steps.gives.tags}\n      labels", "tags: a\n      labels"
+    )
+    assert not lely_reads(tmp_path, wrong)
+    assert errors(yaml.safe_load(wrong), built) != []
+
+
 @pytest.mark.parametrize(
     "with_",
     [

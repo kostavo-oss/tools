@@ -96,9 +96,8 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   lets a value through. It is for a `lely.yml`: a `[tool.lely]` section has no schema of
   its own.
   Held by: `tests/unit/test_schema.py::test_a_config_lely_reads_fits_the_schema`,
-  `tests/unit/test_schema.py::test_a_shape_lely_refuses_doesnt_fit_the_schema`.
-  Not kept yet: #52 — a list or a mapping option given whole by one reference passes
-  `validate` and does not fit the schema.
+  `tests/unit/test_schema.py::test_a_shape_lely_refuses_doesnt_fit_the_schema`,
+  `tests/unit/test_schema.py::test_a_list_or_a_mapping_given_whole_by_one_reference_fits`.
 - **CFG-10** — An option that wants text gets what was written: a number or a boolean in a
   `lely.yml` is passed on as its own text (`1.10` stays `1.10`, `0123` is not read as
   octal, `yes` stays `yes`), and what a step is made from follows that text. In a
