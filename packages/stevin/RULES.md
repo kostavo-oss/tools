@@ -182,8 +182,7 @@ DDL is not transactional across statements, so there is no rollback. There is th
   is masked or filtered, by a mask or row filter of its own or by a row filter policy
   or column mask policy in scope of it, on the table, its schema or its catalog. The
   plan holds a step without SQL that says why (RISK-3) and, for a policy, names it.
-  That holds for a rewrite in one statement as for a staged one, and `--clone` is
-  refused the same way for a table under such a policy.
+  That holds for a rewrite in one statement as for a staged one.
   Held by: `tests/unit/test_generation.py::test_a_table_with_identity_is_never_rewritten`,
   `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_never_rewritten`,
   `tests/unit/test_policies.py::test_a_table_under_a_policy_is_never_rewritten`.
@@ -194,6 +193,13 @@ DDL is not transactional across statements, so there is no rollback. There is th
   filters the table. So does a clone made with `--clone`.
   Held by: `tests/unit/test_policies.py::test_a_rewrite_says_when_the_policies_were_not_read`,
   `tests/unit/test_policies.py::test_the_one_statement_rewrite_says_it_too_and_nothing_else_does`.
+- **RW-6** — A table whose data is masked or filtered is not cloned. `plan --clone`
+  holds, for a table with a mask or row filter of its own, one that an earlier step of
+  the same plan sets, or a row filter policy or column mask policy in scope, a clone
+  step without SQL that says why, and `apply` refuses the plan (RISK-3). Without
+  `--clone` the same plan is made as before.
+  Held by: `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_not_cloned`,
+  `tests/unit/test_policies.py::test_a_table_under_a_policy_is_not_cloned`.
 
 ## SQL — the statements
 

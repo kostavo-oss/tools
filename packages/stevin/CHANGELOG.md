@@ -42,6 +42,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   type without the backticks, and nothing is planned for a table because of it. This
   has not been sent to a workspace yet.
 
+- **`plan --clone` no longer clones a table that has a column mask or a row filter of
+  its own.** The clone was planned, as a second table over the same rows. The plan now
+  holds a step `apply` refuses: *this table has a column mask or row filter, and a
+  clone would be a copy of its data that may not carry them. Plan without --clone: the
+  table's Delta version is recorded either way.* That is what a table under a policy
+  already got. The Databricks manual says such a table cannot be cloned at all; this
+  has not been tried on a workspace.
+
 - **A table under an ABAC row filter or column mask policy is no longer rewritten.** A
   change that needs a rewrite, such as a type that cannot be widened or new
   partitioning, was planned for such a table like for any other. The rewrite reads the

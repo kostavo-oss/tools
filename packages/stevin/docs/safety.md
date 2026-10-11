@@ -260,7 +260,10 @@ makes narrower ones instead:
   table just before the first step that could lose its data — a copy of the table as
   it was that you can query side by side with the new one. A shallow clone copies no
   data; it points at the table's current files, so it lasts until a `VACUUM` removes
-  them.
+  them. A table whose data is masked or filtered is not cloned, whether by a mask or
+  row filter of its own or by a policy: the clone would be a second table over the
+  same rows. The plan then holds a step `apply` refuses, and you plan without
+  `--clone`.
 - **No stale applies.** The state fingerprint is recomputed at apply time; if the world
   moved since the plan was made, stevin stops.
 - **One run at a time.** A lock table (with a TTL, and `force-unlock` if a run dies)

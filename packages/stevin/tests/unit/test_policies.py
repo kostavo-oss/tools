@@ -635,6 +635,7 @@ def test_the_one_statement_rewrite_says_it_too_and_nothing_else_does() -> None:
 def test_a_table_under_a_policy_is_not_cloned() -> None:
     """`--clone` makes a second table over the same rows, and keeps it: the
     same copy outside the policy, so it isn't planned either."""
+    # RULES.md: RW-6.
     fewer = replace(CUSTOMERS, columns=CUSTOMERS.columns[:2])
     fake = warehouse(MASK_PII)
     plan = planned(fake, fewer, clone=True)

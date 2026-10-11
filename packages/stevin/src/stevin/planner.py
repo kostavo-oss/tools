@@ -187,6 +187,9 @@ class _Planner:
         #: What is known of each table planned so far, for a step that copies
         #: its data: the policies it is under decide whether it may.
         self._facts: dict[str, TableFacts] = {}
+        #: The tables with a column mask or row filter of their own: the ones
+        #: read with one, and the ones an earlier step of this plan sets one on.
+        self._protected: set[str] = set()
         #: The table being planned, for a step that needs its column types.
         self._desired: Table | None = None
         self._clone_suffix = clone_suffix
@@ -254,6 +257,26 @@ class _Planner:
         self._cloned.add(table)
         backup = backup_name(table, self._clone_suffix)
         facts = self._facts.get(table)
+        if table in self._protected:
+            # A second table over the same rows, which stevin keeps. Whether a
+            # clone carries the mask or the filter is not something stevin has
+            # seen, and the manual says such a table is not cloned at all:
+            # "Deep and shallow clones are not supported on tables that have
+            # row-level security or column masks" (read 2026-10-11).
+            # https://docs.databricks.com/aws/en/tables/row-and-column-filters
+            # Not planned (RULES.md, RW-6). TODO(verify): not tried on a workspace.
+            self.emit(
+                table,
+                "CLONE backup",
+                "meta",
+                sql=None,
+                note=(
+                    "this table has a column mask or row filter, and a clone would "
+                    "be a copy of its data that may not carry them. Plan without "
+                    "--clone: the table's Delta version is recorded either way"
+                ),
+            )
+            return
         policies = reaching_the_data(facts.policies) if facts else ()
         if policies:
             # The same exposure as a staging copy: a second table that reads the
@@ -424,6 +447,8 @@ class _Planner:
         self._kind = table_diff.facts.kind
         if self._kind == "table":
             self._facts[table_diff.table] = table_diff.facts
+        if isinstance(table_diff.live, Table) and table_diff.live.protected:
+            self._protected.add(table_diff.table)
         self._desired = (
             table_diff.desired if isinstance(table_diff.desired, Table) else None
         )
@@ -1031,6 +1056,8 @@ class _Planner:
                 else f"ALTER TABLE {table} ALTER COLUMN {column} DROP MASK"
             ),
         )
+        # From here on in this plan, the table is one whose data is masked.
+        self._protected.add(change.table)
 
     def _row_filter(self, change: Change) -> None:
         row_filter = change.after
@@ -1053,6 +1080,7 @@ class _Planner:
                 else f"ALTER TABLE {table} DROP ROW FILTER"
             ),
         )
+        self._protected.add(change.table)
 
     def _grant(self, change: Change) -> None:
         privileges = change.after if isinstance(change.after, tuple) else ()

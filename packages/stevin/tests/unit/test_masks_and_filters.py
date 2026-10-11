@@ -12,18 +12,22 @@
 https://docs.databricks.com/aws/en/tables/row-and-column-filters
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from fake_warehouse import FakeWarehouse
 from helpers import col, plan_against, run
 from stevin.differ import diff, is_applied, unmanaged
 from stevin.executor import ExecutionError, Executor
 from stevin.history import MemoryHistory
 from stevin.introspect import Introspector
 from stevin.loader import dump_spec, load_table, validate_table
+from stevin.model.plan import Plan
 from stevin.model.table import MANAGED_PROPERTY, RowFilter, Table
 from stevin.model.types import Field, Mask, Primitive
+from stevin.planning import plan_tables
 from stevin.render.json import dumps, loads
 
 NAME = "main.sales.orders"
@@ -225,3 +229,66 @@ def test_they_survive_the_plan_file_and_import() -> None:
     spec = dump_spec(desired)
     assert "function: main.security.by_region" in spec
     assert "using_columns:" in spec
+
+
+# ---------------------------------------------------------------------------
+# --clone
+# ---------------------------------------------------------------------------
+
+
+def cloning(desired: Table, live: Table) -> tuple[FakeWarehouse, Plan]:
+    """A plan made with `--clone`, through the reader a command uses."""
+    fake = FakeWarehouse.of(live)
+    plan = plan_tables(
+        [desired], Introspector(fake), target="dev", tool_version="0", clone=True
+    )
+    return fake, plan
+
+
+@pytest.mark.parametrize(
+    "live",
+    [orders(mask=SSN_MASK), orders(row_filter=REGION_FILTER)],
+    ids=["a column mask", "a row filter"],
+)
+def test_a_protected_table_is_not_cloned(live: Table) -> None:
+    """`--clone` makes a second table over the same rows, and keeps it. For a
+    table with a mask or a row filter of its own that is not planned: the step
+    has no SQL, and `apply` refuses the plan before anything runs."""
+    # RULES.md: RW-6.
+    fewer = live
+    live = replace(live, columns=(*live.columns, col("old", "string")))
+    fake, plan = cloning(fewer, live)
+    clone = next(step for step in plan.steps if step.title == "CLONE backup")
+    assert clone.sql is None
+    assert clone.note == (
+        "this table has a column mask or row filter, and a clone would be a copy "
+        "of its data that may not carry them. Plan without --clone: the table's "
+        "Delta version is recorded either way"
+    )
+    with pytest.raises(ExecutionError, match="can't run"):
+        Executor(fake, Introspector(fake), MemoryHistory()).apply(
+            plan, allow_destructive=True
+        )
+    assert fake.ddl == []
+    assert not any("SHALLOW CLONE" in step.sql for step in plan.steps if step.sql)
+
+    # Without `--clone` the column is dropped as before, and with it a table
+    # that has neither is cloned as before.
+    _, without = plan_against(fewer, live)
+    assert "DROP COLUMN" in [step.title for step in without.steps]
+    bare = orders()
+    _, cloned = cloning(replace(bare, columns=bare.columns[:2]), bare)
+    [backup] = [step for step in cloned.steps if step.title == "CLONE backup"]
+    assert "SHALLOW CLONE" in (backup.sql or "")
+
+
+def test_a_mask_set_earlier_in_the_plan_stops_the_clone_too() -> None:
+    """The clone is planned just before the first step that risks the table. A
+    step before it that sets a mask makes it a clone of a masked table."""
+    live = orders()
+    wanted = Table(name=NAME, columns=(col("id", "bigint"), ssn(SSN_MASK)))
+    _, plan = cloning(wanted, live)
+    titles = [step.title for step in plan.steps]
+    assert titles.index("SET MASK") < titles.index("CLONE backup")
+    clone = plan.steps[titles.index("CLONE backup")]
+    assert clone.sql is None and "column mask or row filter" in (clone.note or "")

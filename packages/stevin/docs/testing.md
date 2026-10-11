@@ -136,7 +136,8 @@ Most of what stevin assumes about Databricks has been run against a workspace: t
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
 *a seed's INSERT OVERWRITE with a column list is accepted*). Six things are still open.
-They are seven `TODO(verify)` marks in the source, because reading policies has two:
+They are eight `TODO(verify)` marks in the source: reading policies has two, and so has
+what is not copied from a masked or filtered table:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
@@ -167,7 +168,14 @@ They are seven `TODO(verify)` marks in the source, because reading policies has 
   table does not cover. So stevin refuses the rewrite (`planner._Planner._rewrite`), and
   neither consequence has been seen. Whether a `SHALLOW CLONE` of such a table is
   accepted, and whether the policy reaches the clone, is not tried either: `--clone` is
-  refused for it. There is no probe for this. It would have to create a policy, and
+  refused for it. The same holds for a table with a column mask or a row filter of its
+  own, which `--clone` is refused for too (`planner._Planner._clone_first`). The manual
+  says of [those](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
+  that "deep and shallow clones are not supported on tables that have row-level
+  security or column masks", and of
+  [ABAC](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements)
+  that clones "aren't supported on tables with ABAC policies" (both read 2026-10-11).
+  No workspace has been asked. There is no probe for this. It would have to create a policy, and
   one that applies to the principal that runs `verify`.
 
 - **A nested field's name, quoted in a type.** Every statement spells a type with its
