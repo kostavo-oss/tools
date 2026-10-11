@@ -111,3 +111,12 @@ document, the changelog and git; each carries the date of the decision.
     the first reason. Where the policies were not read, a rewrite is planned with a
     warning (RW-5): refusing there would refuse every rewrite of a project that hands
     policies over.
+25. **2026-10-11 — A key of `schemas:` is read as a key of `owned_elsewhere` is**
+    (OWN-9): split first, each part filled in on its own, and an error at the key when
+    a reference has no one name for the target. Why an error: a key that is left out
+    gives its schema the target's mode. Under a `strict` target, a schema the file
+    marks `additive` then has its orphaned tables dropped, and under an `additive`
+    target a schema marked `strict` keeps them without a word. Rejected: leaving the
+    key out only where that is the safe side, when the target is `additive`. The file
+    would then be read by two rules, and a `strict` that does nothing is still not
+    what it says.

@@ -275,6 +275,12 @@ def validate(
         except (OwnedError, SpecError) as error:
             err.print(f"[red]{escape(str(error))}[/]")
             problems += 1
+        # A `schemas:` key is read the same way, for the same reason.
+        try:
+            found.modes(linted)
+        except SpecError as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            problems += 1
     for diagnostic in owned_diagnostics(read, owners, _shown):
         _print_diagnostic(diagnostic)
         problems += diagnostic.severity == "error"
@@ -283,7 +289,7 @@ def validate(
     if found is not None:
         in_keys = {
             match.group(1)
-            for key, _ in found.owned_elsewhere
+            for key, _ in (*found.owned_elsewhere, *found.schema_modes)
             for match in VARIABLE.finditer(key)
         }
         unsettled = sorted({*unsettled, *(in_keys & standing_in.keys())})

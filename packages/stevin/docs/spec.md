@@ -64,6 +64,21 @@ bundle's: stevin leaves that one alone too.
 can, so one project file serves every catalog. What the modes mean is in the
 [safety model](safety.md#additive-and-strict-schemas).
 
+A key of `schemas:` is two parts, `catalog.schema`. A `${…}` reference is one part,
+whatever dots it holds, and stands for one name. With [a bundle](bundles.md), name a
+schema the bundle deploys the way the bundle does:
+
+```yaml
+schemas:
+  ${catalog}.${resources.schemas.raw.name}: strict
+```
+
+The key follows the schema to `dev_jane_raw` on a development target and to `raw` in
+production. A reference that has no value for the target you plan against stops the
+command and names the key, with its file, line and column. So does a value that is
+empty or holds a dot or a `*`. No key is left out: a schema never gets the target's
+mode because its key could not be read.
+
 There is a runnable example of exactly this layout in
 [`examples/`](https://github.com/kostavo-oss/tools/tree/main/packages/stevin/examples).
 

@@ -69,6 +69,14 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   names the key and its file, line and column.
   Held by: `tests/unit/test_owned_elsewhere.py::test_a_reference_with_no_value_is_an_error_at_the_key`,
   `tests/unit/test_owned_elsewhere.py::test_what_a_reference_stands_for_is_one_name`.
+- **OWN-9** — A key of `schemas:` is two parts, split on the dot outside a `${…}`
+  reference, and each part is filled in for the target on its own. A reference stands
+  for one name: a value that is empty or holds a dot or a `*` is refused, and so is a
+  reference with no value for the target. No key is left out quietly, so a schema
+  never gets the target's mode in place of its own. The error names the key and its
+  file, line and column, and a plan stops on it before the workspace is read.
+  Held by: `tests/unit/test_schema_modes.py::test_a_key_names_a_schema_the_way_the_bundle_does`,
+  `tests/unit/test_schema_modes.py::test_a_reference_with_no_value_is_an_error_at_the_key`.
 
 ## RISK — what a step may cost
 

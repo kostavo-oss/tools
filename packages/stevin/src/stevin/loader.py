@@ -239,6 +239,8 @@ class Project:
     targets: tuple[Target, ...]
     history_schema: str | None = None
     schema_modes: tuple[tuple[str, Mode], ...] = ()
+    #: Where each of those keys was written, for a message about one of them.
+    schema_modes_locs: tuple[tuple[str, Loc], ...] = ()
     #: The target to use when none is named: the only one, or the one marked
     #: `default: true` here or in the bundle.
     default_target: str | None = None
@@ -383,49 +385,42 @@ class Project:
         file gives to another tool. Raises `OwnedError` when a manifest is named
         and can't be read.
         """
-        variables = target.variables_map()
-        unresolved = target.unresolved_map()
         locs = dict(self.owned_elsewhere_locs)
         patterns: list[tuple[str, str]] = []
         for pattern, owner in self.owned_elsewhere:
             loc = locs.get(pattern) or Loc(self.root / CONFIG_NAMES[0], 1, 1)
-            parts: list[str] = []
-            for part in key_parts(pattern):
-                try:
-                    value = substitute(part, variables, unresolved)
-                except KeyError as error:
-                    raise SpecError(
-                        f"owned_elsewhere key {pattern!r}, for target "
-                        f"{target.name!r}: {error.args[0]}",
-                        loc,
-                    ) from error
-                if "${" in part and (not value or "." in value or "*" in value):
-                    raise SpecError(
-                        f"owned_elsewhere key {pattern!r}: {part} is {value!r} for "
-                        f"target {target.name!r}, and a reference stands for one "
-                        "part of catalog.schema.table — a name with no dot and no "
-                        "*; write the parts out, or use a reference to each",
-                        loc,
-                    )
-                parts.append(value)
+            parts = _filled_key(
+                "owned_elsewhere", "catalog.schema.table", pattern, target, loc
+            )
             patterns.append((".".join(parts).lower(), owner))
         manifest = read_manifest(self.dbt_manifest) if self.dbt_manifest else Owners()
         return combined(manifest, Owners(patterns=tuple(patterns)))
+
+    def modes(self, target: Target) -> dict[str, Mode]:
+        """`schemas:` for one target: `catalog.schema`, in lower case, to its mode.
+
+        A key is split into its two parts first, outside any `${…}`, and each
+        part is filled in on its own, as a key of `owned_elsewhere` is. Raises
+        `SpecError`, at the key, when a reference has no value for this target
+        or its value is not one name: a key that was quietly left out would give
+        its schema the target's mode, and under a `strict` target that drops
+        what the file says to keep.
+        """
+        locs = dict(self.schema_modes_locs)
+        modes: dict[str, Mode] = {}
+        for pattern, mode in self.schema_modes:
+            loc = locs.get(pattern) or Loc(self.root / CONFIG_NAMES[0], 1, 1)
+            parts = _filled_key("schemas", "catalog.schema", pattern, target, loc)
+            modes.setdefault(".".join(parts).lower(), mode)
+        return modes
 
     def mode_for(self, target: Target, schema: str) -> Mode:
         """`strict` or `additive` for one `catalog.schema`, under one target.
 
         A schema listed under `schemas:` gets its own mode; any other gets the
-        target's.
+        target's. Raises `SpecError` as `modes` does.
         """
-        variables = target.variables_map()
-        for pattern, mode in self.schema_modes:
-            try:
-                if substitute(pattern, variables).lower() == schema.lower():
-                    return mode
-            except KeyError:
-                continue  # a pattern using a variable this target doesn't define
-        return target.mode
+        return self.modes(target).get(schema.lower(), target.mode)
 
 
 @dataclass(frozen=True, slots=True)
@@ -493,6 +488,39 @@ def key_parts(text: str) -> tuple[str, ...]:
             parts.append(text[start : found.start()])
             start = found.end()
     parts.append(text[start:])
+    return tuple(parts)
+
+
+def _filled_key(
+    what: str, shape: str, pattern: str, target: Target, loc: Loc
+) -> tuple[str, ...]:
+    """The parts of one key of `what`, each filled in for `target`.
+
+    The key is split outside any `${…}` first, so a reference is one part
+    whatever dots it holds, and stands for one name. Raises `SpecError` at
+    `loc` for a reference with no value for this target, and for a value that
+    is empty or holds a dot or a `*`.
+    """
+    variables = target.variables_map()
+    unresolved = target.unresolved_map()
+    parts: list[str] = []
+    for part in key_parts(pattern):
+        try:
+            value = substitute(part, variables, unresolved)
+        except KeyError as error:
+            raise SpecError(
+                f"{what} key {pattern!r}, for target {target.name!r}: {error.args[0]}",
+                loc,
+            ) from error
+        if "${" in part and (not value or "." in value or "*" in value):
+            raise SpecError(
+                f"{what} key {pattern!r}: {part} is {value!r} for "
+                f"target {target.name!r}, and a reference stands for one "
+                f"part of {shape} — a name with no dot and no "
+                "*; write the parts out, or use a reference to each",
+                loc,
+            )
+        parts.append(value)
     return tuple(parts)
 
 
@@ -1825,17 +1853,20 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         default_target = targets[0].name
 
     schema_modes: list[tuple[str, Mode]] = []
+    schema_modes_locs: list[tuple[str, Loc]] = []
     if "schemas" in items:
         for schema, (mode_node, key_loc) in _mapping(
             ctx, items["schemas"][0], "schemas"
         ).items():
-            if len(schema.split(".")) != 2:
+            parts = key_parts(schema)
+            if len(parts) != 2 or not all(parts):
                 raise SpecError(
                     f"schemas are keyed catalog.schema, e.g. ${{catalog}}.sales — "
                     f"not {schema!r}",
                     key_loc,
                 )
             schema_modes.append((schema, _read_mode(ctx, mode_node)))
+            schema_modes_locs.append((schema, key_loc))
 
     manage = _read_manage(ctx, items["manage"][0]) if "manage" in items else EVERYTHING
 
@@ -1874,6 +1905,7 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         targets=tuple(targets),
         history_schema=history_schema,
         schema_modes=tuple(schema_modes),
+        schema_modes_locs=tuple(schema_modes_locs),
         default_target=default_target,
         bundle=bundle_path,
         own_targets=own_targets,

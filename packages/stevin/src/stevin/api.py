@@ -73,13 +73,17 @@ def plan(
     say — so they aren't read twice.
 
     Raises `SpecErrors` if a spec can't be read, `SpecError` if a key of
-    `owned_elsewhere` has no one name for this target, `PlanningError` if the specs
+    `owned_elsewhere` or `schemas` has no one name for this target,
+    `PlanningError` if the specs
     can't be planned together — two files describing one name, a function spec
     that no mask or row filter names — and `IntrospectionError` if the
     workspace can't be read.
     """
     specs = specs if specs is not None else project.load_specs(target)
     owners = project.owners(target)
+    # Read before the workspace is: a `schemas:` key with no one name for this
+    # target is an error at the key, never a schema in the target's mode.
+    modes = project.modes(target)
     # Two files for one name, a function spec nothing masks or filters with, a
     # spec for dbt's table: refused here rather than in `plan_tables`, which has
     # no files to name — and before `select`, which must not hide any of them.
@@ -96,7 +100,7 @@ def plan(
         connection.introspector(project.manage, parallel),
         target=target.name,
         tool_version=package_version(),
-        mode_for=lambda schema: project.mode_for(target, schema),
+        mode_for=lambda schema: modes.get(schema.lower(), target.mode),
         check_order=check_order,
         clone=clone,
         select=chosen,
@@ -172,10 +176,17 @@ def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:
         # An `owned_elsewhere` key that has no one name for this target.
         owners = None
         about_owners = (Diagnostic("error", error.message, str(error.loc)),)
+    try:
+        project.modes(target)
+        about_modes: tuple[Diagnostic, ...] = ()
+    except SpecError as error:
+        # A `schemas:` key that has no one name for this target.
+        about_modes = (Diagnostic("error", error.message, str(error.loc)),)
     return (
         *specs.diagnostics,
         *cycles(specs.files),
         *about_owners,
+        *about_modes,
         *owned_diagnostics(specs.files, owners),
     )
 

@@ -14,7 +14,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   part, whatever it holds, and stands for the name the target deploys: `dev_jane_raw`
   on a development target, `raw` in production.
 
+- **A key of `schemas:` can name a schema the way a bundle does.** A key such as
+  `${catalog}.${resources.schemas.raw.name}: strict` was refused, for the same reason.
+  A `${…}` reference is now one part of the key there too.
+
 ### Changed
+
+- **A key of `schemas:` that has no value for a target is an error.** A key with a
+  variable the target does not define was left out without a word, and its schema got
+  the target's mode: under a `strict` target, a schema marked `additive` had its
+  orphaned tables planned as drops. `plan`, `drift`, `apply` and `validate` now stop
+  and name the key, with its file, line and column, before the workspace is read. The
+  same holds for a reference whose value is empty or holds a dot or a `*`.
 
 - **A key of `owned_elsewhere` that has no value for a target is an error.** A key
   with a variable the target does not define was left out without a word, and the

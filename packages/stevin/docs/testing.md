@@ -186,7 +186,7 @@ unit tests hand stevin the mapping the Databricks CLI prints for a target
 (`tests/unit/test_owned_elsewhere.py`). That the CLI names a development target's
 schema `dev_<user>_…` was read from a real CLI (`tests/integration/test_live_bundle.py`).
 No live run has planned a project whose `owned_elsewhere` names a schema by that
-reference.
+reference. The same holds for a key of `schemas:` (`tests/unit/test_schema_modes.py`).
 
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
 POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns
