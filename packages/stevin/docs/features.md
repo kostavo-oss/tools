@@ -250,13 +250,15 @@ let off the policy, so the plan holds a step it will not run, and names the poli
 
 Make that change by hand. Everything that copies no data is planned as always: a
 column, a comment, a tag, a grant. `stevin plan --clone` is refused for such a table
-too, since the clone is a second table over the same rows: plan without it.
+too, since the clone is a second table over the same rows: plan without it. And a new
+column's `using:` is [not filled in](spec.md#adding-a-not-null-column-to-a-table-with-data):
+the fill would reach only the rows the applying principal can see.
 
 Where stevin did not read the policies, it cannot refuse. That is so when the workspace
 will not list them and when the project hands them over with `manage: {policies:
 false}`. A rewrite is then planned, and its first step that copies data carries a
 warning: stevin did not read the policies in scope of this table, so it cannot tell
-whether one masks or filters it. Check the table with
+whether one masks or filters it. A clone and a backfill carry the same warning. Check the table with
 [`stevin access`](#who-may-see-a-table) before you apply such a plan.
 
 They are read with [`SHOW EFFECTIVE POLICIES ON TABLE`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) and

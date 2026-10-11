@@ -50,6 +50,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   already got. The Databricks manual says such a table cannot be cloned at all; this
   has not been tried on a workspace.
 
+- **A new column's `using:` is no longer filled in on a masked or filtered table.** A
+  new column with `using:` was filled with an `UPDATE`, also on a table with a column
+  mask or row filter of its own or under a row filter or column mask policy. That
+  `UPDATE` runs as the applying principal: it reaches only the rows that principal
+  can see, and it writes a masked column as the principal sees it into a column
+  without the mask. The plan now holds a backfill step `apply` refuses, which says so
+  and what to do: add the column without `using:`, and fill it by hand as a principal
+  that sees every row. This holds whatever the expression reads. Where stevin did not
+  read the policies, the backfill is planned with a warning. What an `UPDATE` sees of
+  such a table has not been tried on a workspace.
+
 - **A table under an ABAC row filter or column mask policy is no longer rewritten.** A
   change that needs a rewrite, such as a type that cannot be widened or new
   partitioning, was planned for such a table like for any other. The rewrite reads the

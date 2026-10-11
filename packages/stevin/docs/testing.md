@@ -135,8 +135,8 @@ says `TODO(verify)` rather than pretending.
 Most of what stevin assumes about Databricks has been run against a workspace: the
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
-*a seed's INSERT OVERWRITE with a column list is accepted*). Six things are still open.
-They are eight `TODO(verify)` marks in the source: reading policies has two, and so has
+*a seed's INSERT OVERWRITE with a column list is accepted*). Seven things are still open.
+They are nine `TODO(verify)` marks in the source: reading policies has two, and so has
 what is not copied from a masked or filtered table:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
@@ -177,6 +177,16 @@ what is not copied from a masked or filtered table:
   that clones "aren't supported on tables with ABAC policies" (both read 2026-10-11).
   No workspace has been asked. There is no probe for this. It would have to create a policy, and
   one that applies to the principal that runs `verify`.
+
+- **A backfill of a masked or filtered table.** Not tried on a workspace: what an
+  `UPDATE … SET <column> = <using> WHERE <column> IS NULL` sees of a table with a row
+  filter or a column mask, of its own or from a policy, for a principal they apply to.
+  stevin expects that the rows a filter hides are not updated and that a masked column
+  is read masked. The manual's pages on
+  [row filters and column masks](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
+  and on [ABAC](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements)
+  do not say (read 2026-10-11). So the backfill is refused for such a table
+  (`planner._Planner._add_column`), and neither consequence has been seen.
 
 - **A nested field's name, quoted in a type.** Every statement spells a type with its
   nested names in backticks, as in ``STRUCT<`street`:STRING>`` (`planner.type_sql`).

@@ -200,6 +200,15 @@ DDL is not transactional across statements, so there is no rollback. There is th
   `--clone` the same plan is made as before.
   Held by: `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_not_cloned`,
   `tests/unit/test_policies.py::test_a_table_under_a_policy_is_not_cloned`.
+- **RW-7** — A new column's `using:` is not filled in on a table whose data is masked
+  or filtered: by a mask or row filter of its own, by one an earlier step of the same
+  plan sets, or by a row filter policy or column mask policy in scope. The plan holds a
+  backfill step without SQL that says why, whatever the expression reads, and `apply`
+  refuses the plan (RISK-3). Where the policies in scope were not read, the backfill
+  is planned and its step carries a warning that stevin cannot tell (RW-5).
+  Held by: `tests/unit/test_backfills.py::test_a_masked_or_filtered_table_is_not_backfilled`,
+  `tests/unit/test_policies.py::test_a_table_under_a_policy_is_not_backfilled`,
+  `tests/unit/test_policies.py::test_a_backfill_says_when_the_policies_were_not_read`.
 
 ## SQL — the statements
 

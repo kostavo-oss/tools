@@ -127,3 +127,18 @@ document, the changelog and git; each carries the date of the decision.
     into drift. Rejected: saying in the rule that a plain nested name is left bare,
     with a probe for a reserved word. That keeps a second way to put a name into SQL.
     A quoted nested name is read from the manual and has not been sent to a workspace.
+27. **2026-10-11 — The refusal covers every step that reads a table's data to write it
+    somewhere: a rewrite, a clone, a backfill** (RW-4, RW-6, RW-7). Entry 24 refused
+    the rewrite and the clone under a policy. A clone of a table with a mask or row
+    filter of its own was still planned, and so was a `using:` backfill on any masked
+    or filtered table. Why they are refused too: each runs as the applying principal.
+    A clone is a second table over the same rows, which stevin keeps. A backfill is an
+    `UPDATE` that reaches only the rows that principal can see, so the rows a filter
+    hides stay NULL and a `NOT NULL` after it fails or passes for the wrong reason,
+    and it writes a masked column as the principal sees it into a column without the
+    mask. The first of those holds for a `using:` that reads a constant or another
+    table, so the expression is not looked at. Put aside: a warning on the step, for
+    the reason in entry 24, and refusing only a `using:` that names a masked column,
+    which leaves the hidden rows. The manual says a table with a row filter or column
+    mask is not cloned at all. It does not say what an `UPDATE` sees. None of this has
+    been tried on a workspace: the refusals are the safe side of untested questions.

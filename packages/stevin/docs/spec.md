@@ -525,6 +525,15 @@ rewrites the files holding the rows it touches, so it is classed `rewrite` and a
 point is recorded first. It is safe to repeat. Without `using:`, the plan still adds the
 column, but warns that `SET NOT NULL` will fail.
 
+A table whose data is masked or filtered is not filled this way: one with a
+[mask or row filter](#column-masks-and-row-filters) of its own, or under a
+[row filter or column mask policy](features.md#the-policies-a-table-is-under). The fill
+runs as the principal that applies the plan. It reaches only the rows that principal
+can see, and it writes a masked column as that principal sees it. So the plan holds a
+backfill step `apply` refuses. Add the column without `using:` and without
+`nullable: false`, fill it by hand as a principal that sees every row, and then set
+`nullable: false`.
+
 ## Seeds
 
 Reference data — country codes, mappings, statuses — kept in the repo beside the spec

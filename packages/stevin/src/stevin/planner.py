@@ -321,6 +321,17 @@ class _Planner:
             ),
         )
 
+    def _masked_or_filtered(self, table: str, facts: TableFacts) -> str | None:
+        """What masks or filters this table's data, as the start of a sentence, or
+        None: a mask or row filter of its own, read or set earlier in this plan,
+        or the row filter and column mask policies in scope of it."""
+        if table in self._protected:
+            return "this table has a column mask or row filter"
+        policies = reaching_the_data(facts.policies)
+        if policies:
+            return f"{_in_scope(policies)} of this table"
+        return None
+
     def _policies_unread(self, facts: TableFacts) -> str | None:
         """What a step that copies a table's data says when nobody read the
         policies it is under; the step adds what follows from that for it."""
@@ -1549,11 +1560,40 @@ class _Planner:
             sql=f"ALTER TABLE {quote_qualified(change.table)} ADD COLUMNS ({definition})",
         )
         backfilled = column.using is not None and not change.nested and facts.exists
-        if backfilled:
+        hidden = self._masked_or_filtered(change.table, facts) if backfilled else None
+        if backfilled and hidden:
+            # The fill is an UPDATE of the table by the applying principal. A row
+            # filter that hides rows from that principal hides them from the
+            # UPDATE, so they stay NULL; and a masked column `using:` reads is
+            # written as the principal sees it, into a column without the mask.
+            # The first holds whatever `using:` reads, a constant too. stevin
+            # can't tell whether the principal is let off, so the fill is not
+            # planned (RULES.md, RW-7; DECISIONS.md, 27). TODO(verify): what an
+            # UPDATE sees of such a table has not been tried on a workspace, and
+            # the manual does not say.
+            self.emit(
+                change.table,
+                f"BACKFILL {change.path}",
+                "rewrite",
+                path=change.path,
+                sql=None,
+                est_bytes=facts.size_bytes,
+                note=(
+                    f"{hidden}. The backfill is an UPDATE that runs as the applying "
+                    "principal: it fills only the rows that principal can see, "
+                    "whatever `using:` reads, and it writes a masked column as that "
+                    "principal sees it, into a column without the mask. Add the "
+                    "column without `using:`"
+                    + ("" if column.nullable else " and without `nullable: false`")
+                    + ", and fill it by hand as a principal that sees every row"
+                ),
+            )
+        elif backfilled:
             # `using:` says how to get this column's value from the rest of the
             # row. On a column being added, that fills the rows already there —
             # which is what lets a NOT NULL column be added to a table with data.
             column_sql = quote_ident(column.name)
+            unread = self._policies_unread(facts)
             self.emit(
                 change.table,
                 f"BACKFILL {change.path}",
@@ -1565,6 +1605,15 @@ class _Planner:
                 ),
                 est_bytes=facts.size_bytes,
                 undo_hint=_restore_hint(facts),
+                warnings=(
+                    (
+                        f"{unread}. If one does, this backfill fills only the rows "
+                        "the applying principal can see, and writes a masked column "
+                        "as that principal sees it",
+                    )
+                    if unread
+                    else ()
+                ),
                 note="rewrites the files holding rows it fills; safe to repeat",
             )
         if not column.nullable:
