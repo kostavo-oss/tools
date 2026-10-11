@@ -17,16 +17,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.
 
-- **`lely.testing` has `check_no_state` and `check_only_its_own`**, for the two rules
-  it had no check for. Every check takes the plugin's class too, and then makes each
+- **`lely.testing` has `check_no_state` and `check_only_its_own`**, for the rules it
+  had no check for: no state, only what its options name, only its own. Every check takes the plugin's class too, and then makes each
   call on a new instance, as lely does; `check` on a step's own command line does so.
   The docs say what the kit cannot see: a write through the SDK or by another program.
 - **A step on its own shows what it gives.** `plan` prints the outputs it knows and names
   the ones that come later; `apply` prints what the step returned. A `Secret` is `***`.
 - **A step on its own can plan its destroy**: `plan --destroy -o gone.json`, then
   `destroy --plan-file gone.json`.
-- **A flag for `Mapping[str, int]`** (or a decimal number, or true and false) reads the
-  value of `key=value` as that type. Such a step started, and then refused every value.
 
 ### Changed
 
@@ -42,8 +40,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whatever the spelling.** What a step is made from is now each option as its plugin is
   handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a
   yes or no, and `"1.10"` and `"yes"` for text. A plan file saved by 0.3.1 for a step
-  with a number or a boolean in its options is refused once, and the refusal names both
-  versions and says to plan again.
+  with a number or a boolean in its options is refused once by the next release: the
+  refusal names both versions and says to plan again.
 
 - **A stevin plan shows every step with its risk class**, and a table that is rewritten
   says so in its own line. A risk class lely does not know is destructive; it was read as
@@ -55,6 +53,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A flag for `Mapping[str, int]`** (or a decimal number, or true and false) reads the
+  value of `key=value` as that type. Such a step started, and then refused every value.
 - **A value from the environment is refused wherever it is no `Secret`**: in an option
   that takes anything (`object`), which took the secret into the plan, and as a list or
   a mapping given whole, which `lely validate` let through and the plan then refused.

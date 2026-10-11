@@ -81,7 +81,9 @@ there were no environments.
 5. **That `bundle destroy` never removes more than `bundle summary` lists**, and whether
    `deploy` without `--auto-approve` asks before a delete.
 6. **A second bundle in one project.**
-7. **A step run on its own** (`Step.main()`) against a workspace, and `check --live`.
+7. **A step run on its own** (`Step.main()`) against a workspace, and `check --live`:
+   what it says first, and what a step prints of its outputs, were seen against the
+   stand-ins only.
 8. **On GitHub**: signing in with GitHub's own identity, environments and the pause for a
    reviewer, a pull request from a fork, a merge after `main` moved, a first deploy with
    a waiting step.

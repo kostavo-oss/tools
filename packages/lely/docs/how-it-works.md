@@ -167,6 +167,10 @@ directory would name it (`./path/file.py:Class`), and goes through `planning`,
 `running`, `planfile` and `approval` like any project. That is why a plan a step writes
 is a one-step lely plan.
 
+A plan keeps a step's outputs that have a plain name and the ones another step takes,
+and a run's result keeps none. So `planning.plan` and `running.apply` take a `given` to
+fill with what each step gives, whole, and `solo` prints the step's own from it.
+
 ## Showing a plan
 
 `render/words.py` holds what every renderer says the same way: the counts, the
