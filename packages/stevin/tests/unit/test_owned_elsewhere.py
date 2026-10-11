@@ -441,3 +441,241 @@ def test_a_governance_only_spec_cannot_say_a_shape(tmp_path: Path) -> None:
     )
     with pytest.raises(SpecError, match="can't say 'constraints'"):
         load_table(path)
+
+
+# ---------------------------------------------------------------------------
+# a schema the bundle deploys, named the way the bundle names it
+# ---------------------------------------------------------------------------
+
+#: A development target deploys `raw` as `dev_jane_raw`; production as `raw`.
+DEPLOYS = """\
+bundle:
+  name: shop
+variables:
+  catalog:
+    default: main
+resources:
+  schemas:
+    raw:
+      catalog_name: ${var.catalog}
+      name: raw
+    silver:
+      catalog_name: ${var.catalog}
+      name: silver
+targets:
+  dev:
+    default: true
+    mode: development
+  prod: {}
+"""
+BY_REFERENCE = """\
+specs: [tables]
+bundle: databricks.yml
+owned_elsewhere:
+  ${catalog}.${resources.schemas.raw.name}.*: dlt
+  ${catalog}.${resources.schemas.silver.name}.*: dbt
+"""
+GOVERN_BY_REFERENCE = """\
+table: ${catalog}.${resources.schemas.raw.name}.customers
+tags: {domain: sales}
+grants:
+  - {principal: analysts, privileges: [SELECT]}
+"""
+SHAPE_BY_REFERENCE = (
+    "table: ${catalog}.${resources.schemas.silver.name}.orders\n"
+    "columns:\n  - {name: id, type: bigint}\n"
+)
+
+
+def as_the_cli_says(prefix: str) -> dict[str, object]:
+    """What `databricks bundle validate -o json` prints for a target whose
+    schemas are deployed with this in front of their names."""
+    return {
+        "variables": {"catalog": {"value": "main"}},
+        "resources": {
+            "schemas": {
+                key: {"catalog_name": "main", "name": f"{prefix}{key}"}
+                for key in ("raw", "silver")
+            }
+        },
+    }
+
+
+def by_reference(tmp_path: Path, text: str = BY_REFERENCE) -> Project:
+    (tmp_path / "databricks.yml").write_text(DEPLOYS, encoding="utf-8")
+    (tmp_path / "stevin.yml").write_text(text, encoding="utf-8")
+    (tmp_path / "tables").mkdir(exist_ok=True)
+    return Project.load(tmp_path / "stevin.yml")
+
+
+@pytest.mark.parametrize(
+    ("target", "prefix"), [("dev", "dev_jane_"), ("prod", "")], ids=["dev", "prod"]
+)
+def test_a_key_names_a_schema_the_way_the_bundle_does(
+    tmp_path: Path, target: str, prefix: str
+) -> None:
+    """The reference is one part of the key, dots and all, and stands for the
+    name this target deploys: its tables are covered, and no other schema's."""
+    # RULES.md: OWN-6.
+    found = by_reference(tmp_path)
+    resolved = found.resolve(found.target(target), bundle_config=as_the_cli_says(prefix))
+    owners = found.owners(resolved)
+    assert owners.patterns == (
+        (f"main.{prefix}raw.*", "dlt"),
+        (f"main.{prefix}silver.*", "dbt"),
+    )
+    assert owners.owner_of(f"main.{prefix}raw.customers") == "dlt"
+    assert owners.owner_of(f"main.{prefix}silver.orders") == "dbt"
+    assert owners.owner_of("main.gold.customers") is None
+    assert owners.owner_of("main.other_raw.customers") is None
+    if prefix:
+        assert owners.owner_of("main.raw.customers") is None, "another target's name"
+
+
+def test_production_needs_no_cli_for_a_name_the_file_settles(tmp_path: Path) -> None:
+    found = by_reference(tmp_path)
+    owners = found.owners(found.target("prod"))
+    assert owners.owner_of("main.raw.customers") == "dlt"
+
+
+@pytest.mark.parametrize(
+    ("target", "prefix"), [("dev", "dev_jane_"), ("prod", "")], ids=["dev", "prod"]
+)
+def test_a_key_by_reference_decides_what_a_spec_may_say(
+    tmp_path: Path, target: str, prefix: str
+) -> None:
+    """The map says the raw schema is dlt's, so a spec without types governs a
+    table in it — no `_dlt_` tables are there to say so. The silver schema is
+    dbt's, and a spec for a table in it is refused, as it is by a written name."""
+    found = by_reference(tmp_path)
+    resolved = found.resolve(found.target(target), bundle_config=as_the_cli_says(prefix))
+    (tmp_path / "tables" / "customers.yml").write_text(
+        GOVERN_BY_REFERENCE, encoding="utf-8"
+    )
+    live = table(col("id", "bigint"), name=f"main.{prefix}raw.customers")
+    assert [d for d in api.validate(found, resolved) if d.severity == "warning"] == []
+    plan = api.plan(found, resolved, Connection(runner=FakeWarehouse.of(live)))
+    assert {change.kind for change in plan.changes} == {"set_tag", "grant"}
+    assert not any("CLAIM" in step.title for step in plan.steps)
+
+    (tmp_path / "tables" / "orders.yml").write_text(SHAPE_BY_REFERENCE, encoding="utf-8")
+    refusal = rf"orders.yml: main.{prefix}silver.orders is dbt's"
+    assert any(
+        "is dbt's" in d.message
+        for d in api.validate(found, resolved)
+        if d.severity == "error"
+    )
+    with pytest.raises(PlanningError, match=refusal):
+        api.plan(found, resolved, Connection(runner=FakeWarehouse.of(live)))
+
+
+def test_a_reference_with_no_value_is_an_error_at_the_key(tmp_path: Path) -> None:
+    """A pattern that was quietly left out would let stevin claim another tool's
+    table. So the key is named, with its file, line and column."""
+    # RULES.md: OWN-8.
+    found = by_reference(tmp_path)
+    # A development target renames, and no Databricks CLI is here to say how.
+    with pytest.raises(SpecError) as unsettled:
+        found.owners(found.resolve(found.target("dev")))
+    assert unsettled.value.loc.file == tmp_path / "stevin.yml"
+    assert (unsettled.value.loc.line, unsettled.value.loc.column) == (4, 3)
+    said = unsettled.value.message
+    assert "owned_elsewhere key '${catalog}.${resources.schemas.raw.name}.*'" in said
+    assert "for target 'dev'" in said and "comes from the bundle" in said
+
+    # A resource the bundle doesn't declare.
+    typo = by_reference(
+        tmp_path,
+        "specs: [tables]\nbundle: databricks.yml\n"
+        "owned_elsewhere:\n  main.silver.*: dbt\n"
+        "  ${catalog}.${resources.schemas.rwa.name}.*: dlt\n",
+    )
+    with pytest.raises(SpecError, match="undefined variable") as unknown:
+        typo.owners(typo.target("prod"))
+    assert str(unknown.value).startswith(f"{(tmp_path / 'stevin.yml').as_posix()}:5:3: ")
+    assert "${resources.schemas.rwa.name}" in unknown.value.message
+
+    # No bundle at all, so nothing by that name.
+    (tmp_path / "stevin.yml").write_text(
+        "specs: [tables]\ntargets:\n  dev:\n    vars: {catalog: dev}\n"
+        "owned_elsewhere:\n  ${catalog}.${resources.schemas.raw.name}.*: dlt\n",
+        encoding="utf-8",
+    )
+    alone = Project.load(tmp_path / "stevin.yml")
+    with pytest.raises(SpecError, match=r"stevin.yml:6:3: .*undefined variable"):
+        alone.owners(alone.target("dev"))
+    [diagnostic] = api.validate(alone, alone.target("dev"))
+    assert diagnostic.severity == "error" and diagnostic.where.endswith("stevin.yml:6:3")
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"), [("dev.raw", "'dev.raw'"), ("*", "'*'"), ("", "''")]
+)
+def test_what_a_reference_stands_for_is_one_name(
+    tmp_path: Path, value: str, shown: str
+) -> None:
+    """A value with a dot is not two parts, and a `*` from a variable is not a
+    pattern: either would cover names nobody wrote down."""
+    # RULES.md: OWN-8.
+    (tmp_path / "stevin.yml").write_text(
+        "specs: [tables]\n"
+        f"targets:\n  dev:\n    vars: {{catalog: dev, where: '{value}'}}\n"
+        "owned_elsewhere:\n  ${catalog}.${where}.*: dbt\n",
+        encoding="utf-8",
+    )
+    found = Project.load(tmp_path / "stevin.yml")
+    with pytest.raises(SpecError, match="a name with no dot and no") as refused:
+        found.owners(found.target("dev"))
+    assert f"${{where}} is {shown} for target 'dev'" in refused.value.message
+    assert (refused.value.loc.line, refused.value.loc.column) == (6, 3)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "${resources.schemas.raw.name}.*",
+        "${catalog}.${resources.schemas.raw.name}",
+        "${catalog}.${resources.schemas.raw.name}.orders.v2",
+        "${catalog}..orders",
+    ],
+)
+def test_a_key_is_three_parts_however_many_dots_a_reference_holds(
+    tmp_path: Path, key: str
+) -> None:
+    with pytest.raises(SpecError, match="keyed catalog.schema.table"):
+        by_reference(
+            tmp_path,
+            f"specs: [tables]\nbundle: databricks.yml\nowned_elsewhere:\n  {key}: dbt\n",
+        )
+
+
+def test_validate_reads_a_key_by_reference_without_asking_the_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`validate` runs nothing, so a development target's name is not known to
+    it. The same name stands in for the reference in the key and in a spec:
+    dbt's table is still refused, and the governed one is known to be dlt's."""
+    from typer.testing import CliRunner
+
+    from helpers import fake_databricks
+    from stevin import cli
+
+    by_reference(tmp_path)
+    (tmp_path / "tables" / "customers.yml").write_text(
+        GOVERN_BY_REFERENCE, encoding="utf-8"
+    )
+    asked = tmp_path / "asked.txt"
+    monkeypatch.setenv("PATH", fake_databricks(tmp_path, "{}\n", asked=asked))
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(cli.app, ["validate"])
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0, result.output
+    assert "nothing here says whose" not in said
+    assert "Not settled here: ${resources.schemas.raw.name}" in said
+    assert "${resources.schemas.silver.name}" in said, "the key that uses it is named"
+
+    (tmp_path / "tables" / "orders.yml").write_text(SHAPE_BY_REFERENCE, encoding="utf-8")
+    result = CliRunner().invoke(cli.app, ["validate"])
+    assert result.exit_code == 1, result.output
+    assert "is dbt's" in result.output
+    assert not asked.exists()

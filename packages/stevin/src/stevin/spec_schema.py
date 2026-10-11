@@ -475,7 +475,8 @@ def project_schema() -> Schema:
                     "description": (
                         "Whose tables are whose: catalog.schema.table patterns, * "
                         "for any part, to an owner — dbt, dlt, a team's name, or "
-                        "unknown. dbt's are refused; the others may be governed."
+                        "unknown. A ${…} reference is one part. dbt's are refused; "
+                        "the others may be governed."
                     )
                 },
                 "dbt": _object(

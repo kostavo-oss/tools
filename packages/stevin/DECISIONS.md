@@ -86,3 +86,14 @@ document, the changelog and git; each carries the date of the decision.
     notes, and `CLAUDE.md` called it the source of truth. It replaced that page, a
     `CLAUDE.md` that told how stevin was built, and rules that no test was tied to.
     `CLAUDE.md` says where each fact lives now.
+23. **2026-10-11 — A key of `owned_elsewhere` is split first, and each part is filled
+    in on its own** (OWN-8). Why: the dot and the `*` are the key's own syntax, and a
+    reference such as `${resources.schemas.raw.name}` holds dots that are not. Split
+    outside the braces, a reference is one part whatever it holds, the three parts are
+    checked when the project file is read, before a target is chosen, and what a
+    variable stands for is never read as syntax. Rejected: filling the key in first and
+    splitting after, the way a spec's `table:` name is read. A value with a dot would
+    turn into more parts and a value of `*` into a pattern, and the check for three
+    parts would have to wait for a target. Also rejected: leaving out a key whose
+    reference has no value for a target, which the code did before. A pattern that is
+    left out is a table stevin may claim, so it is an error at the key.
