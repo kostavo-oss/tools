@@ -16,6 +16,8 @@ enter: a new link · ctrl+c: stop
 ```
 
 ++ctrl+c++ stops it and forgets every value it held. So does leaving it alone for 30 minutes.
+A tab that only waits does not count as using it: Caland also stops when a sign-in in the
+browser was started and never finished, and says so in its last line.
 If you close the tab, press ++enter++ in the terminal for a new one. Reloading the tab is
 fine; coming back to it from another site is not — the page asks for a new link then.
 

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import http.client
 import io
+import json
 import os
 import re
 import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -19,6 +21,7 @@ import pytest
 from caland.application import OnboardingService
 from caland.domain import Workspace
 from caland.interface import web
+from caland.interface.web import gate
 from fakes import ConnectingStubConnector, StubBundle, StubProfiles, seeded_store
 
 DEV = Workspace(profile="dev", host="https://dev.example")
@@ -253,6 +256,64 @@ def test_the_command_itself_stops_tidily_whatever_signals_it_is_sent(signs, tmp_
     assert "Traceback" not in said and "KeyboardInterrupt" not in said
     assert said.count("caland stopped. Every value it held is forgotten.") == 1
     assert list(temporary.iterdir()) == []
+
+
+def test_a_sign_in_that_is_never_finished_does_not_keep_it_running():
+    """CMD-8. The page waits with the sign-in and looks at the state on a timer, as
+    the real one does: here every 20 ms, against a limit of 400."""
+    signed_in = threading.Event()  # never
+    stopped = threading.Event()
+
+    class NeverSignedIn(OnboardingService):
+        def connect(self, workspace):
+            signed_in.wait(30)
+            return super().connect(workspace)
+
+    board = NeverSignedIn(ConnectingStubConnector(), StubProfiles([DEV]), StubBundle())
+    out = Said()
+    looked: list[str] = []
+    outlasted: list[bool] = []
+
+    def page() -> None:
+        assert out.started.wait(10)
+        port, key = re.findall(r"127\.0\.0\.1:(\d+)/#([\w-]+)", out.getvalue())[0]
+
+        def ask(method: str, path: str, headers: dict, body: bytes | None = None):
+            asking = http.client.HTTPConnection("127.0.0.1", int(port), timeout=10)
+            try:
+                asking.request(method, path, body, headers)
+                answer = asking.getresponse()
+                return answer.status, json.loads(answer.read())
+            finally:
+                asking.close()
+
+        said = {"Content-Type": "application/json"}
+        token = ask("POST", "/api/enter", said, json.dumps({"key": key}).encode())[1]
+        waiting = {gate.TOKEN_HEADER: token["token"], gate.WAITING_HEADER: "1"}
+        until = time.monotonic() + 5  # were its looks counted, caland would outlast this
+        try:
+            while not stopped.wait(0.02):  # the page's timer
+                if time.monotonic() > until:
+                    return outlasted.append(True)
+                status, told = ask("GET", "/api/state", waiting)
+                looked.append(f"{status} {told.get('phase')}")
+        except ConnectionError:
+            pass  # caland stopped: nothing listens there any more
+
+    looking = threading.Thread(target=page)
+    looking.start()
+    try:
+        code, said = run(onboarding=board, out=out, idle=0.4)
+    finally:
+        stopped.set()
+        looking.join(15)  # before the sign-in is let go: no look may see it finished
+        signed_in.set()
+    assert code == 0 and not outlasted
+    assert looked and set(looked) == {"200 connecting"}
+    assert (
+        "caland stopped. Nothing was asked of it for 0 minutes, and it was still"
+        " waiting to be signed in to the workspace. Every value it held is forgotten."
+    ) in said
 
 
 def test_a_workspace_that_is_not_there_ends_it_before_it_starts():

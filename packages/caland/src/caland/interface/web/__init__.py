@@ -22,6 +22,7 @@ from collections.abc import Callable
 from typing import TextIO
 
 from ...application import OnboardingService
+from ...application.loading import CONNECTING
 from ...domain import AuthError, Settings, SettingsStore
 from .opening import Opener
 from .server import Page, Server
@@ -167,7 +168,13 @@ def _watch(page: Page, idle: float, stop: _Stop) -> None:
             if stop.asked:
                 return
             time.sleep(min(5.0, max(0.05, idle / 10)))
-        stop(f"Nothing was asked of it for {round(idle / 60)} minutes.")
+        why = f"Nothing was asked of it for {round(idle / 60)} minutes"
+        loader = page.current()[2]
+        if loader is not None and loader.progress().phase == CONNECTING:
+            # a sign-in in the browser that was never finished, as a rule: the SDK
+            # waits for it without end, and the page that waits with it is not asking
+            why += ", and it was still waiting to be signed in to the workspace"
+        stop(f"{why}.")
 
     threading.Thread(target=watch, name="caland-idle", daemon=True).start()
 

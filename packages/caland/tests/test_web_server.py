@@ -703,6 +703,44 @@ def test_before_the_workspace_is_there_the_state_says_so():
         thread.join(timeout=5)
 
 
+def test_the_pages_own_look_while_it_waits_is_not_being_asked():
+    """GATE-15. Time is a number here: what counts is what moves it back to nothing."""
+    now = [100.0]
+    hold = threading.Event()
+
+    def connect():
+        hold.wait(10)
+        return WorkspaceService(seeded_store(), "test")
+
+    loader = Loader(connect)
+    page = Page(loader, workspace=Workspace(profile="test"), clock=lambda: now[0])
+    server = Server(page)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        loader.start()
+        served = Served(server, None)
+        served.enter()
+        waiting = {gate.WAITING_HEADER: "1"}
+        now[0] = 160.0
+        for _ in range(3):  # the page, every 400 ms, for as long as the tab is open
+            status, told = served.json("GET", "/api/state", headers=waiting)
+            assert status == 200 and told["phase"] == "connecting"
+        assert page.idle() == 60.0
+        # what says it waits and is not that look is refused, and is not counted either
+        assert served.ask("GET", "/api/workspaces", headers=waiting)[0] == 400
+        assert served.ask("POST", "/api/connect", {}, headers=waiting)[0] == 400
+        assert page.idle() == 60.0
+        # the same look, asked for by a person: a reload of the page
+        assert served.json("GET", "/api/state")[0] == 200
+        assert page.idle() == 0.0
+    finally:
+        hold.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_idle_counts_from_the_last_thing_asked():
     """CMD-8."""
     now = [100.0]

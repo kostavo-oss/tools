@@ -164,3 +164,17 @@ a moment in which a second one still raises. Turned down too: an `Event` set by 
 handler. A handler runs on the main thread, which can be holding the lock the event
 needs. The cost: a browser that keeps the terminal while it starts is waited for
 before caland stops.
+
+## 26. 2026-10-11 — The page says which of its requests nobody asked for
+
+The page's look at the state on a timer carries a header, and the server does not
+count a request with that header as caland being used. Why: "left alone" has to mean
+that no person asked anything, and only the page knows which of its requests came from
+its timer. The header gives nothing away: a request with it can only read the state,
+and whoever holds the token can do that already. Turned down: never counting a read of
+the state. A person who reloads the page while it waits asks for exactly that, and
+would not count. Turned down too: a time limit on the sign-in. The wait is inside the
+Databricks SDK, which offers no way to end it, and a page that waits on a workspace
+being read would still keep caland running. What the page asks once when a workspace
+has been read, its names and its first scope, is counted: the 30 minutes then start
+from when the workspace was there.

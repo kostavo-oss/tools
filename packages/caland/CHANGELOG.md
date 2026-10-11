@@ -13,6 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the temporary folder. Now a signal only asks Caland to stop: the server closes, the
   file is removed, the values are forgotten and the last line is said, however many
   signals come and whenever they come.
+- **A tab that waits on a workspace no longer keeps Caland running.** Left alone for 30
+  minutes, Caland stops. The page looks at how far the workspace is while it waits, and
+  every such look counted as you using it. So a sign-in in the browser that was never
+  finished kept Caland running for as long as the tab was open. Those looks no longer
+  count, and Caland's last line then says that it was still waiting to be signed in.
 
 ### Changed
 

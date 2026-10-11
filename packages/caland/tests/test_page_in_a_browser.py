@@ -1977,6 +1977,35 @@ def test_a_value_that_comes_late_is_not_shown_under_another_workspace(choosing):
     assert choosing.js("document.querySelector('pre.value.shown')") is None
 
 
+def test_a_page_that_waits_on_a_sign_in_is_not_asking(choosing):
+    """GATE-15. The sign-in is never finished here. What the page does by itself
+    meanwhile is counted by the browser; what caland took for asked, by caland."""
+    go_on = threading.Event()
+    real = choosing.connector.connect_profile
+
+    def never(profile):
+        go_on.wait(30)
+        return real(profile)
+
+    choosing.connector.connect_profile = never
+    page = choosing.server.page
+    asked: list[int] = []
+    touch = page.touch
+    page.touch = lambda: (asked.append(1), touch())[1]
+    try:
+        choosing.wait(OPEN.format("picker"))
+        choosing.press("j", "Enter")
+        choosing.wait("document.body.dataset.phase === 'connecting'")
+        was, looks = len(asked), choosing.js(ASKED)
+        choosing.wait(f"{ASKED} >= {looks + 4}")  # the page looked again, four times
+        assert len(asked) == was
+        choosing.press("w")  # a person, asking for the choice of a workspace
+        choosing.wait(OPEN.format("picker"))
+        assert len(asked) > was
+    finally:
+        go_on.set()
+
+
 def test_the_choice_comes_back_even_when_something_else_was_open(choosing):
     """WSP-8."""
     go_on = threading.Event()

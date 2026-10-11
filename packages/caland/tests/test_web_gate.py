@@ -1,4 +1,4 @@
-"""The gate: which requests the local server answers (GATE-2 to GATE-7)."""
+"""The gate: which requests the local server answers (GATE-2 to GATE-7, GATE-15)."""
 
 from __future__ import annotations
 
@@ -175,6 +175,37 @@ def test_nothing_but_get_and_post(method):
 )
 def test_nothing_else_is_here(path):
     assert ask(path=path).status == 404
+
+
+def test_the_pages_own_look_while_it_waits_is_a_read_of_the_state_and_nothing_else():
+    assert ask(X_Caland_Waiting="1") is None
+    assert gate.waits("GET", "/api/state", {gate.WAITING_HEADER: "1"}.get)
+    assert not gate.waits("GET", "/api/state", {}.get)  # not said: it was asked
+
+
+@pytest.mark.parametrize(
+    "method, path",
+    [
+        ("POST", "/api/state"),
+        ("GET", "/api/keys"),
+        ("GET", "/api/workspaces"),
+        ("POST", "/api/value"),
+        ("POST", "/api/put"),
+        ("POST", "/api/connect"),
+        ("POST", "/api/enter"),
+    ],
+)
+def test_anything_else_that_says_it_only_waits_is_refused(method, path):
+    """GATE-15. With the token, from caland's own page, and with any value."""
+    for said in ("1", "", "0"):
+        refusal = ask(method, path, X_Caland_Waiting=said)
+        assert refusal and refusal.status == 400
+        assert not gate.waits(method, path, {gate.WAITING_HEADER: said}.get)
+
+
+def test_a_look_that_waits_needs_the_token_like_any_other():
+    assert ask(X_Caland_Waiting="1", X_Caland_Token=None).status == 401
+    assert ask(X_Caland_Waiting="1", Origin="http://evil.example").status == 403
 
 
 def test_secrets_are_compared_whole():

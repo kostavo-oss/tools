@@ -5,7 +5,7 @@ sites, has to be sure of who is asking. This module is that decision and
 nothing else: no sockets, no workspace, no clock — a request's method, path and
 headers go in, and either nothing comes out or the reason it is refused.
 
-What it holds to (GATE-2 to GATE-5 in `RULES.md`):
+What it holds to (GATE-2 to GATE-5 and GATE-15 in `RULES.md`):
 
 * **Only its own address.** A request whose `Host` is not the address the server
   listens on is refused — that is what a site does that had its name pointed at
@@ -33,8 +33,16 @@ TOKEN_HEADER = "X-Caland-Token"
 #: is in — a page left showing another must not change this one.
 WORKSPACE_HEADER = "X-Caland-Workspace"
 
+#: The header by which the page says that nobody asked for this request: it is the
+#: page's own look at the state while it waits for a workspace. Such a request is not
+#: counted as caland being used (CMD-8), so it may be that look and nothing else.
+WAITING_HEADER = "X-Caland-Waiting"
+
 #: The one request under `/api/` that needs no token: it is how the token is got.
 ENTER = "/api/enter"
+
+#: What the page looks at while it waits: how far the workspace is. It only reads.
+STATE = "/api/state"
 
 #: The page itself. It holds nothing: anyone may be given it.
 STATIC = ("/", "/base.css", "/page.css", "/page.js")
@@ -55,6 +63,13 @@ def same(given: str, expected: str) -> bool:
 def hosts(port: int) -> frozenset[str]:
     """The names this server answers to."""
     return frozenset({f"127.0.0.1:{port}", f"localhost:{port}"})
+
+
+def waits(method: str, path: str, header: Callable[[str], str | None]) -> bool:
+    """Whether a request is the page's own look at the state while it waits, and so
+    not something a person asked. Only a request that says so itself, and only the
+    one that reads the state: `check` refuses everything else that says so."""
+    return header(WAITING_HEADER) is not None and (method, path) == ("GET", STATE)
 
 
 def check(
@@ -100,6 +115,10 @@ def check(
         kind = (header("Content-Type") or "").split(";")[0].strip().lower()
         if kind != "application/json":
             return Refusal(415, "say it in JSON")
+
+    # a request that is not counted as being asked can do one thing: read the state
+    if header(WAITING_HEADER) is not None and not waits(method, path, header):
+        return Refusal(400, "only a look at the state waits")
 
     if path == ENTER:
         if method != "POST":
