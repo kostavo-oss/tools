@@ -230,6 +230,9 @@ Every error stevin raises on purpose descends from `StevinError`, so one
 | `BundleError` | the bundle doesn't resolve | show what the CLI said |
 | `NotConnected` | no workspace, or no warehouse | check the profile or the id |
 | `PlanningError` | the specs can't be planned together | show it |
+| `NotThereYet` | a `PlanningError`: the plan needs what another tool has yet to make; `.missing` names it and `.owner` says whose it is | let that tool run, plan again |
+| `NotDeployedYet` | a `NotThereYet`: the bundle has not deployed a table's schema; `.schema` names it | deploy the bundle, plan again |
+| `NotMadeYet` | a `NotThereYet`: a governance-only spec's table is not there; `.table` names it | let its owner make it, plan again |
 | `IntrospectionError` | the workspace can't be read | retry, or show it |
 | `AccessError` | `access` was asked about something that is not a table here | show it |
 | `StalePlan` | the world moved; `.tables` names it | plan again |

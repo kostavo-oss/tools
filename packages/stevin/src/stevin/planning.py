@@ -73,6 +73,56 @@ class PlanningError(StevinError):
     """A spec that can't be planned, for a reason the loader couldn't see."""
 
 
+class NotThereYet(PlanningError):
+    """What a plan needs is another tool's to make, and it has not made it yet.
+
+    Nothing is wrong with the specs, and nothing will be: the same plan is made
+    once the other tool has run. That is worth telling apart from every other
+    refusal, so the command line answers with an exit code of its own
+    (RULES.md, PLAN-5). `.missing` is the full name of what is not there and
+    `.owner` whose it is to make; the two subclasses say which case it is.
+    """
+
+    missing: str
+    owner: str
+
+
+class NotDeployedYet(NotThereYet):
+    """A table whose schema the bundle declares and has not deployed yet.
+
+    `.schema` names the schema and `.resource` the bundle's resource for it.
+    """
+
+    def __init__(self, schema: str, resource: str) -> None:
+        self.schema = schema
+        self.resource = resource
+        self.missing = schema
+        self.owner = "the bundle"
+        super().__init__(
+            f"{schema} is the bundle's {resource}, and isn't there yet — "
+            "run `databricks bundle deploy` first; stevin won't create it"
+        )
+
+
+class NotMadeYet(NotThereYet):
+    """A table a spec only governs, which its owner has not made yet.
+
+    A dlt pipeline that has not run, a notebook that has not written: the
+    table is theirs to make, and stevin creates no table it does not shape.
+    `.table` names the table and `.owner` its owner, as the project says it.
+    """
+
+    def __init__(self, table: str, owner: str) -> None:
+        self.table = table
+        self.missing = table
+        self.owner = owner
+        super().__init__(
+            f"{table} isn't there yet, and its spec only governs it — it is "
+            f"{owner}'s, and whoever owns it makes it first; stevin won't create "
+            "a table it doesn't shape"
+        )
+
+
 class Cycle(PlanningError):
     """Objects that name each other in a circle: no order could create them."""
 
@@ -188,7 +238,9 @@ def plan_tables(
         found = _schema_of(schemas, table.name)
         live = found.get(table.name)
         if table.governance_only:
-            diffs.append(_governed_diff(table, live, introspector, manage, found))
+            # `_refuse_owned` let it through, so somebody is said to own it
+            whose = owner_of(table.name) or "another tool"
+            diffs.append(_governed_diff(table, live, introspector, manage, found, whose))
             continue
         renaming, notes = _rename(table, live, found)
         if table.renamed_from is not None:
@@ -359,6 +411,7 @@ def _governed_diff(
     introspector: Introspector,
     manage: Manage,
     found: LiveSchema,
+    owner: str,
 ) -> TableDiff:
     """A governance-only spec against the table it governs.
 
@@ -368,10 +421,7 @@ def _governed_diff(
     create: a table that isn't there yet is theirs to make first.
     """
     if live is None:
-        raise PlanningError(
-            f"{table.name} isn't there yet, and its spec only governs it — whoever "
-            "owns it makes it first; stevin won't create a table it doesn't shape"
-        )
+        raise NotMadeYet(table.name, owner)
     try:
         desired = table.govern(live.table)
     except KeyError as error:
@@ -577,10 +627,7 @@ def _refuse_bundle_conflicts(
             continue
         declares = owned.get(spec.schema.lower())
         if declares is not None and not _schema_of(schemas, spec.name).exists:
-            raise PlanningError(
-                f"{spec.schema} is the bundle's {declares}, and isn't there yet — "
-                "run `databricks bundle deploy` first; stevin won't create it"
-            )
+            raise NotDeployedYet(spec.schema, declares)
 
 
 def _refuse_described_twice(specs: Sequence[Relation]) -> None:

@@ -64,7 +64,7 @@ from stevin.loader import (
 from stevin.manage import EVERYTHING
 from stevin.model.plan import Plan, Step
 from stevin.owned import OwnedError
-from stevin.planning import cycles
+from stevin.planning import NotThereYet, cycles
 from stevin.probes import Result
 from stevin.render.access import dumps as access_json
 from stevin.render.access import render_access
@@ -579,6 +579,13 @@ IN_SYNC, FAILED, DRIFTED = 0, 1, 2
 #: given. Neither is 1, a failure, nor 2, which is how the command line itself
 #: answers an option it does not know.
 PLAN_AGAIN, NOT_ALLOWED = 3, 4
+#: No plan could be made yet, and nothing is wrong (RULES.md, PLAN-5): what the
+#: plan needs is another tool's to make, and it is not there. A table's schema
+#: is the bundle's and the bundle has not deployed it, or a spec governs a
+#: table its owner has not made. Every command that plans answers with it:
+#: `plan`, `drift`, `apply` without a plan file and `ui` without one. The same
+#: command succeeds once the other tool has run.
+NOT_YET = 5
 
 
 @app.command()
@@ -1219,7 +1226,11 @@ def _plan(
     select: list[str] | None = None,
 ) -> Plan:
     """`stevin.plan`, or a red line and exit 1. `--select` goes over as it
-    was typed: what it matches is the library's to say, so both say the same."""
+    was typed: what it matches is the library's to say, so both say the same.
+
+    One kind of refusal is not a failure and exits `NOT_YET`: what the plan
+    needs is another tool's to make and is not there yet. A program that runs
+    that tool itself reads the code, and plans again afterwards."""
     try:
         return api.plan(
             project,
@@ -1231,6 +1242,9 @@ def _plan(
             parallel=parallel,
             specs=specs,
         )
+    except NotThereYet as error:
+        err.print(f"[red]{escape(str(error))}[/]")
+        raise typer.Exit(NOT_YET) from error
     except StevinError as error:
         err.print(f"[red]{escape(str(error))}[/]")
         raise typer.Exit(1) from error

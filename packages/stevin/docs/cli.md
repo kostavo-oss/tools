@@ -253,6 +253,32 @@ is not cloned: the plan says so in a step `apply` refuses, and you plan without
 Tables in the schema that no spec describes are listed at the bottom as unmanaged, and
 never touched.
 
+### Exit codes of `plan`
+
+A program that runs `plan` reads the exit code, and need not read the words:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | The plan was made. It may be empty. |
+| `1` | A failure: a spec that does not read, specs that cannot be planned together, no connection, a workspace that could not be read. |
+| `5` | No plan yet, and nothing is wrong with the specs: the plan needs something another tool makes, and it is not there yet. The message names it and whose it is. Nothing was written, a plan file least of all. Let the other tool run and plan again. |
+
+Two things end with `5`:
+
+- A table's schema is one the [bundle declares](bundles.md#what-stevin-wont-touch) and
+  has not deployed. Deploy the bundle.
+- A [governance-only spec](spec.md#a-governance-only-spec) names a table its owner has
+  not made yet: a dlt pipeline that has not run, say. Run the pipeline.
+
+What is the spec's own to put right still ends with `1`. That includes a governed
+column the table does not have, and a governance-only spec for a table nobody is said
+to own: name the owner in `owned_elsewhere`, since a pipeline that has not run has left
+nothing to know it by.
+
+Every command that makes a plan exits `5` for the same reasons: [`drift`](#drift),
+[`apply`](#apply) without a plan file, and [`ui`](#ui) without one. [`list`](#list)
+makes no plan: it says the table is not there, and exits `0`.
+
 ## `show`
 
 ```sh
@@ -387,6 +413,7 @@ A program that runs `apply` reads the exit code, and need not read the words:
 | `1` | A failure: a step failed, the target is locked, the workspace or the plan file could not be read, or the answer to the question was no. Fix the cause and run it again. |
 | `3` | Refused, and this plan will never run. It is stale, its file is not a plan this version of stevin reads, or it holds a step stevin could not write. No statement ran. Plan again. |
 | `4` | Refused: the plan destroys something and `--allow-destructive` was not given. No statement ran. The same plan runs with the flag. |
+| `5` | Without a plan file only: no plan could be made yet, because it needs what another tool has yet to make. No statement ran. [As for `plan`](#exit-codes-of-plan). |
 | `130` | Stopped with Ctrl-C. |
 
 `2` is not one of them: it is what the command line itself answers to an option it does
@@ -426,6 +453,7 @@ Asks whether `apply` would do anything, and exits accordingly:
 | `0` | Live tables match their specs. |
 | `2` | They have drifted — the plan is printed. |
 | `1` | Something went wrong. |
+| `5` | It cannot say yet: the plan needs what another tool has yet to make. [As for `plan`](#exit-codes-of-plan). |
 
 Drift is a hand edit in the catalog, a table dropped outside stevin, a spec merged but
 never applied. Unmanaged objects are not drift: stevin never claimed them. Neither is

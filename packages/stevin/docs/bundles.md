@@ -70,6 +70,11 @@ A catalog, schema or volume the bundle declares is the bundle's:
 
 So the order of a first run is: `databricks bundle deploy`, then `stevin apply`.
 
+That refusal is not a failure, and a program can tell: `plan` exits `5` for it, and `1`
+for everything else that stops a plan. A tool that deploys the bundle itself reads the
+code, deploys, and plans again. [The exit codes](cli.md#exit-codes-of-plan) are in the
+reference.
+
 The bundle's objects are containers — catalogs, schemas, volumes. For the *tables*
 other tools make inside them — dbt's, a dlt pipeline's — see
 [whose tables are whose](spec.md#whose-tables-are-whose).

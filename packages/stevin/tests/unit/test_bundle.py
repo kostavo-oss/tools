@@ -677,6 +677,105 @@ def test_a_table_waits_for_the_bundle_to_deploy_its_schema() -> None:
         planned([orders], FakeWarehouse(), {"dev.sales": "schema 'sales'"})
 
 
+def undeployed_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> "FakeWarehouse":
+    """A bundle that declares `dev.sales`, a spec for a table in it, and a
+    workspace where the bundle was never deployed."""
+    from fake_warehouse import FakeWarehouse
+
+    write(tmp_path, "databricks.yml", RESOURCES)
+    write(tmp_path, "stevin.yml", "version: 1\nspecs: [tables]\nbundle: databricks.yml\n")
+    write(
+        tmp_path,
+        "tables/orders.yml",
+        "table: ${resources.schemas.sales.catalog_name}."
+        "${resources.schemas.sales.name}.orders\n"
+        "columns:\n  - {name: id, type: bigint}\n",
+    )
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    fake = FakeWarehouse()
+    monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+    monkeypatch.chdir(tmp_path)
+    return fake
+
+
+def test_a_schema_the_bundle_has_not_deployed_is_an_exit_code_of_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every command that plans exits 5 and names the schema, before any
+    statement. Once the schema is there the same commands answer as they did,
+    and any other refusal is still 1."""
+    # RULES.md: PLAN-5.
+    from stevin import NotDeployedYet
+    from stevin.planning import PlanningError
+
+    assert cli.NOT_YET == 5
+    assert issubclass(NotDeployedYet, PlanningError)
+    fake = undeployed_project(tmp_path, monkeypatch)
+    commands = (
+        ["plan"],
+        ["plan", "-f", "json"],
+        ["plan", "-o", "plan.json"],
+        ["drift"],
+        ["apply", "--yes"],
+        ["ui", "--no-open"],
+    )
+    for command in commands:
+        result = runner.invoke(cli.app, command)
+        said = " ".join(result.output.split())
+        assert result.exit_code == 5, (command, result.output)
+        assert "dev.sales is the bundle's schema 'sales', and isn't there yet" in said
+    assert fake.ddl == [], "nothing is created, the schema least of all"
+    assert not (tmp_path / "plan.json").exists(), "and no plan file is written"
+
+    # The bundle is deployed: the same commands answer as they always did.
+    fake.schemas.add("dev.sales")
+    planned_now = runner.invoke(cli.app, ["plan"])
+    assert planned_now.exit_code == 0, planned_now.output
+    assert "CREATE TABLE" in planned_now.output
+    assert runner.invoke(cli.app, ["drift"]).exit_code == cli.DRIFTED
+
+    # Another refusal of the same check is a failure, as before: 1.
+    write(tmp_path, "tables/sales.yml", "schema: dev.sales\n")
+    refused = runner.invoke(cli.app, ["plan"])
+    assert refused.exit_code == 1, refused.output
+    assert "won't manage it too" in " ".join(refused.output.split())
+
+
+def test_the_error_names_the_schema_for_a_program() -> None:
+    from fake_warehouse import FakeWarehouse
+    from helpers import col, table
+    from stevin import NotDeployedYet
+
+    orders = table(col("id", "bigint"), name="dev.sales.orders")
+    with pytest.raises(NotDeployedYet) as refused:
+        planned([orders], FakeWarehouse(), {"dev.sales": "schema 'sales'"})
+    assert (refused.value.schema, refused.value.resource) == (
+        "dev.sales",
+        "schema 'sales'",
+    )
+    assert (refused.value.missing, refused.value.owner) == ("dev.sales", "the bundle")
+
+
+def test_list_answers_before_the_bundle_is_deployed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`list` makes no plan, so there is nothing to refuse: the table is not
+    there, and that is the answer. Exit 0."""
+    # RULES.md: PLAN-5.
+    import json
+
+    fake = undeployed_project(tmp_path, monkeypatch)
+    result = runner.invoke(cli.app, ["list", "--json"])
+    assert result.exit_code == 0, result.output
+    listed = json.loads(result.output[result.output.index("{") :])
+    assert listed["objects"] == [
+        {"name": "dev.sales.orders", "kind": "table", "exists": False}
+    ]
+    assert fake.ddl == []
+
+
 def test_a_table_in_a_deployed_schema_is_planned_as_usual() -> None:
     from fake_warehouse import FakeWarehouse
     from helpers import col, table

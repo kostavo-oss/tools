@@ -155,3 +155,29 @@ document, the changelog and git; each carries the date of the decision.
     table and who may read it. An option that turns one of them into "list and do not
     diff" would undo what that command is for. It uses `--json`, as `doctor`, `verify`
     and `access` do; `--format` is for the renderings of a plan.
+29. **2026-10-11 — "Another tool has not made this yet" is exit code 5** (PLAN-5). A
+    tool that deploys the bundle, runs a pipeline and then runs stevin plans all three
+    before any has run. stevin refused twice there with exit 1: for a table whose
+    schema the bundle had not deployed, and for a governance-only spec whose table the
+    pipeline had not loaded. The tool could not tell either from a spec that does not
+    read, so it could make no plan at all, also not the plan that would have run the
+    pipeline. Why a code and not the words: the reasons of entry 28. Why 5 and not 3: 3
+    means "this plan will never run, plan again", and here there is no plan and nothing
+    to fix; a program does something else next, which is to run the other tool. Why one
+    number for both: a program does the same with both, which is to wait, and the
+    message says which it is. Why two exceptions under one base: a host that only waits
+    catches `NotThereYet`, and one that deploys the bundle itself wants to know it was
+    the bundle. Why the same code on `drift` and on `apply` without a plan file: they
+    run the same check, and one meaning per number across the commands is easier to
+    hold than a table per command. Why `list` stays 0: it makes no plan, and "not
+    there" is its answer. Looked for a third case and found none that is another
+    tool's: a mask or filter function that is missing is stevin's own spec and is
+    found when the step runs; a view whose query reads a table that is not there is
+    not looked at when planning, and fails when it is applied; a seed is stevin's own.
+    Kept at 1 on purpose: a governed column the table does not have. The table is
+    there, so its owner has run, and a name the table lacks is far more often a typing
+    mistake than a column still to come; a wait would show a green plan for a mask that
+    never lands. Kept at 1 too: a governance-only spec for a table nobody is said to
+    own, which is a line missing in `owned_elsewhere`. Put aside: stevin creating the
+    schema or the table, which is how the other tool then meets an object it did not
+    make; and planning as if they were there, a plan of a workspace nobody has read.
