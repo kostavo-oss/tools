@@ -201,6 +201,8 @@ _PENDING = _Pending()
 #: … and for one that isn't known yet but is known to be a secret.
 _PENDING_SECRET = _Pending()
 
+_NO_SECRET = "would hold a secret; only a `Secret` option may"
+
 
 class _Reader:
     def __init__(self, resolve: Resolver, link: Linker | None) -> None:
@@ -234,7 +236,7 @@ class _Reader:
                 )
             return self.convert(members[0], item, name, optional=True)
         if tp is object or tp is Any:
-            return self.plain(item)
+            return self.plain(item, name)
         if tp is Linked:
             return self.linked(item, name)
         if origin in (tuple, list):
@@ -272,7 +274,13 @@ class _Reader:
         The reference is looked at like any other — so one that names no step
         is said — and what it answers has to be what the option takes."""
         value = self.value(item)
-        if value is _PENDING or value is _PENDING_SECRET:
+        if value is _PENDING_SECRET or isinstance(value, Secret):
+            # one secret, known to be one without its value: a value from the
+            # environment, checked offline. It is no list and no mapping, and
+            # the only place for it is a `Secret` option (REF-6).
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
+            return _PENDING
+        if value is _PENDING:
             return _PENDING
         if value is None and optional:
             return None
@@ -304,9 +312,7 @@ class _Reader:
         if value is _PENDING_SECRET:
             # not known yet, and a secret whatever it is: the same rule as below
             if tp is not Secret:
-                self.problem(
-                    item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
-                )
+                self.problem(item.loc, f"`{name}` {_NO_SECRET}")
             return _PENDING
         if origin is Literal:
             # one of them, and of its kind: `true` is not the `1` of `Literal[1, 2]`
@@ -322,9 +328,7 @@ class _Reader:
             if isinstance(value, str | int | float | bool):
                 return Secret(_text(value, item))
         elif isinstance(value, Secret):
-            self.problem(
-                item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
-            )
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
             return None
         if tp is str and isinstance(value, str | int | float | bool):
             return _text(value, item)
@@ -353,12 +357,19 @@ class _Reader:
             return _PENDING
         return found
 
-    def plain(self, item: Node) -> Any:
+    def plain(self, item: Node, name: str) -> Any:
+        """Anything JSON, for an option typed `object`. Not a secret, at any
+        depth: an option that says nothing of what it holds has not said that
+        it keeps one out of a plan."""
         if isinstance(item, Seq):
-            return [self.plain(child) for child in item.items]
+            return [self.plain(child, name) for child in item.items]
         if isinstance(item, Map):
-            return {e.key: self.plain(e.value) for e in item.entries}
-        return self.value(item)
+            return {e.key: self.plain(e.value, name) for e in item.entries}
+        value = self.value(item)
+        if value is _PENDING_SECRET or isinstance(value, Secret):
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
+            return _PENDING
+        return value
 
 
 def _text(value: str | int | float | bool, item: Scalar) -> str:

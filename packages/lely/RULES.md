@@ -147,12 +147,12 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   to one listed further down, with a message that says to move it; to an output its plugin
   does not declare or that fits no declared shape; to a step whose `targets` leave out a
   target the referring step runs for; and a value from the environment in an option that
-  is not a `Secret`. Offline an environment value is not looked up and not stood in for.
+  is not a `Secret`: also at any depth of an option that takes anything (`object`), and
+  as a list or a mapping given whole. Offline an environment value is not looked up and
+  not stood in for. A plan refuses the same, and so refuses a secret a step above gives.
   Held by: `tests/unit/test_planning.py::test_check_refuses_a_reference_down_the_list`,
   `tests/unit/test_planning.py::test_validate_already_knows_where_an_environment_value_may_not_go`,
   `tests/unit/test_planning.py::test_validate_refuses_an_environment_value_as_a_bundle_variable`.
-  Not kept yet: #52 — an option typed `object`, and a list or a mapping given whole as
-  `${env.X}`, is not refused offline; the first takes the secret at plan too.
 - **REF-7** — A value that is not known yet is never guessed: it resolves to the name of
   the output it waits for, and the step that takes it is waiting. A step that takes an
   output known only after every run waits on every deploy, and `validate` warns of it

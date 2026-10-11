@@ -689,7 +689,47 @@ def test_validate_already_knows_where_an_environment_value_may_not_go(
     )
     project.write(tmp_path, allowed)
     planning.check(load(tmp_path / "lely.yml"))  # no environment needed to check it
+    # an option that takes anything takes no secret, at any depth; and a list or
+    # a mapping given whole by an environment value would be one secret
+    (tmp_path / "loose.py").write_text(LOOSE)
+    for block in (
+        "anything: '${env.TOKEN}'",
+        "anything: {deep: [a, 'x-${env.TOKEN}']}",
+        "names: '${env.TOKEN}'",
+        "labels: '${env.TOKEN}'",
+        "maybe: '${env.TOKEN}'",
+    ):
+        option = block.split(":")[0]
+        text = (
+            "steps:\n  - name: loose\n    uses: ./loose.py:Loose\n"
+            f"    with: {{{block}}}\n"
+        )
+        [problem] = problems(tmp_path, text)
+        assert f"`{option}` would hold a secret; only a `Secret` option may" in problem
+        # at plan it is the same refusal, and the value is not in it
+        with pytest.raises(LelyError) as caught:
+            plan(tmp_path, env={"TOKEN": "t0k-one"})
+        assert f"`{option}` would hold a secret" in str(caught.value)
+        assert "t0k-one" not in str(caught.value)
 
+
+LOOSE = """\
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from lely.model import StepPlan
+
+class Loose:
+    @dataclass(frozen=True)
+    class Options:
+        anything: object = None
+        names: tuple[str, ...] = ()
+        labels: Mapping[str, str] = field(default_factory=dict)
+        maybe: tuple[str, ...] | None = None
+    def plan(self, ctx):
+        return StepPlan(notes=(repr(ctx.options),))
+    def apply(self, ctx, plan):
+        return {}
+"""
 
 RAISES = """\
 from dataclasses import dataclass

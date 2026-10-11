@@ -36,6 +36,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A value from the environment is refused wherever it is no `Secret`**: in an option
+  that takes anything (`object`), which took the secret into the plan, and as a list or
+  a mapping given whole, which `lely validate` let through and the plan then refused.
 - **The editors' schema takes a list or a mapping given whole by one reference**, as
   `lely validate` does: `tags: ${steps.model.tags}` is no longer marked as a mistake.
   Write the schema again with `lely schema -o lely.schema.json`.
