@@ -47,8 +47,8 @@ Runs a job, pipeline or app from a bundle step, with `databricks bundle run`.
 It stands below the bundle step it names, and its plan is a `run`.
 
 !!! warning "Not run for real yet"
-    `bundle.run` is tested against the fake CLI only: no job has been started with it on a
-    workspace.
+    No job has been started with `bundle.run` on a workspace:
+    [What has been tried](tried.md#not-yet).
 
 ## Your own
 
@@ -69,5 +69,7 @@ Planning runs your project's own code — a step in the repo. On a pull request,
 
 ## `stevin`
 
-Tables, planned by [stevin](https://github.com/kostavo-oss/tools). Parked: it can plan, and
-can't apply yet — `lely apply` refuses a project that uses it.
+Tables, planned by [stevin](https://kostavo-oss.github.io/tools/stevin/). It can plan and
+cannot apply yet: `lely apply` refuses a project that uses it
+([issue 41](https://github.com/kostavo-oss/tools/issues/41)). Until it can, run stevin's own
+Action, or `stevin apply` from a `Program` step.

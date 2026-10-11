@@ -1,4 +1,4 @@
-"""`Program`: a program as a step, one `run` every apply (`spec/011`, R13)."""
+"""`Program`: a program as a step, one `run` every apply (PROG-1)."""
 
 from __future__ import annotations
 
@@ -53,6 +53,7 @@ class WithSecret(Program):
 
 
 def test_the_plan_is_one_run(tmp_path: Path) -> None:
+    """PROG-1."""
     plan = check_plan(Notify(), context(Notify.Options(), name="notify", root=tmp_path))
 
     assert len(plan.changes) == 1
@@ -62,18 +63,21 @@ def test_the_plan_is_one_run(tmp_path: Path) -> None:
 
 
 def test_destructive_is_declared_on_the_run(tmp_path: Path) -> None:
+    """PROG-1."""
     plan = check_plan(Dropping(), context(Dropping.Options(), root=tmp_path))
 
     assert plan.changes == (Change("step", "run", "runs ./drop.sh", destructive=True),)
 
 
 def test_apply_runs_it_and_gives_what_it_printed(tmp_path: Path) -> None:
+    """PROG-3."""
     outputs = check_apply(Notify(), context(Notify.Options(), root=tmp_path))
 
     assert outputs == {"sent": 1}
 
 
 def test_the_program_hears_the_step_and_the_target(tmp_path: Path) -> None:
+    """PROG-2."""
     heard = Heard()
     ctx = context(Loud.Options(), name="loud", target="prod", root=tmp_path)
     ctx = dataclasses.replace(ctx, log=heard)
@@ -84,6 +88,7 @@ def test_the_program_hears_the_step_and_the_target(tmp_path: Path) -> None:
 
 
 def test_a_failing_program_fails_the_step(tmp_path: Path) -> None:
+    """PROG-2."""
     ctx = context(Failing.Options(), root=tmp_path)
 
     with pytest.raises(LelyError, match="exit"):
@@ -91,6 +96,7 @@ def test_a_failing_program_fails_the_step(tmp_path: Path) -> None:
 
 
 def test_declared_outputs_need_json_on_the_last_line(tmp_path: Path) -> None:
+    """PROG-3."""
     ctx = context(Quiet.Options(), root=tmp_path)
 
     with pytest.raises(LelyError, match="last line isn't a JSON object"):
@@ -100,6 +106,7 @@ def test_declared_outputs_need_json_on_the_last_line(tmp_path: Path) -> None:
 def test_a_secret_reaches_the_program_through_its_environment(
     tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
+    """PROG-4."""
     ctx = context(WithSecret.Options(), root=tmp_path)
     plan = check_plan(WithSecret(), ctx)
 
@@ -108,6 +115,7 @@ def test_a_secret_reaches_the_program_through_its_environment(
 
 
 def test_a_program_has_no_destroy_and_nothing_to_list() -> None:
+    """PROG-4."""
     assert not destroys(Notify)
     assert not lists(Notify)
 

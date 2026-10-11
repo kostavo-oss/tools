@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The README is short, and how to use lely is in the docs only.** The docs' design
+  page is now "How it works" and says what the code does today. The `spec/` folder is
+  gone: what must be true of lely is in `RULES.md`, and why in `DECISIONS.md`.
+
 ## [0.3.1] - 2026-10-10
 
 Nothing lely plans or applies has changed. This is the first release from its new home.

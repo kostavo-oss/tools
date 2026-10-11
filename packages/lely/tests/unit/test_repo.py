@@ -53,7 +53,7 @@ INVISIBLE = {0x061C, 0x200B, 0x200E, 0x200F, 0x2060, 0xFEFF, *range(0x202A, 0x20
 
 
 def test_no_file_holds_a_character_a_reader_cant_see() -> None:
-    """A character that reorders or hides text belongs in source as its
+    """PKG-2. A character that reorders or hides text belongs in source as its
     escape. Written raw, the line reads as something it isn't — and an editor,
     a diff and a reviewer all show the wrong thing. (Found on 2026-10-06: the
     very list of these characters had been written raw.)"""
@@ -81,7 +81,7 @@ def test_no_file_holds_a_character_a_reader_cant_see() -> None:
 def test_every_text_file_is_read_with_git_or_without(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The check above skipped the changelog, the workflows and the tests'
+    """PKG-2. The check above skipped the changelog, the workflows and the tests'
     snapshots: it listed folders and suffixes of its own."""
     wanted = {
         "CHANGELOG.md",
@@ -117,7 +117,7 @@ def imports_a_plugin(source: str) -> bool:
 
 
 def test_no_module_outside_steps_imports_a_plugin() -> None:
-    """CLAUDE.md: plugins are found through the registry, the bundle included.
+    """PLG-1. Plugins are found through the registry, the bundle included.
     The plugins lely ships are in `src/lely/steps/`, and only they import one
     another."""
     assert imports_a_plugin("from lely.steps.bundle import Bundle")
@@ -175,7 +175,7 @@ def configs() -> list[tuple[str, str, str]]:
 def test_a_config_a_document_shows_is_one_lely_takes(
     where: str, file: str, text: str, tmp_path: Path
 ) -> None:
-    """The README's quickstart named `./ops/steps.py:LatestModel` and never
+    """PKG-1. The README's quickstart named `./ops/steps.py:LatestModel` and never
     showed it: followed as written, `lely validate` failed on its first step.
     Every whole config in the README and the docs is checked offline here, as
     `lely validate` checks it, with the plugin files the documents show."""
@@ -195,6 +195,7 @@ def test_a_config_a_document_shows_is_one_lely_takes(
 
 
 def test_the_documents_show_whole_configs_to_check() -> None:
+    """PKG-1."""
     expected = {"README.md"}
     if (ROOT / "docs").is_dir():  # a source package has the README only
         expected |= {

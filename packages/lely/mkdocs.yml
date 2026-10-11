@@ -96,6 +96,6 @@ nav:
       - What may run: safety.md
       - What has been tried: tried.md
   - Develop:
-      - Design: DESIGN.md
+      - How it works: how-it-works.md
       - Contributing: contributing.md
       - Changelog: changelog.md

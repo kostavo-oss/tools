@@ -1,5 +1,5 @@
-"""lely as a page (007): the shared scenario, the rule that nothing a plan says
-is markup, and a plugin's view inside a frame lely owns."""
+"""lely as a page (the `PAGE` rules): the shared scenario, the rule that nothing a
+plan says is markup, and a plugin's view inside a frame lely owns."""
 
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ class Read(HTMLParser):
 def test_a_plan_with_a_destructive_change(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
-    """007/R1, R3: every step in order; the destructive change is counted where
+    """PAGE-1, PAGE-3: every step in order; the destructive change is counted where
     the page opens, named there, and carries the word where it stands."""
     config = load(project.write(tmp_path))
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
@@ -117,7 +117,7 @@ def test_a_plan_with_a_destructive_change(
 def test_a_destroy_plan_runs_from_the_bottom_up(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
-    """007/R5."""
+    """PAGE-5."""
     config = load(project.write(tmp_path))
     built = planned(
         config, project.databricks(tmp_path), "destroy", tree="4b825dc6", root="."
@@ -133,7 +133,7 @@ def test_a_destroy_plan_runs_from_the_bottom_up(
 def test_a_run_and_what_exists_after_it(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
-    """007/R6: what each step did, and what exists, with links."""
+    """PAGE-6: what each step did, and what exists, with links."""
     config = load(project.write(tmp_path))
     fake = project.databricks(tmp_path)
     result = running.apply(
@@ -165,10 +165,11 @@ def test_a_run_that_failed(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
     assert "no route" in page
 
 
-# -- one file, nothing fetched, nothing run (007/R4, R8) -------------------------------
+# -- one file, nothing fetched, nothing run (PAGE-4, PAGE-8) ---------------------------
 
 
 def test_the_page_is_one_file_that_fetches_and_runs_nothing(tmp_path: Path) -> None:
+    """PAGE-8."""
     config = load(project.write(tmp_path))
     fake = project.databricks(tmp_path)
     built = planned(config, fake, tree="4b82", root=".")
@@ -195,6 +196,7 @@ EVIL = "<script>alert(1)</script><img src=x onerror=alert(2)>\"'&amp;</details><
 
 
 def test_nothing_a_plan_says_is_markup() -> None:
+    """PAGE-9."""
     step = PlannedStep(
         f"app{EVIL}",
         f"bundle{EVIL}",
@@ -276,7 +278,7 @@ def test_what_a_reader_cant_see_is_made_visible() -> None:
     assert "jobs.�elbat�[2K" in page and "target <b>dev�</b>" in page
 
 
-# -- a plugin's own view, inside a frame lely owns (007/R2, R9) ------------------------
+# -- a plugin's own view, inside a frame lely owns (PAGE-2, PAGE-9) --------------------
 
 
 def with_view(view: str) -> str:
@@ -290,6 +292,7 @@ def with_view(view: str) -> str:
 
 
 def test_a_plugins_view_is_shown_under_the_changes_never_in_their_place() -> None:
+    """PAGE-2."""
     view = (
         "<h2>Jobs</h2><table><tr><th>resource</th><th class='num'>tasks</th></tr>"
         "<tr><td class='key create'>jobs.bar</td><td class='num'>3</td></tr></table>"
@@ -342,7 +345,7 @@ def test_a_plugins_view_is_shown_under_the_changes_never_in_their_place() -> Non
 def test_a_view_is_written_again_from_what_lely_keeps(
     view: str, written: str | None
 ) -> None:
-    """A plan file can be written by hand: a view is its structure and its
+    """PAGE-9. A plan file can be written by hand: a view is its structure and its
     words, and nothing a browser would obey."""
     assert framed(view) == (view if written is None else written)
 
@@ -462,7 +465,7 @@ def test_the_frame_stands_in_nothing_a_view_could_end() -> None:
 def test_open_leads_into_the_runs_own_workspace_and_nowhere_else(
     url: str, linked: bool
 ) -> None:
-    """007/R6 says "links into the workspace". What a result file says a
+    """PAGE-6 says "links into the workspace". What a result file says a
     thing's address is becomes a link only when it is one."""
     from lely.render.markdown import result_markdown
 

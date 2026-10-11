@@ -202,7 +202,7 @@ class Step:
 
     Inheriting it changes nothing about the contract: a step is still its
     `Options`, its `outputs`, `plan` and `apply`. What it adds is a command
-    line, from one line at the bottom of the file (`spec/011`):
+    line, from one line at the bottom of the file (SOLO-1):
 
         if __name__ == "__main__":
             SecretScope.main()

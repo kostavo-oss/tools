@@ -6,8 +6,8 @@ https://github.com/databricks/cli/tree/e41a5c87436a5b8fa81ce192e2aac77675d4b4c2/
 
 Everything that deploys or destroys runs against the simulated bundle of
 `tests/fake_databricks.py`, which is what lely *believes* the CLI does — the
-assumptions V1–V7 of `spec/004-asset-bundle.md`. Each test that leans on one
-names it.
+assumptions V1 to V8 that the docstring of `lely.steps.bundle` lists. Each test
+that leans on one names it.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ VARS = {"model_version": "14"}
 
 
 def test_a_first_deploy_creates_everything() -> None:
+    """BDL-5."""
     changes = bundle.changes(fixture("cli/plan-create.json"))
     assert [(c.key, c.action, c.destructive) for c in changes] == [
         ("jobs.bar", "create", False),
@@ -49,6 +50,7 @@ def test_a_first_deploy_creates_everything() -> None:
 
 
 def test_an_immutable_field_replaces_the_resource() -> None:
+    """BDL-5."""
     bar, foo = bundle.changes(fixture("cli/plan-update-recreate.json"))
     assert bar == Change("jobs.bar", "update", "jobs.bar", detail=("description",))
     assert foo == Change(
@@ -82,6 +84,7 @@ def test_an_action_lely_doesnt_know_is_treated_as_destructive() -> None:
 
 
 def test_another_plan_version_is_refused() -> None:
+    """BDL-3."""
     document = fixture("cli/plan-create.json")
     document["plan_version"] = 3
     with pytest.raises(LelyError, match="plan of version 3; lely reads version 2"):
@@ -89,6 +92,7 @@ def test_another_plan_version_is_refused() -> None:
 
 
 def test_a_plan_that_isnt_the_direct_engines_is_refused() -> None:
+    """BDL-3."""
     with pytest.raises(LelyError, match="the Terraform engine isn't supported"):
         bundle.changes({"resources": {}})
 
@@ -103,6 +107,7 @@ def test_reads_host_and_resources_from_validate() -> None:
 
 
 def test_what_a_deployed_bundle_gives_from_the_clis_own_recordings() -> None:
+    """BDL-2."""
     summary = fixture("cli/summary-default-python.json")
     given, later = bundle.gives(summary, frozenset())
     outputs: Any = given
@@ -120,6 +125,7 @@ def test_what_a_deployed_bundle_gives_from_the_clis_own_recordings() -> None:
 def test_the_id_of_what_this_deploy_creates_or_replaces_comes_later() -> None:
     # before a first deploy the summary is the resolved config, and each
     # resource says `modified_status: created` where its id would be
+    """BDL-7."""
     never: Any = fixture("cli/validate-default-python.json")
     for entries in never["resources"].values():
         for entry in entries.values():
@@ -141,7 +147,7 @@ def test_the_id_of_what_this_deploy_creates_or_replaces_comes_later() -> None:
 
 
 def test_a_resource_this_deploy_removes_gives_nothing() -> None:
-    """Deployed, and no longer declared: the summary still lists it."""
+    """BDL-7. Deployed, and no longer declared: the summary still lists it."""
     summary: Any = fixture("cli/summary-default-python.json")
     summary["resources"]["jobs"]["sample_job"]["modified_status"] = "deleted"
     outputs, later = bundle.gives(summary, frozenset())
@@ -201,7 +207,7 @@ def test_the_plan_gives_what_is_known_and_names_what_comes_later(
 
 
 def test_a_bundle_step_is_never_nothing_to_do(tmp_path: Path) -> None:
-    """R5a: a deploy uploads the bundle's files even when no resource changes
+    """BDL-6: a deploy uploads the bundle's files even when no resource changes
     (assumes V5: `bundle plan` speaks only of resources)."""
     step = ctx(tmp_path)
     Bundle().apply(step, Bundle().plan(step))
@@ -211,6 +217,7 @@ def test_a_bundle_step_is_never_nothing_to_do(tmp_path: Path) -> None:
 
 
 def test_a_bundle_in_another_directory(tmp_path: Path) -> None:
+    """BDL-1."""
     fake = project.databricks(tmp_path)
     write_bundle(tmp_path / "apps" / "api", {**project.BUNDLE, "name": "api"})
     step = context(
@@ -220,6 +227,7 @@ def test_a_bundle_in_another_directory(tmp_path: Path) -> None:
 
 
 def test_a_variable_that_would_hold_a_secret_is_refused(tmp_path: Path) -> None:
+    """BDL-16."""
     with pytest.raises(LelyError, match="`token` would hold a secret"):
         Bundle().plan(ctx(tmp_path, vars={"token": Secret("t0k")}))
     with pytest.raises(LelyError, match="single values only"):
@@ -227,7 +235,7 @@ def test_a_variable_that_would_hold_a_secret_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_bundle_for_another_workspace_is_refused(tmp_path: Path) -> None:
-    """One run talks to one workspace. lely checks the bundle's host itself
+    """BDL-4. One run talks to one workspace. lely checks the bundle's host itself
     rather than wait for the CLI to (V4)."""
     write_bundle(tmp_path, {**project.BUNDLE, "host": "https://other.example.com"})
     step = context(
@@ -251,6 +259,7 @@ def test_a_failing_cli_is_shown_in_its_own_words(tmp_path: Path) -> None:
 
 
 def test_apply_deploys_the_plan_it_is_handed(tmp_path: Path) -> None:
+    """BDL-8."""
     fake = project.databricks(tmp_path)
     step = ctx(tmp_path, fake)
     plan = Bundle().plan(step)
@@ -276,7 +285,7 @@ def test_apply_converges(tmp_path: Path) -> None:
 
 
 def test_a_second_run_deploys_again_and_only_uploads(tmp_path: Path) -> None:
-    """R6a: a run that finishes an earlier one finds no resource left to change
+    """BDL-9: a run that finishes an earlier one finds no resource left to change
     and deploys anyway (assumes V6: `deploy --plan` with nothing to change still
     uploads the files and succeeds)."""
     fake = project.databricks(tmp_path)
@@ -291,7 +300,7 @@ def test_a_second_run_deploys_again_and_only_uploads(tmp_path: Path) -> None:
 def test_a_plan_the_state_has_moved_on_from_is_refused_in_the_clis_words(
     tmp_path: Path,
 ) -> None:
-    """R6b: the CLI checks its own part — `lineage` and `serial`."""
+    """BDL-10: the CLI checks its own part — `lineage` and `serial`."""
     step = ctx(tmp_path)
     stale = Bundle().plan(step)
     Bundle().apply(step, Bundle().plan(step))  # someone else deploys in between
@@ -304,6 +313,7 @@ def test_a_plan_the_state_has_moved_on_from_is_refused_in_the_clis_words(
 
 
 def test_a_deploy_that_fails_is_a_failure_not_a_refusal(tmp_path: Path) -> None:
+    """BDL-10."""
     fake = project.databricks(tmp_path)
     step = ctx(tmp_path, fake)
     plan = Bundle().plan(step)
@@ -350,7 +360,7 @@ def test_what_the_cli_says_while_it_deploys_and_destroys_is_passed_on(
 
 
 def test_the_overview_lists_every_resource_with_its_id_and_link(tmp_path: Path) -> None:
-    """Assumes V3: the summary has an id and a url for every resource type."""
+    """BDL-11. Assumes V3: the summary has an id and a url for every resource type."""
     fake = project.databricks(tmp_path)
     step = ctx(tmp_path, fake)
     Bundle().apply(step, Bundle().plan(step))
@@ -385,7 +395,7 @@ def test_the_overview_lists_every_resource_with_its_id_and_link(tmp_path: Path) 
 
 
 def test_before_a_first_deploy_it_shows_what_would_exist(tmp_path: Path) -> None:
-    """R9a, and R9b's words for "nothing there"."""
+    """BDL-12, and BDL-13's words for "nothing there"."""
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
     overview = Bundle().overview(ctx(tmp_path, fake))
     assert [(i.key, i.deployed, i.id) for i in overview.items] == [
@@ -402,7 +412,7 @@ def test_before_a_first_deploy_it_shows_what_would_exist(tmp_path: Path) -> None
 def test_what_another_identity_deployed_looks_not_deployed_from_here(
     tmp_path: Path,
 ) -> None:
-    """R9b (assumes V7: a deployment is recorded under the bundle's root path,
+    """BDL-13 (assumes V7: a deployment is recorded under the bundle's root path,
     which can hold the deploying user's name)."""
     write_bundle(tmp_path, {**project.BUNDLE, "profiles": {"ci": "ci@example.com"}})
     world = project.world(tmp_path)
@@ -426,7 +436,7 @@ def test_what_another_identity_deployed_looks_not_deployed_from_here(
 def test_a_destroy_plan_lists_what_the_summary_shows_as_deployed(
     tmp_path: Path,
 ) -> None:
-    """R11 (assumes V1: `bundle destroy` removes what the summary lists)."""
+    """BDL-14 (assumes V1: `bundle destroy` removes what the summary lists)."""
     plan = Bundle().plan_destroy(ctx(tmp_path))
     assert plan.changes == (
         Change(
@@ -446,6 +456,7 @@ def test_a_destroy_plan_lists_what_the_summary_shows_as_deployed(
 
 
 def test_nothing_deployed_is_an_empty_destroy_plan_that_says_so(tmp_path: Path) -> None:
+    """BDL-14."""
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
     plan = Bundle().plan_destroy(ctx(tmp_path, fake))
     assert plan == StepPlan(
@@ -457,7 +468,7 @@ def test_nothing_deployed_is_an_empty_destroy_plan_that_says_so(tmp_path: Path) 
 
 
 def test_destroy_runs_bundle_destroy_and_nothing_else(tmp_path: Path) -> None:
-    """R12 (assumes V2: `--auto-approve` answers when nobody can)."""
+    """BDL-15 (assumes V2: `--auto-approve` answers when nobody can)."""
     fake = project.databricks(tmp_path)
     step = ctx(tmp_path, fake)
     plan = Bundle().plan_destroy(step)
@@ -477,6 +488,7 @@ def test_destroy_runs_bundle_destroy_and_nothing_else(tmp_path: Path) -> None:
 
 
 def test_destroy_undoes_apply(tmp_path: Path) -> None:
+    """BDL-15."""
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
     removal = check_destroy(Bundle(), ctx(tmp_path, fake))
     assert [c.key for c in removal.changes] == [
@@ -562,7 +574,7 @@ def test_the_fake_cuts_an_unquoted_comma_like_the_cli_would(tmp_path: Path) -> N
 
 
 def test_a_bundle_path_that_isnt_there_says_so(tmp_path: Path) -> None:
-    """Not "the Databricks CLI isn't installed", which is what a missing
+    """BDL-1. Not "the Databricks CLI isn't installed", which is what a missing
     working directory looks like to the process that can't start."""
     with pytest.raises(LelyError) as caught:
         Bundle().plan(ctx(tmp_path, path="bundel"))
@@ -582,7 +594,7 @@ def test_a_variable_with_a_line_break_isnt_sent(tmp_path: Path) -> None:
 
 
 def test_nothing_lely_does_to_look_calls_validate(tmp_path: Path) -> None:
-    """`bundle validate` creates the bundle's `files` folder in the workspace.
+    """BDL-2. `bundle validate` creates the bundle's `files` folder in the workspace.
     Planning, listing and planning a destroy leave the workspace as it was —
     not even an empty folder — which is also what lets them run with
     credentials that can only read."""
@@ -611,13 +623,13 @@ def test_the_clis_own_refusal_to_destroy_unasked(tmp_path: Path) -> None:
     assert fake.deployed() == project.DEPLOYED
 
 
-# -- the bundle's own view, for the page (007/R2) --------------------------------------
+# -- the bundle's own view, for the page (PAGE-2) --------------------------------------
 
 
 def test_the_bundles_view_is_its_resources_by_type_with_what_happens_to_each(
     tmp_path: Path,
 ) -> None:
-    """Every resource it declares — the one this plan leaves alone too, which
+    """BDL-17. Every resource it declares — the one this plan leaves alone too, which
     no list of changes names."""
     fake = FakeDatabricks(project.world(tmp_path, deployed=False))
     deploy(
@@ -653,6 +665,7 @@ def test_the_bundles_view_is_its_resources_by_type_with_what_happens_to_each(
 
 
 def test_a_destroy_plans_view_is_what_would_go(tmp_path: Path) -> None:
+    """BDL-17."""
     removal = Bundle().plan_destroy(ctx(tmp_path))
     assert removal.view is not None
     assert (

@@ -39,6 +39,7 @@ def plain(scalar: Scalar) -> Any:
 
 
 def test_reads_every_supported_type() -> None:
+    """PLG-3."""
     options = build(
         Options,
         block(
@@ -90,6 +91,7 @@ def problem(yaml: str) -> str:
 
 
 def test_an_unknown_option_names_the_known_ones() -> None:
+    """PLG-3."""
     assert problem("      model: m\n      modle: m\n").startswith(
         "lely.yml:5:7: unknown option `modle`; known: model, retries,"
     )
@@ -141,6 +143,7 @@ class Runs:
 
 
 def test_an_option_can_name_a_step() -> None:
+    """REF-4."""
     app = Linked("app", "bundle", options=object())
     built = build(
         Runs,
@@ -196,7 +199,7 @@ def test_fields_describe_the_options() -> None:
 
 
 def test_a_number_meant_as_text_is_passed_on_as_it_was_written() -> None:
-    """`1.10` isn't `1.1`, `0123` isn't octal 83, and `yes` is `yes`: an option
+    """CFG-10. `1.10` isn't `1.1`, `0123` isn't octal 83, and `yes` is `yes`: an option
     that wants text gets what was written, not what YAML made of it."""
     for written, expected in (
         ("1.10", "1.10"),

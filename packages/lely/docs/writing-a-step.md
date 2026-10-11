@@ -105,7 +105,7 @@ above to take it from.
 `check` holds the step to the rules below: `plan` behind a Databricks CLI that refuses
 anything but a read, the plan through a plan file and back, outputs as declared, and
 `overview` reading only. `--live` adds the cycle — plan, apply, destroy, plan again — on the
-target, and says so first. What a step does through the SDK is its own: `check` cannot see a
+target: it makes and removes things there. What a step does through the SDK is its own: `check` cannot see a
 write made there.
 
 ## Under lely

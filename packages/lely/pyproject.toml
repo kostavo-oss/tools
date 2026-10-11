@@ -58,7 +58,7 @@ build-backend = "hatchling.build"
 packages = ["src/lely"]
 
 # A source package holds the code, its tests and the files that say what it is —
-# what is listed here and nothing else. The docs site, the specs, the workflows
+# what is listed here and nothing else. The docs site, the rules, the workflows
 # and the lock file are the repository's.
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]

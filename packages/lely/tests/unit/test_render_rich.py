@@ -67,6 +67,7 @@ def test_a_destructive_change(tmp_path: Path, snapshot: SnapshotAssertion) -> No
 def test_a_destroy_plan_runs_from_the_bottom_up(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
+    """DST-2."""
     config = load(project.write(tmp_path))
     fake = project.databricks(tmp_path)
     built = planned(config, fake, "destroy", tree="4b825dc6", root=".")
@@ -81,7 +82,7 @@ def test_nothing_to_destroy(tmp_path: Path, snapshot: SnapshotAssertion) -> None
 
 
 def test_the_wiring(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
-    """003/R8."""
+    """CFG-8."""
     config = load(project.write(tmp_path))
     assert text(wiring_view(planning.check(config))) == snapshot
 
@@ -89,7 +90,7 @@ def test_the_wiring(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
 def test_an_apply_and_what_exists_after_it(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
-    """005/R10, 004/R7a: what each step did, and each line of the overview says
+    """APL-6, APL-7: what each step did, and each line of the overview says
     what happened to it."""
     config = load(project.write(tmp_path))
     fake = project.databricks(tmp_path)
@@ -99,7 +100,7 @@ def test_an_apply_and_what_exists_after_it(
 
 
 def test_a_run_that_failed(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
-    """005/R21, R24: three lists, and "nothing was rolled back" in those words."""
+    """APL-8, APL-11: three lists, and "nothing was rolled back" in those words."""
     config = load(project.write(tmp_path))
     (tmp_path / "ops" / "notify.sh").write_text(
         "#!/bin/sh\necho 'no route' >&2; exit 7\n"
@@ -119,7 +120,7 @@ def test_status(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
 def test_a_step_that_waits_on_every_deploy_says_a_file_never_gets_past_it(
     tmp_path: Path,
 ) -> None:
-    """005/R27: `plan` says so before anyone is surprised."""
+    """WAIT-3: `plan` says so before anyone is surprised."""
     text_ = (
         "steps:\n"
         "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
@@ -136,7 +137,7 @@ def test_a_step_that_waits_on_every_deploy_says_a_file_never_gets_past_it(
 
 
 def test_what_a_plan_says_is_shown_never_obeyed(tmp_path: Path) -> None:
-    """An escape sequence in a change's summary — from a plan file, or a plan
+    """SEC-3. An escape sequence in a change's summary — from a plan file, or a plan
     command — would move the cursor up and erase the line above it."""
     from lely.model import Change, PlannedStep, StepPlan
     from lely.render.rich import clean, step_view

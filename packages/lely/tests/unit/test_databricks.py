@@ -32,6 +32,7 @@ def calls(world: Path) -> list[list[str]]:
 
 
 def test_runs_the_cli_with_the_profile(tmp_path: Path) -> None:
+    """PLG-6."""
     runner, world = recorded(tmp_path, profile="dev")
     args = ["bundle", "validate", "--target", "dev", "--var=model_version=14"]
     config = answer(runner, args, tmp_path)

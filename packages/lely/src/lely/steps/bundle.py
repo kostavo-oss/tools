@@ -16,8 +16,9 @@ What the CLI prints is someone else's format, so it is read leniently: only
 what lely uses is looked at.
 
 **Run on a real workspace on 2026-10-06** — CLI v1.19.0, one job, a target in
-development mode, a personal access token from the environment. What that
-settled, by its number in `spec/004-asset-bundle.md`:
+development mode, a personal access token from the environment. The plugin was
+built on eight assumptions about the CLI, numbered V1 to V8; the tests and
+`tests/fake_databricks.py` cite them by number. What the run settled:
 
 - `bundle summary -o json` is the resolved config — the same keys as
   `bundle validate -o json` — plus each deployed resource's `id` and `url`,
@@ -47,7 +48,7 @@ compares the hosts itself and stops the run, but only after that first call.
 Still not tried, each marked `TODO(verify)` below:
 
 - V3: the summary has an `id` and a `url` for every resource type — seen for
-  a job; pipelines in the CLI's own recordings.
+  a job and, in a second run that day, for a pipeline that was never started.
 - V7: a bundle another identity deployed looks not deployed from here.
 - Whether `deploy` without `--auto-approve` asks before a delete.
 

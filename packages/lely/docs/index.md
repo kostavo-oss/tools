@@ -57,29 +57,15 @@ Plan: 2 changes · 2 runs · 1 destructive · 1 waiting
 - **Where plans get read** — as one comment on the pull request, kept current; on the run's
   page; and as [a page of its own](page.md) you can open or pass on.
 
-## When not to use it
-
-- **One bundle and nothing around it.** `databricks bundle deploy` is all you need.
-- **Every extra step is an opaque script.** lely gives it an order, checked inputs and one
-  rule for consent, but a plan that reads "runs `deploy.sh`" shows a reviewer little.
-- **You need an audit trail, drift detection, or cleanup of what you stopped declaring.**
-  Those need state, and lely has none: remove a step from the config and what it deployed
-  stays. Destroy first, then remove the step.
-- **Your CI isn't GitHub Actions**, for now.
-
-## When you no longer need it
-
-When a bundle plans its own before-and-after steps — `databricks bundle plan` shows what
-runs before and after the deploy, and `bundle destroy` takes it down again — use the
-bundle alone. Today `bundle plan` shows the bundle's resources and nothing around them.
-
 ## Where it fits
 
 lely is one of the [Kostavo tools](https://kostavo-oss.github.io/tools/): small tools for
 the ugly gaps on Databricks, one gap each. Its gap is the deploy that is more than a
 deploy: the steps before and after `databricks bundle deploy`, kept in a script with no
 dry run. Each works alone. [Why the tools exist](https://kostavo-oss.github.io/tools/why/)
-has the rules they keep.
+has the rules they keep, and the README says
+[when not to use it](https://github.com/kostavo-oss/tools/tree/main/packages/lely#when-not-to-use-it)
+and when you no longer need it.
 
 lely borrows Terraform's words — plan, apply, destroy — because everyone knows what they
 promise. The job is not the same: lely manages no resource itself and remembers nothing. It

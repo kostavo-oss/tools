@@ -29,7 +29,7 @@ def test_a_failing_program_is_quoted(tmp_path: Path) -> None:
 
 
 def test_a_failing_program_is_quoted_on_both_streams(tmp_path: Path) -> None:
-    """Its reason may be on either: a program that says why on stdout and adds
+    """PLG-13. Its reason may be on either: a program that says why on stdout and adds
     a notice on stderr used to be quoted for the notice alone."""
     script = (
         "import sys\n"
@@ -66,6 +66,7 @@ WAITS_TO_BE_HEARD = (
 def test_a_program_is_heard_while_it_runs_and_what_it_wrote_is_kept(
     tmp_path: Path,
 ) -> None:
+    """PLG-13."""
     heard: list[str] = []
 
     def said(line: str) -> None:

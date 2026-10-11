@@ -2,7 +2,7 @@
 
 A check that never fails checks nothing, so every one is run here against a
 plugin that breaks its rule — and against the plugins lely ships, which pass
-the ones that apply to them (002/R25).
+the ones that apply to them (PLG-9).
 """
 
 from __future__ import annotations
@@ -78,6 +78,7 @@ CTX = context(Options())
 
 
 def test_a_plugin_that_follows_the_rules_passes_all_of_it() -> None:
+    """PLG-9."""
     assert check_plan(Good(), CTX).outputs == {"count": 0}
     assert check_apply(Good(), CTX) == {"id": "1", "ran": True}
     assert [c.key for c in check_destroy(Good(), CTX).changes] == ["thing"]
@@ -94,6 +95,7 @@ class WritesWhilePlanning(Good):
 
 
 def test_plan_changes_nothing(tmp_path: Path) -> None:
+    """PLG-9."""
     ctx = context(Options(), databricks=FakeDatabricks(tmp_path / "world"))
     with pytest.raises(AssertionError, match="`databricks bundle deploy` isn't a read"):
         check_plan(WritesWhilePlanning(), ctx)
@@ -226,7 +228,7 @@ def test_no_secret_reaches_a_file_and_keys_are_unique() -> None:
 
 
 def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
-    """004, done when."""
+    """PLG-10."""
     write_bundle(tmp_path, project.BUNDLE)
 
     def ctx(folder: str) -> Context[Bundle.Options]:
@@ -244,7 +246,7 @@ def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
 
 
 def test_bundle_run_passes_the_parts_that_apply(tmp_path: Path) -> None:
-    """010, done when. It doesn't converge — it is a run — and doesn't list."""
+    """PLG-10. It doesn't converge — it is a run — and doesn't list."""
     write_bundle(tmp_path, project.BUNDLE)
     fake = project.databricks(tmp_path)
     app = Linked(

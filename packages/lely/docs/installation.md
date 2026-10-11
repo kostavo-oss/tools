@@ -27,7 +27,7 @@ Installed this way lely has the plugins it comes with and a class in your reposi
 ## From a checkout
 
 ```sh
-git clone https://github.com/kostavo-oss/tools && cd lely
+git clone https://github.com/kostavo-oss/tools && cd tools
 uv sync
 uv run lely --version
 ```

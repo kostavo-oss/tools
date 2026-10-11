@@ -1,5 +1,5 @@
 """lely as Markdown: snapshots of the shared scenario, and the rule that
-nothing a plan says is Markdown (008/R1)."""
+nothing a plan says is Markdown (GH-1)."""
 
 from __future__ import annotations
 
@@ -75,6 +75,7 @@ def planned(
 
 
 def test_a_first_deploy(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
+    """GH-1."""
     config = load(project.write(tmp_path))
     built = planned(config, project.databricks(tmp_path), tree="4b825dc6", root=".")
     assert plan_markdown(built) == snapshot
@@ -116,7 +117,7 @@ def test_nothing_to_destroy(tmp_path: Path) -> None:
 def test_an_apply_and_what_exists_after_it(
     tmp_path: Path, snapshot: SnapshotAssertion
 ) -> None:
-    """008/R3: what each step did, and what now exists, with links."""
+    """GH-3: what each step did, and what now exists, with links."""
     config = load(project.write(tmp_path))
     fake = project.databricks(tmp_path)
     approved = planned(config, fake)
@@ -144,6 +145,7 @@ def test_a_run_that_failed(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
 
 
 def test_status(tmp_path: Path, snapshot: SnapshotAssertion) -> None:
+    """GH-1."""
     config = load(project.write(tmp_path))
     found = running.status(config, target="dev", **edges(project.databricks(tmp_path)))
     assert status_markdown(found) == snapshot
@@ -159,7 +161,7 @@ def test_a_plan_that_is_never_saved_says_nothing_about_files(tmp_path: Path) -> 
     assert "from a file" not in unsaved and "git" not in unsaved
 
 
-# -- the marker (008/R2) ---------------------------------------------------------------
+# -- the marker (GH-2) -----------------------------------------------------------------
 
 
 def test_the_first_line_says_whose_plan_this_is() -> None:
@@ -267,7 +269,7 @@ def hostile_plan() -> Plan:
 
 
 def test_nothing_a_plan_says_is_markdown() -> None:
-    """A plan is made from a pull request's own files. What it names must not
+    """GH-8. A plan is made from a pull request's own files. What it names must not
     notify anyone, load anything or link anywhere where it is shown — nor end
     the block it is shown in."""
     shown = plan_markdown(hostile_plan())
@@ -285,6 +287,7 @@ def test_nothing_a_plan_says_is_markdown() -> None:
 
 
 def test_no_shorter_plan_is_markdown_either() -> None:
+    """GH-8."""
     plan = hostile_plan()
     told = [plan_markdown(plan, limit=limit) for limit in (3400, 3000, 2100, 10)]
     assert [text.count("Shortened to fit") for text in told] == [1, 1, 1, 1]
@@ -368,7 +371,7 @@ def test_what_a_plan_says_is_shown_never_obeyed() -> None:
     assert "target `dev�`" in shown
 
 
-# -- what fits (008/R2) ----------------------------------------------------------------
+# -- what fits (GH-2) ------------------------------------------------------------------
 
 
 def long_plan() -> Plan:
@@ -456,7 +459,7 @@ def test_a_run_too_long_for_its_page_is_told_shorter_and_says_so() -> None:
 
 
 def test_a_plan_that_failed_takes_the_place_of_the_last_one() -> None:
-    """008/R2: found by the same marker, so the plan of an earlier push doesn't
+    """GH-2: found by the same marker, so the plan of an earlier push doesn't
     stand there as if it were this one's."""
     link = "https://github.com/acme/shop/actions/runs/7"
     shown = failure_markdown("apply", "dev", "team-a", link=link)
@@ -473,7 +476,7 @@ def test_a_plan_that_failed_takes_the_place_of_the_last_one() -> None:
 
 
 def test_a_fork_is_told_why_there_is_no_plan() -> None:
-    """008/R4a."""
+    """GH-5."""
     shown = skipped_markdown("apply", "dev", "someone/shop")
     assert shown.startswith("### lely plan · target `dev` · skipped\n")
     assert "comes from a fork, `someone/shop`. lely makes no plan" in shown
