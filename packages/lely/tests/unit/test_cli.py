@@ -24,7 +24,7 @@ from typer.testing import CliRunner, Result
 import fake_github
 import project
 from fake_github import FakeGitHub
-from fakes import FakeDatabricks
+from fakes import FakeDatabricks, FakeStevin
 from lely import cli, planfile
 from lely.errors import LelyError
 from lely.model import Workspace
@@ -178,7 +178,7 @@ def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> 
     assert "bundle.run  built-in" in text
     assert "bundle: the name of a step  required" in text
     assert "can    plan, apply\n" in text
-    assert "can    plan\n" in text  # stevin: parked
+    assert "can    plan, apply, list\n" in text  # stevin: it drops nothing
     # and the plugins this project names
     assert "./ops/steps.py:LatestModel  file ./ops/steps.py" in text
     assert "gives  version (at plan)" in text
@@ -1202,18 +1202,93 @@ def test_a_target_no_step_runs_for_isnt_nothing_to_do(lely: Lely) -> None:
 def test_a_project_that_cant_be_applied_is_refused_before_the_question(
     ready: Lely,
 ) -> None:
-    empty = project.FAKE_STEVIN.parent / "fixtures" / "stevin-empty.json"
-    stevin = (
-        "  - name: tables\n    uses: stevin\n    with:\n"
-        f"      executable: [{sys.executable}, {project.FAKE_STEVIN}, {empty}]\n"
+    parked = (
+        "from dataclasses import dataclass\n\n\n"
+        "class Parked:\n    plan_only = True\n\n"
+        "    @dataclass(frozen=True, slots=True)\n    class Options:\n        pass\n\n"
+        "    def plan(self, ctx): ...\n\n    def apply(self, ctx, plan): ...\n"
     )
-    (ready.root / "lely.yml").write_text(READY + stevin)
+    (ready.root / "ops" / "parked.py").write_text(parked)
+    step = "  - name: later\n    uses: ./ops/parked.py:Parked\n"
+    (ready.root / "lely.yml").write_text(READY + step)
     ready.terminal(True)
     result = ready("apply", "-t", "dev", typed="y\n")
     assert result.exit_code == 2
-    assert "`stevin`, which can plan and can't apply yet" in said(result)
+    assert "`./ops/parked.py:Parked`, which can plan and can't apply yet" in said(result)
     assert "Apply this plan" not in said(result)
     assert ready.fake.calls == []
+
+
+# -- the `stevin` step, from one command to the next -------------------------------
+
+
+def stevin_project(lely: Lely, recording: str) -> FakeStevin:
+    """A project of one stevin step and a program below it."""
+    stevin = FakeStevin.planning(lely.root / "stevin-world", recording)
+    (lely.root / "lely.yml").write_text(
+        "steps:\n  - name: tables\n    uses: stevin\n    with:\n"
+        f"      executable: [{', '.join(stevin.executable)}]\n"
+        "  - name: warm\n    uses: ./ops/steps.py:Warm\n"
+    )
+    return stevin
+
+
+def test_a_stevin_plan_is_shown_with_its_risks_and_applied_from_the_file(
+    lely: Lely,
+) -> None:
+    """STV-2, STV-4: `lely plan -o` in one command, `lely apply <file>` in the
+    next, as a pull request's plan and its merge are. What the comment shows is
+    stevin's steps with their risk; what stevin is handed is the file that was
+    planned then."""
+    stevin = stevin_project(lely, "stevin-destroy.json")
+    planned(lely)
+    comment = said(lely("show", "plan.json", "-f", "md"))
+    assert "**1 change · 1 run · 1 destructive**" in comment
+    assert "update   dev.sales.orders  destructive" in comment
+    assert "DROP COLUMN address  [destructive]" in comment
+    kept = json.loads((lely.root / "plan.json").read_text())["steps"][0]["plan"][
+        "payload"
+    ]
+    assert kept["steps"][0]["sql"].startswith("ALTER TABLE")  # stevin's file, whole
+    stevin.clear_calls()
+    refused = lely("apply", "plan.json", "--yes")
+    assert refused.exit_code == 2
+    assert "Pass --allow-destructive" in said(refused)
+    assert stevin.calls == []
+    done = lely("apply", "plan.json", "--yes", "--allow-destructive")
+    assert done.exit_code == 0, said(done)
+    assert stevin.handed == kept
+    assert stevin.applied == ["dev.sales.orders|DROP COLUMN|address"]
+    assert "Applied: 2 steps." in said(done)
+    assert (lely.root / "warmed.txt").exists()
+
+
+def test_a_stale_stevin_plan_file_ends_with_2_and_says_to_plan_again(lely: Lely) -> None:
+    """A refusal of stevin's is a refusal of lely's: 2, and a new plan."""
+    stevin = stevin_project(lely, "stevin-create.json")
+    planned(lely)
+    stevin.told("moved", "a table was changed by hand")
+    result = lely("apply", "plan.json", "--yes")
+    assert result.exit_code == 2
+    text = " ".join(said(result).split())
+    assert "the live tables have changed since this plan was made" in text
+    assert "Plan again with `lely plan`, and review the new plan." in text
+    assert "refused: tables" in text
+    assert "never started: warm" in text
+    assert stevin.applied == []
+    assert not (lely.root / "warmed.txt").exists()
+
+
+def test_a_destroy_plan_says_in_one_line_that_stevins_tables_stay(lely: Lely) -> None:
+    """STV-10."""
+    stevin = stevin_project(lely, "stevin-create.json")
+    result = lely("plan", "-t", "dev", "--destroy")
+    assert result.exit_code == 0, said(result)
+    line = (
+        "stevin drops nothing on a destroy: a dropped table is its rows. The tables stay."
+    )
+    assert line in " ".join(said(result).split())
+    assert stevin.calls == []
 
 
 def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:

@@ -7,14 +7,13 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
 import project
-from fakes import FakeDatabricks, deploy, write_bundle
+from fakes import FakeDatabricks, FakeStevin, deploy, write_bundle
 from lely import planfile, planning, running
 from lely.config import Config, load
 from lely.errors import LelyError, Refused
@@ -244,21 +243,261 @@ def test_after_an_apply_every_plugin_that_can_says_what_exists(tmp_path: Path) -
     assert p.apply().steps[1].happened == {}
 
 
+PLAN_ONLY = '''
+from dataclasses import dataclass
+
+from lely.model import Change, StepPlan
+
+
+class Parked:
+    """Plans, and can't apply yet."""
+
+    plan_only = True
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        pass
+
+    def plan(self, ctx):
+        return StepPlan(changes=(Change("thing", "create", "thing"),))
+
+    def apply(self, ctx, plan):
+        raise AssertionError("a plugin that can't apply was asked to")
+'''
+
+
 def test_a_plugin_that_cant_apply_yet_stops_it_before_anything_runs(
     tmp_path: Path,
 ) -> None:
-    """PLG-11. The `stevin` plugin is parked: it plans, and says so before a deploy."""
-    stevin = (
-        "  - name: tables\n    uses: stevin\n    with:\n"
-        f"      executable: [{sys.executable}, {project.FAKE_STEVIN}, "
-        f"{project.FAKE_STEVIN.parent / 'fixtures' / 'stevin-empty.json'}]\n"
-    )
-    p = Project(tmp_path, READY + stevin)
+    """PLG-11: it plans, and says so before a deploy."""
+    parked = "  - name: later\n    uses: ./ops/parked.py:Parked\n"
+    p = Project(tmp_path, READY + parked)
+    (tmp_path / "ops" / "parked.py").write_text(PLAN_ONLY)
     approved = p.plan()
     p.fake.clear_calls()
-    with pytest.raises(Refused, match="`stevin`, which can plan and can't apply yet"):
+    with pytest.raises(
+        Refused, match="`./ops/parked.py:Parked`, which can plan and can't apply yet"
+    ):
         p.apply(approved)
     assert p.fake.calls == []
+
+
+# -- the `stevin` step: apply, destroy, status -----------------------------------------
+
+REMEMBERS = '''
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+from lely.model import Change, StepPlan
+
+
+class Remembers:
+    """Writes down what `apply` was handed: the plan, and the approved one."""
+
+    @dataclass(frozen=True, slots=True)
+    class Options:
+        pass
+
+    def plan(self, ctx):
+        assert ctx.approved is None, "only `apply` is handed the approved plan"
+        made = len(list(Path(ctx.root).glob("planned-*")))
+        (Path(ctx.root) / f"planned-{made}").touch()
+        run = Change("thing", "run", "thing")
+        return StepPlan(changes=(run,), payload={"made": made})
+
+    def apply(self, ctx, plan):
+        approved = None if ctx.approved is None else ctx.approved.payload
+        seen = {"fresh": plan.payload, "approved": approved}
+        (Path(ctx.root) / "seen.json").write_text(json.dumps(seen))
+        return {}
+'''
+
+
+def test_apply_is_handed_the_plan_that_was_approved_beside_the_fresh_one(
+    tmp_path: Path,
+) -> None:
+    """PLG-14: also when the approved plan came from a file."""
+    p = Project(
+        tmp_path, "steps:\n  - name: one\n    uses: ./ops/remembers.py:Remembers\n"
+    )
+    (tmp_path / "ops" / "remembers.py").write_text(REMEMBERS)
+    approved = planfile.loads(planfile.dumps(p.plan()))
+    assert p.apply(approved).outcome == "done"
+    seen = json.loads((tmp_path / "seen.json").read_text())
+    assert seen == {"fresh": {"made": 1}, "approved": {"made": 0}}
+
+
+def test_a_step_that_was_waiting_is_handed_no_approved_plan(tmp_path: Path) -> None:
+    """PLG-14: nobody approved a plan of it before it was reached."""
+    # a step waits through an option: this one takes what only a run gives
+    waiting = REMEMBERS.replace("        pass\n", "        count: int\n")
+    p = Project(
+        tmp_path,
+        "steps:\n  - name: seed\n    uses: ./ops/steps.py:Seed\n"
+        "  - name: one\n    uses: ./ops/remembers.py:Remembers\n"
+        "    with: {count: '${steps.seed.count}'}\n",
+    )
+    (tmp_path / "ops" / "remembers.py").write_text(waiting)
+    approved = p.plan()
+    assert approved.steps[1].state == "waiting"
+    assert p.apply(approved, at_waiting=run_it).outcome == "done"
+    seen = json.loads((tmp_path / "seen.json").read_text())
+    assert seen == {"fresh": {"made": 0}, "approved": None}
+
+
+def tables(
+    tmp_path: Path, recording: str = "stevin-create.json", then: str = ""
+) -> tuple[Project, FakeStevin]:
+    """A project whose first step is stevin's, over a world of its own."""
+    stevin = FakeStevin.planning(tmp_path / "stevin-world", recording)
+    program = ", ".join(stevin.executable)
+    p = Project(
+        tmp_path,
+        f"steps:\n  - name: tables\n    uses: stevin\n"
+        f"    with:\n      executable: [{program}]\n{then}",
+    )
+    return p, stevin
+
+
+#: A step below the tables, which leaves a file when it has run.
+WARM = "  - name: warm\n    uses: ./ops/steps.py:Warm\n"
+
+
+def test_the_stevin_step_applies_the_plan_file_that_was_approved(tmp_path: Path) -> None:
+    """STV-4: through lely's own plan file, as a pull request's plan reaches
+    the merge. stevin plans once more, for lely's check, and applies the file
+    that was approved."""
+    p, stevin = tables(tmp_path, then=WARM)
+    approved = planfile.loads(planfile.dumps(p.plan()))
+    reviewed = approved.steps[0].plan.payload
+    stevin.clear_calls()
+    result = p.apply(approved)
+    assert result.outcome == "done", result.message
+    assert outcomes(result) == {"tables": "done", "warm": "done"}
+    # the overview after an apply is a `stevin plan` too
+    assert stevin.verbs == ["plan", "apply", "plan"]
+    assert stevin.handed == reviewed
+    assert len(stevin.applied) == 5
+    assert (tmp_path / "warmed.txt").exists()
+    tables_ = result.steps[0]
+    assert tables_.overview is not None
+    assert tables_.happened == {
+        "dev.sales.customers": "created",
+        "dev.sales.orders": "created",
+        "dev.sales.big_orders": "created",
+    }
+    # the same plan again finds nothing left, and stevin is not asked to apply
+    stevin.clear_calls()
+    assert outcomes(p.apply(approved))["tables"] == "nothing"
+    assert "apply" not in stevin.verbs
+
+
+def test_a_stale_stevin_plan_stops_the_run_and_nothing_after_it_starts(
+    tmp_path: Path,
+) -> None:
+    """STV-6: stevin refuses the approved file, in its own words; lely plans
+    nothing again for it, and the step below never starts."""
+    p, stevin = tables(tmp_path, then=WARM)
+    approved = p.plan()
+    stevin.told("moved", "a column was added by hand")
+    result = p.apply(approved)
+    assert result.outcome == "refused"
+    assert outcomes(result) == {"tables": "refused", "warm": "not started"}
+    assert "the live tables have changed since this plan was made" in result.message
+    assert "Plan again with `lely plan`" in result.message
+    assert stevin.applied == []
+    assert not (tmp_path / "warmed.txt").exists()
+    # the same file is refused again; a new plan is what runs
+    assert p.apply(approved).outcome == "refused"
+    assert p.apply(p.plan()).outcome == "done"
+
+
+def test_a_destructive_stevin_step_needs_allow_destructive(tmp_path: Path) -> None:
+    """STV-8: refused without lely's own permission, before stevin is asked
+    to apply; with it, stevin is told too."""
+    p, stevin = tables(tmp_path, "stevin-destroy.json")
+    approved = p.plan()
+    stevin.clear_calls()
+    with pytest.raises(
+        Refused, match="tables: dev.sales.orders. Pass --allow-destructive"
+    ):
+        p.apply(approved)
+    assert stevin.calls == []
+    result = p.apply(approved, allow_destructive=True)
+    assert result.outcome == "done", result.message
+    [apply] = [call for call in stevin.calls if call[0] == "apply"]
+    assert apply[-1] == "--allow-destructive"
+    assert stevin.applied == ["dev.sales.orders|DROP COLUMN|address"]
+
+
+def test_a_risk_class_lely_doesnt_know_needs_allow_destructive(tmp_path: Path) -> None:
+    """STV-3: what lely can't read is asked about, not waved through."""
+    p, stevin = tables(tmp_path)
+    stevin.told("risk", "irreversible")
+    approved = p.plan()
+    assert approved.summary.destructive == 3
+    with pytest.raises(Refused, match="Pass --allow-destructive"):
+        p.apply(approved)
+    assert stevin.applied == []
+    assert p.apply(approved, allow_destructive=True).outcome == "done"
+    assert len(stevin.applied) == 5
+
+
+def test_a_stevin_plan_that_was_applied_in_part_is_not_resumed(tmp_path: Path) -> None:
+    """STV-5: the approved file holds steps that ran; what stevin would run
+    now is less, so the file is refused and stevin is not asked."""
+    p, stevin = tables(tmp_path)
+    approved = p.plan()
+    stevin.told("fail-step", "3")
+    first = p.apply(approved)
+    assert first.outcome == "failed"
+    assert "Failed at step 3 of 5" in first.message
+    assert len(stevin.applied) == 2  # the first table, whole
+    stevin.told("fail-step", "")
+    stevin.clear_calls()
+    second = p.apply(approved)
+    assert second.outcome == "refused"
+    assert "5 step(s) then, 3 now" in second.message
+    assert "apply" not in stevin.verbs
+    assert p.apply(p.plan()).outcome == "done"
+    assert len(stevin.applied) == 5
+
+
+def test_a_destroy_leaves_stevins_tables_alone_and_says_so(tmp_path: Path) -> None:
+    """STV-10, PLG-15: one line in the destroy plan, and stevin is never run."""
+    p, stevin = tables(tmp_path, then=WARM)
+    assert p.apply().outcome == "done"
+    stevin.clear_calls()
+    plan = p.plan("destroy")
+    said = (
+        "stevin drops nothing on a destroy: a dropped table is its rows. The tables stay."
+    )
+    assert (plan.steps[0].state, plan.steps[0].skipped) == ("skipped", said)
+    assert plan.steps[0].plan.changes == ()
+    result = p.destroy(plan)
+    assert result.outcome == "done"
+    assert {s.name: (s.outcome, s.detail) for s in result.steps}["tables"] == (
+        "skipped",
+        said,
+    )
+    assert stevin.calls == []
+    assert len(stevin.applied) == 5
+
+
+def test_status_lists_what_stevins_specs_describe(tmp_path: Path) -> None:
+    """STV-11."""
+    p, stevin = tables(tmp_path)
+    found = running.status(p.config, target="dev", **edges(p.fake))
+    overview = found.steps[0].overview
+    assert overview is not None
+    assert [(i.kind, i.key, i.deployed) for i in overview.items] == [
+        ("table", "dev.sales.customers", False),
+        ("table", "dev.sales.orders", False),
+        ("view", "dev.sales.big_orders", False),
+    ]
+    assert stevin.verbs == ["plan"]
+    assert stevin.applied == []
 
 
 def test_apply_refuses_a_plan_to_destroy(tmp_path: Path) -> None:

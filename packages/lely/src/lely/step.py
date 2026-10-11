@@ -19,8 +19,10 @@ methods — and up to three more:
         def destroy(self, ctx, plan: StepPlan) -> None: ...
 
 A plugin with nothing to list may say why, for `lely status`, in
-`nothing_to_list`; one that can plan and can't apply yet sets `plan_only`; one
-that runs programs names them for `lely doctor` in `programs(written)`.
+`nothing_to_list`, and one that takes nothing down may say why, for a destroy
+plan, in `nothing_to_destroy`; one that can plan and can't apply yet sets
+`plan_only`; one that runs programs names them for `lely doctor` in
+`programs(written)`.
 
 The rules a plugin follows, which `lely.testing` checks:
 
@@ -97,6 +99,14 @@ class Context(Generic[OptionsT]):
     `plan` is asked only for what the step gives the ones below it — and there
     what exists now is what counts, not what a deploy would make of it: the id
     of a pipeline the next deploy would replace is the id to give.
+
+    `approved` is there in `apply` only: the step's own plan as it was approved,
+    payload and all, when the approved plan showed the step ready. `apply` is
+    still handed the plan made right before it, which was checked against this
+    one; a plugin whose payload must be the one that was reviewed takes it from
+    here. It is `None` in every other call, and for a step that was waiting
+    when the plan was made: what was approved then is the plan `apply` is
+    handed.
     """
 
     target: str
@@ -109,6 +119,7 @@ class Context(Generic[OptionsT]):
     log: Log
     connect: Callable[[], WorkspaceClient]
     purpose: Purpose = "apply"
+    approved: StepPlan | None = None
 
     @property
     def workspace(self) -> WorkspaceClient:

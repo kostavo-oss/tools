@@ -8,8 +8,10 @@ Then every step, in order.
 
 A secret never reaches the file: a secret output is written as
 `{"$secret": true}` and read back as a `Secret` with no value, and a payload
-holding one is refused outright. Nothing in the file is kept for apply — every
-step is planned again, and gives its values again.
+holding one is refused outright. No value in the file is kept for apply — every
+step is planned again, and gives its values again. A step's payload is handed
+to its plugin beside the fresh plan (`Context.approved`), for one that runs
+what was reviewed.
 
 A step's plan is written by `step_plan_to_json` and read back by
 `step_plan_from_json`; `lely.testing` holds a plugin's plan to that round trip.

@@ -207,3 +207,38 @@ another, so each keeps its own.
 The `spec/` folder and the design document held rules, decisions, runs and history
 together, and a third of what they said had gone stale. Rules are in `RULES.md`,
 reasons here, what ran for real in `docs/tried.md`, how lely works in the docs.
+
+## 33. 2026-10-11 — The `stevin` step applies the plan that was reviewed
+
+The step could plan and not apply (kostavo-oss/tools#41). Four things were settled.
+
+**The reviewed file is what runs.** stevin's plan file is the step's payload, and
+`apply` hands the approved one to `stevin apply`. Rejected: planning again at apply,
+comparing, and applying the new plan, which is what the bundle step does (entry 17 has
+why it must). lely's lines for a stevin plan are titles and risk classes; the statements
+are in the file. Two plans can read the same in lely and run different SQL, and only
+the reviewed file is known to be what the reviewer saw. stevin also holds its own file
+to the live tables as they were at review, which a plan made a second ago cannot do.
+Until now nothing in a plan file was kept for apply. So a plugin is handed the approved
+plan beside the fresh one (`Context.approved`). Rejected: keeping stevin's file beside
+lely's plan file, which a workflow would have to carry along and nothing would tie to
+what was approved.
+
+**The reviewed file is still held to a fresh plan.** A plan file is an artifact that
+passes between jobs, and lely does not obey what one says. So the step runs the
+approved file only when its steps are the ones stevin would run now. Rejected: trusting
+the file as stevin's own workflow does. The cost: a plan stevin applied in part is not
+gone on with from the same file, where `stevin apply` on its own would resume it. A
+table applied in part reads differently in a fresh plan, so lely's own check refuses
+that file in most cases already.
+
+**A destroy drops nothing.** A dropped table is its rows, and no later apply brings
+them back. Rejected: dropping for targets that say so. There is no option, so no
+config can make a destroy cost data.
+
+**A risk class lely does not know is destructive.** It was read as an update. A newer
+stevin may add a class that loses data; lely would rather ask than wave through what it
+cannot read, as the bundle step does for an action it does not know.
+
+stevin gives a stale plan no exit code of its own, so the step knows the refusal by
+stevin's words (kostavo-oss/tools#65).

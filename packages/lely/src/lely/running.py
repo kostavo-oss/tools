@@ -113,7 +113,11 @@ def apply(
             if not fresh.changes:
                 run.add(step, "nothing", "nothing to do")
                 continue
-            session.apply(prepared, fresh)
+            # the plan as it was approved goes along, for a plugin that runs
+            # the payload that was reviewed; a step that was waiting was
+            # approved as `fresh`
+            reviewed = was.plan if was is not None and was.state == "ready" else None
+            session.apply(prepared, fresh, reviewed)
             run.add(step, "done", plan=fresh)
         except Refused as error:
             return run.stopped(step, "refused", error, config.steps[index + 1 :])

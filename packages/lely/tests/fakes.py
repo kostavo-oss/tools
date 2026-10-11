@@ -9,7 +9,9 @@ workspace remembers (`state`).
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +20,7 @@ from typing import Any
 import fake_databricks
 
 FIXTURES = Path(__file__).parent / "fixtures"
+FAKE_STEVIN = Path(__file__).parent / "fake_stevin.py"
 HOST = fake_databricks.HOST
 USER = fake_databricks.USER
 
@@ -95,6 +98,54 @@ class FakeDatabricks:
     @property
     def runs(self) -> list[dict[str, Any]]:
         return self.state.get("runs", [])
+
+    def clear_calls(self) -> None:
+        (self.world / "calls.jsonl").unlink(missing_ok=True)
+
+
+@dataclass(frozen=True)
+class FakeStevin:
+    """`fake_stevin.py` over a world folder: what a step's `executable` names,
+    and what a test reads back of it."""
+
+    world: Path
+
+    @classmethod
+    def planning(cls, world: Path, recording: str = "stevin-create.json") -> FakeStevin:
+        """A world whose first plan is one of the recordings in `fixtures/`."""
+        world.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(FIXTURES / recording, world / "plan.json")
+        return cls(world)
+
+    @property
+    def executable(self) -> tuple[str, ...]:
+        return (sys.executable, str(FAKE_STEVIN), str(self.world))
+
+    def told(self, name: str, text: str = "yes") -> None:
+        """`fail-plan`, `fail-apply`, `fail-step`, `moved`, `risk`: see the fake."""
+        (self.world / name).write_text(text)
+
+    @property
+    def calls(self) -> list[list[str]]:
+        path = self.world / "calls.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text().splitlines()]
+
+    @property
+    def verbs(self) -> list[str]:
+        return [call[0] for call in self.calls]
+
+    @property
+    def handed(self) -> Any:
+        """The plan file `apply` was last handed."""
+        return json.loads((self.world / "handed.json").read_text())
+
+    @property
+    def applied(self) -> list[str]:
+        """The steps the simulated workspace remembers, as `<table>|<title>|<path>`."""
+        path = self.world / "state.json"
+        return json.loads(path.read_text())["applied"] if path.exists() else []
 
     def clear_calls(self) -> None:
         (self.world / "calls.jsonl").unlink(missing_ok=True)

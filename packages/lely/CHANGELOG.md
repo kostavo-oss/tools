@@ -6,7 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The `stevin` step applies.** `lely apply` hands stevin the plan file that was
+  approved, not a new one, and passes `--allow-destructive` on only when it was given. A
+  plan stevin refuses as stale ends the run with 2 and says to plan again. `lely status`
+  lists the tables stevin's specs describe. `lely destroy` leaves them alone and says so:
+  a dropped table is its rows. It has not run on a workspace yet.
+- **A plugin can run what was reviewed.** In `apply`, `ctx.approved` is the step's plan
+  as it was approved, payload and all. A plugin without a destroy can say why in
+  `nothing_to_destroy`.
+
 ### Changed
+
+- **A stevin plan shows every step with its risk class**, and a table that is rewritten
+  says so in its own line. A risk class lely does not know is destructive; it was read as
+  an update.
 
 - **The README is short, and how to use lely is in the docs only.** The docs' design
   page is now "How it works" and says what the code does today. The `spec/` folder is

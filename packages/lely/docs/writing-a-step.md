@@ -143,6 +143,7 @@ the bundle: what a step depends on is in its options.
 | `ctx.host`, `ctx.env` | The workspace's address; the environment for a program the step runs. |
 | `ctx.log` | `ctx.log.info("…")` for a line of progress. |
 | `ctx.purpose` | What the step is planned for: `apply`, `destroy` or `status`. |
+| `ctx.approved` | In `apply` only: the step's own plan as it was approved, with its payload. `None` for a step that was waiting when the plan was made. |
 
 ## What it answers
 
@@ -164,7 +165,8 @@ the bundle: what a step depends on is in its options.
 The optional three: **`overview`** says what exists because of the step (`Overview` of
 `Item(kind, key, name, deployed, id, url)`), for `lely status` and after an apply.
 **`plan_destroy`** and **`destroy`** take it down again; a step without them is skipped by
-`lely destroy`, with the reason.
+`lely destroy`, with the reason. A class may give that reason itself, as text in
+`nothing_to_destroy`.
 
 ## A program as a step
 

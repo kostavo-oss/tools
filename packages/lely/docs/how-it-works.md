@@ -136,8 +136,17 @@ assumes of the CLI, and what was seen of it on a workspace, is in the docstring 
 **`bundle.run`** runs `databricks bundle run <key>` in the directory and with the
 `--var`s of the bundle step it names.
 
-**`stevin`** runs `stevin plan --target <t> --config <c> --output <tmp> --format json`
-and turns stevin's plan file into one change per table. It cannot apply.
+**`stevin`** runs the `stevin` command and imports nothing of stevin. To plan it runs
+`stevin plan --target <t> --config <c> --output <tmp> --format json` and turns stevin's
+plan file into one change per table, with a line per step. The file is kept whole as the
+step's payload. To apply, the payload of the approved plan is written to a temporary file
+and handed to `stevin apply <file> --config <c>`, with `--allow-destructive` when the
+plan lely let through holds a destructive change. Before that the approved file is
+compared with the plan made right before, every step and the changes it carries out: the core hands a plugin both,
+the fresh plan as `plan` and the approved one as `ctx.approved`. stevin exits 1 for a
+refusal and for a failure alike, so a stale plan is known by stevin's words. The overview
+is the `tables` of a `stevin plan`. It has no destroy. What the plugin assumes of
+stevin's command line is numbered in `tests/fake_stevin.py`.
 
 **`Program`** is no plugin lely ships but a base in `lely.step`: a class with a
 `command`. It runs the program with `process.run`, never through a shell, and reads
@@ -189,7 +198,9 @@ There is no Databricks CLI, workspace or GitHub in the unit suite.
 - `tests/fake_github.py` is a pull request's comments in memory, and a run's
   environment.
 - `tests/fixtures/stevin-*.json` are plan files stevin wrote against its own fake
-  warehouse; `tests/fake_stevin.py` answers from them.
+  warehouse. `tests/fake_stevin.py` is the `stevin` command as a fake: it plans from one
+  of them, applies a plan file, refuses a stale one in stevin's words, and fails on a
+  command line it does not know.
 - `tests/project.py` is the scenario most tests share.
 - `tests/browser/` asks Chrome whether a plugin's view stays in its frame. It skips
   without Chrome.
