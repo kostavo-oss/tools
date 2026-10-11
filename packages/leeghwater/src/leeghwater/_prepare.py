@@ -44,10 +44,11 @@ class Setup:
     config_dir: str | None = None
     data_dir: str | None = None
     catalog: str | None = None
+    """The catalog the run loads into, if it named one and loads into Databricks."""
     schema: str | None = None
     staging_schema: str | None = None
     warehouse: str | None = None
-    """The id of the warehouse the run named, if it named one."""
+    """The id of the warehouse the run loads through, if it named one. PRE-8."""
     http_path: str | None = None
     """What dlt will connect through, when the run or dlt's own config named it."""
     log_level: str | None = None
@@ -326,7 +327,8 @@ def prepare_run(
     for key, value in (config or {}).items():
         _left_by_run.set(_env_name(key), value)
         setup.config.append(key)
-    setup.catalog = catalog or None
+    # PRE-8: only a load into Databricks goes into a catalog, as `create_pipeline` has it.
+    setup.catalog = (catalog or None) if setup.loads_into_databricks else None
     _set_schemas(setup, schema, staging_schema)
     _set_warehouse(setup, warehouse, require_warehouse)
     _set_log_level(setup, log_level)
@@ -449,12 +451,13 @@ def _set_schemas(setup: Setup, schema: str | None, staging_schema: str | None) -
 
 def _set_warehouse(setup: Setup, warehouse: str | None, required: bool) -> None:
     """DST-4 and DST-5: the warehouse is named, not found."""
+    if not setup.loads_into_databricks:
+        # PRE-8: no other load goes through a warehouse, so none is kept or said.
+        return
     if warehouse:
         # https://docs.databricks.com/aws/en/integrations/compute-details
         setup.warehouse = warehouse
         setup.http_path = f"/sql/1.0/warehouses/{warehouse}"
-        return
-    if not setup.loads_into_databricks:
         return
     from leeghwater import _dlt
 

@@ -532,17 +532,24 @@ def test_doctor_on_a_laptop_checks_the_vaults_and_asks_no_workspace(
 def test_run_and_doctor_name_no_profile_the_run_does_not_use(
     workspace, monkeypatch, capsys
 ):
-    """PRE-7. With a profile in the shell and no `--profile`, the run loads locally and
-    neither `run` nor `doctor` says a workspace is in play."""
+    """PRE-7, PRE-8. With a profile in the shell and no `--profile`, the run loads
+    locally and neither `run` nor `doctor` says a workspace is in play: no profile, and
+    not the catalog and the warehouse the app names."""
     monkeypatch.setenv("DATABRICKS_CONFIG_PROFILE", "mine")
     monkeypatch.setenv("SOURCES__GITHUB__ACCESS_TOKEN", "abc")
-    app = _app(secret_scopes=["ingest"], warehouse="abc123", workspace_client=workspace)
+    app = _app(
+        secret_scopes=["ingest"],
+        catalog="main",
+        warehouse="abc123",
+        workspace_client=workspace,
+    )
     unused = "the profile in DATABRICKS_CONFIG_PROFILE (mine) is not used"
 
     app(["run", "github", "--limit", "1"])
 
     said = capsys.readouterr().out
     assert "\n  workspace " not in said and "profile mine" not in said
+    assert "\n  catalog " not in said and "\n  warehouse " not in said
     assert "destination      duckdb" in said and unused in said
     assert Path("github.duckdb").exists()
 
@@ -550,6 +557,7 @@ def test_run_and_doctor_name_no_profile_the_run_does_not_use(
 
     said = capsys.readouterr().out
     assert "\n  workspace " not in said and "profile mine" not in said
+    assert "\n  catalog " not in said and "\n  warehouse " not in said
     assert unused in said
     assert "nothing to check: this run reads no workspace and no key vault" in said
 
@@ -557,6 +565,11 @@ def test_run_and_doctor_name_no_profile_the_run_does_not_use(
 
     answer = json.loads(capsys.readouterr().out)
     assert (answer["setup"]["profile"], answer["checks"]) == (None, [])
+    assert [answer["setup"][key] for key in ("catalog", "warehouse", "http_path")] == [
+        None,
+        None,
+        None,
+    ]
     assert workspace.lists == []
     assert os.environ["DATABRICKS_CONFIG_PROFILE"] == "mine"
 
