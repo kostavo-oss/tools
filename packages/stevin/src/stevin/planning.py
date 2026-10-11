@@ -73,6 +73,25 @@ class PlanningError(StevinError):
     """A spec that can't be planned, for a reason the loader couldn't see."""
 
 
+class NotDeployedYet(PlanningError):
+    """A table whose schema the bundle declares and has not deployed yet.
+
+    Nothing is wrong with the specs, and nothing will be until the bundle is
+    deployed: the same plan is made once the schema is there. That is worth
+    telling apart from every other refusal, so `.schema` names the schema and
+    `.resource` the bundle's resource for it, and the command line answers
+    with an exit code of its own (RULES.md, PLAN-5).
+    """
+
+    def __init__(self, schema: str, resource: str) -> None:
+        self.schema = schema
+        self.resource = resource
+        super().__init__(
+            f"{schema} is the bundle's {resource}, and isn't there yet — "
+            "run `databricks bundle deploy` first; stevin won't create it"
+        )
+
+
 class Cycle(PlanningError):
     """Objects that name each other in a circle: no order could create them."""
 
@@ -577,10 +596,7 @@ def _refuse_bundle_conflicts(
             continue
         declares = owned.get(spec.schema.lower())
         if declares is not None and not _schema_of(schemas, spec.name).exists:
-            raise PlanningError(
-                f"{spec.schema} is the bundle's {declares}, and isn't there yet — "
-                "run `databricks bundle deploy` first; stevin won't create it"
-            )
+            raise NotDeployedYet(spec.schema, declares)
 
 
 def _refuse_described_twice(specs: Sequence[Relation]) -> None:

@@ -155,3 +155,17 @@ document, the changelog and git; each carries the date of the decision.
     table and who may read it. An option that turns one of them into "list and do not
     diff" would undo what that command is for. It uses `--json`, as `doctor`, `verify`
     and `access` do; `--format` is for the renderings of a plan.
+29. **2026-10-11 — "The bundle has not deployed this yet" is exit code 5** (PLAN-5). A
+    tool that deploys the bundle and then runs stevin plans both before either has
+    run. On a target that was never deployed stevin refused, with exit 1, and the tool
+    could not tell that from a spec that does not read. Why a code and not the words:
+    the reasons of entry 28. Why 5 and not 3: 3 means "this plan will never run, plan
+    again", and here there is no plan and nothing to fix; a program does something
+    else next, which is to deploy. Why the same code on `drift` and on `apply` without
+    a plan file: they run the same check, and one meaning per number across the
+    commands is easier to hold than a table per command. Why `list` stays 0: it makes
+    no plan, and "not there" is its answer. Put aside: stevin creating the schema,
+    which is how a later `databricks bundle deploy` meets an object it did not make;
+    and planning the tables as if the schema were there, a plan of a workspace nobody
+    has read. Only this refusal has the code. A governed table that its owner has not
+    made yet is still exit 1.

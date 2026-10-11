@@ -220,6 +220,12 @@ the policies, and that read runs in the live suite. The command itself and `appl
 exit codes `3` and `4` are held offline only (`tests/unit/test_listing.py`,
 `tests/unit/test_cli_apply.py`).
 
+**The exit code `5` — not tried on a workspace.** A plan before the bundle has deployed
+a table's schema exits `5` against the fake warehouse and a bundle read from its file
+(`tests/unit/test_bundle.py`). No live run has planned a bundle's target that was never
+deployed. What decides it is whether the schema is found, and that read runs in the
+live suite.
+
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
 POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns
 [the manual](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) lists; `Policy Type` read `ROW_FILTER` and `on_securable_type` `SCHEMA` or

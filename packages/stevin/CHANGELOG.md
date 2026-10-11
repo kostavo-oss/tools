@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`stevin.NotDeployedYet`**, for a program that uses stevin as a library: the
+  `PlanningError` raised when the bundle has not deployed a table's schema. Its
+  `.schema` names the schema.
+
+### Changed
+
+- **`plan` exits 5 when the bundle has not deployed a schema yet, where it exited 1.**
+  A table whose schema the bundle declares is not planned before the bundle is
+  deployed. That is not a failure: the same plan is made after the deploy. A program
+  that deploys the bundle itself could not tell it from a spec that does not read.
+  Now it can, by the exit code. `drift`, `apply` without a plan file and `ui` without
+  one exit `5` for the same reason. The message is the same and names the schema.
+  Every other refusal is still `1`. A script that tests for exactly `1` has to
+  change; one that tests for non-zero does not.
+
 ## [0.4.0a2] - 2026-10-11
 
 ### Added

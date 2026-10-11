@@ -92,7 +92,7 @@ from stevin.model.table import (
 from stevin.model.types import Column, Field, Mask
 from stevin.model.view import Relation, View
 from stevin.model.volume import Volume
-from stevin.planning import PlanningError, plan_tables
+from stevin.planning import NotDeployedYet, PlanningError, plan_tables
 from stevin.probes import PROBES, Bench, Disagrees, Probe, Result
 from stevin.render.access import access_text, render_access
 from stevin.render.access import dumps as access_to_json
@@ -154,6 +154,7 @@ __all__ = [
     "MemoryHistory",
     "NoHistory",
     "NotConnected",
+    "NotDeployedYet",
     "Plan",
     "plan",
     "plan_from_json",
