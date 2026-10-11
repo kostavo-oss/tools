@@ -26,16 +26,6 @@ def _reason(message: str | None) -> str:
     return errors[-1] if errors else lines[-1]
 
 
-def is_load_info(result: Any) -> bool:
-    return hasattr(result, "load_packages") and hasattr(result, "has_failed_jobs")
-
-
-def failed_jobs(load_info: Any) -> list[Any]:
-    return [
-        job for package in load_info.load_packages for job in package.jobs["failed_jobs"]
-    ]
-
-
 def load_report(load_info: Any) -> str:
     """dlt's `LoadInfo` as lines: packages, their jobs, and where it all went.
 

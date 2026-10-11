@@ -72,6 +72,22 @@ def register_provider(provider: ConfigProvider) -> None:
     dlt.secrets.register_provider(provider)
 
 
+def unregister_provider(provider: ConfigProvider) -> bool:
+    """Take a provider out of the ones dlt asks. Returns whether it was there.
+
+    dlt has a way in and no way out. The registered providers are a plain list on the
+    container `register_provider` appends to (`ConfigProvidersContainer.providers`, in
+    `dlt/common/configuration/specs/config_providers_context.py`), and this takes one
+    object out of that list. Every other provider stays, in its place.
+    """
+    providers = _run_context().providers.providers
+    for index, registered in enumerate(providers):
+        if registered is provider:
+            del providers[index]
+            return True
+    return False
+
+
 def destination(name: str, **config: Any) -> Any:
     """A destination factory by dlt's short name, with config fields set in the call.
 

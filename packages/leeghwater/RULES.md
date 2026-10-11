@@ -70,11 +70,9 @@ leeghwater stands beside dlt.
   wherever it would load: the sign-in, each secret scope, each pointed-at secret, each
   Key Vault and the warehouse. It ends with 1 when a check fails, runs no pipeline,
   reads no secret's value, and answers as JSON when asked.
-  Held by: `tests/test_app.py::test_doctor_on_a_laptop_says_it_would_load_locally`,
+  Held by: `tests/test_app.py::test_doctor_on_a_laptop_checks_the_vaults_and_asks_no_workspace`,
   `tests/test_app.py::test_doctor_checks_the_identity_the_scopes_and_the_warehouse`,
   `tests/test_app.py::test_doctor_fails_by_name_and_answers_as_json`.
-  Not kept yet: #45 — for a run that would load locally it checks nothing, not even a
-  Key Vault that was named.
 - **APP-10** — A command the project adds with `@app.command()` is prepared as a
   pipeline is, with the app's own settings, and finds the same secrets.
   Held by: `tests/test_app.py::test_a_command_the_project_added_runs_and_finds_a_secret`.
@@ -85,9 +83,8 @@ leeghwater stands beside dlt.
   `tests/test_app.py::test_a_pipeline_that_raises_ends_the_run_with_its_own_error`,
   `tests/test_app.py::test_on_databricks_a_run_without_a_warehouse_stops_before_the_pipeline`.
 - **APP-12** — Help and errors are plain text: a job's log is not a terminal.
-  Held by: `tests/test_app.py::test_on_a_laptop_an_error_of_leeghwaters_is_one_line`.
-  Not kept yet: #45 — errors and the top-level help are plain; the help of `run`, of a
-  pipeline, of `list` and of `doctor` is drawn with boxes when rich is installed.
+  Held by: `tests/test_app.py::test_on_a_laptop_an_error_of_leeghwaters_is_one_line`,
+  `tests/test_app.py::test_help_is_plain_text_for_every_command`.
 
 ## RUN — the pipeline of a run
 
@@ -146,10 +143,8 @@ leeghwater stands beside dlt.
   Held by: `tests/test_prepare.py::test_a_second_call_changes_nothing`.
 - **PRE-3** — A later `prepare()` leaves the process as if only it had been called:
   the `Setup`, the providers registered with dlt, and the environment.
-  Held by: `tests/test_prepare.py::test_a_later_call_decides_again_from_scratch`.
-  Not kept yet: #44 — the destination, the schemas, the warehouse and the limit are
-  decided anew; a scope an earlier call registered stays registered, and the profile,
-  the log level and the `--set` values of an earlier call stay in the environment.
+  Held by: `tests/test_prepare.py::test_a_later_call_leaves_nothing_of_an_earlier_one`,
+  `tests/test_prepare.py::test_a_later_call_with_other_settings_has_only_its_own`.
 - **PRE-4** — What `prepare()` sets in the environment is what dlt or the Databricks SDK
   read there: `DATABRICKS_CONFIG_PROFILE`, `DLT_PROJECT_DIR`, `RUNTIME__LOG_LEVEL`, and
   what `--set` names.
@@ -166,6 +161,9 @@ leeghwater stands beside dlt.
   Held by: `tests/test_prepare.py::test_the_first_lines_say_everything_and_no_secret`,
   `tests/test_keyvault.py::test_prepare_names_the_vaults_and_reads_them_on_a_laptop_too`,
   `tests/test_app.py::test_a_secret_from_a_scope_reaches_a_pipeline`.
+- **PRE-6** — A `prepare()` that is refused leaves no setup, also when an earlier call
+  made one: `create_pipeline` and `run` refuse until a call goes through.
+  Held by: `tests/test_prepare.py::test_a_call_that_is_refused_leaves_no_setup_of_an_earlier_one`.
 
 ## DBX — what Databricks needs
 
@@ -208,8 +206,7 @@ leeghwater stands beside dlt.
   name, before anything is read from it.
   Held by: `tests/test_prepare.py::test_a_wheel_with_a_secrets_toml_is_refused_on_databricks`.
 - **DBX-9** — A project can ask where it runs, with `leeghwater.where()`.
-  Not kept yet: #45 — the function is there and is not exported: `leeghwater.where`
-  raises `AttributeError`.
+  Held by: `tests/test_where.py::test_a_project_can_ask_where_it_runs`.
 
 ## DST — where a run loads
 
@@ -282,9 +279,8 @@ leeghwater stands beside dlt.
   `tests/test_secrets.py::test_a_section_without_its_own_heading_lands_at_the_root`,
   `tests/test_secrets.py::test_dlt_secrets_toml_is_read_as_a_whole_file`.
 - **SEC-6** — A scope is listed once in a run, and only a secret it holds is fetched.
-  Held by: `tests/test_secrets.py::test_a_scope_is_listed_once_and_only_what_is_there_is_read`.
-  Not kept yet: #45 — a scope that is also pointed into is listed a second time, by
-  the provider of the pointed-at secrets.
+  Held by: `tests/test_secrets.py::test_a_scope_is_listed_once_and_only_what_is_there_is_read`,
+  `tests/test_secrets.py::test_a_scope_that_is_also_pointed_into_is_listed_once`.
 - **SEC-7** — A secret under another name is pointed at as `<scope>/<key>`, split at
   the first `/`. What is pointed at is asked before any scope, and after dlt's own
   providers.

@@ -7,9 +7,11 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import duckdb
 import pytest
+from azure.core.exceptions import HttpResponseError
 
 import leeghwater
 from leeghwater import App, LeeghwaterError, pipeline
@@ -324,6 +326,32 @@ def test_on_a_laptop_an_error_of_leeghwaters_is_one_line(capsys):
     assert capsys.readouterr().err.startswith("error: --schema is empty")
 
 
+@pytest.mark.parametrize(
+    "words",
+    [
+        ["--help"],
+        ["run", "--help"],
+        ["run", "github", "--help"],
+        ["list", "--help"],
+        ["doctor", "--help"],
+        ["backfill", "--help"],
+    ],
+)
+def test_help_is_plain_text_for_every_command(words, capsys):
+    """APP-12. rich is installed here, as it is wherever typer is."""
+    import rich  # noqa: F401
+
+    from my_ingest.cli import app
+
+    app(words)
+
+    said = capsys.readouterr().out
+    assert said.startswith("Usage: ")
+    assert "--help" in said
+    # Box drawing and block elements, and the escape that starts a colour.
+    assert [c for c in said if "\u2500" <= c <= "\u259f" or c == "\x1b"] == []
+
+
 def test_an_empty_option_from_a_bundle_is_refused_not_skipped(on_databricks):
     """APP-7. A variable that resolved to nothing must not pass for an option left out."""
     with pytest.raises(LeeghwaterError, match="--staging-schema is empty"):
@@ -447,14 +475,58 @@ def test_what_else_is_refused_at_the_start(monkeypatch, capsys):
     assert "there is no such module" in capsys.readouterr().err
 
 
-def test_doctor_on_a_laptop_says_it_would_load_locally(capsys):
-    """APP-9."""
-    _app()(["doctor"])
+class _Vault:
+    """A stand-in for a Key Vault's client that can only be listed."""
+
+    def __init__(self, names=(), error=None):
+        self.names, self.error = names, error
+
+    def list_properties_of_secrets(self):
+        if self.error:
+            raise self.error
+        return [SimpleNamespace(name=name) for name in self.names]
+
+
+VAULT = "https://kv-ingest.vault.azure.net"
+
+
+def test_doctor_on_a_laptop_checks_the_vaults_and_asks_no_workspace(
+    workspace, monkeypatch, capsys
+):
+    """APP-9. A local run reads no scope and loads through no warehouse, so neither is
+    checked and nobody has to be signed in. A Key Vault it does read, so that is."""
+    app = _app(secret_scopes=["ingest"], warehouse="abc123", workspace_client=workspace)
+    app(["doctor"])
 
     said = capsys.readouterr().out
     assert "a laptop" in said
-    assert "nothing to check: this would load locally" in said
+    assert "nothing to check: this run reads no workspace and no key vault" in said
+    assert workspace.lists == []
     assert not Path("github.duckdb").exists()
+
+    vaults = {VAULT: _Vault(["sources-orders", "sources-github-access-token"])}
+    monkeypatch.setattr("leeghwater.keyvault._default_client", vaults.__getitem__)
+    app(["doctor", "--key-vault", VAULT])
+
+    said = capsys.readouterr().out
+    assert (
+        f"ok      key vault {VAULT}: sources-github-access-token, sources-orders" in said
+    )
+    assert "nothing to check" not in said
+    assert workspace.lists == []
+
+    refused = HttpResponseError("Forbidden")
+    refused.status_code = 403
+    vaults[VAULT] = _Vault(error=refused)
+    with pytest.raises(SystemExit) as exit_:
+        app(["doctor", "--key-vault", VAULT, "--json"])
+
+    answer = json.loads(capsys.readouterr().out)
+    assert exit_.value.code == 1
+    assert [(check["what"], check["ok"]) for check in answer["checks"]] == [
+        (f"key vault {VAULT}", False)
+    ]
+    assert "can't be listed by this identity" in answer["checks"][0]["found"]
 
 
 def test_doctor_checks_the_identity_the_scopes_and_the_warehouse(
@@ -478,6 +550,18 @@ def test_doctor_checks_the_identity_the_scopes_and_the_warehouse(
     )
     assert "ok      warehouse abc123: ingest (RUNNING)" in said
     assert "tok-from" not in said
+    assert workspace.reads == []
+
+    # Wherever it would load: a run that loads somewhere else reads the scopes too.
+    elsewhere = _app(
+        secret_scopes=["ingest"], destination="duckdb", workspace_client=workspace
+    )
+    elsewhere(["doctor"])
+
+    said = capsys.readouterr().out
+    assert "destination      duckdb" in said
+    assert "ok      identity: dev@example.com" in said
+    assert "ok      secret scope ingest: empty, sources-github-access_token" in said
     assert workspace.reads == []
 
 

@@ -28,11 +28,18 @@ def _default_client() -> Any:
 
 
 class Scopes:
-    """Secret scopes, read through the Databricks SDK. The client is made on first use."""
+    """Secret scopes, read through the Databricks SDK. The client is made on first use.
+
+    A scope is listed once by one reader, and the providers of a run share one: SEC-6.
+    """
 
     def __init__(self, client: Any | None) -> None:
+        self.given = client
+        """The client it was made with: None for the SDK's default sign-in."""
         self._client = client
         self._lock = threading.Lock()
+        self._names: dict[str, set[str]] = {}
+        self._listing = threading.Lock()
 
     @property
     def client(self) -> Any:
@@ -42,7 +49,16 @@ class Scopes:
             return self._client
 
     def names(self, scope: str) -> set[str]:
-        """The names of the secrets in a scope. No values: a list never returns them."""
+        """The names of the secrets in a scope. No values: a list never returns them.
+
+        The workspace is asked once for a scope. A listing that failed is asked again.
+        """
+        with self._listing:
+            if scope not in self._names:
+                self._names[scope] = self._list(scope)
+            return self._names[scope]
+
+    def _list(self, scope: str) -> set[str]:
         from databricks.sdk.errors import NotFound, PermissionDenied
 
         try:
@@ -104,7 +120,7 @@ class DatabricksSecretsProvider(VaultDocProvider):
         if not scope:
             raise LeeghwaterError("A secret scope needs a name; an empty one was given.")
         self.scope = scope
-        self._reader = Scopes(workspace_client)
+        self._reader = _reader(workspace_client)
         # `VaultDocProvider` is not promised to stay as it is: it is why pyproject.toml
         # caps dlt below 2. With `list_secrets` the names are known up front, so single
         # values are looked up as well as fragments (`only_toml_fragments=False`).
@@ -163,13 +179,12 @@ class PointedSecretsProvider(ConfigProvider):
     def point_at(
         self, pointers: Mapping[str, str], *, workspace_client: Any | None = None
     ) -> None:
-        """Replace what is pointed at, and forget what was read."""
+        """Replace what is pointed at, and forget the values that were read."""
         self._pointers = {
             path: split_pointer(path, ref) for path, ref in pointers.items()
         }
-        self._reader = Scopes(workspace_client)
+        self._reader = _reader(workspace_client)
         self._values: dict[str, str | None] = {}
-        self._names: dict[str, set[str]] = {}
 
     @property
     def paths(self) -> list[str]:
@@ -185,10 +200,9 @@ class PointedSecretsProvider(ConfigProvider):
             scope, name = self._pointers[path]
             # Listed first: a pointer at nothing is a mistake to name, not a secret that
             # may be somewhere else. A missing scope is named by the listing itself.
-            if scope not in self._names:
-                self._names[scope] = self._reader.names(scope)
-            if name not in self._names[scope]:
-                there = ", ".join(sorted(self._names[scope])) or "none"
+            names = self._reader.names(scope)
+            if name not in names:
+                there = ", ".join(sorted(names)) or "none"
                 raise LeeghwaterError(
                     f"'{path}' is pointed at {scope}/{name}, and the scope '{scope}' has"
                     f" no secret '{name}'. It has: {there}."
@@ -222,6 +236,20 @@ def split_pointer(path: str, ref: str) -> tuple[str, str]:
             " For example: sources.github.access_token=platform-shared/github-token"
         )
     return scope.strip(), key
+
+
+def _reader(workspace_client: Any | None) -> Scopes:
+    """The reader for a client: the one a registered provider has, or a new one.
+
+    The provider of a scope and the provider of the pointed-at secrets read the same
+    workspace. With one reader between them a scope that is named and also pointed into
+    is listed once. SEC-6.
+    """
+    for provider in _dlt.registered_providers():
+        ours = isinstance(provider, DatabricksSecretsProvider | PointedSecretsProvider)
+        if ours and provider._reader.given is workspace_client:
+            return provider._reader
+    return Scopes(workspace_client)
 
 
 def _find(name: str) -> ConfigProvider | None:

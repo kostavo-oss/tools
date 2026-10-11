@@ -5,12 +5,17 @@ what was decided. `create_pipeline` and `run` go by that `Setup`. Four things ar
 over as environment variables, because dlt or the Databricks SDK read them there:
 `DATABRICKS_CONFIG_PROFILE`, `DLT_PROJECT_DIR`, `RUNTIME__LOG_LEVEL`, and whatever `--set`
 names. Everything else stays in the `Setup`.
+
+What a call leaves outside its `Setup` is those variables and the providers it registered
+with dlt. Both are written down as they are made, and the next call takes them back
+before it decides anything: PRE-3.
 """
 
+import contextlib
 import importlib.util
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -110,6 +115,48 @@ def current() -> Setup:
     return _current
 
 
+@dataclass
+class _Left:
+    """What a call left in the process, outside its `Setup`."""
+
+    variables: dict[str, tuple[str | None, str]] = field(default_factory=dict)
+    """A variable that was set: what it held before, and what it was set to."""
+    providers: list[Any] = field(default_factory=list)
+    """The providers the call added to dlt's. One that was there already is not here."""
+
+    def set(self, name: str, value: str) -> None:
+        """Set an environment variable, and remember what it held."""
+        held = self.variables.get(name)
+        before = held[0] if held else os.environ.get(name)
+        os.environ[name] = value
+        self.variables[name] = (before, value)
+
+    def take_back(self) -> None:
+        """Put the process back as it was before the call that left this."""
+        for name, (before, value) in self.variables.items():
+            if os.environ.get(name) != value:
+                # Somebody set it again after leeghwater did: it is theirs now.
+                continue
+            if before is None:
+                del os.environ[name]
+            else:
+                os.environ[name] = before
+        self.variables.clear()
+        if self.providers:
+            # A provider can only be here when dlt was imported, by the call that made it.
+            from leeghwater import _dlt
+
+            for provider in self.providers:
+                _dlt.unregister_provider(provider)
+            self.providers.clear()
+
+
+# What the last call left: by `prepare_process`, and by `prepare_run`. They are kept apart
+# because an app prepares the process once, and a run after it.
+_left_by_process = _Left()
+_left_by_run = _Left()
+
+
 def prepare(
     *,
     secret_scopes: Sequence[str] = (),
@@ -132,8 +179,9 @@ def prepare(
     """Set the process up for dlt, and say what was decided.
 
     After it, `import dlt` is dltHub's dlt, dlt finds its secrets in the scopes named, and
-    `create_pipeline` makes pipelines that load where this says. A later call decides
-    again from scratch: nothing from an earlier call is kept.
+    `create_pipeline` makes pipelines that load where this says. A later call starts
+    from nothing: the environment variables an earlier call set are put back, and the
+    scopes and vaults it registered with dlt are taken out, before this one decides.
 
     On Databricks, or with a `profile`, pipelines load into Databricks. On a laptop
     without a profile they load into `local_destination` and no scope is read: dlt takes
@@ -185,17 +233,27 @@ def prepare(
 
 def prepare_process(*, project: str | None = None) -> Setup:
     """The part that has to happen before a project's own modules are imported."""
+    global _current
     setup = Setup(where=where())
     was_imported = "dlt" in sys.modules
+    project_dir, log_level = os.environ.get(PROJECT_DIR), os.environ.get(LOG_LEVEL)
 
-    moved_config = _point_at_the_wheels_config(setup, project)
+    # PRE-3: an earlier call is taken back whole, its run and then its process.
+    _current = None
+    _left_by_run.take_back()
+    _left_by_process.take_back()
+
+    _point_at_the_wheels_config(setup, project)
     _, setup.name_dlt = import_dlt(setup.where.on_databricks)
 
     from leeghwater import _dlt
 
-    if moved_config and was_imported:
+    if was_imported and os.environ.get(PROJECT_DIR) != project_dir:
         # dlt made its providers before it was told where the project is.
         _dlt.reload_config_locations()
+    if was_imported and os.environ.get(LOG_LEVEL) != log_level:
+        # The level an earlier call set is gone from the environment, and from dlt.
+        _dlt.apply_log_level()
     setup.config_dir = _existing(_dlt.settings_dir())
     # dlt picks this itself, and falls back to a temporary directory when the home
     # directory can't be written: `dlt/common/runtime/run_context.py`, `global_dir`.
@@ -226,6 +284,12 @@ def prepare_run(
     """The part that depends on a run's options. Needs `prepare_process` first."""
     global _current
     on_databricks = setup.where.on_databricks
+    log_level_before = os.environ.get(LOG_LEVEL)
+
+    # PRE-3: what an earlier run left is taken back before this one decides. Until this
+    # one has decided there is no setup to go by, so a call that is refused leaves none.
+    _current = None
+    _left_by_run.take_back()
 
     if limit < 0:
         raise LeeghwaterError(f"--limit is 0 for everything, or more; got {limit}.")
@@ -239,7 +303,7 @@ def prepare_run(
         # dlt's Databricks destination makes its own WorkspaceClient() with the SDK's
         # default sign-in (`dlt/destinations/impl/databricks/configuration.py`), so the
         # profile is handed on the way the SDK reads it and both end up as one identity.
-        os.environ[PROFILE] = profile
+        _left_by_run.set(PROFILE, profile)
     setup.profile = profile or (None if on_databricks else os.environ.get(PROFILE))
 
     remote = on_databricks or bool(profile)
@@ -251,12 +315,19 @@ def prepare_run(
         setup.notes.append(note)
 
     for key, value in (config or {}).items():
-        os.environ[_env_name(key)] = value
+        _left_by_run.set(_env_name(key), value)
         setup.config.append(key)
     setup.catalog = catalog or None
     _set_schemas(setup, schema, staging_schema)
     _set_warehouse(setup, warehouse, require_warehouse)
     _set_log_level(setup, log_level)
+    if os.environ.get(LOG_LEVEL) != log_level_before:
+        # dlt makes its logger from its runtime config, so the level is given as config
+        # and the runtime is made again to take it up: a level that was set, and one
+        # that an earlier call set and this one did not.
+        from leeghwater import _dlt
+
+        _dlt.apply_log_level()
 
     if remote:
         _register_secrets(setup, secret_scopes, secrets, workspace_client)
@@ -270,27 +341,44 @@ def prepare_run(
         from leeghwater.keyvault import register_key_vault
 
         for url in key_vaults:
-            provider = register_key_vault(url, client=key_vault_client)
+            with _registering():
+                provider = register_key_vault(url, client=key_vault_client)
             if provider.url not in setup.key_vaults:
                 setup.key_vaults.append(provider.url)
     _current = setup
     return setup
 
 
+@contextlib.contextmanager
+def _registering() -> Iterator[None]:
+    """Write down the providers that are added to dlt's inside the block."""
+    from leeghwater import _dlt
+
+    before = {id(provider) for provider in _dlt.registered_providers()}
+    try:
+        yield
+    finally:
+        _left_by_run.providers.extend(
+            provider
+            for provider in _dlt.registered_providers()
+            if id(provider) not in before
+        )
+
+
 def _existing(path: str) -> str:
     return path if os.path.isdir(path) else f"{path} (not there)"
 
 
-def _point_at_the_wheels_config(setup: Setup, project: str | None) -> bool:
-    """DBX-7 and DBX-8. Returns whether dlt was pointed somewhere new."""
+def _point_at_the_wheels_config(setup: Setup, project: str | None) -> None:
+    """DBX-7 and DBX-8."""
     if not project:
-        return False
+        return
     try:
         spec = importlib.util.find_spec(project.split(".")[0])
     except (ImportError, ValueError):
         spec = None
     if spec is None or not spec.submodule_search_locations:
-        return False
+        return
     package_dir = Path(next(iter(spec.submodule_search_locations)))
     carried = package_dir / ".dlt"
 
@@ -303,11 +391,10 @@ def _point_at_the_wheels_config(setup: Setup, project: str | None) -> bool:
     # dlt looks for `.dlt/` in the working directory, or in DLT_PROJECT_DIR:
     # https://dlthub.com/docs/general-usage/credentials/setup#toml-files
     if PROJECT_DIR in os.environ or Path(".dlt").is_dir():
-        return False
+        return
     if not (carried / "config.toml").exists():
-        return False
-    os.environ[PROJECT_DIR] = str(package_dir)
-    return True
+        return
+    _left_by_process.set(PROJECT_DIR, str(package_dir))
 
 
 def _env_name(key: str) -> str:
@@ -389,14 +476,7 @@ def _set_log_level(setup: Setup, log_level: str | None) -> None:
         raise LeeghwaterError(
             f"--log-level is one of {', '.join(LOG_LEVELS)}; got '{log_level}'."
         )
-    # dlt makes its logger from its runtime config, so the level is given as config and
-    # the runtime is made again to take it up.
-    changed = os.environ.get(LOG_LEVEL) != level
-    os.environ[LOG_LEVEL] = level
-    if changed:
-        from leeghwater import _dlt
-
-        _dlt.apply_log_level()
+    _left_by_run.set(LOG_LEVEL, level)
     setup.log_level = level
 
 
@@ -411,9 +491,11 @@ def _register_secrets(
 
     # Pointed first, always, so that it is asked before any scope: what is pointed at
     # wins over what a scope holds under dlt's own name.
-    register_pointed_secrets(secrets or {}, workspace_client=workspace_client)
+    with _registering():
+        register_pointed_secrets(secrets or {}, workspace_client=workspace_client)
     setup.pointed_secrets = dict(sorted((secrets or {}).items()))
     for scope in secret_scopes:
-        provider = register_secret_scope(scope, workspace_client=workspace_client)
+        with _registering():
+            provider = register_secret_scope(scope, workspace_client=workspace_client)
         if provider.scope not in setup.secret_scopes:
             setup.secret_scopes.append(provider.scope)

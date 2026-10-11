@@ -12,6 +12,7 @@ from leeghwater._app import App, pipeline  # noqa: E402
 from leeghwater._errors import LeeghwaterError, RunFailed  # noqa: E402
 from leeghwater._pipeline import create_pipeline, run  # noqa: E402
 from leeghwater._prepare import Setup, prepare  # noqa: E402
+from leeghwater._where import where  # noqa: E402
 
 __all__ = [
     "App",
@@ -23,4 +24,5 @@ __all__ = [
     "pipeline",
     "prepare",
     "run",
+    "where",
 ]

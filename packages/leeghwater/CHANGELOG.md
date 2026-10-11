@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`leeghwater.where()`** says where the process runs: on a laptop or on Databricks,
+  and on which runtime. The function was there and could not be imported by that name.
+
+### Changed
+
+- **`doctor` checks what a run would read, wherever it would load.** A Key Vault is
+  checked on a laptop without `--profile` too, where `doctor` used to check nothing. The
+  sign-in and the secret scopes are checked for every run that reads a scope, also one
+  that loads somewhere other than Databricks. When there is nothing to check it says
+  `nothing to check: this run reads no workspace and no key vault`.
+- **Every command's help is plain text.** The help of `run`, of a pipeline, of `list`
+  and of `doctor` was drawn in boxes, which a job's log shows as box characters.
+
+### Fixed
+
+- A secret scope that is named and also pointed into with `--secret` is listed once in a
+  run. It was listed twice, once for each.
+
+- **A later `prepare()` starts from nothing.** A second call in one process, as in a
+  notebook, kept what the first had set: its secret scopes and Key Vaults stayed
+  registered with dlt, its profile, log level and `--set` values stayed in the
+  environment, and a bare `prepare()` after `prepare(profile="dev")` said `profile dev`
+  while it loaded locally. Now a call first takes back what the one before it set: the
+  environment variables go back to what they held, and the scopes and vaults it
+  registered are taken out of dlt.
+- A `prepare()` that is refused leaves no setup behind. `create_pipeline` and `run` used
+  to go on with the setup of the call before it.
+
 ## [0.1.1] - 2026-10-10
 
 ### Changed

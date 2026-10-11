@@ -7,8 +7,9 @@ import sys
 import dlt
 import pytest
 
+from conftest import FakeWorkspace
 from leeghwater import LeeghwaterError, prepare
-from leeghwater._prepare import prepare_process, prepare_run
+from leeghwater._prepare import current, prepare_process, prepare_run
 from leeghwater.secrets import DatabricksSecretsProvider
 
 
@@ -64,44 +65,167 @@ def test_a_profile_is_refused_on_databricks(on_databricks):
         prepare(profile="dev")
 
 
-def test_a_second_call_changes_nothing(on_databricks, workspace):
-    """PRE-2."""
+VAULT = "https://kv-ingest.vault.azure.net"
+
+
+def _providers() -> list[str]:
+    return [provider.name for provider in dlt.secrets.config_providers]
+
+
+def _dlt_level() -> int:
+    from dlt.common import logger
+
+    return logger.LOGGER.level
+
+
+def test_a_second_call_changes_nothing(on_databricks, workspace, tmp_path, monkeypatch):
+    """PRE-2. Everything a call can leave is asked for, and asked for again."""
+    _project(tmp_path, monkeypatch, "wheel_twice", {"config.toml": "x = 1\n"})
     arguments = dict(
+        project="wheel_twice",
         secret_scopes=["ingest"],
         secrets={"a.b": "ingest/x"},
+        key_vaults=[VAULT],
+        key_vault_client=object(),
         catalog="main",
         schema="github__anna",
         staging_schema="github_staging__anna",
         warehouse="abc123",
+        log_level="ERROR",
+        limit=2,
+        config={"sources.orders.page_size": "50"},
         workspace_client=workspace,
     )
     first = prepare(**arguments)
     environment = dict(os.environ)
-    providers = [provider.name for provider in dlt.secrets.config_providers]
+    providers = _providers()
 
     second = prepare(**arguments)
 
     assert dict(os.environ) == environment
-    assert [provider.name for provider in dlt.secrets.config_providers] == providers
+    assert _providers() == providers
     assert second.lines() == first.lines()
+    assert second.as_dict() == first.as_dict()
+    assert _dlt_level() == logging.ERROR
+    assert dlt.config["sources.orders.page_size"] == 50
 
 
-def test_a_later_call_decides_again_from_scratch():
-    """PRE-3.
+def test_a_later_call_leaves_nothing_of_an_earlier_one(workspace, tmp_path, monkeypatch):
+    """PRE-3. The earlier call sets all a call can set, and the later one nothing."""
+    package = _project(
+        tmp_path,
+        monkeypatch,
+        "wheel_before",
+        {"config.toml": "[sources.orders]\nregion = 'eu'\n"},
+    )
+    alone = prepare()
+    environment, providers, level = dict(os.environ), _providers(), _dlt_level()
 
-    Nothing from an earlier call is kept: there is no state but the last Setup.
-    """
-    first = prepare(profile="dev", schema="s", staging_schema="t", warehouse="w", limit=2)
+    first = prepare(
+        project="wheel_before",
+        profile="dev",
+        secret_scopes=["ingest"],
+        secrets={"sources.github.access_token": "platform-shared/github-token"},
+        key_vaults=[VAULT],
+        key_vault_client=object(),
+        schema="s",
+        staging_schema="t",
+        warehouse="w",
+        log_level="ERROR",
+        limit=2,
+        config={"sources.orders.page_size": "50"},
+        workspace_client=workspace,
+    )
     assert (first.destination, first.schema, first.limit) == ("databricks", "s", 2)
+    assert {
+        name: os.environ[name]
+        for name in (
+            "DATABRICKS_CONFIG_PROFILE",
+            "DLT_PROJECT_DIR",
+            "RUNTIME__LOG_LEVEL",
+            "SOURCES__ORDERS__PAGE_SIZE",
+        )
+    } == {
+        "DATABRICKS_CONFIG_PROFILE": "dev",
+        "DLT_PROJECT_DIR": str(package),
+        "RUNTIME__LOG_LEVEL": "ERROR",
+        "SOURCES__ORDERS__PAGE_SIZE": "50",
+    }
+    assert len(_providers()) == len(providers) + 3
+    assert _dlt_level() == logging.ERROR
+    assert dlt.config["sources.orders.region"] == "eu"
 
     second = prepare()
 
-    assert (second.destination, second.schema, second.staging_schema) == (
-        "duckdb",
-        None,
-        None,
+    assert dict(os.environ) == environment
+    assert _providers() == providers
+    assert _scopes() == []
+    assert second.as_dict() == alone.as_dict()
+    assert second.lines() == alone.lines()
+    assert "profile dev" not in "\n".join(second.lines())
+    assert _dlt_level() == level
+    assert dlt.config.get("sources.orders.page_size") is None
+    assert dlt.config.get("sources.orders.region") is None
+    assert current() is second
+
+
+def test_a_later_call_with_other_settings_has_only_its_own(workspace, monkeypatch):
+    """PRE-3. What the environment held before leeghwater set it is put back as it was,
+    and what somebody set after leeghwater did is theirs."""
+    monkeypatch.setenv("DATABRICKS_CONFIG_PROFILE", "mine")
+    monkeypatch.setenv("SOURCES__ORDERS__PAGE_SIZE", "7")
+    other = FakeWorkspace({"platform-shared": {"sources-orders-api_key": "from-other"}})
+
+    prepare(
+        profile="dev",
+        secret_scopes=["ingest"],
+        log_level="ERROR",
+        config={"sources.orders.page_size": "50", "sources.orders.region": "eu"},
+        workspace_client=workspace,
     )
-    assert (second.warehouse, second.limit) == (None, 0)
+    assert os.environ["SOURCES__ORDERS__PAGE_SIZE"] == "50"
+    os.environ["SOURCES__ORDERS__REGION"] = "set by hand since"
+
+    second = prepare(
+        profile="prod",
+        secret_scopes=["platform-shared"],
+        config={"sources.orders.window": "3"},
+        workspace_client=other,
+    )
+
+    assert os.environ["DATABRICKS_CONFIG_PROFILE"] == "prod"
+    assert os.environ["SOURCES__ORDERS__PAGE_SIZE"] == "7"
+    assert os.environ["SOURCES__ORDERS__WINDOW"] == "3"
+    assert os.environ["SOURCES__ORDERS__REGION"] == "set by hand since"
+    assert "RUNTIME__LOG_LEVEL" not in os.environ
+    assert _dlt_level() != logging.ERROR
+    assert _scopes() == ["platform-shared"]
+    assert (second.profile, second.log_level) == ("prod", None)
+    assert second.config == ["sources.orders.window"]
+    # The scope is read with the later call's client, not the earlier one's.
+    assert dlt.secrets["sources.orders.api_key"] == "from-other"
+    assert workspace.lists == [] and other.lists == ["platform-shared"]
+
+    prepare()
+    assert os.environ["DATABRICKS_CONFIG_PROFILE"] == "mine"
+
+
+def test_a_call_that_is_refused_leaves_no_setup_of_an_earlier_one(workspace):
+    """PRE-6. Half of an earlier call and half of a refused one is no setup to load by."""
+    providers = _providers()
+    prepare(profile="dev", secret_scopes=["ingest"], workspace_client=workspace)
+
+    with pytest.raises(LeeghwaterError, match="--log-level is one of"):
+        prepare(profile="prod", config={"sources.orders.page_size": "50"}, log_level="x")
+
+    with pytest.raises(LeeghwaterError, match="Nothing has prepared this process"):
+        current()
+    assert _scopes() == []
+
+    prepare()
+    assert "DATABRICKS_CONFIG_PROFILE" not in os.environ
+    assert "SOURCES__ORDERS__PAGE_SIZE" not in os.environ
+    assert _providers() == providers
 
 
 def test_no_destination_leaves_it_to_dlt():

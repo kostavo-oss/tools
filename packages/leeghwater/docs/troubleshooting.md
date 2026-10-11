@@ -12,5 +12,8 @@
 - **A load from a job is refused a connection to `…storage.cloud.databricks.com`.** dlt
   uploads its files to a volume before it copies them into a table. A workspace whose
   serverless compute has a limited outbound network refuses that upload.
-- **`ingest doctor`** says where a run would load and checks the sign-in, each secret scope
-  and the warehouse, without running anything. `--json` for a machine.
+- **`ingest doctor`** says where a run would load and checks what the run would read,
+  without running anything: the sign-in, each secret scope, each pointed-at secret and the
+  warehouse when the run reaches a workspace, and each Key Vault wherever it loads. A run
+  on a laptop without `--profile` reads no scope, so none is checked. `--json` for a
+  machine.
