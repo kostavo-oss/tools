@@ -124,6 +124,28 @@ def test_a_reconfigured_step_makes_the_plan_stale_and_is_named() -> None:
         )
 
 
+def test_a_plan_another_lely_made_says_so_where_a_hash_differs() -> None:
+    """PLAN-4. What a step is made from is counted by the lely that planned:
+    a plan of another version may differ where nobody changed the config, and
+    the refusal says that it may be so, with both versions, and to plan again."""
+    from lely import __version__
+
+    current = [("model", "lookup", "aaa"), ("app", "bundle", "ccc")]
+    with pytest.raises(Refused) as caught:
+        approval.same_project(plan(*STEPS), current)
+    assert str(caught.value) == (
+        "Step `app` is configured differently than when the plan was made, or this "
+        "lely counts its options differently: the plan was made by lely 0.0.1 and "
+        f"this is lely {__version__}. Plan again."
+    )
+    same = dataclasses.replace(plan(*STEPS), tool_version=__version__)
+    with pytest.raises(Refused) as caught:
+        approval.same_project(same, current)
+    assert str(caught.value) == (
+        "Step `app` is configured differently than when the plan was made. Plan again."
+    )
+
+
 def test_an_input_that_changed_since_the_plan_was_never_approved() -> None:
     """The plan showed `model_version = 14`; 15 is another deploy."""
     was = PlannedStep(

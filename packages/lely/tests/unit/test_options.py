@@ -381,3 +381,76 @@ def test_a_list_or_a_mapping_can_be_given_whole_by_reference() -> None:
     ):
         with pytest.raises(OptionsError, match=message):
             built(yaml)
+
+
+# -- what a step is made from ------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Kinds:
+    text: str = ""
+    ratio: float = 0.0
+    loud: bool = False
+    count: int = 0
+    names: tuple[str, ...] = ()
+    labels: Mapping[str, str | None] = field(default_factory=dict)
+    anything: object = None
+    level: Literal[1, 2] = 1
+
+
+def handed_of(source: str, name: str = "lely.yml") -> object:
+    from lely.options import handed
+
+    return handed(Kinds, load_text(source, Path(name)).steps[0].options)
+
+
+def in_yaml(block: str) -> object:
+    return handed_of(f"steps:\n  - uses: bundle\n    with: {block}\n")
+
+
+def in_toml(block: str) -> object:
+    return handed_of(
+        f'[[tool.lely.steps]]\nuses = "bundle"\nwith = {block}\n', "pyproject.toml"
+    )
+
+
+def test_what_a_step_is_made_from_is_what_its_plugin_is_handed() -> None:
+    """PLAN-4: options as the plugin is handed them. `1.10` edited to `1.1`
+    hands a text option another text, so it is another step; for a number it
+    is the same number, and the same step."""
+    assert in_yaml("{text: 1.10}") == {"text": "1.10"}
+    assert in_yaml("{text: 1.10}") != in_yaml("{text: 1.1}")
+    assert in_yaml("{text: 0123}") != in_yaml("{text: 83}")
+    assert in_yaml("{text: yes}") != in_yaml("{text: true}")
+    assert in_yaml("{names: [1.10], labels: {a: 0123}}") == {
+        "names": ["1.10"],
+        "labels": {"a": "0123"},
+    }
+    assert in_yaml("{ratio: 1.10}") == in_yaml("{ratio: 1.1}") == {"ratio": 1.1}
+    assert in_yaml("{loud: yes}") == in_yaml("{loud: true}") == {"loud": True}
+    assert in_yaml("{anything: [1.10, yes]}") == {"anything": [1.1, True]}
+    # a reference stays as it was written, and so does what fits no option
+    assert in_yaml("{text: '${env.X}', other: 1.10}") == {
+        "text": "${env.X}",
+        "other": 1.1,
+    }
+
+
+def test_a_value_counts_the_same_in_yaml_and_in_toml() -> None:
+    """CFG-4: `1.10` and `yes` in a `lely.yml` are the values a `pyproject.toml`
+    writes as `1.10` and `true`; where the option wants text, as `"1.10"` and
+    `"yes"`."""
+    assert in_yaml("{ratio: 1.10, loud: yes, count: 5, level: 2}") == in_toml(
+        "{ ratio = 1.10, loud = true, count = 5, level = 2 }"
+    )
+    assert in_yaml("{text: 1.10}") == in_toml('{ text = "1.10" }')
+    assert in_yaml("{text: yes}") == in_toml('{ text = "yes" }')
+    assert in_yaml("{text: 5, ratio: 5}") == in_toml("{ text = 5, ratio = 5.0 }")
+    assert in_yaml("{names: [1.10], labels: {a: yes}}") == in_toml(
+        '{ names = ["1.10"], labels = { a = "yes" } }'
+    )
+    assert in_yaml("{anything: {a: [1.10, yes]}}") == in_toml(
+        "{ anything = { a = [1.10, true] } }"
+    )
+    # a number in TOML has no spelling to keep: for text it is its value
+    assert in_toml("{ text = 1.10 }") == {"text": "1.1"} != in_yaml("{text: 1.10}")

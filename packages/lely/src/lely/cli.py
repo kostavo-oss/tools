@@ -246,13 +246,14 @@ def _connect(profile: str | None) -> WorkspaceClient:
 
 
 def _powers(profile: str | None) -> str:
-    """What these credentials may do, as far as lely can tell.
+    """What these credentials may do, as far as lely can tell (CLI-8).
 
     `admins` is the system group of a workspace's administrators:
     https://docs.databricks.com/aws/en/admin/users-groups/groups
 
-    TODO(verify): no API says "read-only" in general. Being a workspace admin is
-    the one thing that can be read off.
+    Being a workspace admin is the one thing read off. Whether credentials are
+    read-only is not said: no call is known that answers it, and lely doesn't
+    guess (DECISIONS.md, entry 35).
     TODO(verify): that `current_user.me()` lists `admins`, under that name, for
     every admin — one who is in it through another group too. Not seen on a
     workspace. A miss reads as "not a workspace admin; lely can't tell what
@@ -1205,10 +1206,7 @@ def _still_holds(approved: Plan, run: _Run, plan_file: Path) -> None:
     """A plan file is held to the workspace, the project and the tree it was
     made for, before anything runs."""
     approval.same_workspace(approved, run.workspace)
-    approval.same_project(
-        approved,
-        [(s.name, s.uses, planning.made_from(s)) for s in run.config.steps],
-    )
+    approval.same_project(approved, planning.made_from_each(run.config))
     approval.same_source(approved, source.read(run.config.root, plan_file))
 
 

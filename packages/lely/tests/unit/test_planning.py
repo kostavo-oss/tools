@@ -182,6 +182,37 @@ def test_the_same_project_in_pyproject_gives_the_same_plan(tmp_path: Path) -> No
     project.write(yml)
     project.write(toml, toml=True)
     assert plan(yml) == plan(toml)
+    # a number and a yes that YAML spells its own way are the values TOML writes
+    for folder in (yml, toml):
+        (folder / "kinds.py").write_text(KINDS)
+    (yml / "lely.yml").write_text(
+        "steps:\n  - name: kinds\n    uses: ./kinds.py:Kinds\n"
+        "    with: {ratio: 1.10, loud: yes, text: 1.10}\n"
+    )
+    (toml / "pyproject.toml").write_text(
+        '[[tool.lely.steps]]\nname = "kinds"\nuses = "./kinds.py:Kinds"\n'
+        'with = { ratio = 1.10, loud = true, text = "1.10" }\n'
+    )
+    assert plan(yml) == plan(toml)
+    assert plan(yml).steps[0].plan.outputs == {"said": "1.1 True 1.10"}
+
+
+KINDS = """\
+from dataclasses import dataclass
+from lely.model import Output, StepPlan
+class Kinds:
+    @dataclass(frozen=True)
+    class Options:
+        ratio: float
+        loud: bool
+        text: str
+    outputs = (Output("said"),)
+    def plan(self, ctx):
+        o = ctx.options
+        return StepPlan(outputs={"said": f"{o.ratio} {o.loud} {o.text}"})
+    def apply(self, ctx, plan):
+        return {}
+"""
 
 
 def test_made_from_follows_what_the_config_says_not_how(tmp_path: Path) -> None:
@@ -658,7 +689,47 @@ def test_validate_already_knows_where_an_environment_value_may_not_go(
     )
     project.write(tmp_path, allowed)
     planning.check(load(tmp_path / "lely.yml"))  # no environment needed to check it
+    # an option that takes anything takes no secret, at any depth; and a list or
+    # a mapping given whole by an environment value would be one secret
+    (tmp_path / "loose.py").write_text(LOOSE)
+    for block in (
+        "anything: '${env.TOKEN}'",
+        "anything: {deep: [a, 'x-${env.TOKEN}']}",
+        "names: '${env.TOKEN}'",
+        "labels: '${env.TOKEN}'",
+        "maybe: '${env.TOKEN}'",
+    ):
+        option = block.split(":")[0]
+        text = (
+            "steps:\n  - name: loose\n    uses: ./loose.py:Loose\n"
+            f"    with: {{{block}}}\n"
+        )
+        [problem] = problems(tmp_path, text)
+        assert f"`{option}` would hold a secret; only a `Secret` option may" in problem
+        # at plan it is the same refusal, and the value is not in it
+        with pytest.raises(LelyError) as caught:
+            plan(tmp_path, env={"TOKEN": "t0k-one"})
+        assert f"`{option}` would hold a secret" in str(caught.value)
+        assert "t0k-one" not in str(caught.value)
 
+
+LOOSE = """\
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from lely.model import StepPlan
+
+class Loose:
+    @dataclass(frozen=True)
+    class Options:
+        anything: object = None
+        names: tuple[str, ...] = ()
+        labels: Mapping[str, str] = field(default_factory=dict)
+        maybe: tuple[str, ...] | None = None
+    def plan(self, ctx):
+        return StepPlan(notes=(repr(ctx.options),))
+    def apply(self, ctx, plan):
+        return {}
+"""
 
 RAISES = """\
 from dataclasses import dataclass
@@ -776,9 +847,9 @@ def test_what_a_step_is_made_from_follows_the_text_a_plugin_is_handed(
         "    with: {vars: {model_version: 1.10}}\n"
     )
     project.write(tmp_path, text)
-    before = planning.made_from(load(tmp_path / "lely.yml").steps[0])
+    [before] = planning.made_from_each(load(tmp_path / "lely.yml"))
     project.write(tmp_path, text.replace("1.10", "1.1"))
-    assert planning.made_from(load(tmp_path / "lely.yml").steps[0]) != before
+    assert planning.made_from_each(load(tmp_path / "lely.yml")) != [before]
 
 
 def test_a_bundle_variable_can_be_a_null_from_another_step(tmp_path: Path) -> None:

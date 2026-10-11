@@ -19,19 +19,47 @@ Each rule of the contract is something here that can fail:
   shows again what the first plan showed.
 - `check_overview` — *an overview changes nothing*, and every line has a kind,
   a key and a name.
+- `check_no_state` — *it keeps no state*: every call is made on a new plugin,
+  as lely makes one for every call, and `apply` is handed the plan as it reads
+  back from a plan file. Nothing is left to change afterwards.
+- `check_only_its_own` — *only what its options name, and only its own*: a
+  second step of the same plugin, whose options name other things, plans and
+  lists the same before and after this step is applied and destroyed.
 
 `context` builds a `Context` with nothing behind it: a plugin that reaches for
 the Databricks CLI or the workspace without the test giving it one fails
 loudly.
+
+Every check takes the plugin as an instance, or as its class: then each call is
+made on a new instance, as under lely.
+
+**What the kit sees, and what it does not.** It sees a plugin through three
+things: the Databricks CLI the context hands it, what the plugin itself
+answers, and what a test shows it (`untouched`). So:
+
+- "Changes nothing" is held for calls of the Databricks CLI through
+  `ctx.databricks`, and for nothing else. A write `plan` or `overview` makes
+  through the SDK (`ctx.workspace`), or by a program the plugin starts itself,
+  is not seen.
+- "No state" is held for what a plugin keeps on itself between two calls, and
+  for what does not survive a plan file. State kept on the class, in a module,
+  in a file or in a service is not seen.
+- "Only its own" is held for what a second step's plan and overview show of
+  its things, and for what `untouched` answers. Anything else in a workspace
+  is not seen.
+
+A test of your own can see more: give the context a stand-in for the workspace
+(`connect=`) that records what it is asked.
 """
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import json
 import os
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NoReturn, TypeVar
 
@@ -128,11 +156,11 @@ def check_plan(
     `written` is the step's `with:` block as a project would write it, for a
     plugin whose outputs depend on its options.
     """
-    result = plugin.plan(_reading(ctx, reads))
+    result = _one(plugin).plan(_reading(ctx, reads))
     assert isinstance(result, StepPlan), f"plan returned {type(result).__name__}"
     keys = [change.key for change in result.changes]
     assert len(set(keys)) == len(keys), f"change keys repeat: {keys}"
-    declared = contract.declared(type(plugin), written or {})
+    declared = contract.declared(_class(plugin), written or {})
     _as_declared(result.outputs, declared, "plan")
     if result.waiting is None:
         for output in declared:
@@ -173,10 +201,10 @@ def check_apply(
     Changes that are `run`s happen on every apply, so they may remain.
     """
     first = check_plan(plugin, ctx, written=written, reads=reads)
-    outputs = plugin.apply(ctx, first)
+    outputs = _one(plugin).apply(ctx, first)
     outputs = {} if outputs is None else outputs
     assert isinstance(outputs, Mapping), f"apply returned {type(outputs).__name__}"
-    declared = contract.declared(type(plugin), written or {})
+    declared = contract.declared(_class(plugin), written or {})
     _as_declared(outputs, declared, "apply")
     again = check_plan(plugin, ctx, written=written, reads=reads)
     left = [change for change in again.changes if change.action != "run"]
@@ -196,13 +224,13 @@ def check_destroy(
     Returns the destroy plan that was run.
     """
     first = check_plan(plugin, ctx, written=written, reads=reads)
-    plugin.apply(ctx, first)
-    removal = plugin.plan_destroy(_reading(ctx, reads))
+    _one(plugin).apply(ctx, first)
+    removal = _one(plugin).plan_destroy(_reading(ctx, reads))
     assert isinstance(removal, StepPlan), (
         f"plan_destroy returned {type(removal).__name__} for a step that was applied"
     )
     assert removal.changes, "after apply, the destroy plan shows nothing to remove"
-    plugin.destroy(ctx, removal)
+    _one(plugin).destroy(ctx, removal)
     after = check_plan(plugin, ctx, written=written, reads=reads)
     assert after.changes == first.changes, (
         "after destroy, the plan doesn't show what the first plan showed: "
@@ -218,7 +246,7 @@ def check_overview(
     reads: tuple[tuple[str, ...], ...] = READS,
 ) -> Overview | Skip:
     """List, reading only: every line has a kind, a key and a name."""
-    result = plugin.overview(_reading(ctx, reads))
+    result = _one(plugin).overview(_reading(ctx, reads))
     assert isinstance(result, Overview | Skip), (
         f"overview returned {type(result).__name__}"
     )
@@ -226,6 +254,119 @@ def check_overview(
         for item in result.items:
             assert item.kind and item.key and item.name, f"an incomplete line: {item}"
     return result
+
+
+def check_no_state(
+    make: Callable[[], Any],
+    ctx: Context[Any],
+    *,
+    written: Mapping[str, Json] | None = None,
+    reads: tuple[tuple[str, ...], ...] = READS,
+) -> Outputs:
+    """Plan on one plugin, apply on another, with a plan file between them:
+    nothing is left to change. Returns the outputs.
+
+    `make` makes the plugin, and the class itself will do. `plan` and `apply`
+    may run on different machines, days apart, so each call here is made on a
+    new plugin, and `apply` is handed the plan as it reads back from a plan
+    file, with the same plan as `ctx.approved`. A plugin that keeps on itself
+    what it found while planning has nothing to apply from.
+
+    State kept anywhere else is not seen: on the class, in a module, in a
+    file, in a service.
+    """
+    first = check_plan(make(), ctx, written=written, reads=reads)
+    back = step_plan_from_json(
+        json.loads(json.dumps(step_plan_to_json(normalised(first))))
+    )
+    outputs = make().apply(dataclasses.replace(ctx, approved=back), back)
+    outputs = {} if outputs is None else outputs
+    assert isinstance(outputs, Mapping), f"apply returned {type(outputs).__name__}"
+    _as_declared(outputs, contract.declared(_class(make()), written or {}), "apply")
+    again = check_plan(make(), ctx, written=written, reads=reads)
+    left = [change for change in again.changes if change.action != "run"]
+    assert not left, (
+        "applied on a new plugin, from the plan as a plan file keeps it, the plan "
+        f"still shows: {[c.key for c in left]}. A plugin keeps no state: only the "
+        "plan passes from `plan` to `apply`"
+    )
+    return outputs
+
+
+def check_only_its_own(
+    plugin: Any,
+    ctx: Context[Any],
+    other: Context[Any],
+    *,
+    written: Mapping[str, Json] | None = None,
+    other_written: Mapping[str, Json] | None = None,
+    reads: tuple[tuple[str, ...], ...] = READS,
+    untouched: Callable[[], object] | None = None,
+) -> None:
+    """Apply a step, and destroy it if the plugin can: what another step's
+    options name is as it was.
+
+    `other` is the context of a second step of the same plugin, whose options
+    name other things. Its plan and its overview are the kit's eyes: they are
+    taken before and after this step is applied and destroyed, twice. First
+    while the other step's things do not exist, so applying this one must not
+    make them; then, with the other step applied, so applying and destroying
+    this one must not change or remove them.
+
+    `untouched`, when a test gives one, answers with anything that neither
+    step names, as the test's stand-in holds it; it has to answer the same
+    every time. Without it the kit sees only what the plugin itself shows of
+    the other step.
+
+    A step with nothing to do is not applied, as under lely. So for a plugin
+    with no destroy, this step's `apply` runs once, before the other step's
+    things exist: that it would not change them once they do is not seen.
+    """
+
+    def look() -> tuple[object, ...]:
+        planned = check_plan(plugin, other, written=other_written, reads=reads)
+        listed = (
+            check_overview(plugin, other, reads=reads)
+            if contract.lists(_class(plugin))
+            else None
+        )
+        # a copy: a test may answer with the very list its stand-in keeps
+        rest = copy.deepcopy(untouched()) if untouched is not None else None
+        return (planned.changes, listed, rest)
+
+    def cycle(was: tuple[object, ...], state: str) -> None:
+        planned = check_plan(plugin, ctx, written=written, reads=reads)
+        if planned.changes:  # as lely: a step with nothing to do isn't applied
+            _one(plugin).apply(ctx, planned)
+        assert look() == was, (
+            f"applying the step changed what it doesn't name ({state}): a step "
+            "touches only what its options name"
+        )
+        if not contract.destroys(_class(plugin)):
+            return
+        removal = _one(plugin).plan_destroy(_reading(ctx, reads))
+        if isinstance(removal, StepPlan) and removal.changes:
+            _one(plugin).destroy(ctx, removal)
+        assert look() == was, (
+            f"destroying the step changed what isn't its own ({state}): a step "
+            "destroys only what it can show is its own"
+        )
+
+    cycle(look(), "another step's things, before they exist")
+    planned = check_plan(plugin, other, written=other_written, reads=reads)
+    if planned.changes:
+        _one(plugin).apply(other, planned)
+    cycle(look(), "another step's things, once it is applied")
+
+
+def _one(plugin: Any) -> Any:
+    """The plugin to make a call on: a class gives a new instance for every
+    call, as lely makes one for every call."""
+    return plugin() if isinstance(plugin, type) else plugin
+
+
+def _class(plugin: Any) -> type:
+    return plugin if isinstance(plugin, type) else type(plugin)
 
 
 def _reading(ctx: Context[Any], reads: tuple[tuple[str, ...], ...]) -> Context[Any]:

@@ -21,9 +21,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from lely.config import Map, Node, Scalar, Seq
+from lely.config import Map, Node, Scalar, Seq, written
 from lely.errors import LelyError
-from lely.model import Linked, Secret, Value
+from lely.model import Json, Linked, Secret, Value
 from lely.refs import Unknown
 from lely.step import quietly
 
@@ -137,6 +137,58 @@ def build(
         ) from error
 
 
+def handed(cls: type, block: Map | None) -> Json:
+    """A `with:` block as its plugin is handed it, with references as they
+    were written: what a step is made from (CFG-4).
+
+    The value counts, not its spelling, and which value that is depends on the
+    option. One that wants text is handed the text: `1.10` in a `lely.yml` is
+    `"1.10"`, and so is `"1.10"` in a `pyproject.toml`. One that wants a number
+    or a yes or no is handed that: `1.10` is `1.1` in either file, `yes` in
+    YAML is `true` in TOML, and `5` for a decimal option is `5.0`. So the same
+    project hashes the same in both files, and `1.10` edited to `1.1` is a
+    change exactly where a plugin would be handed another text.
+
+    Nothing is checked here: an option that doesn't fit is `build`'s to say.
+    """
+    if block is None:
+        return None
+    try:
+        hints = typing.get_type_hints(cls) if dataclasses.is_dataclass(cls) else {}
+    except Exception:  # `registry.find` says what is wrong with it
+        hints = {}
+    return {
+        entry.key: _handed(hints.get(entry.key, object), entry.value)
+        for entry in block.entries
+    }
+
+
+def _handed(tp: Any, node: Node) -> Json:
+    origin = typing.get_origin(tp)
+    args = typing.get_args(tp)
+    if origin in (types.UnionType, typing.Union):
+        members = [a for a in args if a is not type(None)]
+        return _handed(members[0], node) if len(members) == 1 else written(node)
+    if isinstance(node, Seq):
+        element = args[0] if origin in (tuple, list) and args else object
+        return [_handed(element, child) for child in node.items]
+    if isinstance(node, Map):
+        mapping = origin in (dict, Mapping) or tp in (dict, Mapping)
+        element = args[1] if mapping and len(args) == 2 else object
+        return {entry.key: _handed(element, entry.value) for entry in node.entries}
+    value = node.value
+    if isinstance(value, str) or value is None:
+        return value  # text, a reference as it was written, or a null
+    if tp is str or tp is Secret:
+        return _text(value, node)
+    if tp is float and not isinstance(value, bool):
+        try:
+            return float(value)
+        except OverflowError:
+            return value
+    return value
+
+
 def _by_reference(item: Scalar) -> bool:
     return isinstance(item.value, str) and "${" in item.value
 
@@ -148,6 +200,8 @@ class _Pending:
 _PENDING = _Pending()
 #: … and for one that isn't known yet but is known to be a secret.
 _PENDING_SECRET = _Pending()
+
+_NO_SECRET = "would hold a secret; only a `Secret` option may"
 
 
 class _Reader:
@@ -182,7 +236,7 @@ class _Reader:
                 )
             return self.convert(members[0], item, name, optional=True)
         if tp is object or tp is Any:
-            return self.plain(item)
+            return self.plain(item, name)
         if tp is Linked:
             return self.linked(item, name)
         if origin in (tuple, list):
@@ -220,7 +274,13 @@ class _Reader:
         The reference is looked at like any other — so one that names no step
         is said — and what it answers has to be what the option takes."""
         value = self.value(item)
-        if value is _PENDING or value is _PENDING_SECRET:
+        if value is _PENDING_SECRET or isinstance(value, Secret):
+            # one secret, known to be one without its value: a value from the
+            # environment, checked offline. It is no list and no mapping, and
+            # the only place for it is a `Secret` option (REF-6).
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
+            return _PENDING
+        if value is _PENDING:
             return _PENDING
         if value is None and optional:
             return None
@@ -252,9 +312,7 @@ class _Reader:
         if value is _PENDING_SECRET:
             # not known yet, and a secret whatever it is: the same rule as below
             if tp is not Secret:
-                self.problem(
-                    item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
-                )
+                self.problem(item.loc, f"`{name}` {_NO_SECRET}")
             return _PENDING
         if origin is Literal:
             # one of them, and of its kind: `true` is not the `1` of `Literal[1, 2]`
@@ -270,9 +328,7 @@ class _Reader:
             if isinstance(value, str | int | float | bool):
                 return Secret(_text(value, item))
         elif isinstance(value, Secret):
-            self.problem(
-                item.loc, f"`{name}` would hold a secret; only a `Secret` option may"
-            )
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
             return None
         if tp is str and isinstance(value, str | int | float | bool):
             return _text(value, item)
@@ -301,12 +357,19 @@ class _Reader:
             return _PENDING
         return found
 
-    def plain(self, item: Node) -> Any:
+    def plain(self, item: Node, name: str) -> Any:
+        """Anything JSON, for an option typed `object`. Not a secret, at any
+        depth: an option that says nothing of what it holds has not said that
+        it keeps one out of a plan."""
         if isinstance(item, Seq):
-            return [self.plain(child) for child in item.items]
+            return [self.plain(child, name) for child in item.items]
         if isinstance(item, Map):
-            return {e.key: self.plain(e.value) for e in item.entries}
-        return self.value(item)
+            return {e.key: self.plain(e.value, name) for e in item.entries}
+        value = self.value(item)
+        if value is _PENDING_SECRET or isinstance(value, Secret):
+            self.problem(item.loc, f"`{name}` {_NO_SECRET}")
+            return _PENDING
+        return value
 
 
 def _text(value: str | int | float | bool, item: Scalar) -> str:

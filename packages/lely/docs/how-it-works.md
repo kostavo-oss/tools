@@ -88,8 +88,9 @@ its bundle step does.
 
 A plan file is read strictly and then held to three things by `approval`: the
 workspace's host, the project, and the git tree. "The project" is each step's name and
-plugin and a hash of its plugin, targets and options as written
-(`planning.made_from`). `source.read` asks git for the tree of `HEAD`, the project's
+plugin and a hash of its plugin, targets and options (`planning.made_from`). An
+option counts as its plugin is handed it, with a reference as it was written
+(`options.handed`): the value, not how a file spells it. `source.read` asks git for the tree of `HEAD`, the project's
 folder in the repository and whether anything differs from `HEAD`. When the plan file
 is tracked, or the checkout is sparse, the tree is made in an index and an object
 store of its own, in a temporary folder.
@@ -165,6 +166,10 @@ hold. `solo` makes a config of that one step, named as a config in the working
 directory would name it (`./path/file.py:Class`), and goes through `planning`,
 `running`, `planfile` and `approval` like any project. That is why a plan a step writes
 is a one-step lely plan.
+
+A plan keeps a step's outputs that have a plain name and the ones another step takes,
+and a run's result keeps none. So `planning.plan` and `running.apply` take a `given` to
+fill with what each step gives, whole, and `solo` prints the step's own from it.
 
 ## Showing a plan
 

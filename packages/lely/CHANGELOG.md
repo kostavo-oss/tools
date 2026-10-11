@@ -17,7 +17,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.
 
+- **`lely.testing` has `check_no_state` and `check_only_its_own`**, for the rules it
+  had no check for: no state, only what its options name, only its own. Every check takes the plugin's class too, and then makes each
+  call on a new instance, as lely does; `check` on a step's own command line does so.
+  The docs say what the kit cannot see: a write through the SDK or by another program.
+- **A step on its own shows what it gives.** `plan` prints the outputs it knows and names
+  the ones that come later; `apply` prints what the step returned. A `Secret` is `***`.
+- **A step on its own can plan its destroy**: `plan --destroy -o gone.json`, then
+  `destroy --plan-file gone.json`.
+
 ### Changed
+
+- **`check --live` says what it is about to do before it does it**: apply and destroy, on
+  which target and workspace, and as whom. Without `--live`, `check` no longer speaks of
+  a destroy for a step that has none.
+- **A flag takes `$${` for a literal `${`**, as a config file does. It was refused as a
+  reference.
+- **`lely doctor` is no longer meant to say whether credentials are read-only.** It
+  never could. It says whether the identity is a workspace admin, and for anyone else
+  that it cannot tell what the credentials may change.
+- **A plan made from `lely.yml` is accepted with the same project in `pyproject.toml`,
+  whatever the spelling.** What a step is made from is now each option as its plugin is
+  handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a
+  yes or no, and `"1.10"` and `"yes"` for text. A plan file saved by 0.3.1 for a step
+  with a number or a boolean in its options is refused once by the next release: the
+  refusal names both versions and says to plan again.
 
 - **A stevin plan shows every step with its risk class**, and a table that is rewritten
   says so in its own line. A risk class lely does not know is destructive; it was read as
@@ -26,6 +50,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The README is short, and how to use lely is in the docs only.** The docs' design
   page is now "How it works" and says what the code does today. The `spec/` folder is
   gone: what must be true of lely is in `RULES.md`, and why in `DECISIONS.md`.
+
+### Fixed
+
+- **A flag for `Mapping[str, int]`** (or a decimal number, or true and false) reads the
+  value of `key=value` as that type. Such a step started, and then refused every value.
+- **A value from the environment is refused wherever it is no `Secret`**: in an option
+  that takes anything (`object`), which took the secret into the plan, and as a list or
+  a mapping given whole, which `lely validate` let through and the plan then refused.
+- **The editors' schema takes a list or a mapping given whole by one reference**, as
+  `lely validate` does: `tags: ${steps.model.tags}` is no longer marked as a mistake.
+  Write the schema again with `lely schema -o lely.schema.json`.
 
 ## [0.3.1] - 2026-10-10
 

@@ -242,3 +242,73 @@ cannot read, as the bundle step does for an action it does not know.
 
 stevin gives a stale plan no exit code of its own, so the step knows the refusal by
 stevin's words (kostavo-oss/tools#65).
+
+## 34. 2026-10-11 — What a step is made from is what its plugin is handed
+
+The hash counted how a `lely.yml` spelled a number or a boolean (`1.10`, `yes`), and a
+`pyproject.toml` has no spelling to count: the same project hashed differently in the
+two files, and a plan made from one was refused with the other. The spelling was there
+for a reason, which stays: an option that wants text is handed `1.10` as written, so
+`1.10` edited to `1.1` is another step. So the hash now follows the option's type. Text
+counts as the text the plugin gets, anything else as its value.
+
+Rejected: hashing the value alone, as the issue put it. `1.10` edited to `1.1` in a
+bundle variable would then pass a plan file unseen, outside git. Rejected: keeping a
+number's spelling from TOML too, so both files hash a spelling. Where a TOML value was
+written is found by scanning the text, which may land on a comment: good enough for a
+position in a message, not for a value.
+
+The cost: the hash of a step with a number or a boolean in its options changes, so a
+plan file 0.3.1 saved for one is refused once. The file's format number stays, because
+a new one would refuse every saved plan, also in `lely show`. A plan file names the
+lely that made it, so the refusal says that the versions differ and that this may be
+why.
+
+## 35. 2026-10-11 — `lely doctor` does not say whether credentials are read-only
+
+The promise is given up. `doctor` was to say whether the credentials at hand can do
+more than read, so a pull request's plan is not run with ones that can write. No call
+of Databricks is known that answers that: what an identity may do is granted per
+object, and nothing we know of sums it up. So `doctor` says
+the one thing it can read off, whether the identity is a workspace admin, and for
+anyone else that it cannot tell.
+
+Rejected: a guess, such as trying a harmless write or reading a few grants. A wrong
+"read-only" is worse than none: it would be taken as a check that was made, on the one
+question where being wrong lets a pull request change a workspace. Rejected: leaving
+the rule open until an API turns up, which keeps a promise in the rules that nobody is
+working on. The rule had the number 6 of the `CLI` area; what `doctor` does say is `CLI-8`.
+
+## 36. 2026-10-11 — A step on its own prints what it gives, and can plan its destroy
+
+Under lely an output is shown where another step takes it, so a one-step plan showed
+none and a run showed none. A step on its own prints them itself, under `Gives:`. The
+plan file is left as it is: it stays the one-step lely plan `lely apply` takes.
+Rejected: showing every output in every lely plan, which would put each field of each
+bundle resource in a pull request's comment. Rejected: adding outputs to a run's
+record, a change of that file's format for something only a step on its own prints.
+
+An output that holds what a `Secret` option was given is printed as `***` too. A step
+that hands an option back as plain text has made a mistake, and these lines are new, so
+they do not add to it. It is no protection: the plan file and `-f json` hold such an
+output as the step gave it, as they did.
+
+`destroy --plan-file` was there and nothing could write the file it takes. `plan` got
+`--destroy`. Rejected: taking `--plan-file` off `destroy`, since a teardown is what one
+most wants to read first.
+
+## 37. 2026-10-11 — The testing kit checks what it can see, and says what it cannot
+
+`lely.testing` had no check for "keeps no state", "only what its options name" and
+"only its own". It has two now, and each looks through what a test already has. For
+state: a new plugin for every call, as lely makes one, and the plan through a plan
+file, which under lely is the approved plan a plugin is handed beside the fresh one. For "its own": a second step of the same plugin, whose plan and
+overview are read before and after the first is applied and destroyed.
+
+Rejected: a workspace client that refuses writes, to see a write made through the
+SDK. We know no way to tell from a call's name whether it writes, and a call that runs
+SQL reads or writes by the statement it is handed. A guard that guesses would pass a
+plugin that writes and fail one that reads. Rejected: comparing the project's folder
+before and after a plan. A program a step runs may keep files of its own there, and
+that is not the step keeping state. So the kit's docs name what it does not see, and
+the rule for that part (PLG-16) says it is not tested.

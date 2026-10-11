@@ -359,28 +359,6 @@ def test_a_yaml_number_keeps_the_text_it_was_written_as() -> None:
     assert raws == {"a": "1.10", "b": "0123", "c": "yes", "d": None}
 
 
-def test_what_a_step_is_made_from_is_what_was_spelled() -> None:
-    """PLAN-4: options *as written*. `1.10` edited to `1.1` hands a text option
-    another text, so it is another step — while `5` is `5` in YAML and in TOML."""
-    from lely.config import spelled
-
-    def of(yaml_value: str) -> object:
-        config = load_text(
-            f"steps:\n  - uses: bundle\n    with: {{v: {yaml_value}}}\n", Path("lely.yml")
-        )
-        return spelled(config.steps[0].options)
-
-    assert of("1.10") != of("1.1")
-    assert of("0123") != of("83")
-    assert of("yes") != of("true")
-    assert of("1.10") == {"v": {"$written": "1.10"}}
-    assert of("5") == {"v": 5} and of("1.5") == {"v": 1.5} and of("true") == {"v": True}
-    toml = load_text(
-        '[[tool.lely.steps]]\nuses = "bundle"\nwith = { v = 5 }\n', Path("pyproject.toml")
-    )
-    assert spelled(toml.steps[0].options) == of("5")
-
-
 def test_no_config_is_told_apart_from_one_that_cant_be_read(tmp_path: Path) -> None:
     from lely.config import NoConfig
 

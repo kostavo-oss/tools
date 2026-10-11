@@ -59,12 +59,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_planning.py::test_targets_skip_a_step_and_the_plan_says_so`.
 - **CFG-4** — The config is `lely.yml`, or `[tool.lely]` in `pyproject.toml` with the same
   keys and the same meaning. The same project written either way gives the same plan and
-  the same made-from hashes, so a plan made from one is accepted with the other.
+  the same made-from hashes, so a plan made from one is accepted with the other. The
+  same project is one that hands every plugin the same options: `1.10` and `yes` in a
+  `lely.yml` are `1.10` and `true` in a `pyproject.toml` for an option that wants a
+  number or a yes or no, and `"1.10"` and `"yes"` for one that wants text (CFG-10).
   Held by: `tests/unit/test_cli.py::test_a_project_in_pyproject`,
-  `tests/unit/test_planning.py::test_the_same_project_in_pyproject_gives_the_same_plan`.
-  Not kept yet: #52 — a number or a boolean that a `lely.yml` spells in a way that is not
-  canonical (`1.10`, `yes`) is hashed as its text, and the same value in a
-  `pyproject.toml` as its value: the two hashes differ.
+  `tests/unit/test_planning.py::test_the_same_project_in_pyproject_gives_the_same_plan`,
+  `tests/unit/test_options.py::test_a_value_counts_the_same_in_yaml_and_in_toml`.
 - **CFG-5** — Without `--config`, the config is found by walking up from the working
   directory to the first folder that has a `lely.yml`, or a `pyproject.toml` with a
   `[tool.lely]` section. A step's paths are relative to the config file, not to where the
@@ -95,13 +96,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   lets a value through. It is for a `lely.yml`: a `[tool.lely]` section has no schema of
   its own.
   Held by: `tests/unit/test_schema.py::test_a_config_lely_reads_fits_the_schema`,
-  `tests/unit/test_schema.py::test_a_shape_lely_refuses_doesnt_fit_the_schema`.
-  Not kept yet: #52 — a list or a mapping option given whole by one reference passes
-  `validate` and does not fit the schema.
+  `tests/unit/test_schema.py::test_a_shape_lely_refuses_doesnt_fit_the_schema`,
+  `tests/unit/test_schema.py::test_a_list_or_a_mapping_given_whole_by_one_reference_fits`.
 - **CFG-10** — An option that wants text gets what was written: a number or a boolean in a
   `lely.yml` is passed on as its own text (`1.10` stays `1.10`, `0123` is not read as
   octal, `yes` stays `yes`), and what a step is made from follows that text. In a
-  `pyproject.toml` a number is a number.
+  `pyproject.toml` a number is a number: text that has to stay as written is written
+  there as a string.
   Held by: `tests/unit/test_config.py::test_a_yaml_number_keeps_the_text_it_was_written_as`,
   `tests/unit/test_options.py::test_a_number_meant_as_text_is_passed_on_as_it_was_written`.
 
@@ -146,12 +147,12 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   to one listed further down, with a message that says to move it; to an output its plugin
   does not declare or that fits no declared shape; to a step whose `targets` leave out a
   target the referring step runs for; and a value from the environment in an option that
-  is not a `Secret`. Offline an environment value is not looked up and not stood in for.
+  is not a `Secret`: also at any depth of an option that takes anything (`object`), and
+  as a list or a mapping given whole. Offline an environment value is not looked up and
+  not stood in for. A plan refuses the same, and so refuses a secret a step above gives.
   Held by: `tests/unit/test_planning.py::test_check_refuses_a_reference_down_the_list`,
   `tests/unit/test_planning.py::test_validate_already_knows_where_an_environment_value_may_not_go`,
   `tests/unit/test_planning.py::test_validate_refuses_an_environment_value_as_a_bundle_variable`.
-  Not kept yet: #52 — an option typed `object`, and a list or a mapping given whole as
-  `${env.X}`, is not refused offline; the first takes the secret at plan too.
 - **REF-7** — A value that is not known yet is never guessed: it resolves to the name of
   the output it waits for, and the step that takes it is waiting. A step that takes an
   output known only after every run waits on every deploy, and `validate` warns of it
@@ -229,14 +230,17 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   change nothing; `apply` does what the plan says and no more; it touches only what its
   options name; it destroys only what it can show is its own; a change that loses
   something is marked destructive, and a delete and a replace always are; its outputs are
-  as declared; and no secret is in a plan. `lely.testing` holds a plugin to each of them,
-  with `check_plan`, `check_apply`, `check_destroy` and `check_overview`.
+  as declared; and no secret is in a plan. `lely.testing` holds a plugin to each of them
+  as far as it sees one, which is through the Databricks CLI a step is handed, what the
+  plugin answers, and what a test shows it: `check_plan`, `check_apply`, `check_destroy`
+  and `check_overview`; `check_no_state`, which makes every call on a new plugin and
+  hands `apply` the plan as a plan file keeps it; and `check_only_its_own`, which holds
+  a second step's plan and overview, and what a test names as untouched, the same
+  across this step's apply and destroy. Given a class, every check makes each call on a
+  new instance, as lely does.
   Held by: `tests/unit/test_testing.py::test_a_plugin_that_follows_the_rules_passes_all_of_it`,
-  `tests/unit/test_testing.py::test_plan_changes_nothing`.
-  Not kept yet: #52 — the kit checks what a test can see of them. It has no check for
-  "keeps no state", for "only what its options name" or for "only its own", which is
-  tested for the bundle plugin alone; and it holds only calls of the Databricks CLI to
-  reading, so it cannot see a write made through the SDK or by another program.
+  `tests/unit/test_testing.py::test_plan_changes_nothing`,
+  `tests/unit/test_testing.py::test_a_plugin_keeps_no_state_and_touches_only_its_own`.
 - **PLG-10** — Every plugin lely ships passes the checks of `lely.testing` that apply to
   it.
   Held by: `tests/unit/test_testing.py::test_the_bundle_plugin_passes_the_whole_kit`,
@@ -266,6 +270,15 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   plan and a destroy show the step as skipped with those words, in place of "has nothing
   to destroy".
   Held by: `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`.
+- **PLG-16** — The rules of PLG-9 hold by every road, also where `lely.testing` does not
+  look: `plan` and `overview` make no write through the SDK (`ctx.workspace`) or by a
+  program the plugin starts itself; a plugin keeps no state on its class, in a module,
+  in a file or in a service; it changes nothing in a workspace that no step's plan or
+  overview shows; and a plugin with no destroy leaves another step's things alone when
+  it is applied after them. The kit's docs name these as what it does not see.
+  Not tested: the kit holds only the Databricks CLI a step is handed to reading, and
+  sees a workspace only through a plugin's own answers and what a test shows it. For
+  the `stevin` plugin that leaves out `stevin plan`, which is another program.
 
 ## BDL — the `bundle` plugin
 
@@ -505,23 +518,29 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_solo.py::test_plan_shows_the_change_and_changes_nothing`.
 - **SOLO-2** — Its commands are `plan`, `apply`, `destroy`, `status` and `check`. Each
   takes `-t`, which `apply` may leave out when it is given a plan file, `--profile`, and
-  the step's own flags. `plan` takes `-o`; `apply` and `destroy` take `--plan-file` and
-  `--yes`; `apply` takes `--allow-destructive`; all but `check` take `-f rich|json|md`.
-  Consent is asked as `lely` asks it.
+  the step's own flags. `plan` takes `-o`, and `--destroy` to plan a teardown, which
+  `destroy --plan-file` runs; `apply` and `destroy` take `--plan-file` and `--yes`;
+  `apply` takes `--allow-destructive`; all but `check` take `-f rich|json|md`. Consent
+  is asked as `lely` asks it.
   Held by: `tests/unit/test_solo.py::test_apply_with_a_target_plans_asks_and_applies`,
-  `tests/unit/test_solo.py::test_without_a_terminal_apply_needs_yes`.
+  `tests/unit/test_solo.py::test_without_a_terminal_apply_needs_yes`,
+  `tests/unit/test_solo.py::test_a_destroy_can_be_planned_saved_and_run`.
 - **SOLO-3** — Each field of `Options` is a flag, `--<name>` with dashes for underscores,
   with the field's type and the `#:` comment above it as its help. A flag carries text, a
   whole or a decimal number, a yes or no as a word, a `Secret`, one of a `Literal`'s
-  values, a list (the flag more than once), a mapping of text (`--<name> key=value`, more
-  than once) and `T | None`. An option of another type is refused when the step starts,
-  and a value that does not parse is refused by the flag's name. A flag that is not given
-  is left out, so the option's own default applies.
+  values, a list (the flag more than once), a mapping of text, numbers, yes or no or
+  secrets (`--<name> key=value`, more than once, the value read as the mapping declares
+  it) and `T | None`. An option of another type is refused when the step starts, and a
+  value that does not parse is refused by the flag's name. A flag that is not given is
+  left out, so the option's own default applies.
   Held by: `tests/unit/test_solo.py::test_the_options_are_the_flags_with_their_help`,
-  `tests/unit/test_solo.py::test_a_missing_required_option_is_refused_by_name`.
-- **SOLO-4** — A flag whose value holds a `${` is refused before anything runs, with what
-  to do: run the step under lely, or pass the value.
-  Held by: `tests/unit/test_solo.py::test_a_reference_is_refused_with_what_to_do`.
+  `tests/unit/test_solo.py::test_a_missing_required_option_is_refused_by_name`,
+  `tests/unit/test_solo.py::test_a_mapping_of_numbers_arrives_as_numbers`.
+- **SOLO-4** — A flag whose value holds a `${…}` is refused before anything runs, with what
+  to do: run the step under lely, or pass the value. `$${` is none, as in a config file
+  (REF-3): it reaches the step as a literal `${`.
+  Held by: `tests/unit/test_solo.py::test_a_reference_is_refused_with_what_to_do`,
+  `tests/unit/test_solo.py::test_a_literal_dollar_brace_is_written_as_in_a_config`.
 - **SOLO-5** — A plan a step writes is a one-step lely plan: `lely apply plan.json` takes
   it, given a config that names the step the same way, and the same checks are made before
   anything runs. A step refuses a plan file that holds any other step.
@@ -530,18 +549,22 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **SOLO-7** — `check` holds the step to the rules, on a target: `plan` and `overview`
   behind a Databricks CLI that refuses anything but a read, the plan through a plan file
   and back, and outputs as declared. `--live` also applies and destroys on the target, or
-  applies and plans again for a step with no destroy, and says that it will before it
-  does. A check that fails ends with 1.
+  applies and plans again for a step with no destroy. Before it runs anything it says
+  which of the two it is about to do, on which target, on which workspace and as whom.
+  Without `--live` it says what `--live` would do, and speaks of no destroy the step
+  does not have. A check that fails ends with 1.
   Held by: `tests/unit/test_solo.py::test_check_holds_the_step_to_the_rules`,
-  `tests/unit/test_solo.py::test_check_live_applies_and_destroys`.
-  Not kept yet: #52 — `check --live` applies and destroys without saying so first: it
-  prints what passed afterwards.
+  `tests/unit/test_solo.py::test_check_live_applies_and_destroys`,
+  `tests/unit/test_solo.py::test_check_live_says_what_it_will_do_before_it_does`.
 - **SOLO-8** — On its own, `plan` prints the outputs the step knows and names the ones
-  known later, and `apply` prints what the step returned. A `Secret` is shown as `***`.
-  Not kept yet: #52 — in a terminal a plan shows an output only where another step takes
-  it, and a run's result shows none, so a step alone shows no output; the plan file and
-  `plan -f json` hold the outputs that have a plain name, and not the names of the ones
-  known later.
+  known later, each with when, and `apply` prints what the step returned, or what it
+  knows when it had nothing to do. They stand under `Gives:`, after the plan or the
+  result: on stdout, and on stderr with `-f json` or `-f md`, where stdout holds that
+  and nothing else. A `Secret` is shown as `***`, and so is an output that holds what a
+  `Secret` option was given.
+  Held by: `tests/unit/test_solo.py::test_plan_prints_what_the_step_knows_and_names_what_comes_later`,
+  `tests/unit/test_solo.py::test_apply_prints_what_the_step_returned`,
+  `tests/unit/test_solo.py::test_no_secret_is_printed_with_what_the_step_gives`.
 
 ## PLAN — the plan and its file
 
@@ -570,15 +593,21 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_planfile.py::test_another_format_is_refused_and_says_to_plan_again`,
   `tests/unit/test_planfile.py::test_a_plan_file_is_read_strictly`.
 - **PLAN-4** — A plan file is held to the project. It is refused when the project's steps,
-  or any step's plugin, targets or options as written, differ from what it was planned
-  with, and when a value a step took that was known at plan is another value now. What is
-  compared is the config as lely reads it, not the file's text, with a value from the
-  environment counted by name. The same value means the same kind of value: `1` is not
-  `true`, `14` is not `14.0` and not `"14"`. A secret is never compared, and stays one.
+  or any step's plugin, targets or options, differ from what it was planned with, and
+  when a value a step took that was known at plan is another value now. What is compared
+  is the config as lely reads it, not the file's text: each option as its plugin is
+  handed it, with a reference as it was written, so a value from the environment counts
+  by name. `1.10` edited to `1.1` is a change for an option that wants text, and none for
+  one that wants a number. For a value a step took, the same value means the same kind
+  of value: `1` is not `true`, `14` is not `14.0` and not `"14"`. A secret is never
+  compared, and stays one. Where a step differs and the plan was made by another
+  version of lely, the refusal says so and names both versions: that lely may have
+  counted the same options another way.
   Held by: `tests/unit/test_approval.py::test_the_same_value_means_the_same_as_it_would_be_written`,
   `tests/unit/test_cli.py::test_a_file_is_refused_when_a_steps_options_changed`,
   `tests/unit/test_cli.py::test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository`,
-  `tests/unit/test_config.py::test_what_a_step_is_made_from_is_what_was_spelled`,
+  `tests/unit/test_options.py::test_what_a_step_is_made_from_is_what_its_plugin_is_handed`,
+  `tests/unit/test_approval.py::test_a_plan_another_lely_made_says_so_where_a_hash_differs`,
   `tests/unit/test_running.py::test_an_input_that_changed_since_the_plan_stops_the_run`,
   `tests/unit/test_running.py::test_a_destroy_is_held_to_the_inputs_the_plan_showed`.
 - **PLAN-5** — Every plan, every question lely asks and every plan file names the
@@ -840,13 +869,6 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_cli.py::test_doctor_fails_when_a_tool_is_missing`,
   `tests/unit/test_cli.py::test_doctor_compares_the_clis_version_with_the_one_bundles_need`,
   `tests/unit/test_cli.py::test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on`.
-- **CLI-6** — `lely doctor` says that planning runs the project's own code and that a pull
-  request's plan should be given credentials that can read and nothing more, and it says
-  whether the credentials at hand can do more than read.
-  Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
-  `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
-  Not kept yet: #52 — no API says "read-only": it says whether the identity is a workspace
-  admin, and that it cannot tell what else the credentials may change.
 - **CLI-7** — A file lely writes with `-o` is written beside its place and moved there,
   where there is room beside it: it is then whole or as it was, and a link standing where
   it goes is replaced, not followed. What is no file, a device or a pipe, is written to as
@@ -855,6 +877,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_cli.py::test_a_file_is_whole_or_as_it_was`,
   `tests/unit/test_cli.py::test_a_file_made_again_is_readable_by_whoever_could_read_it_before`,
   `tests/unit/test_cli.py::test_what_is_no_file_is_written_to_as_it_is`.
+- **CLI-8** — `lely doctor` says that planning runs the project's own code and that a pull
+  request's plan should be given credentials that can read and nothing more. Of the
+  credentials at hand it says one thing: whether the identity is a workspace admin. For
+  any other identity it says that lely cannot tell what else
+  the credentials may change. It never says that credentials are read-only.
+  Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
+  `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
 
 ## SEC — secrets, and what a plan says
 

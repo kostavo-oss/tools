@@ -136,6 +136,12 @@ def _given_above(
     )
 
 
+def has_reference(text: str) -> bool:
+    """Whether `text` holds a `${…}`: anything `parse` would read as a
+    reference, or refuse as no reference. A `$${` is neither."""
+    return any(found.group(1) is not None for found in _REF.finditer(text))
+
+
 def literal(text: str) -> str:
     """A string that holds no reference, as it is meant: each `$${` is a `${`."""
     return _REF.sub(lambda found: found.group(0)[1:], text)

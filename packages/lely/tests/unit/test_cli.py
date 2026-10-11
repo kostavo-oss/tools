@@ -684,7 +684,7 @@ def test_status_as_json(lely: Lely) -> None:
 
 
 def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> None:
-    """CLI-5, CLI-6."""
+    """CLI-5, CLI-8."""
     result = lely("doctor")
     assert result.exit_code == 0, said(result)
     text = said(result)
@@ -692,7 +692,8 @@ def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> 
     assert "✓ bundles need the direct engine (GA in CLI v1.3.0): this CLI has it" in text
     assert "✓ git: git version " in text
     assert "the workspace: https://dbc-example.cloud.databricks.com as jane" in text
-    assert "not a workspace admin" in text
+    assert "! not a workspace admin" in text
+    assert "read-only" not in text
     assert "credentials that can read and nothing more" in text
     assert "step `warm` runs `./ops/warm.sh`" in text
     assert "step `app` runs `databricks`" in text
@@ -2272,17 +2273,19 @@ def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -
     [
         (("users", "admins"), "a workspace admin: these credentials can change anything"),
         (("users", "data-admins"), "not a workspace admin; lely can't tell what else"),
-        ((), "not a workspace admin"),
-        (None, "not a workspace admin"),
+        ((), "not a workspace admin; lely can't tell what else these credentials may"),
+        (None, "not a workspace admin; lely can't tell what else these credentials may"),
     ],
 )
 def test_a_member_of_admins_is_a_workspace_admin(
     client: type[Client], groups: tuple[str, ...] | None, said_: str
 ) -> None:
-    """CLI-6. `admins` is the system group of a workspace's administrators:
+    """CLI-8. `admins` is the system group of a workspace's administrators:
     https://docs.databricks.com/aws/en/admin/users-groups/groups — and the one
     thing about what credentials may do that lely reads off. Assumed, not
     seen: that the SDK's `current_user.me()` lists it under that name."""
     client.groups = groups
-    assert cli._powers("dev").startswith(said_)
+    powers = cli._powers("dev")
+    assert powers.startswith(said_)
+    assert "read-only" not in powers
     assert client.made == ["dev"]
