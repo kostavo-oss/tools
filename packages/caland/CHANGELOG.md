@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-11
+
 ### Fixed
 
 - **A second ctrl+c, or a second signal to stop, no longer cuts the stopping short.**
