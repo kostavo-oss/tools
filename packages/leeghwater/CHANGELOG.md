@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-11
+
 ### Fixed
 
 - **The first lines no longer name a profile the run does not use.** With
