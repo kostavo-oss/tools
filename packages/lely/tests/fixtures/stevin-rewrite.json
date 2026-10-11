@@ -1,0 +1,500 @@
+{
+  "format_version": 1,
+  "tool_version": "0.1.0",
+  "target": "dev",
+  "spec_hash": "0f92218c17537065",
+  "state_fingerprint": "80e698c03aebd41c",
+  "summary": {
+    "add": 0,
+    "change": 1,
+    "destroy": 0,
+    "steps": 8,
+    "rewrites": 2,
+    "warnings": 4,
+    "highest_risk": "rewrite"
+  },
+  "unmanaged_tables": [],
+  "not_managed": [],
+  "orphaned_tables": [],
+  "owned_tables": [],
+  "tables": [
+    {
+      "table": "dev.sales.customers",
+      "facts": {
+        "exists": true,
+        "size_bytes": 25769803776,
+        "delta_version": null,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {
+          "deltaplan.managed": "true"
+        },
+        "schema_exists": true,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [],
+      "cautions": [],
+      "desired": {
+        "table": "dev.sales.customers",
+        "comment": "One row per customer",
+        "cluster_by": [],
+        "cluster_auto": true,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "columns": [
+          {
+            "name": "customer_id",
+            "type": "bigint",
+            "nullable": false,
+            "comment": "Surrogate key"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "country",
+            "type": "string",
+            "nullable": true
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": "customers_pk",
+              "columns": [
+                "customer_id"
+              ]
+            }
+          }
+        ],
+        "grants": {},
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "live": {
+        "table": "dev.sales.customers",
+        "comment": "One row per customer",
+        "cluster_by": [],
+        "cluster_auto": true,
+        "partitioned_by": null,
+        "owner": "you@example.com",
+        "properties": {
+          "deltaplan.managed": "true"
+        },
+        "tags": {},
+        "columns": [
+          {
+            "name": "customer_id",
+            "type": "bigint",
+            "nullable": false,
+            "comment": "Surrogate key"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "country",
+            "type": "string",
+            "nullable": true
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": "customers_pk",
+              "columns": [
+                "customer_id"
+              ]
+            }
+          }
+        ],
+        "grants": {},
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "changes": []
+    },
+    {
+      "table": "dev.sales.orders",
+      "facts": {
+        "exists": true,
+        "size_bytes": 442381631488,
+        "delta_version": 11,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {
+          "delta.columnMapping.mode": "name",
+          "delta.enableTypeWidening": "true",
+          "delta.minReaderVersion": "2",
+          "delta.minWriterVersion": "5",
+          "deltaplan.managed": "true"
+        },
+        "schema_exists": true,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [
+        "renamed_from 'cust_id' on customer_ref has done its job \u2014 it can be removed"
+      ],
+      "cautions": [],
+      "desired": {
+        "table": "dev.sales.orders",
+        "comment": "Order facts, one row per order",
+        "cluster_by": [
+          "order_date"
+        ],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {
+          "domain": "sales"
+        },
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "order_date",
+            "type": "date",
+            "nullable": false
+          },
+          {
+            "name": "customer_ref",
+            "type": "bigint",
+            "nullable": true,
+            "renamed_from": "cust_id",
+            "tags": {
+              "pii": "true"
+            }
+          },
+          {
+            "name": "amount",
+            "type": "decimal(18,2)",
+            "nullable": true
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "nullable": false,
+            "using": "'open'"
+          },
+          {
+            "name": "address",
+            "type": "struct<street:string,zip:string,country:string>",
+            "nullable": true
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": null,
+              "columns": [
+                "order_id"
+              ]
+            }
+          },
+          {
+            "check": {
+              "name": "positive_amount",
+              "expression": "amount >= 0"
+            }
+          }
+        ],
+        "grants": {
+          "analysts": [
+            "SELECT"
+          ]
+        },
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "live": {
+        "table": "dev.sales.orders",
+        "comment": "Order facts, one row per order",
+        "cluster_by": [
+          "order_date"
+        ],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": "you@example.com",
+        "properties": {
+          "delta.columnMapping.mode": "name",
+          "delta.enableTypeWidening": "true",
+          "delta.minReaderVersion": "2",
+          "delta.minWriterVersion": "5",
+          "deltaplan.managed": "true"
+        },
+        "tags": {
+          "domain": "sales"
+        },
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "order_date",
+            "type": "date",
+            "nullable": false
+          },
+          {
+            "name": "customer_ref",
+            "type": "string",
+            "nullable": true,
+            "tags": {
+              "pii": "true"
+            }
+          },
+          {
+            "name": "amount",
+            "type": "decimal(18,2)",
+            "nullable": true
+          },
+          {
+            "name": "address",
+            "type": "struct<street:string,zip:string,country:string>",
+            "nullable": true
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "nullable": false
+          }
+        ],
+        "constraints": [
+          {
+            "primary_key": {
+              "name": "orders_pk",
+              "columns": [
+                "order_id"
+              ]
+            }
+          },
+          {
+            "check": {
+              "name": "positive_amount",
+              "expression": "amount >= 0"
+            }
+          }
+        ],
+        "grants": {
+          "analysts": [
+            "SELECT"
+          ]
+        },
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "changes": [
+        {
+          "kind": "change_type",
+          "path": "customer_ref",
+          "before": "string",
+          "after": "bigint"
+        }
+      ]
+    },
+    {
+      "table": "dev.sales.big_orders",
+      "facts": {
+        "exists": true,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "view",
+        "unmodelled": [],
+        "properties": {
+          "deltaplan.managed": "true"
+        },
+        "schema_exists": true,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [],
+      "cautions": [],
+      "desired": {
+        "view": "dev.sales.big_orders",
+        "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
+        "comment": "Orders over 1000",
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "grants": {}
+      },
+      "live": {
+        "view": "dev.sales.big_orders",
+        "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
+        "comment": "Orders over 1000",
+        "owner": "you@example.com",
+        "properties": {
+          "deltaplan.managed": "true"
+        },
+        "tags": {},
+        "grants": {}
+      },
+      "changes": []
+    }
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "",
+      "title": "STAGE rewritten data",
+      "risk": "rewrite",
+      "sql": "CREATE OR REPLACE TABLE `dev`.`sales`.`orders__deltaplan_rewrite` AS\nSELECT\n  `order_id` AS `order_id`,\n  `order_date` AS `order_date`,\n  CAST(`customer_ref` AS BIGINT) AS `customer_ref`,\n  `amount` AS `amount`,\n  'open' AS `status`,\n  `address` AS `address`\nFROM `dev`.`sales`.`orders`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": "SELECT (\n  (SELECT count(*) FROM `dev`.`sales`.`orders__deltaplan_rewrite`) = (SELECT count(*) FROM `dev`.`sales`.`orders`)\n  AND (SELECT count_if(`customer_ref` IS NULL) FROM `dev`.`sales`.`orders__deltaplan_rewrite`) <= (SELECT count_if(`customer_ref` IS NULL) FROM `dev`.`sales`.`orders`)\n) AS ok",
+      "failure": "staging lost rows or values: a conversion turned something into NULL. dev.sales.orders is untouched; the staged copy is kept at dev.sales.orders__deltaplan_rewrite to inspect. Give the column a `using:` expression",
+      "est_bytes": 442381631488,
+      "undo_hint": null,
+      "warnings": [],
+      "note": "a full copy is written alongside the table, then dropped again"
+    },
+    {
+      "id": 2,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "",
+      "title": "REPLACE TABLE",
+      "risk": "rewrite",
+      "sql": "CREATE OR REPLACE TABLE `dev`.`sales`.`orders`\nCLUSTER BY (`order_date`)\nCOMMENT 'Order facts, one row per order'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)\nAS SELECT * FROM `dev`.`sales`.`orders__deltaplan_rewrite`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": 442381631488,
+      "undo_hint": "RESTORE TABLE `dev`.`sales`.`orders` TO VERSION AS OF 11",
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 3,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "order_id",
+      "title": "SET NOT NULL",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `order_id` SET NOT NULL",
+      "precheck": "SELECT count(*) > 0 AS blocked FROM `dev`.`sales`.`orders` WHERE `order_id` IS NULL",
+      "refusal": "order_id still has NULLs in it",
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": 442381631488,
+      "undo_hint": null,
+      "warnings": [
+        "fails unless every existing row already has a value"
+      ],
+      "note": null
+    },
+    {
+      "id": 4,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "order_date",
+      "title": "SET NOT NULL",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `order_date` SET NOT NULL",
+      "precheck": "SELECT count(*) > 0 AS blocked FROM `dev`.`sales`.`orders` WHERE `order_date` IS NULL",
+      "refusal": "order_date still has NULLs in it",
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": 442381631488,
+      "undo_hint": null,
+      "warnings": [
+        "fails unless every existing row already has a value"
+      ],
+      "note": null
+    },
+    {
+      "id": 5,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "status",
+      "title": "SET NOT NULL",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` ALTER COLUMN `status` SET NOT NULL",
+      "precheck": "SELECT count(*) > 0 AS blocked FROM `dev`.`sales`.`orders` WHERE `status` IS NULL",
+      "refusal": "status still has NULLs in it",
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": 442381631488,
+      "undo_hint": null,
+      "warnings": [
+        "fails unless every existing row already has a value"
+      ],
+      "note": null
+    },
+    {
+      "id": 6,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "",
+      "title": "ADD CONSTRAINT orders_pk PRIMARY KEY",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` ADD CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 7,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "",
+      "title": "ADD CONSTRAINT positive_amount CHECK",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` ADD CONSTRAINT `positive_amount` CHECK (amount >= 0)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [
+        "Databricks validates every existing row, which scans the table"
+      ],
+      "note": null
+    },
+    {
+      "id": 8,
+      "table": "dev.sales.orders",
+      "change": -1,
+      "path": "",
+      "title": "DROP staging",
+      "risk": "meta",
+      "sql": "DROP TABLE IF EXISTS `dev`.`sales`.`orders__deltaplan_rewrite`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    }
+  ]
+}

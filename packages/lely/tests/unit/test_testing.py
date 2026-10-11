@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 import project
-from fakes import FakeDatabricks, write_bundle
+from fakes import FakeDatabricks, FakeStevin, write_bundle
 from lely.model import (
     Change,
     Item,
@@ -27,6 +27,7 @@ from lely.model import (
 from lely.step import Context
 from lely.steps.bundle import Bundle
 from lely.steps.bundle_run import BundleRun
+from lely.steps.stevin import Stevin
 from lely.testing import (
     NoDatabricks,
     ReadOnly,
@@ -264,6 +265,16 @@ def test_bundle_run_passes_the_parts_that_apply(tmp_path: Path) -> None:
     # a `run` may remain after apply: it happens every time
     assert check_apply(BundleRun(), run) == {}
     assert fake.runs == [{"key": "jobs.backfill", "args": []}]
+
+
+def test_the_stevin_plugin_passes_the_parts_that_apply(tmp_path: Path) -> None:
+    """PLG-10. Planning and listing read; after apply nothing is left to change.
+    It has no destroy to check: it drops nothing."""
+    stevin = FakeStevin.planning(tmp_path / "stevin-world", "stevin-rewrite.json")
+    step = context(Stevin.Options(executable=stevin.executable), root=tmp_path, env={})
+    assert check_apply(Stevin(), step) == {}
+    assert len(stevin.applied) == 8
+    assert isinstance(check_overview(Stevin(), step), Overview)
 
 
 class GivesATuple(Good):

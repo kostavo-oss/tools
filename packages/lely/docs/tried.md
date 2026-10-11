@@ -86,3 +86,12 @@ there were no environments.
    reviewer, a pull request from a fork, a merge after `main` moved, a first deploy with
    a waiting step.
 9. **Any release from PyPI**: every run was before 0.1.0 of 2026-10-07.
+10. **The `stevin` step**: it has not run on a workspace, and lely itself has not run
+    the real `stevin` command: its tests run a fake of it, written from stevin's source.
+    What was seen, on 2026-10-11, is stevin's own command against its in-memory
+    warehouse, with the flags the step passes and plan files that had been through
+    lely's plan file and back. Such a file was read and applied. A destructive one ended
+    with exit 1 without `--allow-destructive` and was applied with it. A plan whose
+    tables had changed ended with exit 1 and the words the step looks for. Two plans made
+    one after the other, with nothing changed between them, held the same steps. None of
+    that says what a warehouse does.

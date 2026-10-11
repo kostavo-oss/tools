@@ -99,6 +99,7 @@ def context(
     databricks: Cli | None = None,
     connect: Any = None,
     purpose: Purpose = "apply",
+    approved: StepPlan | None = None,
 ) -> Context[OptionsT]:
     return Context(
         target=target,
@@ -111,6 +112,7 @@ def context(
         log=NullLog(),
         connect=connect or _no_workspace,
         purpose=purpose,
+        approved=approved,
     )
 
 

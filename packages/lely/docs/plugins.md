@@ -69,7 +69,70 @@ Planning runs your project's own code — a step in the repo. On a pull request,
 
 ## `stevin`
 
-Tables, planned by [stevin](https://kostavo-oss.github.io/tools/stevin/). It can plan and
-cannot apply yet: `lely apply` refuses a project that uses it
-([issue 41](https://github.com/kostavo-oss/tools/issues/41)). Until it can, run stevin's own
-Action, or `stevin apply` from a `Program` step.
+Tables, views and the access around them, planned and applied by
+[stevin](https://kostavo-oss.github.io/tools/stevin/). lely runs the `stevin` command, so
+stevin has to be installed where lely runs.
+
+```yaml
+steps:
+  - name: tables
+    uses: stevin
+    with:
+      config: stevin.yml         # stevin's project file; the default
+
+  - name: app
+    uses: bundle
+```
+
+| Option | |
+| --- | --- |
+| `config` | stevin's project file, from the config's folder. Default `stevin.yml` |
+| `target` | stevin's target. Default: the `-t` lely was given |
+| `select` | Only these tables, views or patterns, as stevin's `--select` |
+| `executable` | How to run stevin. Default `[stevin]`; `[uvx, stevin]` runs it in an environment of its own |
+
+**The plan** has one change per table, with a line for each step stevin would run and
+that step's risk class:
+
+```text
+tables  stevin
+    update   main.sales.orders  rewrite
+        STAGE rewritten data  [rewrite]
+        REPLACE TABLE  [rewrite]
+        SET NOT NULL order_id  [meta]
+        ⚠ fails unless every existing row already has a value
+```
+
+`meta` and `feature` are cheap. `rewrite` rewrites the table's data, and the table's own
+line says so. `destructive` loses something, and needs `lely apply --allow-destructive`;
+lely passes that on to stevin only then. A risk class lely does not know is treated as
+destructive.
+
+**Apply runs the plan that was reviewed.** stevin's own plan file travels inside lely's
+plan file. `lely apply` hands that file to `stevin apply`, never a new one. Two checks
+stand before it:
+
+- lely plans the step again and compares. If stevin would now do anything else than the
+  reviewed file holds, lely refuses, and stevin is not run.
+- stevin compares the file with the live tables. If they changed since the plan was
+  made, stevin refuses the plan as stale.
+
+Either way the run ends with 2 and nothing after the step starts. Plan again, and review
+the new plan. That is also what to do after stevin failed halfway through a plan: what it
+applied stays applied, and the next plan shows what is left.
+
+**Destroy drops nothing.** A dropped table is its rows. `lely destroy` skips the step and
+says so. To drop a table, take it out of stevin's specs: stevin's own rules say when it
+drops one.
+
+**Status** lists what stevin's specs describe and whether each exists. lely runs
+`stevin plan` to find out, so a status takes as long as a plan.
+
+The step gives no outputs. A plan file holds stevin's statements, and names of tables,
+columns and owners: keep it where the pull request's other artifacts are kept. lely
+prints the names of tables and columns, the titles of stevin's steps and their warnings.
+A title names the principal of a grant. No owner is printed.
+
+!!! warning "Not run for real yet"
+    The step has not run on a workspace, and not against the real `stevin` command:
+    [What has been tried](tried.md#not-yet).

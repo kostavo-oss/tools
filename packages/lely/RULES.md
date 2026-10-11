@@ -24,13 +24,16 @@ and on GitHub is in [docs/tried.md](docs/tried.md).
   `tests/test_rules.py` at the root of the repository checks all of the above.
 
 The tests run against stand-ins: `tests/fake_databricks.py` is the Databricks CLI,
-`tests/fake_github.py` is a pull request's comments, `tests/fake_stevin.py` answers from
-recorded stevin plans. What the plugin for bundles assumes of the real CLI, and what was
-seen of it, is numbered `V1` to `V8` in the docstring of `src/lely/steps/bundle.py`; the
-tests and the fake cite those numbers.
+`tests/fake_github.py` is a pull request's comments, `tests/fake_stevin.py` is the
+`stevin` command: it plans from a plan file stevin recorded, and applies it. What the
+plugin for bundles assumes of the real CLI, and what was seen of it, is numbered `V1` to
+`V8` in the docstring of `src/lely/steps/bundle.py`; the tests and the fake cite those
+numbers. What the `stevin` plugin assumes of stevin's command line is numbered `S1` to
+`S7` in `tests/fake_stevin.py`.
 
 The areas: `CFG` the config, `REF` what flows between steps, `PLG` the plugin contract,
-`BDL` the `bundle` plugin, `BRUN` the `bundle.run` plugin, `PROG` a program as a step,
+`BDL` the `bundle` plugin, `BRUN` the `bundle.run` plugin, `STV` the `stevin` plugin,
+`PROG` a program as a step,
 `SOLO` a step on its own, `PLAN` the plan and its file, `WAIT` a step that cannot be
 planned yet, `APL` apply, `DST` destroy, `ASK` consent, `CLI` the command line, `SEC`
 secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the package.
@@ -200,10 +203,10 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **PLG-5** — A step is given its `Context` and nothing else: the target, its own name,
   its options with references resolved, the project's directory, the workspace's host, the
   environment for a program it runs, the Databricks CLI with the run's credentials, a log,
-  the workspace client, connected on first use, and what it is planned for: apply, destroy
-  or status. For a destroy and a status what exists now counts, not what a deploy would
-  make of it. A step is not given the other steps' outputs: what it depends on is in its
-  options.
+  the workspace client, connected on first use, what it is planned for: apply, destroy
+  or status, and in `apply` its own plan as it was approved (PLG-14). For a destroy and a
+  status what exists now counts, not what a deploy would make of it. A step is not given
+  the other steps' outputs: what it depends on is in its options.
   Held by: `tests/unit/test_cli.py::test_a_plugin_is_given_a_client_for_the_same_profile`,
   `tests/unit/test_planning.py::test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give`.
 - **PLG-6** — The target is a bare name, handed to every step as it was typed: each plugin
@@ -237,12 +240,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **PLG-10** — Every plugin lely ships passes the checks of `lely.testing` that apply to
   it.
   Held by: `tests/unit/test_testing.py::test_the_bundle_plugin_passes_the_whole_kit`,
-  `tests/unit/test_testing.py::test_bundle_run_passes_the_parts_that_apply`.
-- **PLG-11** — Every plugin lely ships applies what it plans.
+  `tests/unit/test_testing.py::test_bundle_run_passes_the_parts_that_apply`,
+  `tests/unit/test_testing.py::test_the_stevin_plugin_passes_the_parts_that_apply`.
+- **PLG-11** — Every plugin lely ships applies what it plans. A plugin that can plan and
+  cannot apply yet says so with `plan_only`, and `apply` refuses a project with a step of
+  one before anything is asked or run.
   Held by: `tests/unit/test_running.py::test_a_plugin_that_cant_apply_yet_stops_it_before_anything_runs`,
-  `tests/unit/test_step_stevin.py::test_it_can_plan_and_cant_apply_yet`.
-  Not kept yet: #41 — the `stevin` plugin plans and cannot apply; `apply` refuses a
-  project that uses it before anything is asked or run.
+  `tests/unit/test_step_stevin.py::test_it_plans_applies_and_lists_and_drops_nothing`.
 - **PLG-13** — What a program writes while a step changes something is passed on to the
   step's log a line at a time, as it comes, from both of its streams; a program that only
   answers a question is run to its end and read. A failing program is quoted on both
@@ -250,6 +254,18 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   directory is said as what it is.
   Held by: `tests/unit/test_process.py::test_a_failing_program_is_quoted_on_both_streams`,
   `tests/unit/test_process.py::test_a_program_is_heard_while_it_runs_and_what_it_wrote_is_kept`.
+- **PLG-14** — `apply` is handed the plan made right before it, and with it, as
+  `Context.approved`, the step's own plan as it was approved: its changes and its payload,
+  also when the approved plan was read from a file. A plugin that must run what was
+  reviewed takes its payload from there. It is `None` in every other call, and for a step
+  that was waiting when the plan was made: what was approved then is the plan `apply` is
+  handed.
+  Held by: `tests/unit/test_running.py::test_apply_is_handed_the_plan_that_was_approved_beside_the_fresh_one`,
+  `tests/unit/test_running.py::test_a_step_that_was_waiting_is_handed_no_approved_plan`.
+- **PLG-15** — A plugin with no destroy may say why in `nothing_to_destroy`: a destroy
+  plan and a destroy show the step as skipped with those words, in place of "has nothing
+  to destroy".
+  Held by: `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`.
 
 ## BDL — the `bundle` plugin
 
@@ -369,6 +385,89 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   destroy skips it with the reason.
   Held by: `tests/unit/test_step_bundle_run.py::test_nothing_to_destroy_and_nothing_to_list`,
   `tests/unit/test_step_bundle_run.py::test_the_core_skips_it_in_a_destroy_and_says_why`.
+
+## STV — the `stevin` plugin
+
+- **STV-1** — `uses: stevin` runs the `stevin` command and reads its plan file: lely
+  imports nothing of stevin. Its options are `config`, stevin's project file, relative to
+  the config and `stevin.yml` by default; `target`, stevin's target, which is `-t` when
+  not given; `select`, passed as `--select`; and `executable`, how to run stevin. A
+  `stevin` that is not installed is said with how to get it.
+  Held by: `tests/unit/test_step_stevin.py::test_plans_through_stevins_cli`,
+  `tests/unit/test_step_stevin.py::test_its_own_target_wins`,
+  `tests/unit/test_step_stevin.py::test_a_missing_stevin_says_how_to_get_it`.
+- **STV-2** — A plan holds one change per table, view or other object stevin has steps
+  for, keyed by its full name, with one line per step: the step's title, the column it is
+  about, and its risk class, and under it what stevin warns of. An object that does not
+  exist yet is a create, one stevin drops is a delete, any other is an update. A table
+  with a step of the class `rewrite` says `rewrite` in its own line.
+  Held by: `tests/unit/test_step_stevin.py::test_a_first_plan_creates_each_table`,
+  `tests/unit/test_step_stevin.py::test_a_rewrite_is_visible_as_a_rewrite`,
+  `tests/unit/test_cli.py::test_a_stevin_plan_is_shown_with_its_risks_and_applied_from_the_file`.
+- **STV-3** — stevin's risk classes map onto lely's: `meta`, `feature` and `rewrite` are
+  not destructive, and `destructive` is. A step with a class lely does not know, or with
+  none, makes its change destructive, and its line says that the class is not known.
+  Held by: `tests/unit/test_step_stevin.py::test_a_dropped_column_is_a_destructive_update`,
+  `tests/unit/test_step_stevin.py::test_a_risk_class_lely_doesnt_know_is_destructive`,
+  `tests/unit/test_running.py::test_a_risk_class_lely_doesnt_know_needs_allow_destructive`.
+- **STV-4** — Apply runs the plan that was approved, never a new one. stevin's plan file
+  is the step's payload, whole, so it is in lely's plan file; `apply` writes the approved
+  payload to a temporary file and hands that to `stevin apply`, also when the plan went
+  through a file from one command to the next. The plan lely makes right before a step
+  runs is not what stevin is handed.
+  Held by: `tests/unit/test_step_stevin.py::test_apply_hands_stevin_the_plan_that_was_approved`,
+  `tests/unit/test_running.py::test_the_stevin_step_applies_the_plan_file_that_was_approved`,
+  `tests/unit/test_cli.py::test_a_stevin_plan_is_shown_with_its_risks_and_applied_from_the_file`.
+- **STV-5** — Before stevin is run, the approved file is held to the plan made right
+  before the step runs: it is of the format lely reads and for the step's target, it was
+  made from the same specs, and its steps and the changes they carry out are the ones
+  stevin would run now, in the same order and alike in everything but what follows a
+  table's data: a size estimate, a restore point. A file that differs is refused and asks
+  for a new plan, and the message repeats nothing the file says. So a plan of which
+  stevin applied a part is not gone on with from the approved file: it takes a new plan.
+  The fingerprint of the live tables is not compared: that is stevin's check (STV-6).
+  Held by: `tests/unit/test_step_stevin.py::test_a_file_stevin_would_no_longer_run_the_same_is_refused`,
+  `tests/unit/test_step_stevin.py::test_a_file_for_another_target_is_refused`,
+  `tests/unit/test_running.py::test_a_stevin_plan_that_was_applied_in_part_is_not_resumed`.
+- **STV-6** — A plan stevin refuses because the live tables moved since it was made,
+  because another version of stevin saved it, or because its format is not stevin's, ends
+  the run as refused, in stevin's words and with the advice to plan again. Nothing is planned
+  again in its place, and no step after it starts.
+  Held by: `tests/unit/test_step_stevin.py::test_a_stale_plan_is_refused_in_stevins_words`,
+  `tests/unit/test_step_stevin.py::test_a_plan_file_of_another_stevin_is_refused_too`,
+  `tests/unit/test_running.py::test_a_stale_stevin_plan_stops_the_run_and_nothing_after_it_starts`.
+  Not kept yet: #65 — stevin gives a refusal no sign of its own: every refusal and every
+  failure exits 1. The step knows a refusal by two sentences of stevin's, so a refusal
+  stevin words differently ends the run as failed.
+- **STV-7** — Any other exit of `stevin apply` that is not 0 is the step's failure, quoted
+  in stevin's words from both of its streams. What stevin applied before it stopped stays
+  applied.
+  Held by: `tests/unit/test_step_stevin.py::test_a_failing_apply_is_a_failure_in_stevins_words`.
+- **STV-8** — `--allow-destructive` is passed to stevin only when the plan lely let
+  through holds a destructive change, which it does only when `lely apply` was given
+  `--allow-destructive` itself. Without it stevin is not asked to apply.
+  Held by: `tests/unit/test_step_stevin.py::test_allow_destructive_goes_to_stevin_only_with_a_destructive_plan`,
+  `tests/unit/test_running.py::test_a_destructive_stevin_step_needs_allow_destructive`.
+- **STV-9** — A stevin step that was waiting when the plan was made has no approved file.
+  It applies the plan it is shown with when the run reaches it.
+  Held by: `tests/unit/test_step_stevin.py::test_a_step_that_was_waiting_applies_the_plan_it_was_shown_with`.
+- **STV-10** — A destroy drops nothing. In a destroy plan and in a destroy the step is
+  skipped with one line that says the tables stay, and stevin is not run. No option
+  changes that.
+  Held by: `tests/unit/test_step_stevin.py::test_it_plans_applies_and_lists_and_drops_nothing`,
+  `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`,
+  `tests/unit/test_cli.py::test_a_destroy_plan_says_in_one_line_that_stevins_tables_stay`.
+- **STV-11** — The overview is every object stevin's specs describe for the target, with
+  its kind and whether it exists, read from `stevin plan` and from nothing else. The step
+  gives no outputs.
+  Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
+  `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
+- **STV-12** — Of stevin's plan file lely shows the names of tables, and each step's
+  title, column, risk class and warnings, and nothing else: no owner, and no statement.
+  What `stevin apply` writes is passed on to the step's log as it comes, under the step's
+  name.
+  Held by: `tests/unit/test_step_stevin.py::test_the_plan_names_no_owner`,
+  `tests/unit/test_step_stevin.py::test_what_stevin_says_is_passed_on`.
 
 ## PROG — a program as a step
 
@@ -616,7 +715,8 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_running.py::test_a_failing_destroy_stops_and_leaves_the_rest`.
 - **APL-9** — After a failure, running the same command again finishes the job: a step
   that did its work plans as nothing to do. After a refusal the same file is refused
-  again: it takes a new plan.
+  again: it takes a new plan. A `stevin` step that applied part of its plan is the one
+  failure that takes a new plan (STV-5).
   Held by: `tests/unit/test_cli.py::test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round`,
   `tests/unit/test_running.py::test_running_it_again_finishes_the_job`.
 - **APL-10** — `--from <step>` starts at a named step; in a destroy it names where to

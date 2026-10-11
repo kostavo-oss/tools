@@ -18,7 +18,6 @@ from typing import Any
 from fakes import HOST, USER, FakeDatabricks, deploy, write_bundle
 from lely.model import Source, Workspace
 
-FAKE_STEVIN = Path(__file__).parent / "fake_stevin.py"
 FAKE_DATABRICKS = Path(__file__).parent / "fake_databricks.py"
 
 WORKSPACE = Workspace(HOST, USER)

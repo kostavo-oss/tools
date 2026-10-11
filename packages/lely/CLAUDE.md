@@ -50,8 +50,10 @@ There is no `spec/` folder, and none comes back.
 - No raw invisible character in any file: write its escape (PKG-2).
 - Every assumption about what Databricks or GitHub does gets a test, and a link to the
   docs in its docstring. If unsure, say so and add a `TODO(verify)`: do not guess.
-- The `stevin` plugin plans and cannot apply (PLG-11, issue #41). Do not extend it in
-  passing.
+- The `stevin` plugin runs the `stevin` command and imports nothing of stevin. It applies
+  the plan file that was approved (STV-4) and drops nothing (STV-10). What it assumes of
+  stevin's command line is numbered S1 to S7 in `tests/fake_stevin.py`; it has not run on
+  a workspace.
 - `render/base.css` is in three packages, byte for byte (PKG-4): change all three in one
   pull request. After a change to `render/html.py`, run `uv run pytest tests/browser`
   and remake the pictures in `docs/assets/` when the page looks different.
@@ -75,7 +77,7 @@ src/lely/approval.py, running.py           what may run; apply, destroy, status 
 src/lely/planfile.py, source.py            the plan file, and the git tree it is held to (PLAN)
 src/lely/cli.py                            the commands, consent, exit codes, writing files (ASK, CLI)
 src/lely/solo.py, flags.py                 a step on its own (SOLO)
-src/lely/steps/                            the plugins lely ships (BDL, BRUN)
+src/lely/steps/                            the plugins lely ships (BDL, BRUN, STV)
 src/lely/render/                           the terminal, Markdown, the page (SEC, PAGE, GH)
 src/lely/github.py                         the comment and the run's page (GH)
 src/lely/testing.py                        the contract as checks a test can run (PLG-9)

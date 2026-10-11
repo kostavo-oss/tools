@@ -369,12 +369,22 @@ class Session:
         )
         return result
 
-    def apply(self, prepared: Prepared, plan: StepPlan) -> Outputs:
-        """Have the plugin do what `plan` says, and take what it gives."""
+    def apply(
+        self, prepared: Prepared, plan: StepPlan, approved: StepPlan | None = None
+    ) -> Outputs:
+        """Have the plugin do what `plan` says, and take what it gives.
+
+        `plan` is the one made right before this. `approved` is the step's plan
+        as it was approved, for a plugin that runs the payload that was
+        reviewed (`Context.approved`).
+        """
         where = prepared.where
         self.log.info(f"applying {prepared.step.name}")
         returned = self._call(
-            prepared, "apply", lambda plugin, ctx: plugin.apply(ctx, plan)
+            prepared,
+            "apply",
+            lambda plugin, ctx: plugin.apply(ctx, plan),
+            approved=approved,
         )
         if returned is None:
             returned = {}
@@ -402,7 +412,13 @@ class Session:
         """What taking the step down would remove — or why there is nothing to."""
         where = prepared.where
         if not contract.destroys(prepared.found.cls):
-            return Skip(f"`{prepared.step.uses}` has nothing to destroy")
+            return Skip(
+                getattr(
+                    prepared.found.cls,
+                    "nothing_to_destroy",
+                    f"`{prepared.step.uses}` has nothing to destroy",
+                )
+            )
         result = self._call(
             prepared, "plan its destroy", lambda plugin, ctx: plugin.plan_destroy(ctx)
         )
@@ -470,7 +486,9 @@ class Session:
             step, plan=dataclasses.replace(step.plan, outputs=outputs, later=())
         )
 
-    def _context(self, prepared: Prepared) -> Context[Any]:
+    def _context(
+        self, prepared: Prepared, approved: StepPlan | None = None
+    ) -> Context[Any]:
         return Context(
             target=self.target,
             name=prepared.step.name,
@@ -482,15 +500,21 @@ class Session:
             log=self.log,
             connect=self.connect,
             purpose=self.purpose,
+            approved=approved,
         )
 
     def _call(
-        self, prepared: Prepared, verb: str, call: Callable[[Any, Context[Any]], T]
+        self,
+        prepared: Prepared,
+        verb: str,
+        call: Callable[[Any, Context[Any]], T],
+        *,
+        approved: StepPlan | None = None,
     ) -> T:
         where = prepared.where
         try:
             with contract.quietly():
-                return call(prepared.found.cls(), self._context(prepared))
+                return call(prepared.found.cls(), self._context(prepared, approved))
         except Refused as error:
             raise Refused(f"{where}: {error}") from error
         except LelyError as error:

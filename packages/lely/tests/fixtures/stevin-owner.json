@@ -1,0 +1,170 @@
+{
+  "format_version": 1,
+  "tool_version": "0.1.0",
+  "target": "dev",
+  "spec_hash": "3580aa350b7ad77f",
+  "state_fingerprint": "a51ad9ee4c1a4600",
+  "summary": {
+    "add": 1,
+    "change": 0,
+    "destroy": 0,
+    "steps": 4,
+    "rewrites": 0,
+    "warnings": 1,
+    "highest_risk": "meta"
+  },
+  "unmanaged_tables": [],
+  "not_managed": [],
+  "orphaned_tables": [],
+  "owned_tables": [],
+  "tables": [
+    {
+      "table": "dev.sales.orders",
+      "facts": {
+        "exists": false,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": false,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [],
+      "cautions": [],
+      "desired": {
+        "table": "dev.sales.orders",
+        "comment": null,
+        "cluster_by": [],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": "jane.doe@example.com",
+        "properties": {},
+        "tags": {},
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "bigint",
+            "nullable": true
+          }
+        ],
+        "constraints": [],
+        "grants": {
+          "analysts": [
+            "SELECT"
+          ]
+        },
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "live": null,
+      "changes": [
+        {
+          "kind": "create_table",
+          "path": "",
+          "before": null,
+          "after": {
+            "table": "dev.sales.orders",
+            "comment": null,
+            "cluster_by": [],
+            "cluster_auto": false,
+            "partitioned_by": null,
+            "owner": "jane.doe@example.com",
+            "properties": {},
+            "tags": {},
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "bigint",
+                "nullable": true
+              }
+            ],
+            "constraints": [],
+            "grants": {
+              "analysts": [
+                "SELECT"
+              ]
+            },
+            "row_filter": null,
+            "governed_columns": []
+          }
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "table": "dev.sales.orders",
+      "change": 0,
+      "path": "",
+      "title": "CREATE SCHEMA sales",
+      "risk": "meta",
+      "sql": "CREATE SCHEMA IF NOT EXISTS `dev`.`sales`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": "the schema doesn't exist yet; stevin creates schemas, not catalogs"
+    },
+    {
+      "id": 2,
+      "table": "dev.sales.orders",
+      "change": 0,
+      "path": "",
+      "title": "CREATE TABLE orders",
+      "risk": "meta",
+      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`orders` (\n  `order_id` BIGINT\n)\nUSING DELTA\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": "DROP TABLE `dev`.`sales`.`orders`",
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 3,
+      "table": "dev.sales.orders",
+      "change": 0,
+      "path": "analysts",
+      "title": "GRANT to analysts",
+      "risk": "meta",
+      "sql": "GRANT SELECT ON TABLE `dev`.`sales`.`orders` TO `analysts`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 4,
+      "table": "dev.sales.orders",
+      "change": 0,
+      "path": "",
+      "title": "SET OWNER",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`sales`.`orders` OWNER TO `jane.doe@example.com`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [
+        "only the owner, its members or MANAGE can change it after this"
+      ],
+      "note": null
+    }
+  ]
+}
