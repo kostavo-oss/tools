@@ -3,10 +3,16 @@
 `run` is the whole of it — choose the workspace, start loading it, serve the page
 until it is stopped. What the server will and will not answer is in `gate.py`. The
 rules are `CMD` and `GATE` in `RULES.md`, and `DECISIONS.md` says why.
+
+Stopping (CMD-7, CMD-9) is asked for and never thrown: ctrl+c, a signal to terminate and
+being left alone each leave a note (`_Stop`), the loop that serves reads the note
+between two requests, and the tidying that follows cannot be cut short by a second
+signal, because a signal does nothing here but leave the note again.
 """
 
 from __future__ import annotations
 
+import contextlib
 import signal
 import sys
 import threading
@@ -25,6 +31,10 @@ __all__ = ["IDLE", "Page", "Server", "run"]
 #: Left alone this long, caland stops and forgets what it held. CMD-8.
 IDLE = 30 * 60
 
+#: How long the server waits for a request before it looks whether it was asked to
+#: stop, in seconds: the longest a stop can take to be noticed.
+TURN = 0.2
+
 
 def run(
     onboarding: OnboardingService,
@@ -38,8 +48,13 @@ def run(
     idle: float = IDLE,
     out: TextIO | None = None,
     stdin: TextIO | None = None,
+    signals_back: bool = True,
 ) -> int:
-    """Serve one workspace as a page until stopped. The exit code."""
+    """Serve one workspace as a page until stopped. The exit code.
+
+    `signals_back` puts the handlers for ctrl+c and a signal to terminate back as
+    they were once everything is tidied. The command says False: it ends with this,
+    and a signal that comes after the last line must find nothing to break."""
     out = out or sys.stderr
     stdin = stdin or sys.stdin
     try:
@@ -59,70 +74,120 @@ def run(
     )
     server = Server(page)
     server.out = out  # where a failure inside is said: the terminal, by a line
+    server.timeout = TURN
     opener = Opener(browser)
     page.entered = opener.clean
-    if workspace is not None:
-        page.connect(workspace)
+    stop = _Stop()
 
     def show() -> None:
+        if stop.asked:  # enter, pressed while it stops: no new key and no new file
+            return
         link = f"{server.address}#{page.new_key()}"
         if open_browser and opener.open(link):
             print(f"caland is at {server.address} — opened in your browser.", file=out)
-        else:
+        elif not stop.asked:
             # asked for, or no browser could be started: the person is told the
             # link. A terminal is theirs alone; a command line is not.
             print(f"caland is waiting at:\n  {link}\nThe link works once.", file=out)
 
-    show()
-    print("enter: a new link · ctrl+c: stop", file=out)
+    def forget() -> None:
+        loader = page.current()[2]
+        if loader is not None and loader.service is not None:
+            loader.service.forget_values()
 
-    why = _watch(server, page, idle)
-    if stdin.isatty():
-        _again(stdin, show)
-    told_to_stop = _on_terminate()
+    def goodbye() -> None:
+        reason = f" {stop.why}" if stop.why else ""
+        print(f"\ncaland stopped.{reason} Every value it held is forgotten.", file=out)
+
+    # from here until the tidying is done a signal is a note and never an exception:
+    # before the file with the key is made, so that nothing can come between making
+    # it and being sure it is removed
+    as_it_was = _listen(stop)
     try:
-        server.serve_forever(poll_interval=0.2)
-    except KeyboardInterrupt:
-        pass
+        if workspace is not None:
+            page.connect(workspace)
+        show()
+        print("enter: a new link · ctrl+c: stop", file=out)
+        _watch(page, idle, stop)
+        if stdin.isatty():
+            _again(stdin, show)
+        while not stop.asked:
+            server.handle_request()  # one request, or TURN seconds with none
     finally:
-        told_to_stop()
-        server.server_close()
-        opener.clean()
-        if page.loader is not None and page.loader.service is not None:
-            page.loader.service.forget_values()
-    reason = f" {why[0]}" if why else ""
-    print(f"\ncaland stopped.{reason} Every value it held is forgotten.", file=out)
+        stop()  # whatever ended the serving, nothing new is started from here on
+        _tidy(
+            out,
+            ("closing the server", server.server_close),
+            ("removing the file with the key", opener.close),
+            ("forgetting the values", forget),
+            ("saying so", goodbye),
+        )
+        if signals_back:
+            as_it_was()
     return 0
 
 
-def _watch(server: Server, page: Page, idle: float) -> list[str]:
-    """Stop the server when nothing has been asked of it for `idle` seconds.
-    The list is given the reason when that happens."""
-    why: list[str] = []
+class _Stop:
+    """Whether caland was asked to stop, and why if it has a reason to give.
+
+    Two plain attributes and no lock, on purpose. A signal's handler runs on the
+    main thread between two of its instructions, wherever it is: a handler that
+    waited for a lock the main thread held would wait for ever, and one that raised
+    would cut short whatever was running, the tidying included (CMD-9).
+    """
+
+    def __init__(self) -> None:
+        self.asked = False
+        self.why = ""
+
+    def __call__(self, why: str = "") -> None:
+        if not self.asked:
+            self.why = why
+            self.asked = True
+
+
+def _tidy(out: TextIO, *steps: tuple[str, Callable[[], None]]) -> None:
+    """Every step, in order, each whatever became of the one before it. CMD-9.
+    A step that fails is one line: what it was and the kind of failure, never the
+    failure's own words, which can quote a value (VAL-1)."""
+    for what, step in steps:
+        try:
+            step()
+        except Exception as exc:  # noqa: BLE001 — the steps after it still have to run
+            with contextlib.suppress(Exception):
+                print(f"caland: {what} failed ({type(exc).__name__}).", file=out)
+
+
+def _watch(page: Page, idle: float, stop: _Stop) -> None:
+    """Ask caland to stop when nothing has been asked of it for `idle` seconds,
+    and say that as the reason. CMD-8."""
 
     def watch() -> None:
         while page.idle() < idle:
+            if stop.asked:
+                return
             time.sleep(min(5.0, max(0.05, idle / 10)))
-        why.append(f"Nothing was asked of it for {round(idle / 60)} minutes.")
-        server.shutdown()
+        stop(f"Nothing was asked of it for {round(idle / 60)} minutes.")
 
     threading.Thread(target=watch, name="caland-idle", daemon=True).start()
-    return why
 
 
-def _on_terminate() -> Callable[[], None]:
-    """Being told to stop (SIGTERM) is ctrl+c: the same tidying, the same goodbye.
-    Returns what puts things back as they were. Only the main thread may listen."""
+def _listen(stop: _Stop) -> Callable[[], None]:
+    """ctrl+c (SIGINT) and being told to stop (SIGTERM) are the same thing: a note
+    that caland is to stop. Neither raises, so a second one, and a third, changes
+    nothing, whenever it comes. Returns what puts the handlers back as they were.
+    Only the main thread may listen: on another, nothing is listened for."""
     if threading.current_thread() is not threading.main_thread():
         return lambda: None
 
-    def stop(signum: int, frame: object) -> None:
-        raise KeyboardInterrupt
+    def note(signum: int, frame: object) -> None:
+        stop()
 
-    before = signal.signal(signal.SIGTERM, stop)
+    before = {sig: signal.signal(sig, note) for sig in (signal.SIGINT, signal.SIGTERM)}
 
     def as_it_was() -> None:
-        signal.signal(signal.SIGTERM, before)
+        for sig, handler in before.items():
+            signal.signal(sig, handler)
 
     return as_it_was
 

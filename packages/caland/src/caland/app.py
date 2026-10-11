@@ -115,6 +115,7 @@ def _page(profile: str | None, args: list[str]) -> int:
         settings_store=JsonSettingsStore(),
         version=version("caland"),
         open_browser="--no-open" not in args,
+        signals_back=False,  # the command ends here: nothing is left to hand them to
     )
 
 

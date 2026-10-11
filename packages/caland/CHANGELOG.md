@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A second ctrl+c, or a second signal to stop, no longer cuts the stopping short.**
+  Caland ended with a traceback then, and could leave the file with the one-time key in
+  the temporary folder. Now a signal only asks Caland to stop: the server closes, the
+  file is removed, the values are forgotten and the last line is said, however many
+  signals come and whenever they come.
+
 ### Changed
 
 - **The page's look is shared with lely's page and stevin's.** The colours and what they

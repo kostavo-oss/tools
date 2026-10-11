@@ -6,7 +6,8 @@ command line can be read by every user of the machine. So the browser is handed
 a file instead — one only its owner can read — and the file sends it on.
 
 The key is good once and dies with the run; the file is removed as soon as the
-key has been used, and at the end whatever happened.
+key has been used, and at the end whatever happened. Once caland stops no new
+file is made: a new link asked for while it tidies up leaves nothing behind.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import contextlib
 import html
 import shutil
 import tempfile
+import threading
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -32,15 +34,22 @@ class Opener:
     def __init__(self, browser: Callable[[str], bool] = webbrowser.open) -> None:
         self._browser = browser
         self._folder: Path | None = None
+        self._closed = False
+        # a new link is asked for on a thread of its own (enter in the terminal)
+        self._lock = threading.Lock()
 
     def open(self, address: str) -> bool:
-        """Send the browser to `address`. False when no browser could be started."""
-        self.clean()
-        folder = Path(tempfile.mkdtemp(prefix="caland-"))  # the owner's alone (0700)
-        self._folder = folder
-        page = folder / "open.html"
-        page.touch(mode=0o600)
-        page.write_text(_PAGE.format(address=html.escape(address, quote=True)))
+        """Send the browser to `address`. False when no browser could be started,
+        and once closed."""
+        with self._lock:
+            if self._closed:
+                return False
+            self._remove()
+            folder = Path(tempfile.mkdtemp(prefix="caland-"))  # the owner's alone (0700)
+            self._folder = folder
+            page = folder / "open.html"
+            page.touch(mode=0o600)
+            page.write_text(_PAGE.format(address=html.escape(address, quote=True)))
         try:
             return bool(self._browser(page.as_uri()))
         except Exception:  # noqa: BLE001 — a browser that cannot start is not an error here
@@ -48,6 +57,16 @@ class Opener:
 
     def clean(self) -> None:
         """Remove the file. Safe to call more than once."""
+        with self._lock:
+            self._remove()
+
+    def close(self) -> None:
+        """Remove the file, and make no other: caland is stopping. CMD-7."""
+        with self._lock:
+            self._closed = True
+            self._remove()
+
+    def _remove(self) -> None:
         if self._folder is not None:
             with contextlib.suppress(OSError):
                 shutil.rmtree(self._folder)

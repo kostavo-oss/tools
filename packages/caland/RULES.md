@@ -72,8 +72,6 @@ skipped where there is none.
   Held by: `tests/test_web_run.py::test_being_told_to_stop_is_tidied_like_ctrl_c`,
   `tests/test_web_run.py::test_the_file_with_the_key_is_gone_when_it_stops`,
   `tests/test_web_run.py::test_every_value_is_forgotten_when_it_stops`.
-  Not kept yet: #55 — it holds for one signal. A second one that arrives while caland
-  tidies up ends it with a traceback, and the rest of the tidying is skipped.
 - **CMD-8** — Left alone for 30 minutes, caland stops by itself and forgets every value
   it held. Closing the tab does not stop it.
   Held by: `tests/test_web_run.py::test_it_says_where_it_is_and_stops_when_left_alone`,
@@ -81,6 +79,13 @@ skipped where there is none.
   Not kept yet: #46 — every request with the token counts as asked, the page's own look
   at the state while it waits for a workspace among them. A tab that waits on a sign-in
   that is never finished keeps caland running.
+- **CMD-9** — A signal that comes while caland stops changes nothing, and neither does
+  a third: every step of the tidying is taken, also when one before it failed, no
+  traceback is shown, and the exit code is 0. A step that fails is one line: what it
+  was and the kind of failure.
+  Held by: `tests/test_web_run.py::test_a_signal_that_comes_while_it_tidies_up_changes_nothing`,
+  `tests/test_web_run.py::test_each_step_of_the_tidying_runs_whatever_became_of_the_one_before`,
+  `tests/test_web_run.py::test_the_command_itself_stops_tidily_whatever_signals_it_is_sent`.
 
 ## WSP — which workspace
 

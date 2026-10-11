@@ -152,3 +152,15 @@ It replaced `spec/`: ten files, a README and a mock-up of the page, which held r
 decisions, runs and history together. Why: an audit found 69% of its checked statements
 true as written. The parked spec on who can read a secret is
 [issue 47](https://github.com/kostavo-oss/tools/issues/47); the mock-up is not kept.
+
+## 25. 2026-10-11 — A signal leaves a note, and never raises
+
+ctrl+c and a signal to terminate set a flag, and the server looks at the flag between
+two requests, at most 0.2 seconds later. Why: a handler that raises can raise anywhere,
+also inside the tidying, which then stops halfway and leaves the file with the key
+behind. Turned down: ignoring the signals when the tidying starts, as the issue
+proposed. Between the first signal being raised and the signals being ignored there is
+a moment in which a second one still raises. Turned down too: an `Event` set by the
+handler. A handler runs on the main thread, which can be holding the lock the event
+needs. The cost: a browser that keeps the terminal while it starts is waited for
+before caland stops.
