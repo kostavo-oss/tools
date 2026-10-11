@@ -1,7 +1,8 @@
-"""A step on its own: the command line `Step.main()` gives (`spec/011`).
+"""A step on its own: the command line `Step.main()` gives (SOLO-1).
 
     uv run ops/scope.py plan -t dev --name shop_data [-o plan.json]
-    uv run ops/scope.py apply plan.json | apply -t dev --name shop_data [--yes]
+    uv run ops/scope.py apply --plan-file plan.json --name shop_data
+    uv run ops/scope.py apply -t dev --name shop_data [--yes]
     uv run ops/scope.py destroy -t dev --name shop_data
     uv run ops/scope.py status -t dev --name shop_data
     uv run ops/scope.py check -t dev --name shop_data [--live]

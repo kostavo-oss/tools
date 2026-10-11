@@ -1,4 +1,4 @@
-"""A step on its own (`spec/011`): the command line `Step.main()` gives,
+"""A step on its own (SOLO-1): the command line `Step.main()` gives,
 against the fake Databricks CLI and a step that keeps a marker file."""
 
 from __future__ import annotations
@@ -144,6 +144,7 @@ def marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Solo:
 
 
 def test_plan_shows_the_change_and_changes_nothing(marker: Solo) -> None:
+    """SOLO-1."""
     result = marker("plan", "-t", "dev", "--word", "hi")
 
     assert result.exit_code == 0, result.output
@@ -152,6 +153,7 @@ def test_plan_shows_the_change_and_changes_nothing(marker: Solo) -> None:
 
 
 def test_the_options_are_the_flags_with_their_help(marker: Solo) -> None:
+    """SOLO-3."""
     result = marker("plan", "--help")
 
     assert "--word" in result.output and "The word to write." in result.output
@@ -161,6 +163,7 @@ def test_the_options_are_the_flags_with_their_help(marker: Solo) -> None:
 
 
 def test_a_missing_required_option_is_refused_by_name(marker: Solo) -> None:
+    """SOLO-3."""
     result = marker("plan", "-t", "dev")
 
     assert result.exit_code == 2
@@ -168,6 +171,7 @@ def test_a_missing_required_option_is_refused_by_name(marker: Solo) -> None:
 
 
 def test_a_reference_is_refused_with_what_to_do(marker: Solo) -> None:
+    """SOLO-4."""
     result = marker("plan", "-t", "dev", "--word", "${steps.other.word}")
 
     assert result.exit_code == 2
@@ -175,6 +179,7 @@ def test_a_reference_is_refused_with_what_to_do(marker: Solo) -> None:
 
 
 def test_plan_writes_a_one_step_lely_plan(marker: Solo) -> None:
+    """SOLO-5."""
     result = marker("plan", "-t", "dev", "--word", "hi", "-o", "plan.json")
 
     assert result.exit_code == 0, result.output
@@ -195,6 +200,7 @@ def test_a_secret_option_never_reaches_the_plan_file(marker: Solo) -> None:
 
 
 def test_apply_with_a_target_plans_asks_and_applies(marker: Solo) -> None:
+    """SOLO-2."""
     result = marker("apply", "-t", "dev", "--word", "hi", "--times", "2", "--yes")
 
     assert result.exit_code == 0, result.output
@@ -204,6 +210,7 @@ def test_apply_with_a_target_plans_asks_and_applies(marker: Solo) -> None:
 
 
 def test_without_a_terminal_apply_needs_yes(marker: Solo) -> None:
+    """SOLO-2."""
     result = marker("apply", "-t", "dev", "--word", "hi")
 
     assert result.exit_code == 2
@@ -238,7 +245,7 @@ def test_a_plan_file_for_another_target_is_refused(marker: Solo) -> None:
 
 
 def test_lely_itself_runs_the_steps_plan_file(marker: Solo, tmp_path: Path) -> None:
-    """One format: a plan the step wrote is a plan `lely apply` takes, given the
+    """SOLO-5. One format: a plan the step wrote is a plan `lely apply` takes, given the
     config that names the same step the same way."""
     marker("plan", "-t", "dev", "--word", "hi", "-o", "plan.json")
     (tmp_path / "lely.yml").write_text(
@@ -293,6 +300,7 @@ def test_status_lists_what_exists(marker: Solo) -> None:
 
 
 def test_check_holds_the_step_to_the_rules(marker: Solo) -> None:
+    """SOLO-7."""
     result = marker("check", "-t", "dev", "--word", "hi")
 
     assert result.exit_code == 0, result.output
@@ -302,6 +310,7 @@ def test_check_holds_the_step_to_the_rules(marker: Solo) -> None:
 
 
 def test_check_live_applies_and_destroys(marker: Solo) -> None:
+    """SOLO-7."""
     result = marker("check", "-t", "dev", "--word", "hi", "--live")
 
     assert result.exit_code == 0, result.output

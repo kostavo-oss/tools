@@ -108,6 +108,7 @@ def test_a_missing_stevin_says_how_to_get_it(tmp_path: Path) -> None:
 
 
 def test_it_can_plan_and_cant_apply_yet(tmp_path: Path) -> None:
+    """PLG-11."""
     from lely.step import applies, destroys, lists
 
     assert not applies(Stevin)

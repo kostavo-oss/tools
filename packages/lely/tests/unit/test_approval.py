@@ -30,7 +30,7 @@ def plan(*steps: PlannedStep, **source: Any) -> Plan:
     return Plan("0.0.1", "apply", "dev", project.WORKSPACE, Source(**source), steps)
 
 
-# -- the approval check (005/R7) ---------------------------------------------------
+# -- the approval check (APL-3) ----------------------------------------------------
 
 
 def test_the_same_changes_are_approved() -> None:
@@ -70,7 +70,7 @@ def test_anything_that_reads_differently_stops_the_run(now: Change) -> None:
         approval.approved_changes(SHOWN, StepPlan(changes=(now,)), "app")
 
 
-# -- destructive (005/R8) ----------------------------------------------------------
+# -- destructive (APL-4) -----------------------------------------------------------
 
 
 def test_a_destructive_change_needs_the_flag() -> None:
@@ -90,7 +90,7 @@ def test_a_skipped_step_holds_nothing_to_allow() -> None:
     approval.destructive_allowed((skipped,), allow=False)
 
 
-# -- the plan file against the project (005/R5) -------------------------------------
+# -- the plan file against the project (PLAN-4) -------------------------------------
 
 STEPS = (PlannedStep("model", "lookup", "aaa"), PlannedStep("app", "bundle", "bbb"))
 
@@ -174,7 +174,7 @@ def test_a_secret_stays_a_secret_and_a_shown_value_stays_shown() -> None:
     approval.same_inputs(hidden, [Input("v", "model.v", Secret("15"))])
 
 
-# -- the workspace (005/R35) and the tree (005/R36) ---------------------------------
+# -- the workspace (PLAN-5) and the tree (PLAN-6) -----------------------------------
 
 
 def test_a_plan_made_against_one_workspace_is_refused_on_another() -> None:
@@ -247,7 +247,7 @@ def test_a_plan_made_outside_git_recorded_nothing_it_can_be_held_to() -> None:
 
 
 def test_the_same_value_means_the_same_as_it_would_be_written() -> None:
-    """`1` is not `true`, `14` is not `14.0` and not `"14"` — Python calls the
+    """PLAN-4. `1` is not `true`, `14` is not `14.0` and not `"14"` — Python calls the
     first two pairs equal. A tuple and a list of the same things are the same:
     one is what a plugin gave, the other what a plan file read back."""
 

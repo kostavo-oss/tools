@@ -1,8 +1,8 @@
 """One plan for your whole Databricks deploy.
 
 The bundle and everything around it — the steps before, the steps after —
-reviewed before anything runs, and taken down again when you say so. `spec/`
-says what each piece must deliver; `docs/DESIGN.md` says how it is built.
+reviewed before anything runs, and taken down again when you say so. `RULES.md`
+says what must be true of it; `docs/how-it-works.md` says how it works.
 """
 
 from __future__ import annotations

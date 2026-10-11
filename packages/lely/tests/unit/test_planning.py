@@ -95,6 +95,7 @@ def test_a_step_above_the_bundle_feeds_it_a_variable(tmp_path: Path) -> None:
 
 
 def test_the_bundles_plan_is_one_steps_plan_like_any_other(tmp_path: Path) -> None:
+    """PLG-1."""
     project.write(tmp_path)
     app = plan(tmp_path).steps[1]
     assert app.plan.changes == (
@@ -107,6 +108,7 @@ def test_the_bundles_plan_is_one_steps_plan_like_any_other(tmp_path: Path) -> No
 
 
 def test_a_step_that_takes_what_doesnt_exist_yet_is_waiting(tmp_path: Path) -> None:
+    """WAIT-1."""
     project.write(tmp_path)
     notify = plan(tmp_path).steps[2]
     assert notify.state == "waiting"
@@ -137,6 +139,7 @@ def test_a_step_that_names_a_bundle_step_takes_it(tmp_path: Path) -> None:
 
 
 def test_targets_skip_a_step_and_the_plan_says_so(tmp_path: Path) -> None:
+    """CFG-3."""
     project.write(tmp_path)
     warm = plan(tmp_path).steps[4]
     assert warm.skipped == "not for target `dev`"
@@ -157,7 +160,9 @@ def test_the_summary_counts(tmp_path: Path) -> None:
 
 
 def test_the_plan_keeps_the_outputs_another_step_takes(tmp_path: Path) -> None:
-    """Not every field of every resource: the plan file isn't the bundle's config."""
+    """REF-8.
+
+    Not every field of every resource: the plan file isn't the bundle's config."""
     text = project.LELY_YML.replace("resources.jobs.bar.id", "resources.jobs.backfill.id")
     project.write(tmp_path, text)
     app = plan(tmp_path).steps[1]
@@ -169,7 +174,7 @@ def test_the_plan_keeps_the_outputs_another_step_takes(tmp_path: Path) -> None:
 
 
 def test_the_same_project_in_pyproject_gives_the_same_plan(tmp_path: Path) -> None:
-    """003, done when: the same steps, changes and outputs, and the same "made
+    """CFG-4: the same steps, changes and outputs, and the same "made
     from", so a plan made from one is accepted with the other."""
     yml, toml = tmp_path / "yml", tmp_path / "toml"
     yml.mkdir()
@@ -205,7 +210,7 @@ def test_made_from_counts_the_environment_by_name(tmp_path: Path) -> None:
 
 
 def test_a_value_from_the_environment_cant_reach_an_argument(tmp_path: Path) -> None:
-    """005/R34: a value from the environment is a secret, and only a `Secret`
+    """SEC-1: a value from the environment is a secret, and only a `Secret`
     option may take one — a program's arguments are visible to every process
     on the machine."""
     text = project.LELY_YML.replace(NOTIFY_TAKES, "job: ${env.TOKEN}")
@@ -220,7 +225,7 @@ def test_a_value_from_the_environment_cant_reach_an_argument(tmp_path: Path) -> 
 def test_a_bundle_fed_by_a_run_waits_and_so_does_what_is_below_it(
     tmp_path: Path,
 ) -> None:
-    """005/R26: one rule. A step that takes an *after every run* output waits —
+    """WAIT-2: one rule. A step that takes an *after every run* output waits —
     here it is the bundle, above which a program produces its variable."""
     (tmp_path / "versioned.py").write_text(
         "import sys\n"
@@ -246,7 +251,7 @@ def test_a_bundle_fed_by_a_run_waits_and_so_does_what_is_below_it(
 
 
 def test_a_resource_the_bundle_doesnt_have_is_refused_at_plan(tmp_path: Path) -> None:
-    """002/R14a: offline the reference fits the shape; that the job exists is
+    """REF-2: offline the reference fits the shape; that the job exists is
     checked when the step is planned, before anything changes."""
     text = project.LELY_YML.replace("resources.jobs.bar.id", "resources.jobs.bra.id")
     project.write(tmp_path, text)
@@ -258,7 +263,7 @@ def test_a_resource_the_bundle_doesnt_have_is_refused_at_plan(tmp_path: Path) ->
 
 
 def test_two_bundles_in_one_project(tmp_path: Path) -> None:
-    """004/R3a: each has its own name, path and outputs, and one feeds another."""
+    """BDL-4: each has its own name, path and outputs, and one feeds another."""
     project.write(tmp_path)
     api = {
         "name": "api",
@@ -287,6 +292,7 @@ def test_two_bundles_in_one_project(tmp_path: Path) -> None:
 
 
 def test_a_destroy_plan_says_per_step_what_would_be_removed(tmp_path: Path) -> None:
+    """DST-1."""
     project.write(tmp_path)
     built = plan(tmp_path, kind="destroy")
     assert built.kind == "destroy"
@@ -306,7 +312,7 @@ def test_a_destroy_plan_says_per_step_what_would_be_removed(tmp_path: Path) -> N
 
 
 def test_a_destroy_resolves_inputs_from_the_top_down(tmp_path: Path) -> None:
-    """002/R21: a step above the bundle that only looks something up still does
+    """REF-9: a step above the bundle that only looks something up still does
     its lookup, so the bundle is asked with the variable it was deployed with."""
     project.write(tmp_path)
     fake = project.databricks(tmp_path)
@@ -333,6 +339,7 @@ def problems(root: Path, text: str) -> list[str]:
 
 
 def test_check_passes_the_scenario_and_returns_the_wiring(tmp_path: Path) -> None:
+    """REF-1."""
     project.write(tmp_path)
     wires = planning.check(load(tmp_path / "lely.yml"))
     assert [(w.name, w.takes) for w in wires] == [
@@ -358,7 +365,7 @@ def test_check_finds_a_bad_option(tmp_path: Path) -> None:
 
 
 def test_check_refuses_a_reference_down_the_list(tmp_path: Path) -> None:
-    """002, done when: the message says what to change."""
+    """REF-6: the message says what to change."""
     text = project.LELY_YML.replace("model: dev.ml.churn", "model: ${steps.app.name}")
     [problem] = problems(tmp_path, text)
     assert problem.endswith(
@@ -435,7 +442,7 @@ def test_check_refuses_a_step_that_runs_for_more_targets_than_what_it_takes(
 
 
 def test_check_refuses_a_run_placed_above_its_bundle(tmp_path: Path) -> None:
-    """010/R12: it needs that bundle deployed — the same rule as any reference."""
+    """BRUN-4: it needs that bundle deployed — the same rule as any reference."""
     text = (
         "steps:\n"
         "  - name: backfill\n    uses: bundle.run\n"
@@ -447,7 +454,7 @@ def test_check_refuses_a_run_placed_above_its_bundle(tmp_path: Path) -> None:
 
 
 def test_check_warns_about_a_step_that_waits_on_every_deploy(tmp_path: Path) -> None:
-    """002/R19: such a step can never be approved ahead of time."""
+    """REF-7: such a step can never be approved ahead of time."""
     text = (
         "steps:\n"
         "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
@@ -561,6 +568,7 @@ class Quits(Raises):
     ],
 )
 def test_a_misbehaving_plugin_is_named(tmp_path: Path, cls: str, message: str) -> None:
+    """PLG-7."""
     (tmp_path / "broken.py").write_text(BROKEN)
     project.write(tmp_path, f"steps:\n  - name: x\n    uses: ./broken.py:{cls}\n")
     with pytest.raises(LelyError, match=message.replace("(", r"\(").replace(")", r"\)")):
@@ -571,7 +579,7 @@ def test_a_misbehaving_plugin_is_named(tmp_path: Path, cls: str, message: str) -
 
 
 def test_a_value_is_shown_under_its_own_options_name(tmp_path: Path) -> None:
-    """002/R20. In a `pyproject.toml` written with dotted keys the positions of
+    """REF-8. In a `pyproject.toml` written with dotted keys the positions of
     two values can't be told apart; the option each fills still can."""
     (tmp_path / "pair.py").write_text(
         "from dataclasses import dataclass\n"
@@ -638,7 +646,7 @@ def test_a_yaml_alias_used_twice_keeps_both_names(tmp_path: Path) -> None:
 def test_validate_already_knows_where_an_environment_value_may_not_go(
     tmp_path: Path,
 ) -> None:
-    """002/R18: as much as can be is checked offline. A value from the
+    """REF-6: as much as can be is checked offline. A value from the
     environment is a secret whatever it turns out to be."""
     text = project.LELY_YML.replace(NOTIFY_TAKES, "job: ${env.TOKEN}")
     [problem] = problems(tmp_path, text)
@@ -678,6 +686,7 @@ class BadOutputs(BadOptions):
 
 
 def test_a_plugin_whose_own_code_raises_is_named_not_a_traceback(tmp_path: Path) -> None:
+    """PLG-7."""
     (tmp_path / "raises.py").write_text(RAISES)
     [options] = problems(
         tmp_path, "steps:\n  - name: x\n    uses: ./raises.py:BadOptions\n"
@@ -730,7 +739,7 @@ def test_validate_doesnt_hand_a_plugin_a_made_up_secret(tmp_path: Path) -> None:
 def test_validate_refuses_an_environment_value_as_a_bundle_variable(
     tmp_path: Path,
 ) -> None:
-    """002/R18. A bundle's variables end up in its deployed config, so one can't
+    """REF-6. A bundle's variables end up in its deployed config, so one can't
     hold a secret — and that is known without the value."""
     text = project.LELY_YML.replace(
         "model_version: ${steps.model.version}", "model_version: ${env.VERSION}"
@@ -740,6 +749,7 @@ def test_validate_refuses_an_environment_value_as_a_bundle_variable(
 
 
 def test_a_bundle_variable_is_passed_as_it_was_written(tmp_path: Path) -> None:
+    """BDL-16."""
     text = (
         "steps:\n  - name: app\n    uses: bundle\n"
         "    with: {vars: {model_version: 3.10, catalog: 0123}}\n"
@@ -825,7 +835,7 @@ def test_a_plan_has_one_shape_whoever_made_it() -> None:
 def test_a_destroy_takes_the_id_a_thing_has_now_not_the_one_a_deploy_would_give(
     tmp_path: Path,
 ) -> None:
-    """A pipeline the next deploy would replace: to a deploy its id is still to
+    """PLG-5. A pipeline the next deploy would replace: to a deploy its id is still to
     come. To a destroy it is the id of what is there — the step below was
     skipped for "an id that isn't there", three lines above the pipeline, and
     its destroy never run."""

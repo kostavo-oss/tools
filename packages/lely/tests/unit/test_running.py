@@ -1,6 +1,6 @@
 """Apply, destroy, status: the half that changes a workspace, against the
-simulated bundle. Each test names the requirement of
-`spec/005-plan-apply-destroy.md` it holds."""
+simulated bundle. Each test names the rule of `RULES.md` it
+holds."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ READY = project.LELY_YML.replace("resources.jobs.bar.id", "resources.jobs.backfi
 
 
 def test_apply_runs_the_steps_in_the_order_written(tmp_path: Path) -> None:
-    """R4, R6."""
+    """APL-1, APL-2."""
     p = Project(tmp_path, READY)
     result = p.apply()
     assert result.outcome == "done"
@@ -102,7 +102,7 @@ def test_apply_runs_the_steps_in_the_order_written(tmp_path: Path) -> None:
 def test_the_bundle_deploys_a_fresh_plan_not_the_one_that_was_reviewed(
     tmp_path: Path,
 ) -> None:
-    """004/R6: the plan from a file would be stale the moment anything had
+    """BDL-8: the plan from a file would be stale the moment anything had
     been deployed. What is deployed is planned again and checked."""
     p = Project(tmp_path, READY)
     approved = p.plan()
@@ -115,7 +115,7 @@ def test_the_bundle_deploys_a_fresh_plan_not_the_one_that_was_reviewed(
 
 
 def test_every_step_is_planned_again_right_before_it_runs(tmp_path: Path) -> None:
-    """R7."""
+    """APL-3."""
     p = Project(tmp_path, READY)
     approved = p.plan()
     p.fake.clear_calls()
@@ -126,7 +126,7 @@ def test_every_step_is_planned_again_right_before_it_runs(tmp_path: Path) -> Non
 
 
 def test_fewer_changes_than_approved_is_fine(tmp_path: Path) -> None:
-    """R7: someone else did part of the work."""
+    """APL-3: someone else did part of the work."""
     p = Project(tmp_path, READY)
     approved = p.plan()
     bar = {"name": "job bar", "description": "model 14"}
@@ -137,7 +137,7 @@ def test_fewer_changes_than_approved_is_fine(tmp_path: Path) -> None:
 
 
 def test_a_change_that_wasnt_shown_stops_the_run(tmp_path: Path) -> None:
-    """R7: a reviewed plan goes stale when the workspace moves under it."""
+    """APL-3: a reviewed plan goes stale when the workspace moves under it."""
     p = Project(tmp_path, READY)
     approved = p.plan()
     moved = {"name": "pipeline foo", "storage": "dbfs:/old-storage"}
@@ -177,7 +177,7 @@ class Latest:
 
 
 def test_an_input_that_changed_since_the_plan_stops_the_run(tmp_path: Path) -> None:
-    """R5: the plan showed `model_version = 14`. The bundle's own plan would
+    """PLAN-4: the plan showed `model_version = 14`. The bundle's own plan would
     read the same with 15 — a job is updated either way — so the changes alone
     wouldn't catch it."""
     (tmp_path / "version.txt").write_text("14")
@@ -199,7 +199,7 @@ def test_an_input_that_changed_since_the_plan_stops_the_run(tmp_path: Path) -> N
 
 
 def test_a_destructive_change_is_refused_before_anything_runs(tmp_path: Path) -> None:
-    """R8."""
+    """APL-4."""
     p = Project(tmp_path, READY, deployed=False)
     moved = {"name": "pipeline foo", "storage": "dbfs:/old-storage"}
     deploy(
@@ -217,7 +217,7 @@ def test_a_destructive_change_is_refused_before_anything_runs(tmp_path: Path) ->
 
 
 def test_a_plan_with_nothing_to_do_runs_nothing_and_ends_as_done(tmp_path: Path) -> None:
-    """R9."""
+    """APL-5."""
     text = "steps:\n  - name: model\n    uses: ./ops/steps.py:LatestModel\n"
     text += "    with: {model: dev.ml.churn}\n"
     p = Project(tmp_path, text)
@@ -228,7 +228,7 @@ def test_a_plan_with_nothing_to_do_runs_nothing_and_ends_as_done(tmp_path: Path)
 
 
 def test_after_an_apply_every_plugin_that_can_says_what_exists(tmp_path: Path) -> None:
-    """R10, 004/R7a: each line says what this run did to it."""
+    """APL-6, APL-7: each line says what this run did to it."""
     p = Project(tmp_path, READY)
     result = p.apply()
     app = result.steps[1]
@@ -247,7 +247,7 @@ def test_after_an_apply_every_plugin_that_can_says_what_exists(tmp_path: Path) -
 def test_a_plugin_that_cant_apply_yet_stops_it_before_anything_runs(
     tmp_path: Path,
 ) -> None:
-    """The `stevin` plugin is parked: it plans, and says so before a deploy."""
+    """PLG-11. The `stevin` plugin is parked: it plans, and says so before a deploy."""
     stevin = (
         "  - name: tables\n    uses: stevin\n    with:\n"
         f"      executable: [{sys.executable}, {project.FAKE_STEVIN}, "
@@ -262,7 +262,7 @@ def test_a_plugin_that_cant_apply_yet_stops_it_before_anything_runs(
 
 
 def test_apply_refuses_a_plan_to_destroy(tmp_path: Path) -> None:
-    """R4, R20: a file can't smuggle a destroy."""
+    """APL-1, ASK-4: a file can't smuggle a destroy."""
     p = Project(tmp_path, READY)
     with pytest.raises(Refused) as caught:
         p.apply(p.plan("destroy"))
@@ -283,7 +283,7 @@ def failing(tmp_path: Path) -> Project:
 
 
 def test_the_first_failing_step_stops_the_run(tmp_path: Path) -> None:
-    """R21, R24."""
+    """APL-8, APL-11."""
     p = failing(tmp_path)
     result = p.apply()
     assert result.outcome == "failed"
@@ -299,7 +299,7 @@ def test_the_first_failing_step_stops_the_run(tmp_path: Path) -> None:
 
 
 def test_running_it_again_finishes_the_job(tmp_path: Path) -> None:
-    """R22, 004/R6a: a step that already did its work plans as nothing left to
+    """APL-9, BDL-9: a step that already did its work plans as nothing left to
     change; the bundle deploys anyway, which only uploads its files."""
     p = failing(tmp_path)
     assert p.apply().outcome == "failed"
@@ -314,7 +314,7 @@ def test_running_it_again_finishes_the_job(tmp_path: Path) -> None:
 
 
 def test_from_starts_at_a_named_step(tmp_path: Path) -> None:
-    """R23: the steps it passes over are planned, for what they give the
+    """APL-10: the steps it passes over are planned, for what they give the
     others; they are not applied."""
     p = Project(tmp_path, READY)
     result = p.apply(from_step="notify")
@@ -335,7 +335,7 @@ def test_from_starts_at_a_named_step(tmp_path: Path) -> None:
 
 
 def test_a_reviewed_file_stops_at_a_waiting_step(tmp_path: Path) -> None:
-    """R27: it runs what was reviewed. R30: never out of order."""
+    """WAIT-3: it runs what was reviewed. WAIT-6: never out of order."""
     p = Project(tmp_path)
     result = p.apply(at_waiting=None)
     assert result.outcome == "refused"
@@ -357,7 +357,7 @@ def test_a_reviewed_file_stops_at_a_waiting_step(tmp_path: Path) -> None:
 def test_the_next_plan_shows_the_step_ready_and_one_round_finishes(
     tmp_path: Path,
 ) -> None:
-    """R27: a first deploy through a reviewed file can take two rounds."""
+    """WAIT-3: a first deploy through a reviewed file can take two rounds."""
     p = Project(tmp_path)
     p.apply(at_waiting=None)
     second = p.plan()
@@ -371,7 +371,7 @@ def test_the_next_plan_shows_the_step_ready_and_one_round_finishes(
 
 
 def test_without_a_file_the_step_is_planned_when_it_gets_there(tmp_path: Path) -> None:
-    """R28, R29: `--yes` runs it; a terminal is shown the step and asked again."""
+    """WAIT-4, WAIT-5: `--yes` runs it; a terminal is shown the step and asked again."""
     p = Project(tmp_path)
     seen: list[PlannedStep] = []
 
@@ -389,7 +389,7 @@ def test_without_a_file_the_step_is_planned_when_it_gets_there(tmp_path: Path) -
 
 
 def test_saying_no_at_a_waiting_step_stops_there(tmp_path: Path) -> None:
-    """R29."""
+    """WAIT-5."""
     p = Project(tmp_path)
     result = p.apply(at_waiting=lambda step: False)
     assert result.outcome == "refused"
@@ -399,7 +399,7 @@ def test_saying_no_at_a_waiting_step_stops_there(tmp_path: Path) -> None:
 
 
 def test_a_waiting_step_doesnt_get_past_the_other_rules(tmp_path: Path) -> None:
-    """R30: a destructive change in a step that was waiting needs the flag."""
+    """WAIT-6: a destructive change in a step that was waiting needs the flag."""
     (tmp_path / "drops.py").write_text(
         "from dataclasses import dataclass\n"
         "from lely.model import Change, StepPlan\n"
@@ -425,7 +425,7 @@ def test_a_waiting_step_doesnt_get_past_the_other_rules(tmp_path: Path) -> None:
 
 
 def test_a_step_that_takes_an_output_of_a_run_gets_it_at_apply(tmp_path: Path) -> None:
-    """R26: what a program gives by running is known after the run."""
+    """WAIT-2: what a program gives by running is known after the run."""
     text = (
         "steps:\n"
         "  - name: seed\n    uses: ./ops/steps.py:Seed\n"
@@ -476,7 +476,7 @@ def with_drop(tmp_path: Path, text: str = READY) -> str:
 
 
 def test_destroy_goes_from_the_bottom_up(tmp_path: Path) -> None:
-    """R11, R12, 002/R21: a step below the bundle is destroyed while the
+    """DST-1, DST-2, REF-9: a step below the bundle is destroyed while the
     bundle, and the id it needed, still exist."""
     p = Project(tmp_path, with_drop(tmp_path))
     result = p.destroy()
@@ -495,7 +495,7 @@ def test_destroy_goes_from_the_bottom_up(tmp_path: Path) -> None:
 
 
 def test_a_step_with_nothing_to_destroy_is_skipped_and_says_why(tmp_path: Path) -> None:
-    """R13."""
+    """DST-3."""
     p = Project(tmp_path)
     reasons = {s.name: s.detail for s in p.destroy().steps}
     assert reasons == {
@@ -508,7 +508,7 @@ def test_a_step_with_nothing_to_destroy_is_skipped_and_says_why(tmp_path: Path) 
 
 
 def test_a_destroy_is_checked_against_what_was_approved(tmp_path: Path) -> None:
-    """R15: anything that wasn't in the approved plan stops the run."""
+    """DST-5: anything that wasn't in the approved plan stops the run."""
     p = Project(tmp_path, READY)
     approved = p.plan("destroy")
     p.apply(at_waiting=run_it)  # two more resources since the destroy was approved
@@ -521,7 +521,7 @@ def test_a_destroy_is_checked_against_what_was_approved(tmp_path: Path) -> None:
 def test_destroying_what_isnt_deployed_does_nothing_and_ends_as_done(
     tmp_path: Path,
 ) -> None:
-    """R16."""
+    """DST-6."""
     p = Project(tmp_path, deployed=False)
     result = p.destroy()
     assert result.outcome == "done"
@@ -530,7 +530,7 @@ def test_destroying_what_isnt_deployed_does_nothing_and_ends_as_done(
 
 
 def test_from_names_where_a_destroy_starts_going_up(tmp_path: Path) -> None:
-    """R23."""
+    """APL-10."""
     p = Project(tmp_path, with_drop(tmp_path))
     result = p.destroy(from_step="app")
     assert [(s.name, s.outcome) for s in result.steps][:2] == [
@@ -542,7 +542,7 @@ def test_from_names_where_a_destroy_starts_going_up(tmp_path: Path) -> None:
 
 
 def test_a_failing_destroy_stops_and_leaves_the_rest(tmp_path: Path) -> None:
-    """R21."""
+    """APL-8."""
     p = Project(tmp_path, with_drop(tmp_path))
     (tmp_path / "ops" / "notify.sh").write_text("#!/bin/sh\nexit 3\n")
     result = p.destroy()
@@ -563,7 +563,7 @@ def test_destroy_refuses_a_plan_to_apply(tmp_path: Path) -> None:
 
 
 def test_status_shows_every_step_and_changes_nothing(tmp_path: Path) -> None:
-    """R32."""
+    """CLI-3."""
     p = Project(tmp_path)
     before = p.fake.state
     found = running.status(p.config, target="dev", **edges(p.fake))
@@ -626,7 +626,7 @@ def versioned(tmp_path: Path, text: str) -> Project:
 
 
 def test_a_destroy_is_held_to_the_inputs_the_plan_showed(tmp_path: Path) -> None:
-    """R15, R5: a destroy acts on the values it is handed — `bundle destroy`
+    """DST-5, PLAN-4: a destroy acts on the values it is handed — `bundle destroy`
     with other variables, a destroy command with another id — so they have to
     be the ones that were shown. Checked before anything is removed."""
     p = versioned(tmp_path, with_drop(tmp_path))
@@ -643,7 +643,7 @@ def test_a_destroy_is_held_to_the_inputs_the_plan_showed(tmp_path: Path) -> None
 
 
 def test_from_doesnt_pass_over_the_check_on_what_a_step_takes(tmp_path: Path) -> None:
-    """A step `--from` passes over is planned for what it gives the steps
+    """APL-10. A step `--from` passes over is planned for what it gives the steps
     below. What it gives was approved with these values."""
     p = versioned(tmp_path, READY)
     approved = p.plan()
@@ -655,7 +655,7 @@ def test_from_doesnt_pass_over_the_check_on_what_a_step_takes(tmp_path: Path) ->
 
 
 def test_a_destroy_that_finds_nothing_says_whose_view_that_is(tmp_path: Path) -> None:
-    """004/R9b: never a bare "nothing there". The plan listed a job; run as
+    """BDL-13: never a bare "nothing there". The plan listed a job; run as
     another identity (V7), it isn't there to destroy."""
     project.write(tmp_path)
     world = project.world(tmp_path)
@@ -847,7 +847,7 @@ def test_what_apply_gives_has_to_be_json_and_says_so(tmp_path: Path) -> None:
 
 
 def test_a_target_no_step_runs_for_is_refused(tmp_path: Path) -> None:
-    """R37. lely keeps no list of targets, so a mistyped one is caught by a
+    """CLI-2. lely keeps no list of targets, so a mistyped one is caught by a
     plugin that checks it — unless every step's `targets` leave it out, and no
     plugin is asked. That used to end "Nothing to do", exit 0."""
     text = (
@@ -905,7 +905,7 @@ def test_an_overview_line_says_whether_it_is_deployed_in_one_word(tmp_path: Path
 def test_a_literal_dollar_brace_reaches_the_program_as_it_is_meant(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """003: `$${…}` is a literal `${…}`, for the shell to read — no reference."""
+    """REF-3: `$${…}` is a literal `${…}`, for the shell to read — no reference."""
     monkeypatch.setenv("LELY_TEST_HOME", "/home/jane")
     (tmp_path / "shell.py").write_text(
         "from dataclasses import dataclass\n"

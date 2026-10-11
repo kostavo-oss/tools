@@ -1,137 +1,109 @@
 # CLAUDE.md
 
-`lely`: one plan for a whole Databricks deploy. It plans, applies and destroys an ordered list
-of steps, each done by a plugin, and keeps no state. The Asset Bundle is one of those plugins.
+`lely`: one plan for a whole Databricks deploy. It plans, applies and destroys an ordered
+list of steps, each done by a plugin, and keeps no state. The Asset Bundle is one of
+those plugins.
 
-`spec/` says *what* each piece of work must deliver and when it is done; `docs/DESIGN.md` says
-*how* it is built. Read the spec of a piece before working on it. Since 2026-10-05 the two
-agree: if they disagree, or the code disagrees with either, flag it instead of silently picking
-one. Don't build past a "To decide" that is still open — those are the owner's to answer.
+## Where a fact lives
 
-## Rules
+One place per fact. Write a fact where it lives, and link to it from anywhere else.
 
-- The core does no I/O of its own. References, options, the approval check, the plan file,
-  the schema and the renderers are pure: values in, values out — no SDK calls, no clock, no
-  env. The config is read from disk in two functions, `config.find` and `config.load`; what
-  they read is parsed by `config.load_text`, which is pure. Planning and running reach the
-  outside only through what they are handed: the plugins, the Databricks CLI runner, the
-  workspace client, the environment as a mapping, a log. I/O lives at those edges, and in
-  `registry` (which imports a plugin's module, so `validate` runs the project's code),
-  `git` and the command line.
-- No module outside `src/lely/steps/` imports a plugin or asks which plugin a step uses —
-  the bundle included. Plugins are found through `registry`, and what the core needs of one
-  it reads off the contract: its `outputs`, its `programs`. A test holds the imports. What
-  the core does know is the Databricks CLI, which is lely's own edge: that `databricks` is a
-  program a step may run, which of its calls only read (`testing.READS`), and which version
-  brought the direct engine (`lely doctor`).
-- The page's look is two parts, in `render/`: `base.css`, the look the three Kostavo pages
-  share (caland, this one, stevin's), and the page's own layout in `html.py`, written
-  with the base's names. The base is in each of the three packages, byte for byte, and
-  the repository's `tests/test_workspace.py` holds the copies equal: change all three in
-  one pull request. It is read once, when `render/html.py` is loaded, from lely's own
-  package; making a page still reads nothing. lely's page is the reference for the look.
-- Domain model: frozen, slotted stdlib dataclasses with tuples.
-- The bundle is the Databricks CLI's: the `bundle` plugin asks it
-  (`bundle summary/plan -o json`, `deploy --plan`, `destroy`) and never reimplements what it
-  resolves. Not `bundle validate`: on a real workspace it creates a folder, and a plan changes
-  nothing. If a bundle resource can manage something, no plugin does.
-- A step is given its own options and a way to reach the workspace, nothing else. What it takes
-  from another step is `${steps.<name>.<output>}` in its `with:`, from a step above it.
-- A plugin declares its outputs, touches only what its options name, and destroys only what it
-  can show is its own.
-- No destructive change without `destructive`, and none applied without `--allow-destructive`.
-- Nothing that changes a workspace runs unasked. A refusal is a `Refused` (exit 2); a failure
-  is any other `LelyError` (exit 1).
-- Plan files carry no secrets. A value from the environment is a `Secret`.
-- Nothing a plan says is Markdown or markup where it is shown: in a terminal its control
-  characters are made visible, on GitHub it stands in a block or a code span, on the page it
-  is escaped — and a plugin's view is written again from a short list of elements.
-- Showing a plan runs none of the project's code: `show` and `ui` load no plugin.
-- No raw invisible character in any file: write its escape. A test holds the repository to it.
-- A file lely writes is written beside its place and moved there (`cli._write`): never
-  through a link, never half. What is no file — a device, a pipe — is written to as it is.
-- With `--github` lely knows the run's token, and no line it says holds it (`cli._hide`); a
-  plan that holds it is shown by no command (`cli._holds_no_token`). A new place that prints
-  goes through one of the two.
-- Every Databricks behaviour assumption gets a test and a link to the docs in its
-  docstring. If unsure, say so and add a `TODO(verify)` — do not guess.
-- Small PR-sized commits, conventional commit messages.
-- **A change to `version` in `pyproject.toml`, merged to `main`, publishes to PyPI**
-  (`.github/workflows/release.yml`). Never bump it in passing: a release is a pull request of
-  its own, opened when the owner says.
+| The fact | Its one place |
+|---|---|
+| What lely is for, when not to use it, when it is no longer needed | `README.md` |
+| What must be true of the code | `RULES.md`: numbered rules, each with the tests that hold it |
+| Why it is so, and what was tried or left behind | `DECISIONS.md`: a log, appended to and never edited |
+| What ran on a real workspace and on GitHub, and what did not | `docs/tried.md` |
+| How to use it, and how it works inside | `docs/`, and only there: the README has a quickstart and links |
+| What changed for a user, per release | `CHANGELOG.md` |
+| What the Databricks CLI or GitHub does that the code leans on | the docstring of the code that leans on it (`src/lely/steps/bundle.py`, `src/lely/github.py`) |
+| An idea that is wanted and not built | a GitHub issue |
+| How it came to be | git |
 
-## Docs
+There is no `spec/` folder, and none comes back.
 
-`docs/` is the site (MkDocs Material; `mkdocs.yml`), deployed from `main` to
-<https://kostavo-oss.github.io/tools/lely/>. `mise run docs:build` builds it in strict mode: a
-broken link fails. A link out of `docs/` goes to the repository by its full address — the
-site has only what is in `docs/`. The pictures of the page in `docs/assets/` are made from
-the shared scenario; remake them when the page changes how it looks.
+## Rules of working
+
+- **A change to behaviour changes its rule, in the same pull request.** Find the rule in
+  `RULES.md`, change it or add one with the next number of its area, and name the tests
+  that hold it under `Held by:`. Each of those tests cites the identifier. A number is
+  never reused. `tests/test_rules.py` at the root of the repository fails when a
+  citation, a rule and a test disagree.
+- **A rule is checked against the code before it is written, and states the whole
+  promise.** What the code does not keep yet gets an issue, and the rule says
+  `Not kept yet:` with its number.
+- **A decision goes into `DECISIONS.md` only with its reason**, or with the alternative
+  that was rejected. No entry is edited: a new one names the one it supersedes.
+- **A run on a workspace or on GitHub is recorded in `docs/tried.md`**, with its date,
+  and nothing under "Not yet" there is written about as if it had run.
+- The core does no I/O of its own: I/O is at the edges (the table in
+  `docs/how-it-works.md`). No module outside `src/lely/steps/` imports a plugin (PLG-1).
+- The bundle is the Databricks CLI's: the plugin asks it and never works out what it
+  resolves, and never calls `bundle validate` (BDL-2). If a bundle resource can manage
+  something, no plugin does.
+- Nothing that changes a workspace runs unasked (ASK-1). A refusal is a `Refused`, exit
+  2; a failure is any other `LelyError`, exit 1 (CLI-1).
+- A plan holds no secret (SEC-1), and what a plan says is shown, never obeyed (SEC-3,
+  GH-8, PAGE-9). `show` and `ui` load no plugin (PLAN-9, PAGE-4).
+- A new place that prints goes through `cli._hide`, and a new place that shows a plan
+  through `cli._holds_no_token` (GH-7). A file is written with `cli._write` (CLI-7).
+- No raw invisible character in any file: write its escape (PKG-2).
+- Every assumption about what Databricks or GitHub does gets a test, and a link to the
+  docs in its docstring. If unsure, say so and add a `TODO(verify)`: do not guess.
+- The `stevin` plugin plans and cannot apply (PLG-11, issue #41). Do not extend it in
+  passing.
+- `render/base.css` is in three packages, byte for byte (PKG-4): change all three in one
+  pull request. After a change to `render/html.py`, run `uv run pytest tests/browser`
+  and remake the pictures in `docs/assets/` when the page looks different.
+- Some files decide what may run, or handle what is not trusted: `approval.py`,
+  `running.py`, `source.py`, `planfile.py`, `cli.py`, `github.py` and the renderers. A
+  change there is reviewed by someone who did not write it before the pull request is
+  opened.
+- A link out of `docs/` goes to the repository by its full address: the site has only
+  what is in `docs/`. The README is the PyPI page: every link in it is absolute.
+- Small pull-request-sized commits, conventional commit messages. A change to `version`
+  in `pyproject.toml`, merged to `main`, publishes to PyPI: a release is a pull request
+  of its own, opened when the owner says.
+
+## Layout
+
+```
+src/lely/config.py, refs.py, options.py    the config, references, a step's options (CFG, REF)
+src/lely/registry.py, step.py, model.py    finding a plugin, the contract, what lely talks in (PLG, PROG)
+src/lely/planning.py                       check and plan, and the Session that walks the list (PLAN, WAIT)
+src/lely/approval.py, running.py           what may run; apply, destroy, status (APL, DST)
+src/lely/planfile.py, source.py            the plan file, and the git tree it is held to (PLAN)
+src/lely/cli.py                            the commands, consent, exit codes, writing files (ASK, CLI)
+src/lely/solo.py, flags.py                 a step on its own (SOLO)
+src/lely/steps/                            the plugins lely ships (BDL, BRUN)
+src/lely/render/                           the terminal, Markdown, the page (SEC, PAGE, GH)
+src/lely/github.py                         the comment and the run's page (GH)
+src/lely/testing.py                        the contract as checks a test can run (PLG-9)
+src/lely/databricks.py, process.py         the Databricks CLI, any other program
+tests/unit/test_<module>.py                the tests of that module
+tests/fake_*.py, tests/project.py          the stand-ins, and the scenario most tests share
+tests/fixtures/                            the CLI's own recorded outputs, and stevin's plan files
+tests/browser/                             a plugin's view, as Chrome reads it
+docs/                                      the pages of the site, listed in mkdocs.yml
+```
+
+The recorded plans in `tests/fixtures/stevin-*.json` carry `deltaplan.managed`: that is
+the property stevin writes onto tables, and it kept its name on purpose.
 
 ## Commands
 
-Tooling is mise + the Astral stack (uv, ruff, ty) — same as `stevin` and `caland`.
-Never use pip/virtualenv, black/flake8/isort, or mypy.
+uv, ruff and ty, as in every package of this repository. Never pip, black or mypy.
 
-`mise run check` is the gate (lint, format check, types, unit tests). `ruff format` also
-formats the Python in Markdown code blocks, so the gate covers `docs/` and `spec/`. When
-chaining the gate in a shell, a pipe hides a failing test: check the test count, not the exit
-code of `tail`.
+```sh
+uv sync                              # once, anywhere in the repository
+uv run pytest tests/unit             # from packages/lely: its tests
+uv run pytest tests/browser          # from packages/lely: needs Chrome, skips without it
+uv run ty check                      # from packages/lely: its types
+uv run ruff check . && uv run ruff format --check .   # from the root: every package
+uv run pytest tests                  # from the root: the rules file, and what holds across packages
+uv run --group docs mkdocs build --strict             # from the root: the site
+```
 
-The tasks in `mise.toml` have the same names in every Kostavo tool (`mise tasks` lists
-them): `check` is the gate, `fix` repairs what ruff can, `ci` is everything CI runs,
-`test:lowest` runs the tests on the lowest dependencies, `clean` removes build output. An
-assistant runs them through mise's MCP server, which `.mcp.json` sets up (`run_task`);
-`docs` keeps running until it is stopped, so it is not for an assistant to start and wait
-on. No secret goes into `mise.toml`: what stands under `[env]` is shown to
-an assistant that asks mise for it.
-
-`mise.toml`, `.mcp.json` and the workflows are the repository's, at its root, since the
-tools moved into `kostavo-oss/tools`: what every tool shares is changed there, once. The
-copier template the tools were first made from is gone.
-
-## Status
-
-**Phases one and two are built, and lely is on PyPI (0.1.0 and 0.2.0, 2026-10-07; 0.3.0, 2026-10-08; 0.3.1, 2026-10-10, the first from the tools repository).** lely was run
-on a real workspace twice, and once through the three GitHub workflows (2026-10-06).
-`validate`, `steps`, `schema`, `plan`, `show`, `apply`, `destroy`, `status` and `doctor`; the
-`bundle` and `bundle.run` plugins and plugins from a repo file; the config in `lely.yml` or
-`pyproject.toml`. **A step on its own** (2026-10-08, `spec/011`): `lely.step.Step` gives a
-step its own command line (`src/lely/solo.py`), `Program` is a program as a step; the
-`command` plugin is removed (lely#20) — a program is a `Program`.
-
-Not built, or not proven:
-
-- **Two runs on a real workspace are a first proof, not a track record.** What it settled, what
-  it corrected (the CLI goes to the bundle's host with the credentials at hand; `bundle
-  validate` writes, so the plugin uses `bundle summary`) and what it couldn't show is in
-  `spec/004-asset-bundle.md`, "Run on a workspace". What is still assumed is a `TODO(verify)`
-  in `src/lely/steps/bundle.py`.
-- **`stevin` is parked** (`spec/006-stevin.md`): its plan half works; `apply` refuses a project
-  that uses it. The owner takes it up separately — don't extend it.
-- **GitHub is built (2026-10-06) and has run once for real**: `--github` and `-f md`
-  (`spec/008-github-actions.md`, `docs/GITHUB.md`), tested against `tests/fake_github.py`,
-  and run through all three workflows in a private repository.
-  Not tried there: OIDC sign-in, environments, a fork — see `docs/GITHUB.md`.
-- **The page is built (2026-10-06)**: `lely ui`, `StepPlan.view`, a run's record with
-  `apply -o` (`spec/007-ui.md`). Looked at in a browser and reviewed once. Whether a plugin's
-  view stays in its frame is asked of a real browser: `uv run pytest tests/browser`. It needs
-  Chrome and skips without it; `mise run check` doesn't run it, CI does (its runners have
-  Chrome). Run it after any change to `render/html.py`.
-
-There is no Databricks CLI or workspace in the unit suite:
-
-- `tests/fake_databricks.py` is the CLI as a fake, as a program and in process. It answers from
-  recordings, or simulates a bundle in a workspace kept in a folder: `plan`, `deploy`,
-  `summary`, `destroy`, `run`. What it simulates is what lely *believes* the CLI does.
-- `tests/fixtures/cli/` holds the CLI's own recorded outputs, from its acceptance tests.
-- `tests/fake_github.py` is a pull request's comments in memory, and a run's environment. What
-  it simulates is what lely *believes* GitHub does.
-- `tests/fixtures/stevin-*.json` are real stevin plan files, written by stevin against its fake
-  warehouse; `tests/fake_stevin.py` answers from them.
-- `tests/project.py` is the scenario most tests share.
-
-**lely was sluis** until 2026-10-05, when the suite took its names from Dutch engineers
-(stevin, lely, and caland — which was maeslant for a day, until the owner wanted a person's
-name there too). It had never been published, so nothing answers to the old name. The recorded plans in `tests/fixtures/stevin-*.json` still carry `deltaplan.managed` —
-that is the property stevin really writes onto tables, and it kept its name on purpose.
+`mise run check` at the root runs the gate for every package. `ruff format` also
+formats the Python in Markdown code blocks. A pipe hides a failing test: read the exit
+code of the test run, not of `tail`.

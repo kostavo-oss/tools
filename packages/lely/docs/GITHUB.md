@@ -19,11 +19,9 @@ why, and the command ends as it would have without the flag.
 
 `-f md` prints the same Markdown, for anywhere else it is wanted.
 
-> **These workflows have run once, on a private repository, on 2026-10-06** — with two
-> differences from what stands here: the workspace was reached with a token kept as a secret,
-> not with GitHub's own identity, and there were no environments. What that run showed, and
-> what it couldn't, is under [What has been tried](#what-has-been-tried). Read the workflows
-> before you copy them.
+> **These workflows have run once, on a private repository**, with a token kept as a
+> secret in place of GitHub's own identity and without environments:
+> [What has been tried](tried.md#on-github). Read them before you copy them.
 
 ## What lely needs from the workflow
 
@@ -283,37 +281,15 @@ and nothing runs.
 
 ## What has been tried
 
-One run through all three workflows, on 2026-10-06, in a private repository with one job in
-its bundle and a `command` step above it:
-
-- **A plan that failed left a comment that said so.** The first run had no credentials for the
-  workspace: lely posted "The plan could not be made, so there is none to review", with a link
-  to the run, as `github-actions[bot]`.
-- **The comment was kept current.** With credentials, the same comment became the plan; after
-  another push it was the plan of that push. One comment throughout, by the run's own token.
-- **The merge applied the plan that was reviewed.** The apply job found the pull request of
-  the merged commit, fetched the plan its last run had kept, and lely took it for the tree on
-  `main` — a merge commit has the tree the pull request was planned on. The job was created,
-  and read back from the workspace.
-- **A destroy started by hand** planned, then removed the job; it was asked for afterwards and
-  was not there.
-
-- **A destructive change was refused on merge.** A pull request that removed a deployed job
-  carried a comment that opened with it — "Destructive: `app: jobs.second`". Its merge was
-  not applied: lely ended with 2 and said to pass `--allow-destructive`, and the job was
-  still there. Started by hand with that box ticked, the same change was planned and applied.
-
-Not tried in that run: signing in with GitHub's own identity (a token secret was used);
-environments, and the pause for a reviewer in the by-hand workflow (a private repository on a
-free plan has none); a pull request from a fork; a merge after `main` moved; a first deploy
-with a waiting step.
+These workflows ran once, on 2026-10-06. [What has been tried](tried.md#on-github) says
+what that run showed and what it did not try.
 
 ## What is not known yet
 
 - **A plan made by one identity and applied by another.** The plan job and the job that
   applies sign in as different service principals. lely holds a plan to the workspace's host,
   not to who made it. Whether the Databricks CLI plans the same changes for both has not been
-  tried on a real workspace ([004](https://github.com/kostavo-oss/tools/blob/main/packages/lely/spec/004-asset-bundle.md), V7); a development target,
+  tried on a real workspace; a development target,
   whose bundle lives under the deploying user's own folder, will not. Use a target whose
   `root_path` doesn't depend on who runs.
 - **Whether credentials are read-only** is nothing lely can check; `lely doctor` says what it

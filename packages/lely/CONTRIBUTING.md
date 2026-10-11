@@ -1,81 +1,48 @@
 # Contributing to lely
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. How a change lands, the checks it has to pass, the
+toolchain and how a release is made are the same for every package of this repository:
+the root [CONTRIBUTING.md](https://github.com/kostavo-oss/tools/blob/main/CONTRIBUTING.md) has them. This file is what is
+particular to lely. Its links are whole addresses, because the docs site shows this
+file too.
 
-`lely` is alpha: everything in the specs is built, and it has run for real only a few
-times. `spec/` says what each piece must deliver, `docs/DESIGN.md` how it is built. If the
-code disagrees with either, that is a bug in one of them — please say which.
-
-## How a change lands
-
-Every change is a pull request against `main`, merged by a maintainer once its checks pass.
-
-- **`ci`** — lint, format, types, and the tests on Python 3.11–3.14; and once more on 3.11
-  with every dependency at the oldest version `pyproject.toml` allows. Required.
-- Small commits with [conventional](https://www.conventionalcommits.org) messages. New
-  behaviour comes with a test; a fix comes with the test that would have caught it.
-- A change to what lely shows, asks or refuses updates the spec's "As built" and, where a
-  user would notice, `CHANGELOG.md`.
-
-Some parts decide what may run, or handle what isn't trusted: `approval.py`, `running.py`,
-`source.py`, `planfile.py`, `cli.py`, `github.py`, and the renderers. **A change there is
-reviewed by someone who didn't write it before it is opened as a pull request** — in this
-project's short history, most defects in those files came in with the fix for another.
-
-## Toolchain
-
-[`mise`](https://mise.jdx.dev) pins the tools, and the stack is Astral's:
-[`uv`](https://docs.astral.sh/uv/), [`ruff`](https://docs.astral.sh/ruff/) and
-[`ty`](https://docs.astral.sh/ty/).
+## Its tests
 
 ```sh
-mise install     # the pinned Python and uv (optional but recommended)
-uv sync          # .venv with dependencies and dev tools
-mise run check   # the gate: lint, format check, types, unit tests
+uv sync                                          # once, anywhere in the repository
+cd packages/lely && uv run pytest tests/unit     # its tests, from its own directory
+uv run pytest tests/browser                      # a plugin's view, as Chrome reads it
+uv run ty check                                  # its types, from the same directory
 ```
 
-## Day to day
+The unit tests need no workspace, no Databricks CLI and no network:
+`tests/fake_databricks.py` and `tests/fake_github.py` stand in, and simulate what lely
+*believes* those do. The browser tests need Chrome and skip without it; CI runs them.
+Run them after a change to `src/lely/render/html.py`.
+
+## Its rules and decisions
+
+- [RULES.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/RULES.md) is what must be true of the code: numbered rules, each with the
+  tests that hold it. A change to behaviour changes its rule in the same pull request,
+  and the test that holds it cites the rule's identifier.
+- [DECISIONS.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/DECISIONS.md) is why: a log that is appended to and never edited.
+- [docs/tried.md](https://kostavo-oss.github.io/tools/lely/tried/) is what ran on a real workspace and on GitHub, and what
+  did not. A new assumption about either gets a test, a link to the docs it rests on,
+  and a `TODO(verify)` until it has been seen.
+- [CLAUDE.md](https://github.com/kostavo-oss/tools/blob/main/packages/lely/CLAUDE.md) has the layout and the rules of working.
+
+From the root of the repository, this checks that the rules, the code and the tests
+agree:
 
 ```sh
-uv run lely                    # the CLI
-uv run pytest tests/unit       # the unit tests: no workspace, no network
-uv run pytest tests/browser    # a plugin's view, as Chrome reads it (needs Chrome)
-uv run ruff check . && uv run ruff format .
-uv run ty check
-mise run docs                  # the docs site, at localhost:8000
+uv run pytest tests/test_rules.py
 ```
 
-`ruff format` also formats the Python in Markdown code blocks, so the gate covers `docs/` and
-`spec/`. When you chain the gate in a shell, a pipe hides a failing test: read the test
-count, not the exit code of `tail`.
+## A second reader
 
-The unit suite never reaches a workspace or GitHub: `tests/fake_databricks.py` and
-`tests/fake_github.py` stand in, and simulate what lely *believes* those do. What has been
-seen on the real things is written down in `spec/004-asset-bundle.md` and `docs/GITHUB.md`;
-a new assumption about either gets a test, a link to the docs it rests on, and — until it has
-been seen — a `TODO(verify)`.
+Some files decide what may run, or handle what is not trusted: `approval.py`,
+`running.py`, `source.py`, `planfile.py`, `cli.py`, `github.py` and the renderers. A
+change there is reviewed by someone who did not write it before it is opened as a pull
+request.
 
-## Rules the code keeps
-
-`CLAUDE.md` lists them. The ones a contributor trips over first:
-
-- The core does no I/O of its own. I/O lives at the edges: reading the config file, loading
-  a plugin, the plugins themselves, the Databricks CLI runner, `git`, GitHub, the command
-  line.
-- No module outside `src/lely/steps/` imports a plugin or asks which plugin a step uses — the
-  bundle included.
-- Nothing that changes a workspace runs unasked, and nothing destructive without
-  `--allow-destructive`.
-- Nothing a plan says is obeyed where it is shown — a terminal, Markdown, the page.
-- A plan file carries no secret.
-
-## Releases
-
-A release is a version, the same way as for stevin and caland: a pull request bumps
-`version` in `pyproject.toml` and moves the changelog's *Unreleased* notes under a
-`## [X.Y.Z] - <date>` heading, and merging it is the release. `.github/workflows/release.yml`
-notices the new version on `main`, runs the gate, publishes to PyPI with Trusted Publishing —
-no token — and makes the GitHub release and its tag. A change to `pyproject.toml` that isn't a
-new version releases nothing.
-
-The first release was 0.1.0, on 2026-10-07; `CHANGELOG.md` has every one since.
+`CHANGELOG.md` gets a line under `## [Unreleased]` for anything a user would notice.

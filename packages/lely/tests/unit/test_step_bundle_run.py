@@ -39,6 +39,7 @@ def ctx(tmp_path: Path, **options: Any) -> Context[BundleRun.Options]:
 
 
 def test_plans_one_run(tmp_path: Path) -> None:
+    """BRUN-2."""
     plan = check_plan(BundleRun(), ctx(tmp_path, args=("--full",)))
     assert plan.changes == (
         Change("jobs.backfill", "run", "runs jobs.backfill", detail=("with --full",)),
@@ -47,6 +48,7 @@ def test_plans_one_run(tmp_path: Path) -> None:
 
 
 def test_a_resource_this_deploy_creates_can_be_run_too(tmp_path: Path) -> None:
+    """BRUN-2."""
     plan = BundleRun().plan(ctx(tmp_path, resource="jobs.bar"))
     assert plan.changes[0].summary == "runs jobs.bar"
 
@@ -61,13 +63,14 @@ def test_a_resource_the_bundle_doesnt_have_is_an_error(tmp_path: Path) -> None:
 
 
 def test_the_step_it_names_must_be_a_bundle_step(tmp_path: Path) -> None:
+    """BRUN-1."""
     other = Linked("seed", "./ops/steps.py:Warm", Program.Options())
     with pytest.raises(LelyError, match="must name a bundle step; step `seed` uses"):
         BundleRun().plan(ctx(tmp_path, bundle=other))
 
 
 def test_apply_runs_the_resource_the_way_its_bundle_is_asked(tmp_path: Path) -> None:
-    """R11. Same directory, same target, same `--var`s as the bundle step; the
+    """BRUN-3. Same directory, same target, same `--var`s as the bundle step; the
     arguments after a `--`, so they are the job's and not the CLI's."""
     step = ctx(tmp_path, args=("--full", "2024"))
     fake = step.databricks
@@ -100,7 +103,7 @@ def test_a_failed_run_is_a_failed_step(tmp_path: Path) -> None:
 
 
 def test_what_the_run_says_is_passed_on(tmp_path: Path) -> None:
-    """R11. A run can take long, and what the CLI writes meanwhile is the only
+    """BRUN-3. A run can take long, and what the CLI writes meanwhile is the only
     sign of it; on stderr too."""
     log = Heard()
     step = dataclasses.replace(ctx(tmp_path), log=log)
@@ -115,13 +118,14 @@ def test_what_the_run_says_is_passed_on(tmp_path: Path) -> None:
 
 
 def test_nothing_to_destroy_and_nothing_to_list(tmp_path: Path) -> None:
-    """R13: it deploys nothing. The plugin says so by not having the methods."""
+    """BRUN-5: it deploys nothing. The plugin says so by not having the methods."""
     assert not destroys(BundleRun)
     assert not lists(BundleRun)
-    assert BundleRun.__dict__.get("outputs") is None  # R14: it gives nothing
+    assert BundleRun.__dict__.get("outputs") is None  # BRUN-5: it gives nothing
 
 
 def test_the_core_skips_it_in_a_destroy_and_says_why(tmp_path: Path) -> None:
+    """BRUN-5."""
     from lely.config import load
 
     config = load(project.write(tmp_path))

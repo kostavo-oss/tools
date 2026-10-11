@@ -1,5 +1,5 @@
-"""lely on GitHub (008): the comment that is kept current, the run's page,
-and everything it says instead of failing. Against a fake GitHub."""
+"""lely on GitHub (the `GH` rules): the comment that is kept current, the run's
+page, and everything it says instead of failing. Against a fake GitHub."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_a_token_by_its_other_name(tmp_path: Path) -> None:
 
 
 def test_a_pull_request_from_another_repository_is_a_fork(tmp_path: Path) -> None:
-    """008/R4a. The repository the pull request is *in* is the base, whatever
+    """GH-5. The repository the pull request is *in* is the base, whatever
     the event: `pull_request_target` runs with the base's secrets."""
     assert run(tmp_path, head="someone/shop").fork == "someone/shop"
     assert run(tmp_path, head="ACME/Shop").fork is None  # the same, spelled otherwise
@@ -101,7 +101,7 @@ def test_a_repository_that_isnt_a_name_is_none(tmp_path: Path) -> None:
     assert found is not None and found.repository is None and found.link is None
 
 
-# -- the comment (008/R2) --------------------------------------------------------------
+# -- the comment (GH-2) ----------------------------------------------------------------
 
 
 def test_the_plan_is_one_comment_updated_in_place(tmp_path: Path) -> None:
@@ -165,7 +165,7 @@ def test_only_a_comment_that_starts_with_the_marker_is_lelys(tmp_path: Path) -> 
 
 
 def test_a_comment_someone_else_wrote_is_never_updated(tmp_path: Path) -> None:
-    """Anyone can write a comment that starts with the marker. A plan put in
+    """GH-9. Anyone can write a comment that starts with the marker. A plan put in
     it would sit in a comment its author can change afterwards."""
     forged = "<!-- lely:plan:dev -->\n### lely plan · target `dev`\n\nNo changes."
     hub = FakeGitHub()  # a run's own token: nobody's, and its comments a bot's
@@ -186,6 +186,7 @@ def test_a_comment_someone_else_wrote_is_never_updated(tmp_path: Path) -> None:
 
 
 def test_a_plan_too_long_for_a_comment_is_told_shorter(tmp_path: Path) -> None:
+    """GH-11."""
     hub = FakeGitHub()
     long = plan(*(f"jobs.{'x' * 60}{number}" for number in range(2000)))
     github.post_plan(run(tmp_path), long, hub.connect)
@@ -198,7 +199,7 @@ def test_a_plan_too_long_for_a_comment_is_told_shorter(tmp_path: Path) -> None:
     assert "Shortened" not in page and page.count("create   jobs.x") == 2000
 
 
-# -- the run's page (008/R3) -----------------------------------------------------------
+# -- the run's page (GH-3) -------------------------------------------------------------
 
 
 def test_the_plan_goes_on_the_runs_page(tmp_path: Path) -> None:
@@ -228,7 +229,7 @@ def test_a_run_and_what_exists_go_on_its_page(tmp_path: Path) -> None:
 
 
 def test_a_fork_is_told_on_the_runs_page_and_nowhere_else(tmp_path: Path) -> None:
-    """008/R4a."""
+    """GH-5."""
     here = run(tmp_path, head="someone/shop")
     assert github.post_skipped(here, "apply", "dev") == [Note("wrote the run's summary")]
     page = (tmp_path / "summary.md").read_text()
@@ -240,7 +241,7 @@ def test_a_fork_is_told_on_the_runs_page_and_nowhere_else(tmp_path: Path) -> Non
 
 
 def test_a_plan_that_failed_takes_the_last_ones_place(tmp_path: Path) -> None:
-    """An old plan must not stand there as the plan of what is pushed now.
+    """GH-10. An old plan must not stand there as the plan of what is pushed now.
     What went wrong is on the run's page, where GitHub hides a run's secrets;
     the comment only links there."""
     hub = FakeGitHub()
@@ -261,7 +262,7 @@ def test_a_plan_that_failed_takes_the_last_ones_place(tmp_path: Path) -> None:
     assert len(hub.comments) == 1 and "· failed" not in hub.bodies[0]
 
 
-# -- what it says instead of failing (008/R5) ------------------------------------------
+# -- what it says instead of failing (GH-6) --------------------------------------------
 
 
 def test_without_a_pull_request_there_is_a_summary_and_no_comment(tmp_path: Path) -> None:
@@ -320,7 +321,7 @@ def test_without_a_summary_file_it_says_so(tmp_path: Path) -> None:
     assert not note.done and note.words.startswith("no summary on the run's page: ")
 
 
-# -- the token (008/R6) ----------------------------------------------------------------
+# -- the token (GH-7) ------------------------------------------------------------------
 
 
 def test_the_token_is_never_posted_whatever_printed_it(tmp_path: Path) -> None:
@@ -376,6 +377,7 @@ def test_a_request_is_githubs_api_as_documented() -> None:
 
 
 def test_the_token_goes_to_https_and_not_along_with_a_redirect() -> None:
+    """GH-7."""
     with pytest.raises(GitHubError, match="not an https address") as caught:
         github.connect(TOKEN, "http://api.github.example")
     assert TOKEN not in str(caught.value)
@@ -496,7 +498,7 @@ def test_the_token_is_searched_for_as_checkout_keeps_it_too() -> None:
 
 
 def test_github_failing_for_a_moment_makes_no_second_comment(tmp_path: Path) -> None:
-    """A 502 where lely asks whose token it has was read as "nobody's": lely
+    """GH-9. A 502 where lely asks whose token it has was read as "nobody's": lely
     then passed over its own comment and wrote a second one, never updated."""
     hub = FakeGitHub(login="deployer")
     github.post_plan(run(tmp_path), plan("jobs.bar"), hub.connect)
@@ -518,7 +520,7 @@ def test_github_failing_for_a_moment_makes_no_second_comment(tmp_path: Path) -> 
 
 
 def test_a_plan_github_wont_take_says_so_where_the_last_one_stood(tmp_path: Path) -> None:
-    """A new plan that can't be posted must not leave the last one standing as
+    """GH-10. A new plan that can't be posted must not leave the last one standing as
     if it were this one: the reviewer would read the wrong plan under a green
     run."""
     hub = FakeGitHub()
@@ -555,7 +557,7 @@ def test_a_plan_lely_cant_write_down_says_so_too(
 
 
 def test_a_summary_too_long_for_the_page_is_not_written_whole(tmp_path: Path) -> None:
-    """GitHub drops the whole summary of a step that wrote more than 1 MiB."""
+    """GH-11. GitHub drops the whole summary of a step that wrote more than 1 MiB."""
     here = run(tmp_path)
     assert github._summarise(here, "x" * 2_000_000).done
     assert (tmp_path / "summary.md").read_text() == (

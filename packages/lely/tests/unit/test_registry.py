@@ -11,6 +11,7 @@ from lely.steps.stevin import Stevin
 
 
 def test_the_plugins_lely_ships_register_like_anyones() -> None:
+    """PLG-2."""
     assert {"bundle", "stevin", "bundle.run"} <= set(installed())
     assert find("bundle", Path.cwd()).cls is Bundle
     assert find("stevin", Path.cwd()).cls is Stevin
@@ -19,7 +20,7 @@ def test_the_plugins_lely_ships_register_like_anyones() -> None:
 
 
 def test_command_is_no_plugin_any_more() -> None:
-    """011/R12: a config that still names it is told there is no such plugin."""
+    """PROG-5: a config that still names it is told there is no such plugin."""
     assert "command" not in installed()
     with pytest.raises(StepNotFound, match="No plugin named `command`"):
         find("command", Path.cwd())
@@ -65,6 +66,7 @@ def test_a_missing_file_or_class(tmp_path: Path) -> None:
 
 
 def test_a_class_that_isnt_a_plugin(tmp_path: Path) -> None:
+    """PLG-4."""
     (tmp_path / "s.py").write_text("class NotOne:\n    def plan(self, ctx): pass\n")
     with pytest.raises(
         StepNotFound, match="needs an `Options` dataclass and a `apply` method"
@@ -73,6 +75,7 @@ def test_a_class_that_isnt_a_plugin(tmp_path: Path) -> None:
 
 
 def test_destroying_is_planned_first_or_not_at_all(tmp_path: Path) -> None:
+    """PLG-4."""
     (tmp_path / "s.py").write_text(
         "from dataclasses import dataclass\n"
         "class Half:\n"

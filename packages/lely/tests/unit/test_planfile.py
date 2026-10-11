@@ -50,6 +50,7 @@ def planned(root: Path, kind: PlanKind = "apply") -> Plan:
 
 
 def test_a_plan_survives_the_round_trip(tmp_path: Path) -> None:
+    """PLAN-2."""
     built = planned(tmp_path)
     assert planfile.loads(planfile.dumps(built)) == built
 
@@ -62,7 +63,7 @@ def test_a_destroy_plan_survives_it_too(tmp_path: Path) -> None:
 
 
 def test_the_file_says_what_it_is_and_holds_what_was_shown(tmp_path: Path) -> None:
-    """005/R2."""
+    """PLAN-2."""
     document = planfile.plan_to_json(planned(tmp_path))
     assert {k: v for k, v in document.items() if k != "steps"} == {
         "format_version": 4,
@@ -101,6 +102,7 @@ def test_the_file_says_what_it_is_and_holds_what_was_shown(tmp_path: Path) -> No
 
 
 def test_a_secret_output_is_never_written() -> None:
+    """SEC-1."""
     step = StepPlan(outputs={"token": Secret("t0k"), "user": "jane"})
     written = json.dumps(planfile.step_plan_to_json(step))
     assert "t0k" not in written
@@ -122,12 +124,13 @@ def test_a_secret_a_step_takes_is_never_written(tmp_path: Path) -> None:
 
 
 def test_a_payload_with_a_secret_is_refused() -> None:
+    """PLAN-10."""
     with pytest.raises(PlanFileError, match="its payload holds a secret"):
         planfile.step_plan_to_json(StepPlan(payload=cast(Any, {"auth": [Secret("x")]})))
 
 
 def test_another_format_is_refused_and_says_to_plan_again() -> None:
-    """005/R3: the message names both versions."""
+    """PLAN-3: the message names both versions."""
     with pytest.raises(PlanFileError) as caught:
         planfile.loads(json.dumps({"format_version": 1}))
     assert str(caught.value) == (
@@ -174,7 +177,7 @@ def test_delete_and_replace_are_destructive_whatever_was_written() -> None:
 
 
 def test_a_result_has_its_three_lists() -> None:
-    """005/R21."""
+    """APL-8."""
     result = Result(
         "apply",
         "dev",
@@ -311,7 +314,7 @@ def test_a_plan_names_its_target(tmp_path: Path) -> None:
 
 
 def test_a_plan_file_is_read_strictly(tmp_path: Path) -> None:
-    """A key lely doesn't write, or a flag that isn't one, is a file lely
+    """PLAN-3. A key lely doesn't write, or a flag that isn't one, is a file lely
     didn't write. `"dirty": "false"` used to read as true."""
     good = planfile.plan_to_json(planned(tmp_path))
 
@@ -343,6 +346,7 @@ def test_a_number_too_long_to_read_is_not_a_plan_file() -> None:
 
 
 def test_what_isnt_json_is_refused_with_its_reason() -> None:
+    """PLAN-10."""
     import datetime
 
     for value, said in (
@@ -356,6 +360,7 @@ def test_what_isnt_json_is_refused_with_its_reason() -> None:
 
 
 def test_a_plan_is_made_plain_so_it_reads_back_equal() -> None:
+    """PLAN-10."""
     plan = StepPlan(
         changes=(Change("k", "run", "", detail=cast(Any, ["a"])),),
         outputs={"names": cast(Any, ("a", "b")), "token": Secret("t0k")},
@@ -544,11 +549,11 @@ def test_what_a_run_removed_is_listed_in_the_result_as_the_terminal_lists_it() -
     assert listed is not None and len(listed["items"]) == 1  # a status: no run to tell
 
 
-# -- a plugin's own view (007/R2, 002/R8) -----------------------------------------------
+# -- a plugin's own view (PAGE-2) -------------------------------------------------------
 
 
 def test_a_steps_view_is_kept_with_its_plan() -> None:
-    """Made when the step is planned, so the page for a plan file needs no
+    """PAGE-2. Made when the step is planned, so the page for a plan file needs no
     plugin, no project and no workspace — and is the same on any machine."""
     plan = StepPlan(
         changes=(Change("jobs.bar", "create", "jobs.bar"),),
@@ -564,7 +569,7 @@ def test_a_steps_view_is_kept_with_its_plan() -> None:
         StepPlan(view=cast(Any, 5))
 
 
-# -- a run's record (007/R6) ------------------------------------------------------------
+# -- a run's record (PAGE-6) ------------------------------------------------------------
 
 
 def a_result() -> Result:
@@ -659,7 +664,7 @@ def test_a_record_is_read_as_strictly_as_a_plan() -> None:
 
 
 def test_a_record_tells_one_story(tmp_path: Path) -> None:
-    """How a run ended is said in three places: its `outcome`, each step's
+    """PAGE-6. How a run ended is said in three places: its `outcome`, each step's
     own, and the lists of names. A file where they disagree was edited — and
     showed a run that failed as "Applied", in green."""
     good = planfile.result_to_json(a_result())

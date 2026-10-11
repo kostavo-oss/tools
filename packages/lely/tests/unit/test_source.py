@@ -288,7 +288,7 @@ def test_a_file_a_submodule_doesnt_track_is_not_seen_either(
 
 
 def test_nothing_of_the_users_is_written(repo: Path) -> None:
-    """Not an index, not an object, not a shared index beside it — and the
+    """PLAN-7. Not an index, not an object, not a shared index beside it — and the
     user's hooks are not run. The one tree lely has to make, `HEAD`'s without a
     tracked plan file, is made in an index and an object store of its own."""
     plan = repo / "plans.json"
@@ -359,7 +359,7 @@ def test_a_folder_spelled_in_another_case_is_the_same_project(repo: Path) -> Non
 def test_git_refusing_is_not_the_same_as_no_repository(
     repo: Path, git_refuses: Callable[[], None]
 ) -> None:
-    """Only git's own "not a git repository" means that. Any other failure
+    """PLAN-7. Only git's own "not a git repository" means that. Any other failure
     fails the plan: one that quietly recorded nothing would be held to nothing.
     Here, the refusal a container gives a checkout owned by someone else."""
     git_refuses()
@@ -372,7 +372,7 @@ def test_git_refusing_is_not_the_same_as_no_repository(
 def test_a_git_folder_git_cant_use_is_not_no_repository(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """git says "not a git repository" for these too. A plan made there would
+    """PLAN-7. git says "not a git repository" for these too. A plan made there would
     record nothing, and be run on any commit."""
     copied = tmp_path / "copied"  # a worktree, copied without what it points to
     copied.mkdir()

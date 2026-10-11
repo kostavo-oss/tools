@@ -48,6 +48,7 @@ def run(body: str) -> subprocess.CompletedProcess[str]:
     ],
 )
 def test_what_a_plugin_writes_goes_to_stderr_however_it_writes(body: str) -> None:
+    """PLG-8."""
     done = run(body)
     assert done.returncode == 0, done.stderr
     assert done.stdout == "before\nafter\n"
@@ -68,6 +69,7 @@ def test_what_a_plugin_writes_goes_to_stderr_however_it_writes(body: str) -> Non
     ],
 )
 def test_a_plugin_that_takes_its_stdout_apart_leaves_lelys_alone(body: str) -> None:
+    """PLG-8."""
     done = run(body)
     assert done.returncode == 0, done.stderr
     assert done.stdout == "before\nafter\n"

@@ -20,4 +20,4 @@ a live run when the live suite exists.
 
 These are for *reading* the CLI's answers. What `bundle deploy`, `destroy` and `run` do is not
 recorded anywhere: `tests/fake_databricks.py` simulates them, from what lely assumes
-(`spec/004-asset-bundle.md`, To verify).
+(V1 to V8 in the docstring of `src/lely/steps/bundle.py`).

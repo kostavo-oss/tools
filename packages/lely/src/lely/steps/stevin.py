@@ -1,8 +1,7 @@
 """`stevin`: tables, views and the rest, with stevin's own plan.
 
-**Parked.** The owner takes this plugin up separately (`spec/006-stevin.md`).
-Its plan half is built and left as it is; it can't apply yet, and says so
-before anything runs.
+**It plans and cannot apply yet** (PLG-11; issue #41 of `kostavo-oss/tools`).
+`apply` refuses a project that uses it before anything runs.
 
 The contract is stevin's CLI and its plan file, not its Python modules, so
 stevin stays a standalone tool with its own releases:

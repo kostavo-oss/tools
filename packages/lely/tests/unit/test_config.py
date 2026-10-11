@@ -39,6 +39,7 @@ def problems(text: str, name: str = "lely.yml") -> list[str]:
 
 
 def test_reads_steps_in_the_order_written() -> None:
+    """CFG-1."""
     config = load_text(EXAMPLE, Path("project/lely.yml"))
     assert [(s.name, s.uses) for s in config.steps] == [
         ("model", "./ops/steps.py:LatestModel"),
@@ -75,6 +76,7 @@ def test_a_with_block_as_written_keeps_its_references() -> None:
 
 
 def test_targets_limit_a_step() -> None:
+    """CFG-3."""
     backfill = load_text(EXAMPLE, Path("lely.yml")).steps[2]
     assert backfill.targets == ("dev", "prod")
     assert backfill.runs_for("dev")
@@ -90,6 +92,7 @@ def test_an_unknown_key_is_an_error_where_it_was_written() -> None:
 
 
 def test_the_keys_from_before_the_one_list_are_unknown() -> None:
+    """CFG-1."""
     assert problems("pre: []\nsteps:\n  - uses: bundle\n") == [
         "lely.yml:1:1: unknown key `pre` in lely.yml; expected steps"
     ]
@@ -105,11 +108,13 @@ def test_a_plugin_from_a_file_needs_a_name() -> None:
 
 
 def test_names_are_one_reference_part() -> None:
+    """CFG-2."""
     [problem] = problems("steps:\n  - name: warm.cache\n    uses: bundle\n")
     assert problem.startswith("lely.yml:2:11: step name `warm.cache` must be")
 
 
 def test_names_are_unique() -> None:
+    """CFG-2."""
     [problem] = problems("steps:\n  - uses: bundle\n  - uses: bundle\n")
     assert problem == (
         "lely.yml:3:5: two steps are named `bundle` (the other is at "
@@ -118,6 +123,7 @@ def test_names_are_unique() -> None:
 
 
 def test_every_problem_is_reported_at_once() -> None:
+    """CFG-7."""
     found = problems("steps:\n  - uses: bundle\n    wiht: {}\n  - name: y\n")
     assert len(found) == 2
 
@@ -139,6 +145,7 @@ def test_an_empty_file_is_an_error() -> None:
 
 
 def test_bad_yaml_says_where() -> None:
+    """CFG-7."""
     [problem] = problems("steps:\n  - uses: [bundle\n")
     assert problem.startswith("lely.yml:3:1: not valid YAML")
 
@@ -221,6 +228,7 @@ def test_pyproject_without_a_section_or_broken() -> None:
 
 
 def test_the_config_is_found_from_a_subfolder(tmp_path: Path) -> None:
+    """CFG-5."""
     project.write(tmp_path)
     deep = tmp_path / "src" / "pkg"
     deep.mkdir(parents=True)
@@ -237,6 +245,7 @@ def test_a_pyproject_counts_only_with_a_lely_section(tmp_path: Path) -> None:
 
 
 def test_both_in_one_folder_is_an_error_that_names_them(tmp_path: Path) -> None:
+    """CFG-6."""
     project.write(tmp_path)
     project.write(tmp_path, toml=True)
     with pytest.raises(ConfigError) as caught:
@@ -293,6 +302,7 @@ def test_a_config_that_isnt_a_readable_file_is_a_config_error(tmp_path: Path) ->
 
 
 def test_a_config_named_lely_yaml_says_what_lely_reads(tmp_path: Path) -> None:
+    """CFG-6."""
     (tmp_path / "lely.yaml").write_text("steps: []\n")
     with pytest.raises(ConfigError) as caught:
         find(tmp_path)
@@ -337,6 +347,7 @@ def test_a_toml_value_is_what_toml_parsed_never_what_a_scan_found() -> None:
 
 
 def test_a_yaml_number_keeps_the_text_it_was_written_as() -> None:
+    """CFG-10."""
     config = load_text(
         "steps:\n  - uses: bundle\n    with: {vars: {a: 1.10, b: 0123, c: yes, d: x}}\n",
         Path("lely.yml"),
@@ -349,7 +360,7 @@ def test_a_yaml_number_keeps_the_text_it_was_written_as() -> None:
 
 
 def test_what_a_step_is_made_from_is_what_was_spelled() -> None:
-    """005/R5: options *as written*. `1.10` edited to `1.1` hands a text option
+    """PLAN-4: options *as written*. `1.10` edited to `1.1` hands a text option
     another text, so it is another step — while `5` is `5` in YAML and in TOML."""
     from lely.config import spelled
 

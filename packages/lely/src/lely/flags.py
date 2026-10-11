@@ -1,5 +1,5 @@
 """A step's `Options` as the flags of its own command line, and back into a
-config block — for a step run on its own (`spec/011`, R5).
+config block — for a step run on its own (SOLO-3).
 
 Each field of the `Options` dataclass is `--<name>`, with the field's type, its
 default and the `#:` comment above it as its help. What a flag gives is then
@@ -198,7 +198,7 @@ def block_from(flags: Sequence[Flag], values: Mapping[str, Any]) -> Map:
 
     A flag not given is left out, so the option's own default applies. A value
     that looks like a reference is refused: on its own, a step has no step
-    above to take it from (`spec/011`, R8).
+    above to take it from (SOLO-4).
     """
     entries: list[Entry] = []
     for flag in flags:

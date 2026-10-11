@@ -1,7 +1,7 @@
 """The `lely` command, end to end, against the fake Databricks CLI as a program.
 
 Consent, exit codes and plan files are the command line's own: each test names
-the requirement of `spec/005-plan-apply-destroy.md` it holds.
+the rule of `RULES.md` it holds.
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def ready(lely: Lely) -> Lely:
 
 
 def test_validate_prints_the_wiring(lely: Lely) -> None:
-    """003/R8."""
+    """CFG-8."""
     result = lely("validate")
     assert result.exit_code == 0, said(result)
     assert "lely.yml: 5 steps" in said(result)
@@ -108,7 +108,7 @@ def test_validate_fails_with_located_problems(lely: Lely) -> None:
 def test_the_config_is_found_from_a_subfolder(
     lely: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """003/R5a: and a step's paths stay relative to the config."""
+    """CFG-5: and a step's paths stay relative to the config."""
     deep = lely.root / "src" / "pkg"
     deep.mkdir(parents=True)
     monkeypatch.chdir(deep)
@@ -119,7 +119,7 @@ def test_the_config_is_found_from_a_subfolder(
 
 
 def test_a_project_in_pyproject(lely: Lely) -> None:
-    """003/R5."""
+    """CFG-4."""
     (lely.root / "lely.yml").unlink()
     project.write(lely.root, toml=True)
     assert "pyproject.toml: 5 steps" in said(lely("validate"))
@@ -164,7 +164,7 @@ def test_a_plugin_whose_default_cant_be_made_is_said_and_the_rest_listed(
 
 
 def test_steps_lists_plugins_with_what_they_take_give_and_can_do(lely: Lely) -> None:
-    """002, done when: options, outputs and when each is known, and whether it
+    """PLG-2: options, outputs and when each is known, and whether it
     has an overview and a destroy."""
     result = lely("steps")
     assert result.exit_code == 0, said(result)
@@ -255,14 +255,14 @@ def test_version() -> None:
 
 
 def test_plan_always_needs_a_target(lely: Lely) -> None:
-    """R37: there is no default target."""
+    """CLI-2: there is no default target."""
     result = lely("plan")
     assert result.exit_code == 2
     assert lely.fake.calls == []
 
 
 def test_plan_shows_the_plan_and_names_the_workspace(lely: Lely) -> None:
-    """R1, R35."""
+    """PLAN-1, PLAN-5."""
     result = lely("plan", "-t", "dev")
     assert result.exit_code == 0, said(result)
     assert (
@@ -270,12 +270,12 @@ def test_plan_shows_the_plan_and_names_the_workspace(lely: Lely) -> None:
         "jane@example.com"
     ) in said(result)
     assert "Plan: 2 changes · 2 runs · 0 destructive · 1 waiting" in said(result)
-    assert "Applied from a file, this stops before `notify`" in said(result)  # R27
+    assert "Applied from a file, this stops before `notify`" in said(result)  # WAIT-3
     assert set(lely.fake.verbs) == {"summary", "plan"}
 
 
 def test_plan_writes_a_file_and_show_renders_it(lely: Lely) -> None:
-    """R1, 001/R5."""
+    """PLAN-1, PLAN-9."""
     result = lely("plan", "-t", "dev", "-o", "plan.json")
     assert result.exit_code == 0, said(result)
     assert "Wrote plan.json" in said(result)
@@ -310,7 +310,7 @@ def test_a_failing_cli_fails_the_plan(lely: Lely) -> None:
 
 
 def test_a_plan_file_this_lely_doesnt_read_is_refused(lely: Lely) -> None:
-    """R3."""
+    """PLAN-3."""
     (lely.root / "old.json").write_text(json.dumps({"format_version": 1}))
     result = lely("show", "old.json")
     assert result.exit_code == 1
@@ -322,7 +322,7 @@ def test_a_plan_file_this_lely_doesnt_read_is_refused(lely: Lely) -> None:
 
 
 def test_with_no_terminal_and_no_yes_apply_refuses(ready: Lely) -> None:
-    """R17: a forgotten flag is a failed job, never an unreviewed deploy."""
+    """ASK-1: a forgotten flag is a failed job, never an unreviewed deploy."""
     result = ready("apply", "-t", "dev")
     assert result.exit_code == 2
     assert "Pass --yes to run without asking." in said(result)
@@ -330,19 +330,19 @@ def test_with_no_terminal_and_no_yes_apply_refuses(ready: Lely) -> None:
 
 
 def test_yes_in_the_command_runs_without_asking(ready: Lely) -> None:
-    """R17."""
+    """ASK-1."""
     result = ready("apply", "-t", "dev", "--yes")
     assert result.exit_code == 0, said(result)
     assert "Applied: 3 steps." in said(result)
     assert set(ready.fake.deployed()) == {"jobs.backfill", "jobs.bar", "pipelines.foo"}
     assert ready.notified() == ["771"]
-    # R10: what now exists, and what this run did to it
+    # APL-6: what now exists, and what this run did to it
     assert re.search(r"job\s+jobs\.bar\s+job bar\s+\d+\s+created", said(result))
     assert re.search(r"job\s+jobs\.backfill\s+backfill\s+771\s+unchanged", said(result))
 
 
 def test_at_a_terminal_apply_shows_the_plan_and_asks(ready: Lely) -> None:
-    """R4, R35: the question names the workspace and the identity."""
+    """APL-1, PLAN-5: the question names the workspace and the identity."""
     ready.terminal(True)
     result = ready("apply", "-t", "dev", typed="n\n")
     assert result.exit_code == 2
@@ -360,7 +360,7 @@ def test_at_a_terminal_apply_shows_the_plan_and_asks(ready: Lely) -> None:
 def test_apply_without_a_file_needs_a_target(
     ready: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R37 — and it is refused before anything is reached: the workspace was
+    """CLI-2 — and it is refused before anything is reached: the workspace was
     asked who is running first, so the refusal waited on a sign-in, and
     without credentials the command failed with 1 instead."""
 
@@ -376,7 +376,7 @@ def test_apply_without_a_file_needs_a_target(
 
 
 def test_a_destructive_change_is_refused_without_the_flag(ready: Lely) -> None:
-    """R8: before anything runs — and before anything is asked. Here the bundle
+    """APL-4: before anything runs — and before anything is asked. Here the bundle
     no longer declares a job that is deployed, so the deploy would delete it."""
     bundle = {**project.BUNDLE, "resources": {"jobs": {"bar": {"name": "job bar"}}}}
     (ready.root / "fake-bundle.json").write_text(json.dumps(bundle))
@@ -396,7 +396,7 @@ def test_a_destructive_change_is_refused_without_the_flag(ready: Lely) -> None:
 
 
 def test_yes_without_a_file_runs_a_waiting_step_when_it_gets_there(lely: Lely) -> None:
-    """R28: lely's unreviewed way of running."""
+    """WAIT-4: lely's unreviewed way of running."""
     result = lely("apply", "-t", "dev", "--yes")
     assert result.exit_code == 0, said(result)
     bar = lely.fake.deployed()["jobs.bar"]["id"]
@@ -405,7 +405,7 @@ def test_yes_without_a_file_runs_a_waiting_step_when_it_gets_there(lely: Lely) -
 
 
 def test_at_a_terminal_lely_asks_again_at_a_waiting_step(lely: Lely) -> None:
-    """R29: the same consent, given at the moment it can be."""
+    """WAIT-5: the same consent, given at the moment it can be."""
     lely.terminal(True)
     result = lely("apply", "-t", "dev", typed="y\nn\n")
     assert result.exit_code == 2
@@ -413,7 +413,7 @@ def test_at_a_terminal_lely_asks_again_at_a_waiting_step(lely: Lely) -> None:
     assert "Step `notify` wasn't approved. Nothing more was run." in said(result)
     assert "jobs.bar" in lely.fake.deployed()  # the bundle ran: it was approved
     assert lely.notified() == []
-    assert lely.fake.runs == []  # R30: never out of order
+    assert lely.fake.runs == []  # WAIT-6: never out of order
     assert lely("apply", "-t", "dev", typed="y\ny\n").exit_code == 0
     assert len(lely.notified()) == 1
 
@@ -421,7 +421,7 @@ def test_at_a_terminal_lely_asks_again_at_a_waiting_step(lely: Lely) -> None:
 def test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round(
     lely: Lely,
 ) -> None:
-    """R27, R31: 2 says "plan again", and the next plan shows the step ready."""
+    """WAIT-3, CLI-1: 2 says "plan again", and the next plan shows the step ready."""
     assert lely("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
     first = lely("apply", "plan.json", "--yes")
     assert first.exit_code == 2
@@ -430,13 +430,13 @@ def test_a_reviewed_file_stops_at_a_waiting_step_and_takes_a_second_round(
     assert "refused: notify" in said(first)  # a refusal isn't a failure
     assert "never started: backfill" in said(first)
     assert "Nothing was rolled back." in said(first)
-    # R22: after a refusal, the same file is refused again
+    # APL-9: after a refusal, the same file is refused again
     assert lely("apply", "plan.json", "--yes").exit_code == 2
     assert lely("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
     second = lely("apply", "plan.json", "--yes")
     assert second.exit_code == 0, said(second)
     assert len(lely.notified()) == 1
-    # 004/R7a: nothing is remembered — what the first round created shows as
+    # APL-7: nothing is remembered — what the first round created shows as
     # unchanged in the round that finishes it
     assert re.search(r"jobs\.bar\s+job bar\s+\d+\s+unchanged", said(second))
 
@@ -451,7 +451,7 @@ def planned(lely: Lely, *args: str) -> None:
 
 
 def test_a_file_is_asked_about_too(ready: Lely) -> None:
-    """R20."""
+    """ASK-4."""
     planned(ready)
     assert ready("apply", "plan.json").exit_code == 2  # no terminal, no --yes
     ready.terminal(True)
@@ -462,6 +462,7 @@ def test_a_file_is_asked_about_too(ready: Lely) -> None:
 
 
 def test_a_file_for_another_target_than_the_command_says_is_refused(ready: Lely) -> None:
+    """APL-1."""
     planned(ready)
     result = ready("apply", "plan.json", "-t", "prod", "--yes")
     assert result.exit_code == 2
@@ -470,7 +471,7 @@ def test_a_file_for_another_target_than_the_command_says_is_refused(ready: Lely)
 
 
 def test_a_file_is_refused_when_a_steps_options_changed(ready: Lely) -> None:
-    """R5: what is compared is the config as lely reads it."""
+    """PLAN-4: what is compared is the config as lely reads it."""
     planned(ready)
     text = (ready.root / "lely.yml").read_text()
     (ready.root / "lely.yml").write_text(text + "\n# an unrelated note\n")
@@ -486,7 +487,7 @@ def test_a_file_is_refused_when_a_steps_options_changed(ready: Lely) -> None:
 def test_a_file_made_against_one_workspace_is_refused_on_another(
     ready: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R35."""
+    """PLAN-5."""
     planned(ready)
     other = Workspace("https://prod.cloud.databricks.com", "jane@example.com")
     monkeypatch.setattr(cli, "WHOAMI", lambda profile: other)
@@ -497,7 +498,7 @@ def test_a_file_made_against_one_workspace_is_refused_on_another(
 
 
 def test_a_file_is_refused_on_another_git_tree(ready: Lely) -> None:
-    """R36: what was reviewed is what is deployed."""
+    """PLAN-6: what was reviewed is what is deployed."""
 
     def git(*args: str) -> None:
         identity = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
@@ -521,12 +522,12 @@ def test_a_file_is_refused_on_another_git_tree(ready: Lely) -> None:
 
 
 def test_outside_git_the_plan_says_it_couldnt_be_recorded(lely: Lely) -> None:
-    """R36."""
+    """PLAN-6."""
     assert "Not in a git repository" in said(lely("plan", "-t", "dev"))
 
 
 def test_apply_cant_be_handed_a_destroy(ready: Lely) -> None:
-    """R20: as first written, `lely apply destroy.json --yes` would have
+    """ASK-4: as first written, `lely apply destroy.json --yes` would have
     destroyed a target with neither "destroy" nor its name in the command."""
     planned(ready, "--destroy")
     result = ready("apply", "plan.json", "--yes")
@@ -540,7 +541,7 @@ def test_apply_cant_be_handed_a_destroy(ready: Lely) -> None:
 
 
 def test_a_failed_step_ends_with_1_and_three_lists(ready: Lely) -> None:
-    """R21, R24, R31."""
+    """APL-8, APL-11, CLI-1."""
     (ready.root / "ops" / "notify.sh").write_text(
         "#!/bin/sh\necho 'no route' >&2\nexit 7\n"
     )
@@ -554,7 +555,7 @@ def test_a_failed_step_ends_with_1_and_three_lists(ready: Lely) -> None:
 
 
 def test_the_result_as_json(ready: Lely) -> None:
-    """R21."""
+    """APL-8."""
     result = ready("apply", "-t", "dev", "--yes", "-f", "json")
     assert result.exit_code == 0, said(result)
     document = json.loads(result.stdout)
@@ -570,7 +571,7 @@ def test_the_result_as_json(ready: Lely) -> None:
 
 
 def test_from_resumes_at_a_step(ready: Lely) -> None:
-    """R23."""
+    """APL-10."""
     result = ready("apply", "-t", "dev", "--yes", "--from", "backfill")
     assert result.exit_code == 0, said(result)
     assert "deploy" not in ready.fake.verbs
@@ -582,13 +583,13 @@ def test_from_resumes_at_a_step(ready: Lely) -> None:
 
 
 def test_destroy_always_needs_a_target(lely: Lely) -> None:
-    """R19, R37: there is no default target to destroy."""
+    """ASK-3, CLI-2: there is no default target to destroy."""
     assert lely("destroy", "--yes").exit_code == 2
     assert lely.fake.calls == []
 
 
 def test_to_destroy_at_a_terminal_the_answer_is_the_targets_name(lely: Lely) -> None:
-    """R18: not `y`, so that `prod` is never destroyed by a reflex."""
+    """ASK-2: not `y`, so that `prod` is never destroyed by a reflex."""
     lely.terminal(True)
     wrong = lely("destroy", "-t", "dev", typed="y\n")
     assert wrong.exit_code == 2
@@ -608,7 +609,7 @@ def test_to_destroy_at_a_terminal_the_answer_is_the_targets_name(lely: Lely) -> 
 def test_without_a_terminal_consent_to_destroy_is_given_in_the_command(
     lely: Lely,
 ) -> None:
-    """R17, R19."""
+    """ASK-1, ASK-3."""
     refused = lely("destroy", "-t", "dev")
     assert refused.exit_code == 2
     assert "Pass --yes to destroy target `dev` without asking." in said(refused)
@@ -618,7 +619,7 @@ def test_without_a_terminal_consent_to_destroy_is_given_in_the_command(
 
 
 def test_a_destroy_can_be_saved_reviewed_and_run_as_a_file(lely: Lely) -> None:
-    """R14: one file format for both; the target is said again."""
+    """DST-4: one file format for both; the target is said again."""
     assert lely("plan", "-t", "dev", "--destroy", "-o", "destroy.json").exit_code == 0
     shown = lely("show", "destroy.json")
     assert "lely destroy plan · target dev" in said(shown)
@@ -632,7 +633,7 @@ def test_a_destroy_can_be_saved_reviewed_and_run_as_a_file(lely: Lely) -> None:
 
 
 def test_a_destroy_file_is_asked_about_with_the_targets_name(lely: Lely) -> None:
-    """R20."""
+    """ASK-4."""
     lely("plan", "-t", "dev", "--destroy", "-o", "destroy.json")
     lely.terminal(True)
     assert lely("destroy", "destroy.json", "-t", "dev", typed="yes\n").exit_code == 2
@@ -650,7 +651,7 @@ def test_destroy_cant_be_handed_a_plan_to_apply(lely: Lely) -> None:
 def test_destroying_what_isnt_deployed_says_so_and_ends_as_done(
     tmp_path: Path, lely: Lely
 ) -> None:
-    """R16: and there is nothing to ask about."""
+    """DST-6: and there is nothing to ask about."""
     lely.fake.world.joinpath("state.json").unlink()
     result = lely("destroy", "-t", "dev")
     assert result.exit_code == 0, said(result)
@@ -662,7 +663,7 @@ def test_destroying_what_isnt_deployed_says_so_and_ends_as_done(
 
 
 def test_status_shows_what_is_deployed_and_whose_view_it_is(lely: Lely) -> None:
-    """R32, 004/R9b."""
+    """CLI-3, BDL-13."""
     result = lely("status", "-t", "dev")
     assert result.exit_code == 0, said(result)
     text = said(result)
@@ -673,7 +674,7 @@ def test_status_shows_what_is_deployed_and_whose_view_it_is(lely: Lely) -> None:
     assert "nothing to list" in text
     assert "skipped: not for target `dev`" in text
     assert set(lely.fake.verbs) <= {"summary", "plan"}
-    assert lely("status").exit_code == 2  # R37
+    assert lely("status").exit_code == 2  # CLI-2
 
 
 def test_status_as_json(lely: Lely) -> None:
@@ -683,7 +684,7 @@ def test_status_as_json(lely: Lely) -> None:
 
 
 def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> None:
-    """R33, 002/R13a."""
+    """CLI-5, CLI-6."""
     result = lely("doctor")
     assert result.exit_code == 0, said(result)
     text = said(result)
@@ -701,6 +702,7 @@ def test_doctor_reports_the_tools_the_workspace_and_the_identity(lely: Lely) -> 
 def test_doctor_fails_when_a_tool_is_missing(
     lely: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """CLI-5."""
     monkeypatch.setattr(cli, "DATABRICKS", ("no-such-databricks",))
     (lely.root / "ops" / "warm.sh").unlink()
     result = lely("doctor")
@@ -727,7 +729,7 @@ def test_doctor_doesnt_fail_for_a_cli_no_step_runs(
 
 
 def test_doctor_compares_the_clis_version_with_the_one_bundles_need(lely: Lely) -> None:
-    """It printed the version and "GA in CLI v1.3.0" side by side, and left
+    """CLI-5. It printed the version and "GA in CLI v1.3.0" side by side, and left
     the comparing to the reader."""
     (lely.fake.world / "version").write_text("Databricks CLI v1.2.9\n")
     older = " ".join(said(lely("doctor")).split())
@@ -788,7 +790,7 @@ def test_doctor_says_when_git_refuses_the_checkout(
 
 
 def test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on(lely: Lely) -> None:
-    """`programs` is a plugin's own code. One that raised ended `lely doctor`
+    """CLI-5. `programs` is a plugin's own code. One that raised ended `lely doctor`
     in a traceback; so did one that named something that isn't text."""
     (lely.root / "ops" / "odd.py").write_text(
         "from dataclasses import dataclass\n"
@@ -851,7 +853,7 @@ def test_an_error_lely_didnt_expect_shows_no_frames_locals() -> None:
     ],
 )
 def test_an_empty_target_is_no_target(lely: Lely, command: tuple[str, ...]) -> None:
-    """R37. `-t "$TARGET"` with the variable unset: the Databricks CLI would
+    """CLI-2. `-t "$TARGET"` with the variable unset: the Databricks CLI would
     read an empty target as "the default one", and there is none."""
     for empty in ("", "  "):
         result = lely(*command, "-t", empty)
@@ -862,7 +864,7 @@ def test_an_empty_target_is_no_target(lely: Lely, command: tuple[str, ...]) -> N
 
 
 def test_pressing_enter_doesnt_destroy(lely: Lely) -> None:
-    """R18."""
+    """ASK-2."""
     lely.terminal(True)
     result = lely("destroy", "-t", "dev", typed="\n")
     assert result.exit_code == 2
@@ -870,7 +872,7 @@ def test_pressing_enter_doesnt_destroy(lely: Lely) -> None:
 
 
 def test_a_destroy_file_edited_to_hide_what_it_removes_is_refused(lely: Lely) -> None:
-    """R17, R20. One field of a real destroy plan changed by hand: the step is
+    """ASK-1, ASK-4. One field of a real destroy plan changed by hand: the step is
     marked skipped, its changes left in. As first built this showed "Nothing to
     destroy", asked nothing, and destroyed."""
     lely("plan", "-t", "dev", "--destroy", "-o", "destroy.json")
@@ -888,7 +890,7 @@ def test_a_destroy_file_edited_to_hide_what_it_removes_is_refused(lely: Lely) ->
 
 
 def test_a_file_lely_cant_read_is_a_refusal_when_it_would_be_run(lely: Lely) -> None:
-    """R3, R31: "plan again" ends with 2. `show` changes nothing: 1."""
+    """PLAN-3, CLI-1: "plan again" ends with 2. `show` changes nothing: 1."""
     old = lely.root / "old.json"
     old.write_text(json.dumps({"format_version": 1}))
     for command in (("apply", "old.json", "--yes"), ("destroy", "old.json", "-t", "dev")):
@@ -905,6 +907,7 @@ def test_a_file_lely_cant_read_is_a_refusal_when_it_would_be_run(lely: Lely) -> 
 def test_a_from_that_names_no_step_is_refused_before_anything_is_planned(
     ready: Lely,
 ) -> None:
+    """APL-10."""
     ready.terminal(True)
     result = ready("apply", "-t", "dev", "--from", "nope", typed="y\n")
     assert result.exit_code == 2
@@ -916,7 +919,7 @@ def test_a_from_that_names_no_step_is_refused_before_anything_is_planned(
 
 
 def test_a_refusal_before_the_first_step_is_said_as_json_too(ready: Lely) -> None:
-    """With `-f json`, whatever reads stdout reads something."""
+    """CLI-4. With `-f json`, whatever reads stdout reads something."""
     result = ready("apply", "-t", "dev", "-f", "json")  # no terminal, no --yes
     assert result.exit_code == 2
     document = json.loads(result.stdout)
@@ -929,7 +932,7 @@ def test_a_refusal_before_the_first_step_is_said_as_json_too(ready: Lely) -> Non
 def test_the_question_names_who_runs_not_who_planned(
     ready: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R35: with a file, the two need not be the same — a plan is made with
+    """PLAN-5: with a file, the two need not be the same — a plan is made with
     credentials that can read, and run with ones that can write."""
     planned(ready)
     deployer = Workspace(project.WORKSPACE.host, "deployer-sp@example.com")
@@ -949,7 +952,7 @@ def test_a_plan_that_cant_be_written_is_a_message(lely: Lely) -> None:
 
 
 def test_a_destroy_plan_committed_for_review_doesnt_refuse_itself(lely: Lely) -> None:
-    """R14 and R36 together: a destroy can go through a pull request, and the
+    """DST-4 and PLAN-6 together: a destroy can go through a pull request, and the
     plan is still held to the tree it was made on — the tree without itself."""
 
     def git(*args: str) -> None:
@@ -971,7 +974,7 @@ def test_a_destroy_plan_committed_for_review_doesnt_refuse_itself(lely: Lely) ->
 def test_a_reviewed_file_covers_a_bundle_outside_the_configs_folder(
     tmp_path: Path, lely: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R36: the bundle's files are in no plan, so the tree that is recorded has
+    """PLAN-6: the bundle's files are in no plan, so the tree that is recorded has
     to reach as far as a step can — here `path: ../bundle`."""
 
     def git(*args: str) -> None:
@@ -1063,7 +1066,7 @@ def two_teams(lely: Lely) -> None:
 def test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository(
     lely: Lely,
 ) -> None:
-    """R5, R36. Both projects share the repository's tree and, as written,
+    """PLAN-4, PLAN-6. Both projects share the repository's tree and, as written,
     their steps. The plan says which project it is for, and is held to it."""
     two_teams(lely)
     planned_ = lely("plan", "-t", "dev", "-c", "team-a/lely.yml", "-o", "plan.json")
@@ -1101,7 +1104,7 @@ def test_a_plan_for_one_project_isnt_run_on_another_in_the_same_repository(
 
 
 def test_a_plan_file_is_for_a_clean_checkout(ready: Lely) -> None:
-    """R36. A plan made with uncommitted changes used to be held to nothing:
+    """PLAN-6. A plan made with uncommitted changes used to be held to nothing:
     any later commit could be applied with it. Now it says so, and is not run
     from a file. Nor is a clean plan run on a checkout where something was
     staged since — which leaves every tracked file as it was."""
@@ -1153,7 +1156,7 @@ def test_before_the_first_commit_the_plan_says_so(ready: Lely) -> None:
 def test_git_refusing_fails_a_plan_and_doesnt_stop_an_unsaved_run(
     ready: Lely, git_refuses: Callable[[], None]
 ) -> None:
-    """R36. In a container the checkout is often someone else's, and git
+    """PLAN-6. In a container the checkout is often someone else's, and git
     refuses it. That used to read as "not in a git repository", and the plan
     file was then held to nothing."""
     subprocess.run(["git", "init", "-q"], cwd=ready.root, check=True)
@@ -1179,7 +1182,7 @@ def test_an_empty_target_in_a_plan_file_is_refused(ready: Lely) -> None:
 
 
 def test_a_target_no_step_runs_for_isnt_nothing_to_do(lely: Lely) -> None:
-    """R37."""
+    """CLI-2."""
     (lely.root / "lely.yml").write_text(
         "steps:\n  - name: app\n    uses: bundle\n    targets: [dev, prod]\n"
         "    with: {vars: {model_version: 1}}\n"
@@ -1214,6 +1217,7 @@ def test_a_project_that_cant_be_applied_is_refused_before_the_question(
 
 
 def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:
+    """CLI-4."""
     written = ready("plan", "-t", "dev", "-f", "json", "-o", "plan.json")
     assert written.exit_code == 0
     assert written.stdout == ""  # the plan is in the file; "Wrote …" is on stderr
@@ -1283,6 +1287,7 @@ def test_what_o_leaves_on_stdout_is_what_the_docs_say(ready: Lely) -> None:
 
 
 def test_escape_sequences_in_a_plan_file_dont_reach_the_terminal(ready: Lely) -> None:
+    """SEC-3."""
     planned(ready)
     path = ready.root / "plan.json"
     document = json.loads(path.read_text())
@@ -1314,7 +1319,7 @@ def test_a_stream_that_cant_write_a_checkmark_doesnt_end_in_a_traceback(
 def test_a_question_doesnt_obey_what_a_plan_file_says(
     ready: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R35. The plan above the question was cleaned; the question itself, which
+    """PLAN-5. The plan above the question was cleaned; the question itself, which
     names who made the plan, was not."""
     asked: list[str] = []
     monkeypatch.setattr(cli, "_confirm", lambda question: asked.append(question) or False)
@@ -1342,7 +1347,7 @@ def test_what_a_program_prints_is_logged_without_its_control_characters(
     assert "notify: done �[2J�[1;1H and more" in result.output
 
 
-# -- Markdown (008/R1) ----------------------------------------------------------------
+# -- Markdown (GH-1) ------------------------------------------------------------------
 
 
 def test_a_plan_as_markdown_is_the_plan_the_file_holds(ready: Lely) -> None:
@@ -1380,7 +1385,7 @@ def test_a_run_and_what_exists_as_markdown(ready: Lely) -> None:
     assert "| `app` | `job` | `jobs.bar` | `job bar` | `1001` | [open](<" in status.stdout
 
 
-# -- GitHub (008) ---------------------------------------------------------------------
+# -- GitHub (the GH rules) ------------------------------------------------------------
 
 
 @pytest.fixture
@@ -1400,7 +1405,7 @@ def page(ready: Lely) -> str:
 def test_github_is_never_on_because_of_where_a_command_runs(
     ready: Lely, hub: FakeGitHub
 ) -> None:
-    """008/R4: in a run, with a token and a pull request — and no `--github`."""
+    """GH-4: in a run, with a token and a pull request — and no `--github`."""
     assert ready("plan", "-t", "dev").exit_code == 0
     assert ready("apply", "-t", "dev", "--yes").exit_code == 0
     assert hub.calls == [] and page(ready) == ""
@@ -1409,7 +1414,7 @@ def test_github_is_never_on_because_of_where_a_command_runs(
 def test_outside_a_run_github_says_so_and_the_plan_stands(
     ready: Lely, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """008/R5."""
+    """GH-6."""
     fake_github.outside(monkeypatch)
     result = ready("plan", "-t", "dev", "--github")
     assert result.exit_code == 0
@@ -1420,7 +1425,7 @@ def test_outside_a_run_github_says_so_and_the_plan_stands(
 def test_the_plan_is_put_on_the_pull_request_and_kept_current(
     ready: Lely, hub: FakeGitHub
 ) -> None:
-    """008/R2, R3: one comment, updated by the next plan; the run's page too."""
+    """GH-2, GH-3: one comment, updated by the next plan; the run's page too."""
     first = ready("plan", "-t", "dev", "--github", "-o", "plan.json")
     assert first.exit_code == 0
     assert "… github: created the comment on pull request #12" in first.stderr
@@ -1467,7 +1472,7 @@ def test_a_plan_that_fails_says_so_where_the_last_plan_stood(
 def test_a_comment_that_cant_be_written_doesnt_fail_the_plan(
     ready: Lely, hub: FakeGitHub
 ) -> None:
-    """008/R5: the job has no permission to comment."""
+    """GH-6: the job has no permission to comment."""
     hub.refused = {"POST"}
     result = ready("plan", "-t", "dev", "--github")
     assert result.exit_code == 0 and hub.comments == []
@@ -1480,7 +1485,7 @@ def test_a_comment_that_cant_be_written_doesnt_fail_the_plan(
 def test_a_pull_request_from_a_fork_gets_no_plan_and_is_told_so(
     ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """008/R4a: nothing of the project is loaded, and no workspace is asked."""
+    """GH-5: nothing of the project is loaded, and no workspace is asked."""
 
     def never(profile: str | None) -> Workspace:
         raise AssertionError("a fork's plan reached for the workspace")
@@ -1505,7 +1510,7 @@ def test_a_pull_request_from_a_fork_gets_no_plan_and_is_told_so(
 
 
 def test_a_run_and_what_it_left_go_on_its_page(ready: Lely, hub: FakeGitHub) -> None:
-    """008/R3: what each step did, and what exists now, with links."""
+    """GH-3: what each step did, and what exists now, with links."""
     refused = ready("apply", "-t", "dev", "--github")  # no terminal, no --yes
     assert refused.exit_code == 2
     assert "### lely apply · target `dev` · refused\n\n**Nothing was run.**" in page(
@@ -1530,7 +1535,7 @@ def test_a_run_and_what_it_left_go_on_its_page(ready: Lely, hub: FakeGitHub) -> 
 def test_a_saved_plan_is_not_posted_for_a_fork(
     ready: Lely, hub: FakeGitHub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """008/R4a: a plan file out of a fork's checkout is not "the plan"."""
+    """GH-5: a plan file out of a fork's checkout is not "the plan"."""
     assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
     fake_github.inside(monkeypatch, ready.root, head="someone/shop")
     shown = ready("show", "plan.json", "--github")
@@ -1545,7 +1550,7 @@ def test_a_saved_plan_is_not_posted_for_a_fork(
 def test_a_plan_that_holds_the_runs_token_is_not_written(
     ready: Lely, hub: FakeGitHub
 ) -> None:
-    """008/R6. A step whose plan quotes its environment puts the token in
+    """GH-7. A step whose plan quotes its environment puts the token in
     the plan: in the file, which is kept as an artifact, and on stdout."""
     ready("plan", "-t", "dev", "--github")
     printing = (
@@ -1611,7 +1616,7 @@ def test_whatever_goes_wrong_while_posting_the_token_is_not_said(
     )
 
 
-# -- the page (007) -------------------------------------------------------------------
+# -- the page (the PAGE rules) --------------------------------------------------------
 
 
 @pytest.fixture
@@ -1624,7 +1629,7 @@ def browser(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def test_a_plan_file_is_made_into_a_page_beside_it(
     ready: Lely, browser: list[str]
 ) -> None:
-    """007/R1, R4: from the file alone, and not opened where there is nobody
+    """PAGE-1, PAGE-4: from the file alone, and not opened where there is nobody
     to look."""
     assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
     result = ready("ui", "plan.json")
@@ -1661,7 +1666,7 @@ def test_making_a_page_runs_nothing_of_the_project(
     tmp_path_factory: pytest.TempPathFactory,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """007/R4, R8: no workspace, no credentials, no plugin — a plan file from
+    """PAGE-4, PAGE-8: no workspace, no credentials, no plugin — a plan file from
     anywhere is safe to open, and the page is the same on any machine."""
     ready("plan", "-t", "dev", "-o", "plan.json")
     here = ready("ui", "plan.json", "-o", "-").stdout
@@ -1694,7 +1699,7 @@ def test_a_file_that_is_no_plan_and_no_result_is_said(ready: Lely) -> None:
 def test_a_run_can_write_its_record_and_the_record_becomes_a_page(
     ready: Lely, browser: list[str]
 ) -> None:
-    """007/R6: what each step did and what exists now, from a file the run
+    """PAGE-6: what each step did and what exists now, from a file the run
     wrote when asked to. Nothing reads it back but the page."""
     applied = ready("apply", "-t", "dev", "--yes", "-o", "result.json")
     assert applied.exit_code == 0 and "Wrote result.json" in applied.stderr
@@ -1751,7 +1756,7 @@ def test_a_record_that_cant_be_written_changes_nothing_about_the_run(ready: Lely
 def test_a_page_is_never_written_through_a_link_or_over_someone_elses_file(
     ready: Lely, browser: list[str], tmp_path_factory: pytest.TempPathFactory
 ) -> None:
-    """A plan file can come from anywhere, and so can what lies beside it: a
+    """PAGE-11. A plan file can come from anywhere, and so can what lies beside it: a
     `plan.html` that is a link to a file of the reader's own was written
     through, and an unrelated `plan.html` written over."""
     ready("plan", "-t", "dev", "-o", "plan.json")
@@ -1779,6 +1784,7 @@ def test_a_page_is_never_written_through_a_link_or_over_someone_elses_file(
 def test_the_file_to_read_is_never_the_file_written_however_it_is_spelled(
     ready: Lely, browser: list[str]
 ) -> None:
+    """PAGE-11."""
     ready("plan", "-t", "dev", "-o", "plan.json")
     plan = (ready.root / "plan.json").read_text()
     os.link(ready.root / "plan.json", ready.root / "second-name.html")
@@ -1793,7 +1799,7 @@ def test_the_file_to_read_is_never_the_file_written_however_it_is_spelled(
 def test_a_file_is_whole_or_as_it_was(
     ready: Lely, browser: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Written beside its place first and then moved there, so a write that
+    """CLI-7. Written beside its place first and then moved there, so a write that
     fails leaves no half of a plan behind — and nothing lying about."""
     ready("plan", "-t", "dev", "-o", "plan.json")
     before = (ready.root / "plan.json").read_text()
@@ -1809,7 +1815,7 @@ def test_a_file_is_whole_or_as_it_was(
 
 
 def test_a_runs_record_never_holds_the_runs_token(ready: Lely, hub: FakeGitHub) -> None:
-    """007/R7. A step that fails may print it. What goes on the run's page is
+    """PAGE-7. A step that fails may print it. What goes on the run's page is
     searched for it; the record, which is kept and made into a page, was not."""
     (ready.root / "ops" / "notify.sh").write_text(
         '#!/bin/sh\necho "auth failed for $GITHUB_TOKEN" >&2; exit 1\n'
@@ -1828,7 +1834,7 @@ def test_a_runs_record_never_holds_the_runs_token(ready: Lely, hub: FakeGitHub) 
 def test_a_file_made_again_is_readable_by_whoever_could_read_it_before(
     ready: Lely, browser: list[str]
 ) -> None:
-    """Written beside its place and moved there, a file is a new file: one
+    """CLI-7. Written beside its place and moved there, a file is a new file: one
     kept to oneself must not come back readable by everyone."""
     assert ready("plan", "-t", "dev", "-o", "plan.json").exit_code == 0
     plan = ready.root / "plan.json"
@@ -1933,7 +1939,7 @@ def nowhere(ready: Lely, hub: FakeGitHub, *results: Result) -> None:
 def test_with_github_no_line_lely_says_holds_the_token(
     ready: Lely, hub: FakeGitHub, extra: tuple[str, ...]
 ) -> None:
-    """008/R6. Searching the result was not enough: a program that prints the
+    """GH-7. Searching the result was not enough: a program that prints the
     token and succeeds put it in lely's own progress lines; a plan that fails
     with it put it in the error."""
     leaking(ready, apply="apply", destroy="destroy")
@@ -2016,7 +2022,7 @@ def test_a_result_that_cant_be_searched_is_not_shown_as_it_is(
 
 
 def test_what_is_no_file_is_written_to_as_it_is(ready: Lely, browser: list[str]) -> None:
-    """`-o /dev/null` worked, and stopped working when files came to be
+    """CLI-7. `-o /dev/null` worked, and stopped working when files came to be
     written beside their place and moved there. A device is written to; and
     under `/dev` nothing is ever replaced."""
     assert ready("plan", "-t", "dev", "-o", "/dev/null").exit_code == 0
@@ -2158,7 +2164,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> type[Client]:
 def test_who_is_running_is_asked_of_the_sdk_with_the_profile(
     client: type[Client],
 ) -> None:
-    """005/R35: the host and the identity, from the profile that was named."""
+    """PLAN-5, PLG-6: the host and the identity, from the profile that was named."""
     assert cli._whoami("dev") == project.WORKSPACE
     assert cli._whoami(None) == project.WORKSPACE
     assert client.made == ["dev", None]
@@ -2180,6 +2186,7 @@ def test_a_workspace_that_cant_be_reached_is_said_with_what_to_do(
 
 
 def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -> None:
+    """PLG-5."""
     connected = cli._connect("dev")
     assert isinstance(connected, client)
     assert client.made == ["dev"]
@@ -2197,7 +2204,7 @@ def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -
 def test_a_member_of_admins_is_a_workspace_admin(
     client: type[Client], groups: tuple[str, ...] | None, said_: str
 ) -> None:
-    """002/R13a. `admins` is the system group of a workspace's administrators:
+    """CLI-6. `admins` is the system group of a workspace's administrators:
     https://docs.databricks.com/aws/en/admin/users-groups/groups — and the one
     thing about what credentials may do that lely reads off. Assumed, not
     seen: that the SDK's `current_user.me()` lists it under that name."""

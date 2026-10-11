@@ -115,6 +115,7 @@ def test_a_doubled_dollar_is_a_literal_and_no_reference() -> None:
 
 @pytest.mark.parametrize("text", ["${HOME}", "\\${HOME}", "${HOME:-/root}", "${a b}"])
 def test_what_is_no_reference_says_how_to_write_it_out(text: str) -> None:
+    """REF-3."""
     with pytest.raises(RefError) as caught:
         parse(text, LOC)
     body = text[text.index("${") + 2 : -1]
@@ -131,6 +132,7 @@ def test_a_plain_name_matches_and_the_rest_walks_into_the_value() -> None:
 
 
 def test_a_shape_stands_for_one_part_each() -> None:
+    """REF-2."""
     found = match(BUNDLE, ("resources", "jobs", "nightly", "name"))
     assert found is not None
     assert found.output.name == "resources.<type>.<key>.<field>"
@@ -152,11 +154,13 @@ HERE = Position(this="tables", above=ABOVE, below=("backfill",))
 
 
 def test_a_step_may_use_the_outputs_of_a_step_above() -> None:
+    """REF-5."""
     assert check(Ref(("steps", "model", "version")), HERE, LOC) == MODEL[0]
     assert check(Ref(("env", "TOKEN")), HERE, LOC) is None
 
 
 def test_a_reference_down_the_list_says_to_move_it() -> None:
+    """REF-5."""
     with pytest.raises(RefError) as caught:
         check(Ref(("steps", "backfill", "x")), HERE, LOC)
     assert "step `backfill` is listed below step `tables`" in str(caught.value)
@@ -201,6 +205,7 @@ def test_a_step_for_fewer_targets_cant_feed_one_for_more() -> None:
 
 
 def test_a_named_step_follows_the_same_rules() -> None:
+    """REF-4."""
     assert check_step("app", HERE, "lely.yml:1:1: `app`") is ABOVE["app"]
     with pytest.raises(RefError, match="is listed below"):
         check_step("backfill", HERE, "lely.yml:1:1: `backfill`")
@@ -255,6 +260,7 @@ def test_a_value_that_exists_is_answered() -> None:
 
 
 def test_a_value_still_to_come_is_unknown_and_named() -> None:
+    """REF-7."""
     answer = resolve("run ${steps.app.resources.jobs.weekly.id}", scope(), LOC)
     assert answer == Unknown("app.resources.jobs.weekly.id")
 
@@ -271,6 +277,7 @@ def test_a_name_neither_given_nor_promised_is_an_error() -> None:
 
 
 def test_a_plain_output_that_exists_only_after_apply_is_unknown() -> None:
+    """REF-1."""
     made = Given((Output("id", "exists"),))
     assert resolve("${steps.wh.id}", scope(wh=made), LOC) == Unknown("wh.id")
 

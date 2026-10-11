@@ -1,5 +1,5 @@
 """The editors' schema: what `lely validate` says about a config's shape, as a
-JSON Schema built from the plugins themselves (003/R9).
+JSON Schema built from the plugins themselves (CFG-9).
 
 Held to two things: a real validator reads it the way an editor would, and it
 agrees with lely — a config lely reads fits the schema, and a shape lely
@@ -75,6 +75,7 @@ PROGRAMS_AND_STEVIN = (
 
 @pytest.mark.parametrize("text", [project.LELY_YML, TWO_BUNDLES, PROGRAMS_AND_STEVIN])
 def test_a_config_lely_reads_fits_the_schema(tmp_path: Path, text: str) -> None:
+    """CFG-9."""
     assert lely_reads(tmp_path, text)
     assert errors(yaml.safe_load(text), schema_for(tmp_path)) == []
 
@@ -126,6 +127,7 @@ def test_a_config_lely_reads_fits_the_schema(tmp_path: Path, text: str) -> None:
 def test_a_shape_lely_refuses_doesnt_fit_the_schema(
     tmp_path: Path, text: str, said: str
 ) -> None:
+    """CFG-9."""
     assert not lely_reads(tmp_path, text)
     found = errors(yaml.safe_load(text), schema_for(tmp_path))
     assert any(said in message for message in found), found
