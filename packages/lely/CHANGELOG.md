@@ -38,8 +38,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A flag takes `$${` for a literal `${`**, as a config file does. It was refused as a
   reference.
 - **`lely doctor` is no longer meant to say whether credentials are read-only.** It
-  never could. It says whether the identity is a workspace admin, and for anyone else
-  that it cannot tell what the credentials may change.
+  never could. It says whether the identity is a workspace admin, and that it cannot
+  tell what the credentials may change. For an admin it said "these credentials can
+  change anything", which nobody had checked: that claim is gone.
 - **A plan made from `lely.yml` is accepted with the same project in `pyproject.toml`,
   whatever the spelling.** What a step is made from is now each option as its plugin is
   handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a

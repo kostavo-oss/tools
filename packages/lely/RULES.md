@@ -906,8 +906,9 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **CLI-8** — `lely doctor` says that planning runs the project's own code and that a pull
   request's plan should be given credentials that can read and nothing more. Of the
   credentials at hand it says one thing: whether the identity is a workspace admin. For
-  any other identity it says that lely cannot tell what else
-  the credentials may change. It never says that credentials are read-only.
+  an admin and for anyone else it says that lely cannot tell what the credentials may
+  change. It never says that credentials are read-only, and never what an admin can
+  change.
   Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
   `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
 

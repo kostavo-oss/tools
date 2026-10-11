@@ -393,3 +393,19 @@ handed those by name, and a mapping whose keys were written in sorted order hash
 it did. Rejected: hashing a mapping as a list of pairs, which says the same and would
 refuse every saved plan with a mapping in it. As it is, 0.3.1's plan file is refused
 once only where the keys were not in that order.
+
+## 42. 2026-10-11 — `lely doctor` says who is a workspace admin, and nothing of what an admin can do
+
+`doctor` printed "a workspace admin: these credentials can change anything". Nobody
+had checked "anything", and it is probably too much: what is in Unity Catalog goes by
+its own grants and owners, which the workspace's `admins` group may not carry. Entry 35
+took the claim out of the rule and left the line. The line now says whether the
+identity is a workspace admin and, either way, that lely cannot tell what the
+credentials may change.
+
+Rejected: wording the line by what the Databricks docs say an admin may do
+(kostavo-oss/tools#77 asked for that). It would put a summary of another product's
+permission model into one line of a check, to go stale there, and `doctor` would still
+not have seen any of it for the workspace at hand. The fact it reads off is enough for
+what the line is for: someone who gave a pull request's plan an admin's credentials
+sees it.

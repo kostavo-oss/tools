@@ -105,4 +105,6 @@ there were no environments.
 11. **What `lely doctor` says of an identity.** That a workspace admin is listed in the
     group `admins` is from the docs, and was not seen for an admin who is one through
     another group. Whether credentials are read-only is not said at all: no call is
-    known that answers it.
+    known that answers it. What a workspace admin may change is not said either: it was
+    not checked, on a workspace or in the docs, what the `admins` group may do to what
+    is in Unity Catalog.
