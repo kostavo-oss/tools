@@ -186,6 +186,16 @@ class Litters(Keeps):
         self.world.update({ctx.options.name, "left-behind"})
 
 
+class Logs(Keeps):
+    """Adds to a list that is nobody's, which a stand-in keeps as one object."""
+
+    jobs: ClassVar[list[str]] = []
+
+    def apply(self, ctx: Context[Named], plan: StepPlan) -> None:
+        super().apply(ctx, plan)
+        self.jobs.append("left-behind")
+
+
 def test_a_plugin_keeps_no_state_and_touches_only_its_own() -> None:
     """PLG-9."""
     # one plugin for every call hides it; a new one for each, as under lely, doesn't
@@ -207,6 +217,10 @@ def test_a_plugin_keeps_no_state_and_touches_only_its_own() -> None:
         check_only_its_own(
             Litters, A, B, untouched=lambda: sorted(Keeps.world - {"a", "b"})
         )
+    # also when the test answers with the very list its stand-in keeps
+    Keeps.world.clear()
+    with pytest.raises(AssertionError, match="applying the step changed what it doesn't"):
+        check_only_its_own(Logs, A, B, untouched=lambda: Logs.jobs)
 
 
 def test_a_read_is_let_through(tmp_path: Path) -> None:

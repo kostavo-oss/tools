@@ -450,6 +450,10 @@ def test_plan_prints_what_the_step_knows_and_names_what_comes_later(
     gives = result.out[result.out.index("Gives:") :]
     assert "→ file = dev-marker.txt" in gives
     assert "→ written  known after every run" in gives
+    # an output of more lines than one stays on one: it is no line of lely's
+    from lely.solo import _shown
+
+    assert _shown("x\nok      all is well", ()) == '"x\\nok      all is well"'
     # with `-f json`, stdout is the plan and nothing else: it is said on stderr
     as_json = marker("plan", "-t", "dev", "--word", "hi", "-f", "json")
     assert planfile.loads(as_json.out).target == "dev"
@@ -489,6 +493,10 @@ def test_no_secret_is_printed_with_what_the_step_gives(
         text,
     )
     solo = variant(tmp_path, monkeypatch, text)
+    # a secret written with `$${` is handed to the step as `${`, and is one still
+    escaped = solo("plan", "-t", "dev", "--word", "hi", "--token", "pa$${ss}w0rd")
+    assert escaped.exit_code == 0, escaped.output
+    assert "w0rd" not in escaped.output and "→ plain = ***" in escaped.out
     flags = ("-t", "dev", "--word", "hi", "--token", "t0p-s3cret")
 
     planned = solo("plan", *flags)

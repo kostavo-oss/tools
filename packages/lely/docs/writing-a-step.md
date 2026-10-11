@@ -97,7 +97,9 @@ Under lely a plan shows an output where another step takes it. On its own a step
 other step, so it prints what it gives under `Gives:`. `plan` prints the outputs it knows
 and names the ones that come later, with when. `apply` prints what the step returned. A
 `Secret` is shown as `***`, and so is an output that holds what a `Secret` option was
-given. With `-f json` or `-f md` these lines go to stderr.
+given. With `-f json` or `-f md` these lines go to stderr. That covers these lines only:
+an output a step gives as plain text is in the plan file and in `-f json` as it is. Give a
+secret as a `Secret`.
 
 A plan the step writes is a one-step lely plan: the same file, the same checks before it
 runs — the workspace, the project, the git tree — and `lely apply plan.json` takes it, given
@@ -277,7 +279,9 @@ What these checks see is limited, and they do not pretend otherwise:
 - **State is seen only when it is kept on the plugin itself**, or does not survive a plan
   file. State on the class, in a module, in a file or in a service is not seen.
 - **"Only its own" is seen through the second step's plan and overview**, and through
-  `untouched`. Anything else in a workspace is not seen.
+  `untouched`. Anything else in a workspace is not seen. A step with nothing to do is not
+  applied, so a step with no destroy is applied once, before the second step's things
+  exist.
 
 A stand-in for the workspace that records what it is asked sees the rest: give it to
 `context` as `connect=`.

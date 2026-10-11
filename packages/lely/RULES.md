@@ -273,8 +273,9 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **PLG-16** — The rules of PLG-9 hold by every road, also where `lely.testing` does not
   look: `plan` and `overview` make no write through the SDK (`ctx.workspace`) or by a
   program the plugin starts itself; a plugin keeps no state on its class, in a module,
-  in a file or in a service; and it changes nothing in a workspace that no step's plan
-  or overview shows. The kit's docs name these three as what it does not see.
+  in a file or in a service; it changes nothing in a workspace that no step's plan or
+  overview shows; and a plugin with no destroy leaves another step's things alone when
+  it is applied after them. The kit's docs name these as what it does not see.
   Not tested: the kit holds only the Databricks CLI a step is handed to reading, and
   sees a workspace only through a plugin's own answers and what a test shows it. For
   the `stevin` plugin that leaves out `stevin plan`, which is another program.
@@ -878,8 +879,8 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_cli.py::test_what_is_no_file_is_written_to_as_it_is`.
 - **CLI-8** — `lely doctor` says that planning runs the project's own code and that a pull
   request's plan should be given credentials that can read and nothing more. Of the
-  credentials at hand it says one thing: whether the identity is a workspace admin, who
-  can change anything. For any other identity it says that lely cannot tell what else
+  credentials at hand it says one thing: whether the identity is a workspace admin. For
+  any other identity it says that lely cannot tell what else
   the credentials may change. It never says that credentials are read-only.
   Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
   `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.

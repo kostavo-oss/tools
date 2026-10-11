@@ -36,7 +36,7 @@ from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
 from lely.flags import Flag, block_from, flags_of, options_of
 from lely.model import KNOWN, Plan, Secret, Source, Value
-from lely.refs import Given, match
+from lely.refs import Given, literal, match
 from lely.render import words
 from lely.render.rich import render_plan, result_view, status_view
 
@@ -248,8 +248,9 @@ def _secrets(cls: type, values: dict[str, Any]) -> tuple[str, ...]:
         for one in given if isinstance(given, list | tuple) else [given]:
             text = one[1] if isinstance(one, tuple) else one
             if isinstance(text, str) and text:
-                found.append(text)
-    return tuple(found)
+                # as typed, and as the step is handed it: `$${` is a `${` there
+                found += [text, literal(text)]
+    return tuple(dict.fromkeys(found))
 
 
 def _holds_secret(tp: Any) -> bool:
@@ -598,6 +599,8 @@ def _shown(value: Value, secrets: Sequence[str]) -> str:
     is not a way round it."""
     if isinstance(value, Secret) or _holds(value, secrets):
         return "***"
+    if isinstance(value, str) and len(value.splitlines()) > 1:
+        return json.dumps(value)  # on one line: it can't pass for a line of lely's
     return words.shown(value)
 
 

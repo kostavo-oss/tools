@@ -54,6 +54,7 @@ A test of your own can see more: give the context a stand-in for the workspace
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import json
 import os
@@ -316,6 +317,10 @@ def check_only_its_own(
     step names, as the test's stand-in holds it; it has to answer the same
     every time. Without it the kit sees only what the plugin itself shows of
     the other step.
+
+    A step with nothing to do is not applied, as under lely. So for a plugin
+    with no destroy, this step's `apply` runs once, before the other step's
+    things exist: that it would not change them once they do is not seen.
     """
 
     def look() -> tuple[object, ...]:
@@ -325,7 +330,9 @@ def check_only_its_own(
             if contract.lists(_class(plugin))
             else None
         )
-        return (planned.changes, listed, untouched() if untouched is not None else None)
+        # a copy: a test may answer with the very list its stand-in keeps
+        rest = copy.deepcopy(untouched()) if untouched is not None else None
+        return (planned.changes, listed, rest)
 
     def cycle(was: tuple[object, ...], state: str) -> None:
         planned = check_plan(plugin, ctx, written=written, reads=reads)

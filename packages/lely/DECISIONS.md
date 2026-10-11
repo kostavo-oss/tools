@@ -289,8 +289,9 @@ bundle resource in a pull request's comment. Rejected: adding outputs to a run's
 record, a change of that file's format for something only a step on its own prints.
 
 An output that holds what a `Secret` option was given is printed as `***` too. A step
-that hands an option back as plain text has made a mistake, and printing is where it
-would cost.
+that hands an option back as plain text has made a mistake, and these lines are new, so
+they do not add to it. It is no protection: the plan file and `-f json` hold such an
+output as the step gave it, as they did.
 
 `destroy --plan-file` was there and nothing could write the file it takes. `plan` got
 `--destroy`. Rejected: taking `--plan-file` off `destroy`, since a teardown is what one
@@ -300,8 +301,8 @@ most wants to read first.
 
 `lely.testing` had no check for "keeps no state", "only what its options name" and
 "only its own". It has two now, and each looks through what a test already has. For
-state: a new plugin for every call and the plan through a plan file, which is how lely
-itself calls a plugin. For "its own": a second step of the same plugin, whose plan and
+state: a new plugin for every call, as lely makes one, and the plan through a plan
+file, which under lely is the approved plan a plugin is handed beside the fresh one. For "its own": a second step of the same plugin, whose plan and
 overview are read before and after the first is applied and destroyed.
 
 Rejected: a workspace client that refuses writes, to see a write made through the
