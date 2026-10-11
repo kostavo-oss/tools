@@ -216,3 +216,26 @@ Why: decision 7 wants one listing per scope in a run, and a scope that was named
 also pointed into was listed by each provider. Rejected: a listing kept for the whole
 process, which a later `prepare()` would go by after the scope had changed. The reader
 goes when its providers are taken out (decision 17).
+
+## 20. 2026-10-11 — A profile in the environment is not `--profile`, and is not named as one
+
+Decided by the owner. With `DATABRICKS_CONFIG_PROFILE` set in the shell and no
+`--profile`, a laptop run loads locally and reads no scope, as decision 5 has it. The
+first lines, `doctor` and the `Setup` name a profile only when the run uses it, and the
+note that the run loads locally says the variable is set and not used.
+
+Why: the first lines said `workspace  profile mine` above a run that loaded into DuckDB
+and asked no workspace. A line that is not true of the run is worse than none: it is
+what a reader goes by to know where the data went. The variable is said in the note,
+by its name, because whoever set it may expect the load to go there, and the note is
+where the way to do that is.
+
+Rejected: a profile in the environment counts as `--profile`. The variable is set for
+any tool that reads it, the Databricks CLI among them, so a laptop run would load into a
+workspace because of something set for another tool, and nobody asked it to.
+
+Decided by the writer, with it: when the app's `local_destination` is Databricks, the
+profile in the environment is named, because the SDK signs in with it there. When the
+destination is left to dlt's config, no profile is named and none is said to be unused:
+leeghwater does not know which is true. A run that was given `--profile` and loads
+somewhere other than Databricks is no longer told to give `--profile`.

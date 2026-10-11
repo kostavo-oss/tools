@@ -164,6 +164,14 @@ leeghwater stands beside dlt.
 - **PRE-6** — A `prepare()` that is refused leaves no setup, also when an earlier call
   made one: `create_pipeline` and `run` refuse until a call goes through.
   Held by: `tests/test_prepare.py::test_a_call_that_is_refused_leaves_no_setup_of_an_earlier_one`.
+- **PRE-7** — The first lines of a run, `doctor` and the `Setup` name a profile only
+  when the run uses it: the `--profile` it was given, or the one in
+  `DATABRICKS_CONFIG_PROFILE` when a laptop run loads into Databricks without the
+  option. A profile in the environment that a local run does not use is on no
+  `workspace` line, and the note that the run loads locally says it is not used.
+  Held by: `tests/test_prepare.py::test_a_profile_is_named_only_when_the_run_uses_it`,
+  `tests/test_prepare.py::test_a_profile_in_the_environment_is_named_when_the_run_loads_with_it`,
+  `tests/test_app.py::test_run_and_doctor_name_no_profile_the_run_does_not_use`.
 
 ## DBX — what Databricks needs
 

@@ -44,6 +44,67 @@ def test_with_a_profile_a_laptop_loads_into_the_workspace(workspace):
     assert "profile dev" in "\n".join(setup.lines())
 
 
+def _workspace_line(setup) -> str | None:
+    found = [line for line in setup.lines() if line.split()[0] == "workspace"]
+    return found[0].split(None, 1)[1] if found else None
+
+
+def test_a_profile_is_named_only_when_the_run_uses_it(workspace, monkeypatch):
+    """PRE-7. The variable is the user's own, set for any tool that reads it: it does
+    not decide where a run loads, and the first lines do not say that it did."""
+    neither = prepare(secret_scopes=["ingest"], workspace_client=workspace)
+
+    assert (neither.profile, _workspace_line(neither)) == (None, None)
+    assert "  note: pipelines load into duckdb, here; give --profile to load" in (
+        "\n".join(neither.lines())
+    )
+
+    monkeypatch.setenv("DATABRICKS_CONFIG_PROFILE", "mine")
+    unused = prepare(secret_scopes=["ingest"], workspace_client=workspace)
+
+    assert unused.destination == "duckdb"
+    assert (_scopes(), workspace.lists) == ([], [])
+    assert (unused.profile, _workspace_line(unused)) == (None, None)
+    said = "\n".join(unused.lines())
+    assert "secret scopes    none read" in said
+    assert (
+        "  note: pipelines load into duckdb, here; the profile in"
+        " DATABRICKS_CONFIG_PROFILE (mine) is not used: give --profile to load into a"
+        " workspace"
+    ) in said
+    assert os.environ["DATABRICKS_CONFIG_PROFILE"] == "mine"
+
+    given = prepare(profile="dev", secret_scopes=["ingest"], workspace_client=workspace)
+
+    assert given.destination == "databricks"
+    assert (given.profile, _workspace_line(given)) == ("dev", "profile dev")
+    assert "mine" not in "\n".join(given.lines())
+
+    # A run that has its profile and loads elsewhere is not told to give one.
+    elsewhere = prepare(profile="dev", destination="duckdb", workspace_client=workspace)
+
+    assert elsewhere.notes == ["pipelines load into duckdb"]
+    assert _workspace_line(elsewhere) == "profile dev"
+
+
+def test_a_profile_in_the_environment_is_named_when_the_run_loads_with_it(monkeypatch):
+    """PRE-7. An app whose laptop runs load into Databricks leaves the sign-in to the
+    SDK, which reads the variable: `databricks/sdk/config.py`, the `profile` attribute
+    with `env="DATABRICKS_CONFIG_PROFILE"`.
+    https://docs.databricks.com/aws/en/dev-tools/auth/unified-auth"""
+    monkeypatch.setenv("DATABRICKS_CONFIG_PROFILE", "mine")
+    setup = prepare(local_destination="databricks", warehouse="abc123")
+
+    assert (setup.profile, _workspace_line(setup)) == ("mine", "profile mine")
+    assert "is not used" not in "\n".join(setup.lines())
+
+    # A run that leaves the destination to dlt's config claims neither.
+    setup = prepare(local_destination=None)
+
+    assert (setup.profile, _workspace_line(setup)) == (None, None)
+    assert "mine" not in "\n".join(setup.lines())
+
+
 def test_on_databricks_it_loads_into_databricks_and_reads_the_scopes(
     on_databricks, workspace
 ):

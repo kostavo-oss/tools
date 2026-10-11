@@ -39,6 +39,7 @@ class Setup:
     where: Where
     destination: str | None = None
     profile: str | None = None
+    """The profile the run uses, if it uses one. PRE-7."""
     name_dlt: list[str] = field(default_factory=list)
     config_dir: str | None = None
     data_dir: str | None = None
@@ -299,19 +300,27 @@ def prepare_run(
             "--profile is for a laptop. On Databricks the run has an identity already:"
             " take the option out of the job's parameters."
         )
+    # What the user's own shell holds: an earlier call's profile is taken back by now.
+    in_environment = None if on_databricks else os.environ.get(PROFILE)
     if profile:
         # dlt's Databricks destination makes its own WorkspaceClient() with the SDK's
         # default sign-in (`dlt/destinations/impl/databricks/configuration.py`), so the
         # profile is handed on the way the SDK reads it and both end up as one identity.
         _left_by_run.set(PROFILE, profile)
-    setup.profile = profile or (None if on_databricks else os.environ.get(PROFILE))
 
     remote = on_databricks or bool(profile)
     setup.destination = destination if remote else local_destination
+    # PRE-7: a profile is named when the run uses it. One in the environment decides
+    # nothing about where a run loads (DST-1); the SDK reads it when the run loads into
+    # Databricks anyway, because the app's `local_destination` says so.
+    setup.profile = profile or (in_environment if setup.loads_into_databricks else None)
     if setup.destination and not setup.loads_into_databricks:
         note = f"pipelines load into {setup.destination}"
-        if not on_databricks:
-            note += ", here; give --profile to load into a workspace"
+        if not remote:
+            note += ", here; "
+            if in_environment:
+                note += f"the profile in {PROFILE} ({in_environment}) is not used: "
+            note += "give --profile to load into a workspace"
         setup.notes.append(note)
 
     for key, value in (config or {}).items():

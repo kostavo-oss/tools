@@ -57,6 +57,10 @@ What the run showed besides:
 
 ## Not yet
 
+- **A laptop run that loads into Databricks without `--profile`**, in an app whose
+  `local_destination` is Databricks, with a profile in `DATABRICKS_CONFIG_PROFILE`. The
+  first lines name that profile because the SDK reads the variable; no such run was made.
+
 - **A full load from a serverless job**, on a workspace whose serverless compute can
   reach its storage.
 - **A notebook**, through `prepare()`: the name `dlt`, the cluster as the warehouse, the
