@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from fakes import FakeDatabricks, deploy, write_bundle
 from lely import planfile, planning, running
 from lely.config import ConfigError, load
 from lely.errors import LelyError
-from lely.model import Change, Input, Plan, PlanKind
+from lely.model import Change, Input, Plan, PlanKind, Secret
 from lely.step import NullLog
 from lely.steps.bundle import UPLOAD
 
@@ -832,6 +833,111 @@ def test_a_bundle_variable_is_passed_as_it_was_written(tmp_path: Path) -> None:
         "--var=model_version=3.10",
         "--var=catalog=0123",
     ]
+
+
+def test_a_secret_written_out_leaves_nothing_of_itself_in_a_plan_file(
+    tmp_path: Path,
+) -> None:
+    """SEC-4: the plan file is the same whatever the secret is, so nothing in
+    it can be used to test a guess. Where a secret comes from still counts."""
+    (tmp_path / "tokened.py").write_text(TOKENED)
+    text = (
+        "steps:\n  - name: hook\n    uses: ./tokened.py:Tokened\n"
+        "    with: {token: t0k-one}\n"
+    )
+    project.write(tmp_path, text)
+    one = plan(tmp_path)
+    project.write(tmp_path, text.replace("t0k-one", "t0k-two"))
+    two = plan(tmp_path)
+    assert planfile.dumps(one) == planfile.dumps(two)
+    assert "t0k" not in planfile.dumps(one)
+    by_name = [
+        text.replace("t0k-one", "'${env.TOKEN}'"),
+        text.replace("t0k-one", "'${env.OTHER}'"),
+    ]
+    hashes = []
+    for written in by_name:
+        project.write(tmp_path, written)
+        [(_, _, made_from)] = planning.made_from_each(load(tmp_path / "lely.yml"))
+        hashes.append(made_from)
+    assert len({one.steps[0].made_from, *hashes}) == 3
+
+
+ECHO = """\
+from dataclasses import dataclass
+from lely.model import Output, Secret, StepPlan
+
+class Echo:
+    # hands its secret option back as plain text: a plugin's mistake
+    @dataclass(frozen=True)
+    class Options:
+        token: Secret
+    outputs = (Output("plain"), Output("deep"), Output("fine"), Output("kept"))
+    def plan(self, ctx):
+        token = ctx.options.token.reveal()
+        return StepPlan(outputs={
+            "plain": f"Bearer {token}", "deep": {"a": [token]}, "fine": "nothing",
+            "kept": ctx.options.token,
+        })
+    def apply(self, ctx, plan):
+        return {}
+"""
+
+
+def test_an_output_that_holds_a_secret_option_is_a_secret(tmp_path: Path) -> None:
+    """SEC-5: it is `***` wherever a plan is shown, a marker in the plan file,
+    and for a step below a value only a `Secret` option takes."""
+    (tmp_path / "echo.py").write_text(ECHO)
+    (tmp_path / "tokened.py").write_text(TOKENED)
+    (tmp_path / "loose.py").write_text(LOOSE)
+    echo = (
+        "steps:\n  - name: echo\n    uses: ./echo.py:Echo\n"
+        "    with: {token: '${env.TOKEN}'}\n"
+    )
+    hook = (
+        "  - name: hook\n    uses: ./tokened.py:Tokened\n"
+        "    with: {token: '${steps.echo.plain}'}\n"
+    )
+    project.write(tmp_path, echo + hook)
+    made = plan(tmp_path, env={"TOKEN": "t0p-s3cret"})
+    outputs = made.steps[0].plan.outputs
+    assert {name: isinstance(value, Secret) for name, value in outputs.items()} == {
+        "plain": True,
+        "deep": True,
+        "fine": False,
+        "kept": True,
+    }
+    assert outputs["fine"] == "nothing"
+    # the step below is handed it whole, as the secret it is
+    [taken] = made.steps[1].inputs
+    assert isinstance(taken.value, Secret)
+    assert taken.value.reveal() == "Bearer t0p-s3cret"
+    written = planfile.dumps(made)
+    assert "t0p-s3cret" not in written
+    assert json.loads(written)["steps"][0]["plan"]["outputs"] == {
+        "plain": {"$secret": True},
+        "deep": {"$secret": True},
+        "fine": "nothing",
+        "kept": {"$secret": True},
+    }
+    # and it reads back as the plan that was made: nothing to refuse at apply
+    assert planfile.loads(written).steps[0].plan == made.steps[0].plan
+    # an option that is no `Secret` does not take it
+    for output in ("plain", "deep"):
+        loose = (
+            "  - name: loose\n    uses: ./loose.py:Loose\n"
+            f"    with: {{anything: '${{steps.echo.{output}}}'}}\n"
+        )
+        project.write(tmp_path, echo + loose)
+        with pytest.raises(LelyError) as caught:
+            plan(tmp_path, env={"TOKEN": "t0p-s3cret"})
+        assert "`anything` would hold a secret; only a `Secret` option may" in str(
+            caught.value
+        )
+        assert "t0p-s3cret" not in str(caught.value)
+    # a secret written out is held to the same
+    project.write(tmp_path, echo.replace("'${env.TOKEN}'", "t0p-s3cret"))
+    assert "t0p-s3cret" not in planfile.dumps(plan(tmp_path))
 
 
 # -- found in the third review -------------------------------------------------------

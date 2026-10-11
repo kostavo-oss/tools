@@ -92,12 +92,23 @@ there were no environments.
     the real `stevin` command: its tests run a fake of it, written from stevin's source.
     What was seen, on 2026-10-11, is stevin's own command against its in-memory
     warehouse, with the flags the step passes and plan files that had been through
-    lely's plan file and back. Such a file was read and applied. A destructive one ended
-    with exit 1 without `--allow-destructive` and was applied with it. A plan whose
-    tables had changed ended with exit 1 and the words the step looks for. Two plans made
-    one after the other, with nothing changed between them, held the same steps. None of
-    that says what a warehouse does.
+    lely's plan file and back. Such a file was read and applied. Two plans made one
+    after the other, with nothing changed between them, held the same steps. Of stevin
+    0.4.0a2 the exit codes were seen too: a destructive plan ended with 4 without
+    `--allow-destructive` and was applied with it; a plan whose tables had changed, a
+    file of another format, a file that is no JSON and a plan with a step without SQL
+    each ended with 3; a file that is not there and `--target` beside a file ended with
+    1. `stevin list --json` printed `target` and `objects`, each with `name`, `kind` and
+    `exists`, before and after an apply, and ended with 1 for a selection that matched
+    nothing. stevin 0.3.0a1 answered `list` with "No such command" and 2. None of that
+    says what a warehouse does.
 11. **What `lely doctor` says of an identity.** That a workspace admin is listed in the
     group `admins` is from the docs, and was not seen for an admin who is one through
     another group. Whether credentials are read-only is not said at all: no call is
-    known that answers it.
+    known that answers it. What a workspace admin may change is not said either: it was
+    not checked, on a workspace or in the docs, what the `admins` group may do to what
+    is in Unity Catalog.
+12. **Which place a bundle variable is taken from.** That `--var` wins over a
+    `BUNDLE_VAR_` variable in the environment, and that one over a value in the bundle's
+    target, is from Databricks' docs. Neither was tried, and nor was what the CLI's plan
+    shows when only such a value differs between plan and apply.

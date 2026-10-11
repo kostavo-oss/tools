@@ -146,6 +146,49 @@ def test_a_plan_another_lely_made_says_so_where_a_hash_differs() -> None:
     )
 
 
+def test_a_plan_of_the_release_before_reads_right_where_a_hash_differs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A plan 0.3.1 saved, held to a project by a newer lely that counts a
+    mapping's order and leaves a secret out: the refusal names 0.3.1 as the
+    one that planned and the running one as this. The version is set here; the
+    package's own is not what is tested."""
+    monkeypatch.setattr(approval, "__version__", "0.4.0")
+    saved = dataclasses.replace(plan(*STEPS), tool_version="0.3.1")
+    current = [("model", "lookup", "aaa"), ("app", "bundle", "ccc")]
+    with pytest.raises(Refused) as caught:
+        approval.same_project(saved, current)
+    assert str(caught.value) == (
+        "Step `app` is configured differently than when the plan was made, or this "
+        "lely counts its options differently: the plan was made by lely 0.3.1 and "
+        "this is lely 0.4.0. Plan again."
+    )
+    # another plugin is another step whatever the version: no "or" then
+    with pytest.raises(Refused) as caught:
+        approval.same_project(
+            saved, [("model", "other", "aaa"), ("app", "bundle", "bbb")]
+        )
+    assert str(caught.value) == (
+        "Step `model` is configured differently than when the plan was made. Plan again."
+    )
+    # and a plan whose hashes still agree is not refused for its version
+    approval.same_project(saved, [("model", "lookup", "aaa"), ("app", "bundle", "bbb")])
+
+
+def test_a_value_that_became_a_secret_is_refused_and_not_said() -> None:
+    """A plan 0.3.1 saved may hold as text an output that is a secret now: the
+    refusal says neither value."""
+    was = PlannedStep(
+        "hook", "x", "h", inputs=(Input("token", "echo.plain", "Bearer t0p-s3cret"),)
+    )
+    with pytest.raises(Refused) as caught:
+        approval.same_inputs(was, [Input("token", "echo.plain", Secret("x"))])
+    assert str(caught.value) == (
+        "Step `hook` takes echo.plain, which is a secret now, and was none when the "
+        "plan was approved. Plan again."
+    )
+
+
 def test_an_input_that_changed_since_the_plan_was_never_approved() -> None:
     """The plan showed `model_version = 14`; 15 is another deploy."""
     was = PlannedStep(
@@ -187,12 +230,16 @@ def test_a_secret_stays_a_secret_and_a_shown_value_stays_shown() -> None:
     with pytest.raises(Refused) as caught:
         approval.same_inputs(shown, [Input("v", "model.v", Secret("15"))])
     assert str(caught.value) == (
-        "Step `app` takes model.v = a secret now; the plan was approved with 14. "
-        "Plan again."
+        "Step `app` takes model.v, which is a secret now, and was none when the plan "
+        "was approved. Plan again."
     )
     hidden = PlannedStep("app", "bundle", "h", inputs=(Input("v", "model.v", Secret()),))
-    with pytest.raises(Refused, match="= 15 now; the plan was approved with a secret"):
+    with pytest.raises(Refused) as caught:
         approval.same_inputs(hidden, [Input("v", "model.v", 15)])
+    assert str(caught.value) == (
+        "Step `app` takes model.v, which is no secret now, and was one when the plan "
+        "was approved. Plan again."
+    )
     approval.same_inputs(hidden, [Input("v", "model.v", Secret("15"))])
 
 

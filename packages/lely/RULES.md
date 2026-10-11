@@ -29,7 +29,7 @@ The tests run against stand-ins: `tests/fake_databricks.py` is the Databricks CL
 plugin for bundles assumes of the real CLI, and what was seen of it, is numbered `V1` to
 `V8` in the docstring of `src/lely/steps/bundle.py`; the tests and the fake cite those
 numbers. What the `stevin` plugin assumes of stevin's command line is numbered `S1` to
-`S7` in `tests/fake_stevin.py`.
+`S9` in `tests/fake_stevin.py`.
 
 The areas: `CFG` the config, `REF` what flows between steps, `PLG` the plugin contract,
 `BDL` the `bundle` plugin, `BRUN` the `bundle.run` plugin, `STV` the `stevin` plugin,
@@ -105,6 +105,14 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   there as a string.
   Held by: `tests/unit/test_config.py::test_a_yaml_number_keeps_the_text_it_was_written_as`,
   `tests/unit/test_options.py::test_a_number_meant_as_text_is_passed_on_as_it_was_written`.
+- **CFG-11** — A list or a mapping given whole by one reference is handed to the plugin
+  as the option declares its elements, as if each had been written out: a `Secret` where
+  the option wants secrets, a number where it wants numbers. An element that does not
+  fit is an error at the reference, and a secret among elements that are no `Secret` is
+  refused. A number for an element that wants text is passed on as its text, as one
+  that came alone by a reference is. One case differs: a list or a mapping declared as
+  text and nothing else (`tuple[str, ...]`, `Mapping[str, str]`) takes text only.
+  Held by: `tests/unit/test_options.py::test_a_list_or_a_mapping_given_whole_is_converted_by_element`.
 
 ## REF — what flows between steps
 
@@ -442,17 +450,15 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_step_stevin.py::test_a_file_stevin_would_no_longer_run_the_same_is_refused`,
   `tests/unit/test_step_stevin.py::test_a_file_for_another_target_is_refused`,
   `tests/unit/test_running.py::test_a_stevin_plan_that_was_applied_in_part_is_not_resumed`.
-- **STV-6** — A plan stevin refuses because the live tables moved since it was made,
-  because another version of stevin saved it, or because its format is not stevin's, ends
-  the run as refused, in stevin's words and with the advice to plan again. Nothing is planned
-  again in its place, and no step after it starts.
+- **STV-6** — A plan stevin refuses because it will never run ends the run as refused, in
+  stevin's words and with the advice to plan again: the live tables moved since it was
+  made, its file is not a plan that stevin reads, or it holds a step without SQL. The
+  step knows such a refusal by the exit code of `stevin apply`, 3, and never by its
+  words. Nothing is planned again in its place, and no step after it starts.
   Held by: `tests/unit/test_step_stevin.py::test_a_stale_plan_is_refused_in_stevins_words`,
-  `tests/unit/test_step_stevin.py::test_a_plan_file_of_another_stevin_is_refused_too`,
+  `tests/unit/test_step_stevin.py::test_a_refusal_is_known_by_its_exit_code_and_not_by_its_words`,
   `tests/unit/test_running.py::test_a_stale_stevin_plan_stops_the_run_and_nothing_after_it_starts`.
-  Not kept yet: #65 — stevin gives a refusal no sign of its own: every refusal and every
-  failure exits 1. The step knows a refusal by two sentences of stevin's, so a refusal
-  stevin words differently ends the run as failed.
-- **STV-7** — Any other exit of `stevin apply` that is not 0 is the step's failure, quoted
+- **STV-7** — An exit of `stevin apply` that is not 0, 3 or 4 is the step's failure, quoted
   in stevin's words from both of its streams. What stevin applied before it stopped stays
   applied.
   Held by: `tests/unit/test_step_stevin.py::test_a_failing_apply_is_a_failure_in_stevins_words`.
@@ -470,17 +476,30 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_step_stevin.py::test_it_plans_applies_and_lists_and_drops_nothing`,
   `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`,
   `tests/unit/test_cli.py::test_a_destroy_plan_says_in_one_line_that_stevins_tables_stay`.
-- **STV-11** — The overview is every object stevin's specs describe for the target, with
-  its kind and whether it exists, read from `stevin plan` and from nothing else. The step
-  gives no outputs.
-  Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
-  `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
 - **STV-12** — Of stevin's plan file lely shows the names of tables, and each step's
   title, column, risk class and warnings, and nothing else: no owner, and no statement.
   What `stevin apply` writes is passed on to the step's log as it comes, under the step's
   name.
   Held by: `tests/unit/test_step_stevin.py::test_the_plan_names_no_owner`,
   `tests/unit/test_step_stevin.py::test_what_stevin_says_is_passed_on`.
+- **STV-13** — The overview is every object stevin's specs describe for the target, with
+  its kind and whether it exists, as `stevin list --json` answers and from nothing else:
+  no plan is made for a status. A `list` that fails is said in stevin's words, and a
+  stevin that has no `list` is said with the version that has it. The step gives no
+  outputs.
+  Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
+  `tests/unit/test_step_stevin.py::test_a_list_that_fails_or_cant_be_read_is_said`,
+  `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
+- **STV-14** — The step needs stevin 0.4.0a2 or newer. It reads the version from the plan
+  file stevin wrote, and a plan an older stevin wrote fails when the step is planned,
+  with both versions and how to upgrade. A version it cannot read as one is let through.
+  Held by: `tests/unit/test_step_stevin.py::test_a_plan_of_an_older_stevin_fails_with_both_versions`,
+  `tests/unit/test_step_stevin.py::test_which_stevin_is_new_enough`.
+- **STV-15** — A plan stevin refuses because it destroys something and stevin was not
+  told to allow it, exit 4 of `stevin apply`, ends the run as refused, in stevin's words.
+  It does not say to plan again: lely's plan did not show the change as destructive, and
+  a new plan would read the same.
+  Held by: `tests/unit/test_step_stevin.py::test_allow_destructive_goes_to_stevin_only_with_a_destructive_plan`.
 
 ## PROG — a program as a step
 
@@ -600,7 +619,9 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   by name. `1.10` edited to `1.1` is a change for an option that wants text, and none for
   one that wants a number. For a value a step took, the same value means the same kind
   of value: `1` is not `true`, `14` is not `14.0` and not `"14"`. A secret is never
-  compared, and stays one. Where a step differs and the plan was made by another
+  compared, and stays one: that holds for a secret written out in an option too
+  (SEC-4). A value that is a secret on one side and not on the other is refused, and
+  neither is said. Where a step differs and the plan was made by another
   version of lely, the refusal says so and names both versions: that lely may have
   counted the same options another way.
   Held by: `tests/unit/test_approval.py::test_the_same_value_means_the_same_as_it_would_be_written`,
@@ -652,6 +673,23 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_planfile.py::test_a_payload_with_a_secret_is_refused`,
   `tests/unit/test_planfile.py::test_what_isnt_json_is_refused_with_its_reason`,
   `tests/unit/test_planfile.py::test_a_plan_is_made_plain_so_it_reads_back_equal`.
+- **PLAN-12** — A mapping in a step's options counts in the order written, which is the
+  order its plugin is handed: a plan file is refused when the entries of a mapping were
+  moved since. The order of the options themselves does not count: a plugin is handed
+  those by name.
+  Held by: `tests/unit/test_options.py::test_a_mapping_counts_in_the_order_written`.
+- **PLAN-13** — A plan is not held to what the bundle resolves from outside lely. A
+  reviewed plan is held to the steps as written, the values each step took from the
+  steps above, the workspace and the git tree (PLAN-4, PLAN-5, PLAN-6), and each step
+  runs only the changes the plan showed (APL-3). A bundle variable set as
+  `BUNDLE_VAR_<name>` in the environment of the apply, or one whose `lookup` answers
+  something else than at plan, is none of those: lely keeps no fingerprint of the
+  variables a bundle resolved, and where the Databricks CLI's plan reads the same with
+  the other value, the apply goes through.
+  Not tested: it is a limit, not a behaviour, and the stand-in for the Databricks CLI
+  resolves no variable from the environment or by a lookup. What the CLI's plan shows
+  when only such a value differs, and which of two places a variable is set in wins,
+  were not tried on a workspace.
 
 ## WAIT — a step that cannot be planned yet
 
@@ -880,8 +918,9 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **CLI-8** — `lely doctor` says that planning runs the project's own code and that a pull
   request's plan should be given credentials that can read and nothing more. Of the
   credentials at hand it says one thing: whether the identity is a workspace admin. For
-  any other identity it says that lely cannot tell what else
-  the credentials may change. It never says that credentials are read-only.
+  an admin and for anyone else it says that lely cannot tell what the credentials may
+  change. It never says that credentials are read-only, and never what an admin can
+  change.
   Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
   `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
 
@@ -904,6 +943,30 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   a question and a line of a program's output.
   Held by: `tests/unit/test_cli.py::test_escape_sequences_in_a_plan_file_dont_reach_the_terminal`,
   `tests/unit/test_render_rich.py::test_what_a_plan_says_is_shown_never_obeyed`.
+- **SEC-4** — What a plan file keeps of a step's options does not depend on the text of
+  a secret. An option that takes a `Secret`, alone or in a list or a mapping, counts in
+  what a step is made from by where it comes from, each reference as it was written, and
+  never by its text: one written out in the config or given as a flag counts as given,
+  and no more, and text written beside a reference does not count. So no guess at a
+  secret can be tested against that hash. The price: a plan file is not refused when a
+  secret that was written out, or the text around a reference in such an option, has
+  changed since, as it is not when a value from the environment has.
+  Held by: `tests/unit/test_options.py::test_a_secret_written_out_is_not_in_what_a_step_is_made_from`,
+  `tests/unit/test_planning.py::test_a_secret_written_out_leaves_nothing_of_itself_in_a_plan_file`.
+- **SEC-5** — An output that holds what its step was given as a secret is a secret, also
+  when the plugin gave it as plain text: whole, inside a longer text, or inside a list or
+  a mapping. It is made a `Secret` when the step is planned and when it is applied, so
+  it is `***` wherever it is shown, a marker in the plan file and in `-f json`, and for a
+  step below a value only a `Secret` option takes. What a step was given as a secret is
+  every `Secret` its options hold: written out, from the environment, from a step above,
+  or of a step it names. A list or a mapping that holds one becomes one secret, with no
+  fields a step below could take. lely sees a secret as the option holds it, whole: not
+  a part of it, and not another spelling of it. It looks in a step's outputs only: not
+  in a change's lines, a note, a payload or a view. Which outputs of a step are secrets
+  can be read in a plan file, and follows from the secret.
+  Held by: `tests/unit/test_planning.py::test_an_output_that_holds_a_secret_option_is_a_secret`,
+  `tests/unit/test_running.py::test_an_output_a_run_gives_that_holds_a_secret_option_is_a_secret`,
+  `tests/unit/test_solo.py::test_no_secret_is_printed_with_what_the_step_gives`.
 
 ## PAGE — a plan as a page
 

@@ -116,8 +116,13 @@ JSON, format 4 (`planfile.FORMAT_VERSION`). A step's plan is written by
 made plain JSON at the moment it is planned (`planfile.normalised`), so the approved
 plan and the fresh one compare the same whether or not a file came between them. A
 secret output is written as `{"$secret": true}` and read back as a `Secret` without a
-value. Nothing in the file is used at apply but to compare: every step is planned
-again and gives its values again.
+value. An output that holds what the step's options hold as a `Secret` is made one
+first (`planning._kept_secret`). Nothing in the file is used at apply but to compare:
+every step is planned again and gives its values again.
+
+A step's `made_from` is a hash of its plugin, its targets and its options as the plugin
+is handed them (`options.handed`): references as written, a mapping in the order
+written, and of a `Secret` option only its references, never its text.
 
 A run's record, written by `apply -o` and `destroy -o`, is the result as JSON with a
 `result_format` of 1. `lely ui` is the only thing that reads one.
@@ -144,10 +149,12 @@ step's payload. To apply, the payload of the approved plan is written to a tempo
 and handed to `stevin apply <file> --config <c>`, with `--allow-destructive` when the
 plan lely let through holds a destructive change. Before that the approved file is
 compared with the plan made right before, every step and the changes it carries out: the core hands a plugin both,
-the fresh plan as `plan` and the approved one as `ctx.approved`. stevin exits 1 for a
-refusal and for a failure alike, so a stale plan is known by stevin's words. The overview
-is the `tables` of a `stevin plan`. It has no destroy. What the plugin assumes of
-stevin's command line is numbered in `tests/fake_stevin.py`.
+the fresh plan as `plan` and the approved one as `ctx.approved`. What `stevin apply`
+exits with decides the outcome: 3 and 4 are a refusal, any other exit that is not 0 is a
+failure. The overview is what `stevin list --json` prints. It has no destroy. The plan
+file says which stevin wrote it, and that is how the step knows a stevin that is too
+old. What the plugin assumes of stevin's command line is numbered in
+`tests/fake_stevin.py`.
 
 **`Program`** is no plugin lely ships but a base in `lely.step`: a class with a
 `command`. It runs the program with `process.run`, never through a shell, and reads
@@ -204,8 +211,8 @@ There is no Databricks CLI, workspace or GitHub in the unit suite.
   environment.
 - `tests/fixtures/stevin-*.json` are plan files stevin wrote against its own fake
   warehouse. `tests/fake_stevin.py` is the `stevin` command as a fake: it plans from one
-  of them, applies a plan file, refuses a stale one in stevin's words, and fails on a
-  command line it does not know.
+  of them, applies a plan file, lists what it describes, refuses a plan with stevin's
+  words and exit codes, and fails on a command line it does not know.
 - `tests/project.py` is the scenario most tests share.
 - `tests/browser/` asks Chrome whether a plugin's view stays in its frame. It skips
   without Chrome.

@@ -2268,24 +2268,37 @@ def test_a_plugin_is_given_a_client_for_the_same_profile(client: type[Client]) -
     assert client.made == ["dev"]
 
 
+_CANT_TELL = "lely can't tell what these credentials may change"
+
+
 @pytest.mark.parametrize(
     ("groups", "said_"),
     [
-        (("users", "admins"), "a workspace admin: these credentials can change anything"),
-        (("users", "data-admins"), "not a workspace admin; lely can't tell what else"),
-        ((), "not a workspace admin; lely can't tell what else these credentials may"),
-        (None, "not a workspace admin; lely can't tell what else these credentials may"),
+        (("users", "admins"), f"a workspace admin; {_CANT_TELL}"),
+        (("users", "data-admins"), f"not a workspace admin; {_CANT_TELL}"),
+        ((), f"not a workspace admin; {_CANT_TELL}"),
+        (None, f"not a workspace admin; {_CANT_TELL}"),
     ],
 )
 def test_a_member_of_admins_is_a_workspace_admin(
-    client: type[Client], groups: tuple[str, ...] | None, said_: str
+    lely: Lely,
+    monkeypatch: pytest.MonkeyPatch,
+    client: type[Client],
+    groups: tuple[str, ...] | None,
+    said_: str,
 ) -> None:
     """CLI-8. `admins` is the system group of a workspace's administrators:
     https://docs.databricks.com/aws/en/admin/users-groups/groups — and the one
     thing about what credentials may do that lely reads off. Assumed, not
-    seen: that the SDK's `current_user.me()` lists it under that name."""
+    seen: that the SDK's `current_user.me()` lists it under that name. The
+    line `doctor` prints says that and claims nothing more, for an admin too."""
     client.groups = groups
-    powers = cli._powers("dev")
-    assert powers.startswith(said_)
-    assert "read-only" not in powers
+    assert cli._powers("dev") == said_
     assert client.made == ["dev"]
+    monkeypatch.setattr(cli, "POWERS", cli._powers)
+    result = lely("doctor")
+    assert result.exit_code == 0, said(result)
+    [line] = [line for line in said(result).splitlines() if "workspace admin" in line]
+    assert line.strip() == f"! {said_}"
+    for claim in ("anything", "everything", "read-only", "can change"):
+        assert claim not in line

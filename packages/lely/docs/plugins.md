@@ -71,7 +71,8 @@ Planning runs your project's own code — a step in the repo. On a pull request,
 
 Tables, views and the access around them, planned and applied by
 [stevin](https://kostavo-oss.github.io/tools/stevin/). lely runs the `stevin` command, so
-stevin has to be installed where lely runs.
+stevin has to be installed where lely runs: version 0.4.0a2 or newer. A plan from an
+older stevin fails, and says which version it found.
 
 ```yaml
 steps:
@@ -121,12 +122,18 @@ Either way the run ends with 2 and nothing after the step starts. Plan again, an
 the new plan. That is also what to do after stevin failed halfway through a plan: what it
 applied stays applied, and the next plan shows what is left.
 
+lely tells a refusal from a failure by stevin's
+[exit code](https://kostavo-oss.github.io/tools/stevin/cli/#exit-codes), not by what
+stevin prints. A refusal ends the run with 2, and a failure with 1. Both show stevin's
+own message.
+
 **Destroy drops nothing.** A dropped table is its rows. `lely destroy` skips the step and
 says so. To drop a table, take it out of stevin's specs: stevin's own rules say when it
 drops one.
 
-**Status** lists what stevin's specs describe and whether each exists. lely runs
-`stevin plan` to find out, so a status takes as long as a plan.
+**Status** lists what stevin's specs describe and whether each exists. lely asks
+`stevin list` for it, which makes no plan. It says whether an object is there, not
+whether it matches its spec: a plan says that.
 
 The step gives no outputs. A plan file holds stevin's statements, and names of tables,
 columns and owners: keep it where the pull request's other artifacts are kept. lely

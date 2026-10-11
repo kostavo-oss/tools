@@ -251,20 +251,25 @@ def _powers(profile: str | None) -> str:
     `admins` is the system group of a workspace's administrators:
     https://docs.databricks.com/aws/en/admin/users-groups/groups
 
-    Being a workspace admin is the one thing read off. Whether credentials are
-    read-only is not said: no call is known that answers it, and lely doesn't
-    guess (DECISIONS.md, entry 35).
+    Being a workspace admin is the one thing read off, and nothing is made of
+    it: what an admin may change is not said, because what is in Unity Catalog
+    goes by its own grants and owners, and lely has not checked what the
+    `admins` group carries there. Whether credentials are read-only is not
+    said either: no call is known that answers it, and lely doesn't guess
+    (DECISIONS.md, entries 35 and 42).
     TODO(verify): that `current_user.me()` lists `admins`, under that name, for
     every admin — one who is in it through another group too. Not seen on a
-    workspace. A miss reads as "not a workspace admin; lely can't tell what
-    else", which claims nothing.
+    workspace. A miss reads as "not a workspace admin", with the same words
+    after it, which claim nothing.
     """
     from databricks.sdk import WorkspaceClient
 
     me = WorkspaceClient(profile=profile).current_user.me()
-    if any(group.display == "admins" for group in me.groups or []):
-        return "a workspace admin: these credentials can change anything"
-    return "not a workspace admin; lely can't tell what else these credentials may change"
+    admin = any(group.display == "admins" for group in me.groups or [])
+    return (
+        f"{'a' if admin else 'not a'} workspace admin; lely can't tell what these "
+        "credentials may change"
+    )
 
 
 def _interactive() -> bool:

@@ -21,8 +21,14 @@ lely's job is the order, the review and the consent. These are the rules it keep
 
 - A value from the environment (`${env.NAME}`) and a value a plugin marks secret are never
   printed and never written — not to a plan file, a comment, a summary or a page.
-- A plan file holds no secret. It does hold each plugin's own plan, so treat it like the
-  config it was made from.
+- A plan file holds no secret. A secret written out in the config is left out of what
+  the file records of a step's options, so no guess at it can be tested against the
+  file. It does hold each plugin's own plan, so treat it like the config it was made
+  from.
+- An output that holds what its step was given as a secret is a secret too, also when
+  the plugin gave it as plain text. lely checks a step's outputs for this, and nothing
+  else a plugin writes. It finds the secret as it was given, whole: not a part of it, and
+  not the same secret spelled another way.
 - With `--github`, lely knows the run's token, and no line it says holds it. A plan that
   holds the token is shown by no command.
 
@@ -51,12 +57,25 @@ A step in the repo runs when a plan is made: its `plan`, and whatever that does.
 
 - **Files git doesn't track** are not part of the tree a plan is held to: a new, unadded
   notebook is deployed without the plan knowing.
-- **What the bundle resolves from outside** — a `BUNDLE_VAR_x` set at apply, a variable
-  looked up in the workspace — can change what is deployed without changing a line of the
-  plan.
+- **What the bundle resolves from outside lely.** lely does not hold a plan to the
+  values a bundle's variables end up with. Two things can change them after the review
+  without changing a line of the plan: a `BUNDLE_VAR_<name>` in the environment of the
+  apply, and a variable with a `lookup`, which the workspace answers again at apply.
+  What a team can do:
+    - Keep `BUNDLE_VAR_` variables out of the environment of the job that applies. This
+      is the one that counts: Databricks'
+      [docs](https://docs.databricks.com/aws/en/dev-tools/bundles/variables) say such a
+      variable wins over a value set in the bundle's target.
+    - Set a bundle's variables in the bundle's target, which is in the git tree the plan
+      is held to, or pass them with the step's `vars`, which are in the config the plan
+      is held to. The same docs say a `--var`, which is what `vars` become, wins over the
+      environment. They name one more place that wins over the target's value: a
+      `variable-overrides.json` under the bundle's `.databricks` folder, which is
+      usually not in git. lely has not tried any of this order on a workspace.
+    - Where a looked-up value must not move between review and apply, write the id.
 - **Whether credentials are read-only.** `lely doctor` says what it can see: which workspace,
-  as whom, and whether that is a workspace admin. For anyone else it says that it cannot
-  tell what the credentials may change.
+  as whom, and whether that is a workspace admin. It says no more of an admin than that:
+  for an admin and for anyone else, lely cannot tell what the credentials may change.
 - **What a `Program`'s program really does.** The plan shows its command line.
 - **What a step's program prints.** A deploy, a job run and a step's program are passed on
   while they run. lely hides the run's GitHub token in what they print and knows no other

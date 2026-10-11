@@ -383,6 +383,82 @@ def test_a_list_or_a_mapping_can_be_given_whole_by_reference() -> None:
             built(yaml)
 
 
+def test_a_list_or_a_mapping_given_whole_is_converted_by_element() -> None:
+    """CFG-11: what came whole by one reference is handed to the plugin as the
+    option declares its elements, as if each had been written out."""
+
+    @dataclass(frozen=True)
+    class Options:
+        tokens: tuple[Secret, ...] = ()
+        keys: Mapping[str, Secret] = field(default_factory=dict)
+        sizes: tuple[int, ...] = ()
+        ratios: Mapping[str, float] = field(default_factory=dict)
+        maybe: tuple[int | None, ...] = ()
+        modes: tuple[Literal["fast", "safe"], ...] = ()
+        names: tuple[str, ...] = ()
+        notes: Mapping[str, str | None] = field(default_factory=dict)
+        rows: tuple[object, ...] = ()
+        grid: tuple[tuple[int, ...], ...] = ()
+
+    answers: dict[str, Any] = {
+        "${texts}": ["t0k-one", "t0k-two"],
+        "${mapping}": {"a": "t0k-one"},
+        "${numbers}": [1, 2],
+        "${wholes}": {"a": 1, "b": 2.5},
+        "${gaps}": [1, None],
+        "${modes}": ["fast", "safe"],
+        "${words}": ["a", "b"],
+        "${secrets}": [Secret("t0k-one")],
+        "${nested}": [{"deep": [Secret("t0k-one")]}],
+        "${lists}": [[1, 2], [3]],
+        "${flags}": [True],
+    }
+
+    def resolve(scalar: Scalar) -> Any:
+        return answers[str(scalar.value)]
+
+    def built(yaml: str) -> Any:
+        return build(Options, block(yaml), resolve, "step `x`")
+
+    made = built(
+        "      tokens: ${texts}\n      keys: ${mapping}\n      sizes: ${numbers}\n"
+        "      ratios: ${wholes}\n      maybe: ${gaps}\n      modes: ${modes}\n"
+        "      grid: ${lists}\n"
+    )
+    assert all(isinstance(token, Secret) for token in made.tokens)
+    assert [token.reveal() for token in made.tokens] == ["t0k-one", "t0k-two"]
+    assert isinstance(made.keys["a"], Secret) and made.keys["a"].reveal() == "t0k-one"
+    assert "t0k-one" not in repr(made)
+    assert made.sizes == (1, 2)
+    assert made.ratios == {"a": 1.0, "b": 2.5}
+    assert [type(ratio) for ratio in made.ratios.values()] == [float, float]
+    assert made.maybe == (1, None)
+    assert made.modes == ("fast", "safe")
+    assert made.grid == ((1, 2), (3,))
+    # as the bundle's `vars` take them: a number is its text, a null stays one
+    answers["${some}"] = {"a": "x", "b": None, "n": 5, "yes": True}
+    assert built("      notes: ${some}\n").notes == {
+        "a": "x",
+        "b": None,
+        "n": "5",
+        "yes": "true",
+    }
+    assert built("      tokens: ${secrets}\n").tokens[0].reveal() == "t0k-one"
+    for yaml, message in (
+        ("      sizes: ${words}\n", "`sizes` must be an integer, not 'a'"),
+        ("      sizes: ${flags}\n", "`sizes` must be an integer, not True"),
+        ("      modes: ${words}\n", "`modes` must be one of 'fast', 'safe', not 'a'"),
+        ("      grid: ${numbers}\n", "`grid` must hold lists, not 1"),
+        ("      sizes: ${secrets}\n", "`sizes` would hold a secret"),
+        ("      rows: ${secrets}\n", "`rows` would hold a secret"),
+        ("      rows: ${nested}\n", "`rows` would hold a secret"),
+        ("      names: ${secrets}\n", "`names` must be a list of text"),
+    ):
+        with pytest.raises(OptionsError, match=message) as caught:
+            built(yaml)
+        assert "t0k-one" not in str(caught.value)
+
+
 # -- what a step is made from ------------------------------------------------------
 
 
@@ -396,6 +472,11 @@ class Kinds:
     labels: Mapping[str, str | None] = field(default_factory=dict)
     anything: object = None
     level: Literal[1, 2] = 1
+    token: Secret | None = None
+    keys: Mapping[str, Secret] = field(default_factory=dict)
+    tokens: tuple[Secret, ...] = ()
+    either: Secret | tuple[Secret, ...] = ()
+    pair: tuple[str, Secret] = ("", Secret(""))
 
 
 def handed_of(source: str, name: str = "lely.yml") -> object:
@@ -434,6 +515,79 @@ def test_what_a_step_is_made_from_is_what_its_plugin_is_handed() -> None:
         "text": "${env.X}",
         "other": 1.1,
     }
+
+
+def test_a_secret_written_out_is_not_in_what_a_step_is_made_from() -> None:
+    """SEC-4: a `Secret` option counts by where it comes from, never by its
+    text. What a step is made from is hashed into the plan file."""
+    assert in_yaml("{token: t0p-s3cret}") == in_yaml("{token: another}") == {"token": ""}
+    assert in_yaml("{token: 1234}") == in_toml("{ token = 1234 }") == {"token": ""}
+    assert in_yaml("{token: 'pa$${ss}'}") == {"token": ""}
+    # that one is given counts, and so does where it comes from
+    assert in_yaml("{token: t0p-s3cret}") != in_yaml("{}") != in_yaml("{token: null}")
+    assert in_yaml("{token: '${env.TOKEN}'}") == {"token": "${env.TOKEN}"}
+    assert in_yaml("{token: '${env.TOKEN}'}") != in_yaml("{token: '${env.OTHER}'}")
+    assert in_yaml("{token: 'Bearer ${env.TOKEN}'}") == {"token": "${env.TOKEN}"}
+    assert in_yaml("{token: '${steps.a.user}:${env.PASS}'}") == {
+        "token": "${steps.a.user}${env.PASS}"
+    }
+    # a secret in a list or a mapping: its place and its key count, its text never
+    assert in_yaml("{keys: {a: one, b: '${env.B}'}, tokens: [x, y]}") == {
+        "keys": {"a": "", "b": "${env.B}"},
+        "tokens": ["", ""],
+    }
+    # also where what is written has not the shape the option wants: a text
+    # before a reference to a whole list, a list where one secret goes
+    assert in_yaml("{tokens: 't0p-s3cret${steps.up.list}'}") == {
+        "tokens": "${steps.up.list}"
+    }
+    assert in_yaml("{keys: 't0p-s3cret${steps.up.map}'}") == {"keys": "${steps.up.map}"}
+    assert in_yaml("{token: [t0p-s3cret, {deep: t0p-s3cret}]}") == {
+        "token": ["", {"deep": ""}]
+    }
+    assert in_yaml("{pair: [name, t0p-s3cret]}") == {"pair": ["", ""]}
+    assert in_yaml("{either: t0p-s3cret}") == {"either": ""}
+    assert in_yaml("{either: [t0p-s3cret]}") == {"either": [""]}
+    assert "t0p" not in repr(in_yaml("{either: t0p-s3cret, keys: [t0p-s3cret]}"))
+    # the same words in an option that is no secret count as they did
+    assert in_yaml("{text: t0p-s3cret}") == {"text": "t0p-s3cret"}
+
+
+def test_a_mapping_counts_in_the_order_written() -> None:
+    """PLAN-12: a plugin is handed a mapping in the order written, so that
+    order is part of what the step is made from. The order of the options
+    themselves is not: a plugin is handed those by name."""
+    import hashlib
+    import json
+
+    from lely import planning
+
+    def made_from(block: str, name: str = "lely.yml") -> str:
+        source = f"steps:\n  - uses: bundle\n    with: {block}\n"
+        if name == "pyproject.toml":
+            source = f'[[tool.lely.steps]]\nuses = "bundle"\nwith = {block}\n'
+        return planning.made_from(load_text(source, Path(name)).steps[0], Kinds)
+
+    assert made_from("{labels: {a: x, b: y}}") != made_from("{labels: {b: y, a: x}}")
+    assert made_from("{anything: {deep: {a: 1, b: 2}}}") != made_from(
+        "{anything: {deep: {b: 2, a: 1}}}"
+    )
+    assert made_from("{text: t, count: 2}") == made_from("{count: 2, text: t}")
+    # and the same order in the other file is still the same step
+    assert made_from("{labels: {b: y, a: x}}") == made_from(
+        '{ labels = { b = "y", a = "x" } }', "pyproject.toml"
+    )
+    # a mapping written in the order of its keys counts as it did before the
+    # order counted, so a plan saved for one is not refused
+    before = json.dumps(
+        {"uses": "bundle", "targets": None, "with": {"labels": {"a": "x", "b": "y"}}},
+        sort_keys=True,
+        default=str,
+    )
+    assert (
+        made_from("{labels: {a: x, b: y}}")
+        == (hashlib.sha256(before.encode("utf-8")).hexdigest()[:16])
+    )
 
 
 def test_a_value_counts_the_same_in_yaml_and_in_toml() -> None:

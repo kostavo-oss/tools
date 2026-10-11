@@ -36,6 +36,7 @@ from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
 from lely.flags import Flag, block_from, flags_of, options_of
 from lely.model import KNOWN, Plan, Secret, Source, Value
+from lely.options import holds
 from lely.refs import Given, literal, match
 from lely.render import words
 from lely.render.rich import render_plan, result_view, status_view
@@ -597,24 +598,11 @@ def _shown(value: Value, secrets: Sequence[str]) -> str:
     """A value as it is printed. A `Secret` is `***`, and so is a value that
     holds what a `Secret` option was given: an output that hands an option back
     is not a way round it."""
-    if isinstance(value, Secret) or _holds(value, secrets):
+    if isinstance(value, Secret) or holds(value, secrets):
         return "***"
     if isinstance(value, str) and len(value.splitlines()) > 1:
         return json.dumps(value)  # on one line: it can't pass for a line of lely's
     return words.shown(value)
-
-
-def _holds(value: Any, secrets: Sequence[str]) -> bool:
-    """Whether a value has a secret anywhere in it: in a text, a key, or a
-    number written out."""
-    if isinstance(value, dict):
-        return any(_holds(k, secrets) or _holds(v, secrets) for k, v in value.items())
-    if isinstance(value, list | tuple):
-        return any(_holds(item, secrets) for item in value)
-    if value is None or isinstance(value, bool):
-        return False
-    text = value if isinstance(value, str) else json.dumps(value)
-    return any(secret in text for secret in secrets)
 
 
 __all__ = ["app_for", "main"]

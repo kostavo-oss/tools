@@ -375,8 +375,8 @@ def test_the_stevin_step_applies_the_plan_file_that_was_approved(tmp_path: Path)
     result = p.apply(approved)
     assert result.outcome == "done", result.message
     assert outcomes(result) == {"tables": "done", "warm": "done"}
-    # the overview after an apply is a `stevin plan` too
-    assert stevin.verbs == ["plan", "apply", "plan"]
+    # the overview after an apply is a `stevin list`: no plan is made for it
+    assert stevin.verbs == ["plan", "apply", "list"]
     assert stevin.handed == reviewed
     assert len(stevin.applied) == 5
     assert (tmp_path / "warmed.txt").exists()
@@ -486,17 +486,17 @@ def test_a_destroy_leaves_stevins_tables_alone_and_says_so(tmp_path: Path) -> No
 
 
 def test_status_lists_what_stevins_specs_describe(tmp_path: Path) -> None:
-    """STV-11."""
+    """STV-13: a status asks `stevin list`, and makes no plan."""
     p, stevin = tables(tmp_path)
     found = running.status(p.config, target="dev", **edges(p.fake))
     overview = found.steps[0].overview
     assert overview is not None
     assert [(i.kind, i.key, i.deployed) for i in overview.items] == [
+        ("view", "dev.sales.big_orders", False),
         ("table", "dev.sales.customers", False),
         ("table", "dev.sales.orders", False),
-        ("view", "dev.sales.big_orders", False),
     ]
-    assert stevin.verbs == ["plan"]
+    assert stevin.verbs == ["list"]
     assert stevin.applied == []
 
 
@@ -1166,3 +1166,54 @@ def test_a_literal_dollar_brace_reaches_the_program_as_it_is_meant(
     result = running.apply(p.config, p.plan(), **given)
     assert result.outcome == "done", result.message
     assert (tmp_path / "home.txt").read_text() == "/home/jane\n"
+
+
+# -- an output that holds a secret option ------------------------------------------
+
+ECHO = """\
+from dataclasses import dataclass
+from pathlib import Path
+from lely.model import Change, Output, Secret, StepPlan
+
+class Echo:
+    # hands its secret option back as plain text, after a run: a plugin's mistake
+    @dataclass(frozen=True)
+    class Options:
+        token: Secret
+    outputs = (Output("url", known="run"),)
+    def plan(self, ctx):
+        return StepPlan(changes=(Change("url", "run", "asks for the url"),))
+    def apply(self, ctx, plan):
+        return {"url": f"https://user:{ctx.options.token.reveal()}@host"}
+
+class Takes:
+    @dataclass(frozen=True)
+    class Options:
+        url: Secret
+    def plan(self, ctx):
+        return StepPlan(changes=(Change("taken", "run", "takes the url"),))
+    def apply(self, ctx, plan):
+        Path(ctx.root, "taken.txt").write_text(ctx.options.url.reveal())
+        return {}
+"""
+
+
+def test_an_output_a_run_gives_that_holds_a_secret_option_is_a_secret(
+    tmp_path: Path,
+) -> None:
+    """SEC-5: also for what `apply` returns, through a plan file. The step
+    below is handed it whole, and the run's record holds a marker."""
+    (tmp_path / "echo.py").write_text(ECHO)
+    text = (
+        "steps:\n  - name: echo\n    uses: ./echo.py:Echo\n"
+        "    with: {token: t0p-s3cret}\n"
+        "  - name: takes\n    uses: ./echo.py:Takes\n"
+        "    with: {url: '${steps.echo.url}'}\n"
+    )
+    p = Project(tmp_path, text)
+    written = planfile.dumps(p.plan())
+    assert "t0p-s3cret" not in written
+    result = p.apply(planfile.loads(written), at_waiting=run_it)
+    assert outcomes(result) == {"echo": "done", "takes": "done"}, result.message
+    assert (tmp_path / "taken.txt").read_text() == "https://user:t0p-s3cret@host"
+    assert "t0p-s3cret" not in json.dumps(planfile.result_to_json(result))

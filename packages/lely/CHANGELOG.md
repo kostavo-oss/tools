@@ -13,6 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   plan stevin refuses as stale ends the run with 2 and says to plan again. `lely status`
   lists the tables stevin's specs describe. `lely destroy` leaves them alone and says so:
   a dropped table is its rows. It has not run on a workspace yet.
+- **The `stevin` step needs stevin 0.4.0a2 or newer.** It reads stevin's exit codes to
+  tell a refusal from a failure, and no longer stevin's words. `lely status` asks
+  `stevin list`, so it makes no plan. A plan from an older stevin fails and names both
+  versions.
 - **A plugin can run what was reviewed.** In `apply`, `ctx.approved` is the step's plan
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.
@@ -34,14 +38,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A flag takes `$${` for a literal `${`**, as a config file does. It was refused as a
   reference.
 - **`lely doctor` is no longer meant to say whether credentials are read-only.** It
-  never could. It says whether the identity is a workspace admin, and for anyone else
-  that it cannot tell what the credentials may change.
+  never could. It says whether the identity is a workspace admin, and that it cannot
+  tell what the credentials may change. For an admin it said "these credentials can
+  change anything", which nobody had checked: that claim is gone.
 - **A plan made from `lely.yml` is accepted with the same project in `pyproject.toml`,
   whatever the spelling.** What a step is made from is now each option as its plugin is
   handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a
   yes or no, and `"1.10"` and `"yes"` for text. A plan file saved by 0.3.1 for a step
   with a number or a boolean in its options is refused once by the next release: the
   refusal names both versions and says to plan again.
+
+- **A secret written out is not in what the plan file keeps of a step's options.** A
+  `Secret` option given in the config, or as a flag of a step on its own, was part of
+  the hash the plan file keeps of each step. Its text is left out now, and so is text
+  written beside a reference in such an option. lely no longer notices that either
+  changed between plan and apply; it never did for a value from the environment.
+- **An output that holds what a `Secret` option was given is a secret**, also when the
+  step gives it as plain text. It was in the plan file and in `-f json` as it came. It is
+  `***` and a marker now, and a step below can take it only into a `Secret` option, and
+  whole: no field of it.
+- **The order of a mapping's entries counts.** A plugin is handed them in the order
+  written, so a plan file is refused when they were moved since.
+- **A plan file saved by 0.3.1 is refused once** in three cases, and says to plan again.
+  A step has a `Secret` option that holds written-out text. A step has a mapping whose
+  keys are not in sorted order, capitals first. Or a step takes an output that is a
+  secret now and was text in the file: that one is refused when the run reaches the
+  step, after the steps above it have run.
+- **A refusal for a value that is a secret on one side says neither value.** It printed
+  the one that was not a secret.
 
 - **A stevin plan shows every step with its risk class**, and a table that is rewritten
   says so in its own line. A risk class lely does not know is destructive; it was read as
@@ -58,6 +82,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A value from the environment is refused wherever it is no `Secret`**: in an option
   that takes anything (`object`), which took the secret into the plan, and as a list or
   a mapping given whole, which `lely validate` let through and the plan then refused.
+- **A list or a mapping given whole by one reference is read by element.** A
+  `tuple[Secret, ...]` got plain text and a `tuple[int, ...]` got whatever came. Each
+  element is now what the option declares, or an error.
 - **The editors' schema takes a list or a mapping given whole by one reference**, as
   `lely validate` does: `tags: ${steps.model.tags}` is no longer marked as a mistake.
   Write the schema again with `lely schema -o lely.schema.json`.

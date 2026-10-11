@@ -15,16 +15,17 @@ The field types a plugin may use: `str`, `int`, `float`, `bool`, `Secret`,
 from __future__ import annotations
 
 import dataclasses
+import json
 import types
 import typing
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from lely.config import Map, Node, Scalar, Seq, written
 from lely.errors import LelyError
 from lely.model import Json, Linked, Secret, Value
-from lely.refs import Unknown
+from lely.refs import Unknown, references
 from lely.step import quietly
 
 Resolver = Callable[[Scalar], Value | Unknown]
@@ -149,6 +150,15 @@ def handed(cls: type, block: Map | None) -> Json:
     project hashes the same in both files, and `1.10` edited to `1.1` is a
     change exactly where a plugin would be handed another text.
 
+    A `Secret` option counts by where it comes from and never by its text
+    (SEC-4): of what was written, only the references are kept, so a secret
+    written out counts as given and as nothing more. A hash of it, however
+    short, would be a way to test a guess at it.
+
+    The options themselves are in the order of their names: a plugin is handed
+    them by name. A mapping inside an option is in the order written, which is
+    the order the plugin is handed (PLAN-12).
+
     Nothing is checked here: an option that doesn't fit is `build`'s to say.
     """
     if block is None:
@@ -159,27 +169,43 @@ def handed(cls: type, block: Map | None) -> Json:
         hints = {}
     return {
         entry.key: _handed(hints.get(entry.key, object), entry.value)
-        for entry in block.entries
+        for entry in sorted(block.entries, key=lambda entry: entry.key)
     }
 
 
-def _handed(tp: Any, node: Node) -> Json:
+def _handed(tp: Any, node: Node, secret: bool = False) -> Json:
+    """`secret` says the option takes a secret somewhere and what was written
+    does not have its shape, a text where it wants a list of secrets, say:
+    whatever is written there may be one, and counts by its references only."""
     origin = typing.get_origin(tp)
     args = typing.get_args(tp)
+    secret = secret or _takes_secret(tp)
     if origin in (types.UnionType, typing.Union):
         members = [a for a in args if a is not type(None)]
-        return _handed(members[0], node) if len(members) == 1 else written(node)
+        if len(members) == 1:
+            return _handed(members[0], node)
+        return _handed(object, node, secret) if secret else written(node)
     if isinstance(node, Seq):
         element = args[0] if origin in (tuple, list) and args else object
-        return [_handed(element, child) for child in node.items]
+        # a list of one type of element: `tuple[Secret, ...]`. Any other tuple
+        # that takes a secret somewhere may hold it at any place.
+        fits = origin is list or (len(args) == 2 and args[1] is Ellipsis)
+        return [_handed(element, child, secret and not fits) for child in node.items]
     if isinstance(node, Map):
-        mapping = origin in (dict, Mapping) or tp in (dict, Mapping)
-        element = args[1] if mapping and len(args) == 2 else object
-        return {entry.key: _handed(element, entry.value) for entry in node.entries}
+        fits = (origin in (dict, Mapping) or tp in (dict, Mapping)) and len(args) == 2
+        element = args[1] if fits else object
+        return {
+            entry.key: _handed(element, entry.value, secret and not fits)
+            for entry in node.entries
+        }
     value = node.value
-    if isinstance(value, str) or value is None:
-        return value  # text, a reference as it was written, or a null
-    if tp is str or tp is Secret:
+    if value is None:
+        return value
+    if secret:
+        return "".join(references(value)) if isinstance(value, str) else ""
+    if isinstance(value, str):
+        return value  # text, or a reference as it was written
+    if tp is str:
         return _text(value, node)
     if tp is float and not isinstance(value, bool):
         try:
@@ -298,7 +324,48 @@ class _Reader:
                 item.loc, f"`{name}` must be a {kind}{of}; {item.value} gives {value!r}"
             )
             return None
-        return items
+        if isinstance(items, dict):
+            return {
+                key: self.element(element, one, item, name) for key, one in items.items()
+            }
+        return tuple(self.element(element, one, item, name) for one in items)
+
+    def element(self, tp: Any, value: Any, item: Scalar, name: str) -> Any:
+        """One value of a list or a mapping that came whole by a reference, as
+        the option declares its elements: a `Secret` where it wants secrets, a
+        number where it wants numbers, and a problem where it is neither. The
+        same as when each was written out (CFG-11)."""
+        origin = typing.get_origin(tp)
+        args = typing.get_args(tp)
+        if origin in (types.UnionType, typing.Union):
+            members = [a for a in args if a is not type(None)]
+            if value is None:
+                return None
+            if len(members) != 1:  # pragma: no cover - a step's own mistake
+                raise OptionsError(
+                    f"option `{name}`: only `T | None` unions are supported"
+                )
+            return self.element(members[0], value, item, name)
+        if tp is object or tp is Any:
+            if _has_secret(value):
+                self.problem(item.loc, f"`{name}` {_NO_SECRET}")
+                return _PENDING
+            return value
+        if origin in (tuple, list):
+            if not isinstance(value, list | tuple):
+                self.problem(item.loc, f"`{name}` must hold lists, not {value!r}")
+                return None
+            inner = args[0] if args else object
+            return tuple(self.element(inner, one, item, name) for one in value)
+        if origin in (dict, Mapping) or tp in (dict, Mapping):
+            if not isinstance(value, Mapping):
+                self.problem(item.loc, f"`{name}` must hold mappings, not {value!r}")
+                return None
+            inner = args[1] if len(args) == 2 else object
+            return {
+                key: self.element(inner, one, item, name) for key, one in value.items()
+            }
+        return self.scalar(tp, origin, args, value, item, name)
 
     def scalar(
         self,
@@ -370,6 +437,60 @@ class _Reader:
             self.problem(item.loc, f"`{name}` {_NO_SECRET}")
             return _PENDING
         return value
+
+
+def _takes_secret(tp: Any) -> bool:
+    """Whether an option of this type takes a `Secret` anywhere in it."""
+    return tp is Secret or any(_takes_secret(arg) for arg in typing.get_args(tp))
+
+
+def _has_secret(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return any(_has_secret(one) for one in value.values())
+    if isinstance(value, list | tuple):
+        return any(_has_secret(one) for one in value)
+    return isinstance(value, Secret)
+
+
+# -- what a step was given as a secret (SEC-5) ---------------------------------------
+
+
+def secrets_of(built: Any) -> tuple[str, ...]:
+    """The text of every secret a step's options hold, at any depth: what a
+    `Secret` option was given, written out, from the environment or by a step
+    above, and the secrets of a step it names (`Linked`). An empty one is left
+    out: everything would hold it."""
+    found: list[str] = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, Secret):
+            if value._value:
+                found.append(value._value)
+        elif isinstance(value, Mapping):
+            for one in value.values():
+                walk(one)
+        elif isinstance(value, list | tuple):
+            for one in value:
+                walk(one)
+        elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+            for f in dataclasses.fields(value):
+                walk(getattr(value, f.name, None))
+
+    walk(built)
+    return tuple(dict.fromkeys(found))
+
+
+def holds(value: Any, secrets: Sequence[str]) -> bool:
+    """Whether a value has one of `secrets` anywhere in it: in a text, a key,
+    or a number written out."""
+    if isinstance(value, Mapping):
+        return any(holds(k, secrets) or holds(v, secrets) for k, v in value.items())
+    if isinstance(value, list | tuple):
+        return any(holds(item, secrets) for item in value)
+    if value is None or isinstance(value, bool | Secret):
+        return False
+    text = value if isinstance(value, str) else json.dumps(value)
+    return any(secret in text for secret in secrets)
 
 
 def _text(value: str | int | float | bool, item: Scalar) -> str:

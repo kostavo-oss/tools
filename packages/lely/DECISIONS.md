@@ -312,3 +312,123 @@ plugin that writes and fail one that reads. Rejected: comparing the project's fo
 before and after a plan. A program a step runs may keep files of its own there, and
 that is not the step keeping state. So the kit's docs name what it does not see, and
 the rule for that part (PLG-16) says it is not tested.
+
+## 38. 2026-10-11 — The `stevin` step goes by stevin's exit codes, and needs the stevin that has them
+
+stevin 0.4.0a2 exits 3 for a plan that will never run and 4 for a destructive one it
+was not told to allow, and has `list`. The step reads those codes and matches no
+sentence any more, and a status asks `stevin list` where it ran a whole plan. This
+closes what entry 33 left open.
+
+The step refuses an older stevin. Rejected: keeping the two sentences as a fallback
+for a stevin that exits 1 with the known words. That keeps the guess the exit codes
+were asked for to end, for a version nobody has to stay on: stevin is an alpha, and
+`uv tool upgrade stevin` is the whole cost. With the fallback a refusal an older stevin
+words differently would still end as failed, and nobody would be told why.
+
+The version comes from the plan file, where stevin writes it, so nothing more is run
+to learn it. Rejected: `stevin --version` before each plan, one more process for what
+the file already says. A version that does not read as one, such as the `unknown` of
+stevin run from its source, is let through: lely turns away only what it knows to be
+older. A development build of 0.4.0a2 counts as older, as Python's packaging orders it.
+
+The overview has a new rule, STV-13, and the rule it had is dropped with its number
+left empty: what a status reads changed, and with it what it can say. `stevin list` says whether an object is there, not
+what a plan would do to it.
+
+## 39. 2026-10-11 — A secret written out is left out of what a step is made from
+
+A `Secret` option written out in the config, which is always so for a flag of a step on
+its own, went into the 16 hex characters a plan file keeps of each step. SEC-1 says a
+secret is never written. A cut hash is not the secret, and it answers the one question
+that matters: is this guess right? So a `Secret` option now counts by its references as
+written and never by its text (SEC-4).
+
+The price is that a plan file does not see that a written-out secret changed between
+plan and apply. Nothing was promised there: a secret from the environment was never
+seen to change, a secret a step takes is never compared (PLAN-4), and a secret is not
+something a reviewer was shown.
+
+Rejected: hashing it with a random salt kept in the plan file. The salt is in the same
+file, so a guess still costs one hash to test; it stops a table made beforehand and
+nothing else, and a token short enough to guess is the case that matters. Rejected: a
+hash keyed with something outside the file. lely keeps no state, so there is nowhere
+for that key to be at apply but the config or the environment of both jobs, which is
+one more secret to hand around for a check nobody asked for.
+
+## 40. 2026-10-11 — An output that holds a secret option is made a secret, when the step is planned
+
+This supersedes the second paragraph of entry 36, which left the plan file and
+`-f json` holding such an output as the step gave it. lely knows what a step was given
+as a secret, so it can see this mistake, and now makes the output a `Secret` (SEC-5).
+
+It is done in the session, when a step is planned and when it is applied. Rejected:
+masking it only where a plan is written. The plan in memory would then hold text and
+the one read from a file a secret, and an apply from a file would refuse its own plan
+at the first step that takes the output, with the value in the message. The cost: a
+step below can take such an output only into a `Secret` option, where it took it into
+any option before. That is the rule for every secret, and the plan said the value out
+loud before.
+
+A short secret makes more outputs match: one that is `a` makes a secret of every
+output with an `a` in it. Rejected: a shortest length below which lely does not look.
+Any number would be a guess at what a secret is, and the mistake that is left is a
+`***` too many.
+
+What it costs and does not do. A list or a mapping that holds the secret becomes one
+secret, so a step below can take no field of it, and where the output comes only from a
+run, that is found out at apply, after the step above ran. Which outputs are secrets
+can be read in the plan file, and that follows from the secret: SEC-4 is about the
+hash of the options, not about this. lely finds the secret as the option holds it:
+`Bearer ${env.T}` is found whole and the token alone is not, nor is another spelling.
+And a plan file an older lely saved holds such an output as text, so the first step
+that takes it refuses the file mid-run; the refusal says neither value.
+
+## 41. 2026-10-11 — A mapping counts in the order written, with the cheapest change that does so
+
+A plugin is handed a mapping's entries in the order written, and the hash sorted them,
+so a plan was accepted with another order than it was made with (PLAN-12). The hash
+keeps the order now. The options themselves stay sorted by name, because a plugin is
+handed those by name, and a mapping whose keys were written in sorted order hashes as
+it did. Rejected: hashing a mapping as a list of pairs, which says the same and would
+refuse every saved plan with a mapping in it. As it is, 0.3.1's plan file is refused
+once only where the keys were not in that order.
+
+## 42. 2026-10-11 — `lely doctor` says who is a workspace admin, and nothing of what an admin can do
+
+`doctor` printed "a workspace admin: these credentials can change anything". Nobody
+had checked "anything", and it is probably too much: what is in Unity Catalog goes by
+its own grants and owners, which the workspace's `admins` group may not carry. Entry 35
+took the claim out of the rule and left the line. The line now says whether the
+identity is a workspace admin and, either way, that lely cannot tell what the
+credentials may change.
+
+Rejected: wording the line by what the Databricks docs say an admin may do
+(kostavo-oss/tools#77 asked for that). It would put a summary of another product's
+permission model into one line of a check, to go stale there, and `doctor` would still
+not have seen any of it for the workspace at hand. The fact it reads off is enough for
+what the line is for: someone who gave a pull request's plan an admin's credentials
+sees it.
+
+## 43. 2026-10-11 — A plan is not held to what the bundle resolves from outside lely
+
+Decided by the owner (kostavo-oss/tools#53), open since the bundle plugin was built on
+2026-10-05: the limit stays, and is documented. A `BUNDLE_VAR_<name>` in the
+environment of the apply, or a variable's `lookup` that answers something else than at
+plan, changes what is deployed without changing a line of the plan. lely does not hold
+a plan to those values (PLAN-13), and `docs/safety.md` says what a team can do.
+
+Why: the way to close it is a fingerprint of the bundle's resolved variables, kept in
+the plan and compared at apply. Variables can depend on who runs the CLI, so a plan
+made by one identity would be refused when another applies it. That is how the GitHub
+workflows run: the pull request plans with credentials that read, the merge applies
+with ones that write. The check would refuse the one flow lely is built for.
+
+Rejected: the fingerprint always, for that reason. Rejected: the fingerprint as an
+option a project turns on. It would be a safety switch that is off where it is needed
+and that breaks the workflows where it is on, and one more thing a reviewer has to
+know the state of. What a team does instead costs nothing: keep `BUNDLE_VAR_` variables
+out of the environment of the apply, and set variables in the bundle's target or in
+the step's `vars`, which the plan is already held to. Databricks' docs say a variable in
+the environment wins over the target's value, so the first of those is the one that
+counts; that order was not tried.

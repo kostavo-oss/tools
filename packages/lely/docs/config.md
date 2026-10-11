@@ -89,6 +89,18 @@ which every process on the machine can see — and `lely validate` says so offli
       token: ${env.SEED_TOKEN}
 ```
 
+A secret written out in the config is kept out of the plan file too: what the file
+records of a step's options does not depend on its text. So lely does not see that such
+a secret changed between plan and apply, nor that text around a reference did, as in
+`Bearer ${env.SEED_TOKEN}`. It sees where a secret comes from: `${env.SEED_TOKEN}`
+changed to `${env.OTHER_TOKEN}` takes a new plan.
+
+A list or a mapping can be given whole by one reference, `tags: ${steps.model.tags}`.
+Each element is then read as the option declares it, as if it had been written out.
+
+The entries of a mapping count in the order they are written: a plugin is handed them
+in that order. Moving one takes a new plan.
+
 ```python
 # ops/seed.py
 from dataclasses import dataclass

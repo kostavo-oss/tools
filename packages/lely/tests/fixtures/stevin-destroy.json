@@ -1,9 +1,9 @@
 {
   "format_version": 1,
-  "tool_version": "0.1.0",
+  "tool_version": "0.4.0a2",
   "target": "dev",
-  "spec_hash": "ee5bae5c9f668442",
-  "state_fingerprint": "f5427471cb5d9f23",
+  "spec_hash": "c37218aff172ac07",
+  "state_fingerprint": "80e698c03aebd41c",
   "summary": {
     "add": 0,
     "change": 1,
@@ -16,6 +16,7 @@
   "unmanaged_tables": [],
   "not_managed": [],
   "orphaned_tables": [],
+  "owned_tables": [],
   "tables": [
     {
       "table": "dev.sales.customers",
@@ -29,10 +30,13 @@
           "deltaplan.managed": "true"
         },
         "schema_exists": true,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [],
+      "cautions": [],
       "desired": {
         "table": "dev.sales.customers",
         "comment": "One row per customer",
@@ -72,7 +76,7 @@
         ],
         "grants": {},
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "live": {
         "table": "dev.sales.customers",
@@ -115,7 +119,7 @@
         ],
         "grants": {},
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "changes": []
     },
@@ -135,12 +139,15 @@
           "deltaplan.managed": "true"
         },
         "schema_exists": true,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [
         "renamed_from 'cust_id' on customer_ref has done its job \u2014 it can be removed"
       ],
+      "cautions": [],
       "desired": {
         "table": "dev.sales.orders",
         "comment": "Order facts, one row per order",
@@ -208,7 +215,7 @@
           ]
         },
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "live": {
         "table": "dev.sales.orders",
@@ -286,7 +293,7 @@
           ]
         },
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "changes": [
         {
@@ -313,10 +320,13 @@
           "deltaplan.managed": "true"
         },
         "schema_exists": true,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [],
+      "cautions": [],
       "desired": {
         "view": "dev.sales.big_orders",
         "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
