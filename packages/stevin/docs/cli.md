@@ -9,6 +9,7 @@ stevin apply plan.json     # run a saved plan, as CI does
 stevin show plan.json [--format rich|md|json|html]
 stevin ui [plan.json]      # the plan as a page in a browser
 stevin drift -t <target>   # exit code 2 on drift, for CI
+stevin list -t <target> [--json]   # what the specs describe, and whether each exists
 stevin access <catalog.schema.table>   # who may see a table, and through what
 stevin adopt [<name>...]   # drift, written back into the specs
 stevin doctor              # check the setup; changes nothing
@@ -243,8 +244,9 @@ it's stevin's. `--parallel` (default 8) sets how many of those queries run at on
 reordered spec is usually an edit to the file rather than an intent to move columns.
 
 `--clone` adds a `SHALLOW CLONE` of each table before the first step that could lose
-its data — see the [safety model](safety.md#when-something-goes-wrong). A table
-[under a row filter or column mask policy](features.md#the-policies-a-table-is-under)
+its data — see the [safety model](safety.md#when-something-goes-wrong). A table with a
+column mask or a row filter of its own, or
+[under a row filter or column mask policy](features.md#the-policies-a-table-is-under),
 is not cloned: the plan says so in a step `apply` refuses, and you plan without
 `--clone`.
 
@@ -375,6 +377,22 @@ no rollback:
 more. A selection plans only what it names — tables outside it are never reported as
 orphans, and never dropped, even in a strict schema.
 
+### Exit codes
+
+A program that runs `apply` reads the exit code, and need not read the words:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Every step ran or was already done. Also: there was nothing to do. |
+| `1` | A failure: a step failed, the target is locked, the workspace or the plan file could not be read, or the answer to the question was no. Fix the cause and run it again. |
+| `3` | Refused, and this plan will never run. It is stale, its file is not a plan this version of stevin reads, or it holds a step stevin could not write. No statement ran. Plan again. |
+| `4` | Refused: the plan destroys something and `--allow-destructive` was not given. No statement ran. The same plan runs with the flag. |
+| `130` | Stopped with Ctrl-C. |
+
+`2` is not one of them: it is what the command line itself answers to an option it does
+not know. [`show`](#show) and [`ui`](#ui) exit `3` too for a file that is not a plan
+this version reads.
+
 `--allow-destructive` is required for any step in the `destructive` class; without it
 `apply` refuses before running anything at all. A plan containing a step stevin
 couldn't generate — a conversion it won't invent, a change a generated column
@@ -418,6 +436,49 @@ is, and the exit code stays `0`. Point a
 
 When the hand edit was the right call, [`adopt`](#adopt) writes it into the spec instead
 of planning it away.
+
+## `list`
+
+```sh
+stevin list -t prod [--select sales.orders] [--json]
+```
+
+Lists the objects the specs describe for a target, and whether each is there. It reads,
+and changes nothing.
+
+![stevin list](assets/screens/feature-list.svg)
+
+One line per spec: the name, what kind of object it is, and whether an object of that
+kind exists under that name. Nothing is compared with its spec, so a table that has
+drifted *exists*; [`plan`](#plan) and [`drift`](#drift) say what differs. A table no
+spec describes is not listed.
+
+It is the cheap question. Each schema the specs name is read once, no table's
+definition is read in full, and no policy is asked for. `--select` narrows it as it
+does for `plan`.
+
+`--json` gives the same as data, for a program:
+
+```json
+{
+  "target": "prod",
+  "objects": [
+    {"name": "prod.sales.orders", "kind": "table", "exists": true},
+    {"name": "prod.sales.big_orders", "kind": "view", "exists": false}
+  ]
+}
+```
+
+| Key | What it is |
+|---|---|
+| `target` | The target the specs were read for. |
+| `objects` | One entry per spec, in the order the specs were found. |
+| `name` | The full name: `catalog.schema.name`, or `catalog.schema` for a schema. |
+| `kind` | `table`, `view`, `function`, `schema` or `volume`. |
+| `exists` | Whether an object of that kind is there under that name. |
+
+It exits `0` when the workspace could be read, whatever is missing, and `1` when it
+could not: a spec that does not read, a selection that matches no spec, no connection.
 
 ## `access`
 

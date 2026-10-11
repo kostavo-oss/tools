@@ -964,7 +964,7 @@ PROBES: tuple[Probe, ...] = (
         "a nested field's NOT NULL is an ordinary ALTER",
         "https://docs.databricks.com/aws/en/tables/constraints",
         "If it isn't, adding `not null` to a struct field means rebuilding the "
-        "whole table — which is what the design first assumed and this settled.",
+        "whole table.",
         _a_nested_not_null_is_an_alter,
     ),
     Probe(

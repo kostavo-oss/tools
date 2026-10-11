@@ -130,7 +130,7 @@ def test_a_plan_that_already_ran_is_refused_as_stale(
 
     ddl = len(warehouse.ddl)
     again = runner.invoke(app, arguments)
-    assert again.exit_code == 1
+    assert again.exit_code == cli.PLAN_AGAIN
     assert "changed since this plan was made" in again.output
     assert len(warehouse.ddl) == ddl, "nothing may run a second time"
 
@@ -190,7 +190,7 @@ def test_a_destructive_plan_needs_the_flag(
     arguments = ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
 
     refused = runner.invoke(app, arguments)
-    assert refused.exit_code == 1
+    assert refused.exit_code == cli.NOT_ALLOWED
     assert "--allow-destructive" in refused.output
     assert warehouse.ddl == []
 
@@ -261,7 +261,7 @@ def test_a_stale_plan_is_refused(
     result = runner.invoke(
         app, ["apply", str(plan_file), "--config", str(project / "stevin.yml")]
     )
-    assert result.exit_code == 1
+    assert result.exit_code == cli.PLAN_AGAIN
     assert "changed since this plan was made" in result.output
 
 
@@ -271,7 +271,7 @@ def test_an_unreadable_plan_file(project: Path, tmp_path: Path) -> None:
     result = runner.invoke(
         app, ["apply", str(broken), "--config", str(project / "stevin.yml")]
     )
-    assert result.exit_code == 1
+    assert result.exit_code == cli.PLAN_AGAIN
     assert "plan format version" in result.output
 
     missing = runner.invoke(
@@ -445,7 +445,7 @@ def test_a_destructive_plan_is_refused_before_asking(
         )
     )
     result = apply_now(project, answer="y\n")
-    assert result.exit_code == 1
+    assert result.exit_code == cli.NOT_ALLOWED
     assert "--allow-destructive" in result.output and "Apply" not in result.output
     assert "cust_id" in warehouse.tables[NAME].column_names
 
@@ -514,3 +514,80 @@ def test_a_selection_that_names_nothing_is_an_error(
     assert result.exit_code == 1
     assert "'ordrs' matches no spec" in result.output
     assert warehouse.statements == []
+
+
+# ---------------------------------------------------------------------------
+# what a program that runs `apply` reads: the exit code
+# ---------------------------------------------------------------------------
+
+
+def test_a_program_can_tell_a_refusal_from_a_failure(
+    project: Path, warehouse: FakeWarehouse, history: MemoryHistory, tmp_path: Path
+) -> None:
+    """A plan that will never run ends with 3 and one that needs the flag with
+    4, before any statement. A failure is 1, as it was. No code is 2, which is
+    the command line's own for an option it does not know."""
+    # RULES.md: APL-8.
+    config = ["--config", str(project / "stevin.yml")]
+    assert (cli.PLAN_AGAIN, cli.NOT_ALLOWED) == (3, 4)
+
+    # Of another format, and not a plan at all: `show` says it the same way.
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps({"format_version": 9}))
+    garbage = tmp_path / "garbage.json"
+    garbage.write_text("not a plan")
+    for file in (other, garbage):
+        assert runner.invoke(app, ["apply", str(file), *config]).exit_code == 3
+        assert runner.invoke(app, ["show", str(file)]).exit_code == 3
+
+    # Stale: the table moved after the plan was made.
+    stale = tmp_path / "stale.json"
+    write_plan(project, stale)
+    warehouse.query("ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)")
+    assert runner.invoke(app, ["apply", str(stale), *config]).exit_code == 3
+    assert warehouse.ddl == [
+        "ALTER TABLE `main`.`sales`.`orders` ADD COLUMNS (`surprise` STRING)"
+    ]
+    warehouse.tables[NAME] = LIVE
+    warehouse.statements.clear()
+
+    # A step stevin could not write: a struct that becomes an array.
+    (project / "tables" / "orders.yml").write_text(
+        SPEC.replace(
+            "type: string, renamed_from: cust_id", "type: 'array<string>'"
+        ).replace("customer_ref", "cust_id")
+    )
+    unwritten = tmp_path / "unwritten.json"
+    write_plan(project, unwritten)
+    refused = runner.invoke(app, ["apply", str(unwritten), *config])
+    assert refused.exit_code == 3, refused.output
+    assert "can't run" in refused.output
+    assert apply_now(project, "--yes").exit_code == 3
+
+    # Destructive, and nobody said so.
+    (project / "tables" / "orders.yml").write_text(
+        SPEC.replace(
+            "  - {name: customer_ref, type: string, renamed_from: cust_id}\n", ""
+        )
+    )
+    destructive = tmp_path / "destructive.json"
+    write_plan(project, destructive)
+    assert runner.invoke(app, ["apply", str(destructive), *config]).exit_code == 4
+    assert apply_now(project, "--yes").exit_code == 4
+    assert warehouse.ddl == [], "a refusal runs nothing"
+
+    # Everything else that stops it is a failure: 1.
+    (project / "tables" / "orders.yml").write_text(SPEC)
+    good = tmp_path / "good.json"
+    write_plan(project, good)
+    missing = runner.invoke(app, ["apply", str(tmp_path / "nope.json"), *config])
+    assert missing.exit_code == 1
+    history.locks["dev"] = "another-run"
+    locked = runner.invoke(app, ["apply", str(good), *config])
+    assert locked.exit_code == 1 and "is locked by run" in locked.output
+    del history.locks["dev"]
+    warehouse.failures["RENAME COLUMN"] = "connection reset"
+    failed = runner.invoke(app, ["apply", str(good), *config])
+    assert failed.exit_code == 1 and "Failed at step" in failed.output
+
+    assert runner.invoke(app, ["apply", "--no-such-option"]).exit_code == 2

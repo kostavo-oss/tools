@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TypeAlias
 
-from stevin.sql import maybe_quote_ident, quote_literal
+from stevin.sql import maybe_quote_ident, quote_ident, quote_literal
 
 # Spellings Databricks accepts for the same type, normalised to the left-hand name.
 # https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-datatypes
@@ -222,15 +222,24 @@ Column: TypeAlias = Field
 DataType: TypeAlias = Primitive | Decimal | Char | Varchar | Array | Map | Struct
 
 
-def render_type(data_type: DataType, *, upper: bool = False) -> str:
+def render_type(data_type: DataType, *, upper: bool = False, quoted: bool = False) -> str:
     """Render a type back to a Databricks type string.
 
     `upper` uppercases type *keywords* only — field names and comments are left
     alone, so `STRUCT<zip: STRING COMMENT 'Postal code'>` stays readable.
+
+    `quoted` is for a type that goes into a statement: every nested field's name
+    goes through `quote_ident()`, so a reserved word is a name and nothing else
+    (``STRUCT<`select`:INT>``). Without it a plain name is left bare, which is
+    the form a plan shows and a spec file is written in. Both forms parse back
+    to the same type: types are compared as values, never as text.
     """
 
     def kw(word: str) -> str:
         return word.upper() if upper else word
+
+    def nested(inner: DataType) -> str:
+        return render_type(inner, upper=upper, quoted=quoted)
 
     match data_type:
         case Primitive(name):
@@ -242,20 +251,20 @@ def render_type(data_type: DataType, *, upper: bool = False) -> str:
         case Varchar(length):
             return f"{kw('varchar')}({length})"
         case Array(element, _):
-            return f"{kw('array')}<{render_type(element, upper=upper)}>"
+            return f"{kw('array')}<{nested(element)}>"
         case Map(key, value):
-            rendered_key = render_type(key, upper=upper)
-            rendered_value = render_type(value, upper=upper)
-            return f"{kw('map')}<{rendered_key},{rendered_value}>"
+            return f"{kw('map')}<{nested(key)},{nested(value)}>"
         case Struct(fields):
-            return f"{kw('struct')}<{','.join(_render_field(f, upper) for f in fields)}>"
+            members = ",".join(_render_field(f, upper, quoted) for f in fields)
+            return f"{kw('struct')}<{members}>"
 
 
-def _render_field(field_: Field, upper: bool) -> str:
+def _render_field(field_: Field, upper: bool, quoted: bool) -> str:
     def kw(word: str) -> str:
         return word.upper() if upper else word
 
-    rendered = f"{maybe_quote_ident(field_.name)}:{render_type(field_.type, upper=upper)}"
+    name = quote_ident(field_.name) if quoted else maybe_quote_ident(field_.name)
+    rendered = f"{name}:{render_type(field_.type, upper=upper, quoted=quoted)}"
     if not field_.nullable:
         rendered += f" {kw('not null')}"
     if field_.comment is not None:

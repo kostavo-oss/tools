@@ -250,14 +250,16 @@ let off the policy, so the plan holds a step it will not run, and names the poli
 
 Make that change by hand. Everything that copies no data is planned as always: a
 column, a comment, a tag, a grant. `stevin plan --clone` is refused for such a table
-too, since the clone is a second table over the same rows: plan without it.
+too, since the clone is a second table over the same rows: plan without it. And a new
+column's `using:` is [not filled in](spec.md#adding-a-not-null-column-to-a-table-with-data):
+the fill would reach only the rows the applying principal can see.
 
 Where stevin did not read the policies, it cannot refuse. That is so when the workspace
 will not list them and when the project hands them over with `manage: {policies:
 false}`. A rewrite is then planned, and its first step that copies data carries a
 warning: stevin did not read the policies in scope of this table, so it cannot tell
-whether one masks or filters it. Check the table with
-[`stevin access`](#who-may-see-a-table) before you apply such a plan.
+whether one masks or filters it. A clone and a backfill carry the same warning. Check
+the table with [`stevin access`](#who-may-see-a-table) before you apply such a plan.
 
 They are read with [`SHOW EFFECTIVE POLICIES ON TABLE`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) and
 [`DESCRIBE POLICY`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy), which take Databricks SQL or Runtime 16.4 and above, and
@@ -331,6 +333,16 @@ whose `inherited_from` says where each one is granted. A grant on the table and 
 inherited from its schema were read from a workspace on 2026-10-10; one inherited from
 a catalog is read the same way, and no workspace has shown it to stevin yet.
 [What is still open →](testing.md#what-the-live-suite-has-not-settled)
+
+## What is there
+
+`stevin list` says what the specs describe for a target and whether each object exists.
+It makes no plan: nothing is compared with its spec, and nothing is changed.
+
+![stevin list](assets/screens/feature-list.svg)
+
+`--json` gives the list to a program that only needs to know what is there, such as a
+deploy tool's status. [`list` →](cli.md#list)
 
 ## Views
 

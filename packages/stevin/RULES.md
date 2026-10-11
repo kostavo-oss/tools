@@ -69,6 +69,21 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   names the key and its file, line and column.
   Held by: `tests/unit/test_owned_elsewhere.py::test_a_reference_with_no_value_is_an_error_at_the_key`,
   `tests/unit/test_owned_elsewhere.py::test_what_a_reference_stands_for_is_one_name`.
+- **OWN-9** — A key of `schemas:` is two parts, split on the dot outside a `${…}`
+  reference, and each part is filled in for the target on its own. A reference stands
+  for one name: a value that is empty or holds a dot or a `*` is refused, and so is a
+  reference with no value for the target. No key is left out quietly, so a schema
+  never gets the target's mode in place of its own. The error names the key and its
+  file, line and column, and a plan stops on it before the workspace is read.
+  Held by: `tests/unit/test_schema_modes.py::test_a_key_names_a_schema_the_way_the_bundle_does`,
+  `tests/unit/test_schema_modes.py::test_a_reference_with_no_value_is_an_error_at_the_key`.
+- **OWN-10** — `stevin list` reads and changes nothing. It says, for each object a spec
+  describes for the target, its name, its kind and whether an object of that kind
+  exists, and nothing about whether it matches its spec. No table is read in full and
+  no policy is asked for. `--json` is an object with `target` and `objects`, each of
+  them `name`, `kind` and `exists`.
+  Held by: `tests/unit/test_listing.py::test_it_lists_every_spec_and_whether_its_object_is_there`,
+  `tests/unit/test_listing.py::test_it_reads_and_never_writes`.
 
 ## RISK — what a step may cost
 
@@ -150,6 +165,12 @@ DDL is not transactional across statements, so there is no rollback. There is th
   anything. No answer is no: a closed stdin, as in CI, applies nothing.
   Held by: `tests/unit/test_cli_apply.py::test_apply_plans_shows_and_asks`,
   `tests/unit/test_cli_apply.py::test_no_answer_is_no`.
+- **APL-8** — A program can tell a refusal from a failure by `apply`'s exit code,
+  without reading its words. A plan that will never run exits 3: it is stale, its file
+  is not a plan this version reads, or it holds a step without SQL. A plan that
+  destroys something without `--allow-destructive` exits 4. No statement has run in
+  either case. Any other failure exits 1, and no outcome of `apply` exits 2.
+  Held by: `tests/unit/test_cli_apply.py::test_a_program_can_tell_a_refusal_from_a_failure`.
 
 ## RW — a rewrite
 
@@ -174,8 +195,7 @@ DDL is not transactional across statements, so there is no rollback. There is th
   is masked or filtered, by a mask or row filter of its own or by a row filter policy
   or column mask policy in scope of it, on the table, its schema or its catalog. The
   plan holds a step without SQL that says why (RISK-3) and, for a policy, names it.
-  That holds for a rewrite in one statement as for a staged one, and `--clone` is
-  refused the same way for a table under such a policy.
+  That holds for a rewrite in one statement as for a staged one.
   Held by: `tests/unit/test_generation.py::test_a_table_with_identity_is_never_rewritten`,
   `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_never_rewritten`,
   `tests/unit/test_policies.py::test_a_table_under_a_policy_is_never_rewritten`.
@@ -186,15 +206,33 @@ DDL is not transactional across statements, so there is no rollback. There is th
   filters the table. So does a clone made with `--clone`.
   Held by: `tests/unit/test_policies.py::test_a_rewrite_says_when_the_policies_were_not_read`,
   `tests/unit/test_policies.py::test_the_one_statement_rewrite_says_it_too_and_nothing_else_does`.
+- **RW-6** — A table whose data is masked or filtered is not cloned. `plan --clone`
+  holds, for a table with a mask or row filter of its own, one that an earlier step of
+  the same plan sets, or a row filter policy or column mask policy in scope, a clone
+  step without SQL that says why, and `apply` refuses the plan (RISK-3). Without
+  `--clone` the same plan is made as before.
+  Held by: `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_not_cloned`,
+  `tests/unit/test_policies.py::test_a_table_under_a_policy_is_not_cloned`.
+- **RW-7** — A new column's `using:` is not filled in on a table whose data is masked
+  or filtered: by a mask or row filter of its own, by one an earlier step of the same
+  plan sets, or by a row filter policy or column mask policy in scope. The plan holds a
+  backfill step without SQL that says why, whatever the expression reads, and `apply`
+  refuses the plan (RISK-3). Where the policies in scope were not read, the backfill
+  is planned and its step carries a warning that stevin cannot tell (RW-5).
+  Held by: `tests/unit/test_backfills.py::test_a_masked_or_filtered_table_is_not_backfilled`,
+  `tests/unit/test_policies.py::test_a_table_under_a_policy_is_not_backfilled`,
+  `tests/unit/test_policies.py::test_a_backfill_says_when_the_policies_were_not_read`.
 
 ## SQL — the statements
 
 - **SQL-1** — Every identifier in a statement goes through `quote_ident()`, which always
-  quotes, and every string through `quote_literal()`.
+  quotes, and every string through `quote_literal()`. That holds for a nested field's
+  name inside a type too: a statement says ``STRUCT<`select`:INT>``. A plan and a spec
+  file show a plain nested name bare, and a type is compared as a value, so how a name
+  is quoted is never a change.
   Held by: `tests/unit/test_planner.py::test_identifiers_are_always_quoted`,
+  `tests/unit/test_planner.py::test_a_nested_fields_name_is_quoted_in_every_statement`,
   `tests/unit/test_grants.py::test_principals_are_quoted`.
-  Not kept yet: #51 — a nested field's name inside a type, as in `STRUCT<select:INT>`,
-  goes through `maybe_quote_ident()`, which leaves a plain word bare.
 
 ## ACC — access
 

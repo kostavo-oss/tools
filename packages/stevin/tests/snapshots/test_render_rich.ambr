@@ -17,8 +17,8 @@
   sales.orders   ~ update  (412 GB)
     ~ amount  STRING → BIGINT
       1. REWRITE                      [rewrite]  (412 GB)
-         · not a supported widening, so the data has to be rewritten. Rewrites are planned but not 
-  generated in v1 (milestone 3)
+         · not a supported widening, so the data has to be rewritten. The planner was handed the 
+  change without the spec and the live table, so it cannot write the rewrite
   
   Plan: 0 add, 1 change, 0 destroy · 1 step · 1 rewrite · 0 warnings
   ⚠ Step 1 can't be generated: `apply` will refuse this plan. See the notes above.

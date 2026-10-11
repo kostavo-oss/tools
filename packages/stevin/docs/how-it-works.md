@@ -39,7 +39,7 @@ live (Unity Catalog) ┘                                    │
 
 Three things change a workspace and nothing else does: the executor changes the objects
 a plan names, `history.py` writes stevin's own three tables, and `stevin verify`
-(`probes.py`) makes and drops a scratch schema. Each of the fourteen commands is a
+(`probes.py`) makes and drops a scratch schema. Each of the fifteen commands is a
 function in `stevin.api`; `cli.py` parses arguments and prints.
 
 ## The model

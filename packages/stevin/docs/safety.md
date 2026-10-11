@@ -173,8 +173,10 @@ nothing but that: it says so and goes on.
 A table with a row filter policy or a column mask policy in scope is never rewritten,
 and never cloned with `--clone`: the copy would hold what the applying principal reads,
 where the policy may not reach, and a rewrite would write that back over the table. The
-plan holds a step without SQL that names the policy. Where the policies were not read, a
-rewrite is planned and says that stevin could not tell.
+plan holds a step without SQL that names the policy. A new column's `using:` is not
+filled in on such a table either, nor on one with a mask or row filter of its own: the
+fill reaches only the rows the applying principal can see. Where the policies were not
+read, a rewrite, a clone and a backfill are planned and say that stevin could not tell.
 [The policies a table is under →](features.md#the-policies-a-table-is-under)
 
 ## What a rewrite actually does
@@ -260,7 +262,10 @@ makes narrower ones instead:
   table just before the first step that could lose its data — a copy of the table as
   it was that you can query side by side with the new one. A shallow clone copies no
   data; it points at the table's current files, so it lasts until a `VACUUM` removes
-  them.
+  them. A table whose data is masked or filtered is not cloned, whether by a mask or
+  row filter of its own or by a policy: the clone would be a second table over the
+  same rows. The plan then holds a step `apply` refuses, and you plan without
+  `--clone`.
 - **No stale applies.** The state fingerprint is recomputed at apply time; if the world
   moved since the plan was made, stevin stops.
 - **One run at a time.** A lock table (with a TTL, and `force-unlock` if a run dies)

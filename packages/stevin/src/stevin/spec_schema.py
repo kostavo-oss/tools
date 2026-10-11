@@ -466,7 +466,10 @@ def project_schema() -> Schema:
                 "history_schema": _text("Where apply keeps its run history."),
                 "schemas": {
                     "type": "object",
-                    "description": "Per-schema mode, keyed catalog.schema.",
+                    "description": (
+                        "Per-schema mode, keyed catalog.schema. A ${…} reference "
+                        "is one part."
+                    ),
                     "additionalProperties": mode,
                 },
                 "bundle": _text("A databricks.yml whose targets to use."),

@@ -635,6 +635,7 @@ def test_the_one_statement_rewrite_says_it_too_and_nothing_else_does() -> None:
 def test_a_table_under_a_policy_is_not_cloned() -> None:
     """`--clone` makes a second table over the same rows, and keeps it: the
     same copy outside the policy, so it isn't planned either."""
+    # RULES.md: RW-6.
     fewer = replace(CUSTOMERS, columns=CUSTOMERS.columns[:2])
     fake = warehouse(MASK_PII)
     plan = planned(fake, fewer, clone=True)
@@ -659,6 +660,74 @@ def test_a_clone_says_when_the_policies_were_not_read() -> None:
     assert cloned.endswith("the clone is a copy the policy may not cover")
     assert staged.startswith(NOT_READ) and "this rewrite reads" in staged
     assert plan.summary.warnings == 2
+
+
+FILLED = replace(
+    CUSTOMERS,
+    columns=(*CUSTOMERS.columns, replace(col("segment", "string"), using="'retail'")),
+)
+
+
+@pytest.mark.parametrize(
+    ("policy", "named"),
+    [
+        (ON_THE_TABLE, "the row filter policy eu_only is in scope of this table"),
+        (MASK_PII, "the column mask policy mask_pii is in scope of this table"),
+    ],
+    ids=["a row filter", "a column mask"],
+)
+def test_a_table_under_a_policy_is_not_backfilled(policy: Policy, named: str) -> None:
+    """A `using:` fill is an UPDATE by the applying principal, who may see fewer
+    rows and masked values. Under a policy that is not planned, as a rewrite and
+    a clone are not."""
+    # RULES.md: RW-7.
+    fake = warehouse(policy)
+    plan = planned(fake, FILLED)
+    assert [(s.title, s.risk) for s in plan.steps] == [
+        ("ADD COLUMN segment", "meta"),
+        ("BACKFILL segment", "rewrite"),
+    ]
+    assert plan.steps[1].sql is None
+    assert plan.steps[1].note == (
+        f"{named}. The backfill is an UPDATE that runs as the applying principal: "
+        "it fills only the rows that principal can see, whatever `using:` reads, "
+        "and it writes a masked column as that principal sees it, into a column "
+        "without the mask. Add the column without `using:`, and fill it by hand "
+        "as a principal that sees every row"
+    )
+    refuses(fake, plan)
+    # A policy that is neither a filter nor a mask, or on another table, stops
+    # nothing.
+    granting = Policy("let_in", "grant", "main.sales", "schema", to=("analysts",))
+    elsewhere = replace(ON_THE_TABLE, on=ORDERS.name)
+    fake = warehouse(granting, elsewhere)
+    plan = planned(fake, FILLED)
+    assert (plan.steps[1].sql or "").startswith("UPDATE `main`.`sales`.`customers`")
+    assert plan.steps[1].warnings == ()
+    result = api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert result.ok, result.error
+
+
+@pytest.mark.parametrize("handed_over", [False, True], ids=["refused", "handed over"])
+def test_a_backfill_says_when_the_policies_were_not_read(handed_over: bool) -> None:
+    """Nothing was read, so nothing can be refused: the fill is planned, and its
+    step says what stevin doesn't know and what follows if a policy is there."""
+    # RULES.md: RW-7.
+    fake = warehouse(ON_THE_TABLE)
+    if not handed_over:
+        fake.refusals["SHOW EFFECTIVE POLICIES"] = REFUSAL
+    plan = planned(fake, FILLED, manage=Manage(("policies",)) if handed_over else None)
+    assert titles(plan) == ["ADD COLUMN segment", "BACKFILL segment"]
+    [warning] = plan.steps[1].warnings
+    assert warning.startswith(NOT_READ)
+    assert warning.endswith(
+        "so it cannot tell whether one masks or filters it. If one does, this "
+        "backfill fills only the rows the applying principal can see, and writes "
+        "a masked column as that principal sees it"
+    )
+    assert plan.steps[0].warnings == ()
+    result = api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert result.ok, result.error
 
 
 # ---------------------------------------------------------------------------

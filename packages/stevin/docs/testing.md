@@ -135,8 +135,9 @@ says `TODO(verify)` rather than pretending.
 Most of what stevin assumes about Databricks has been run against a workspace: the
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
-*a seed's INSERT OVERWRITE with a column list is accepted*). Five things are still open.
-They are six `TODO(verify)` marks in the source, because reading policies has two:
+*a seed's INSERT OVERWRITE with a column list is accepted*). Seven things are still open.
+They are nine `TODO(verify)` marks in the source: reading policies has two, and so has
+what is not copied from a masked or filtered table:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
@@ -167,8 +168,33 @@ They are six `TODO(verify)` marks in the source, because reading policies has tw
   table does not cover. So stevin refuses the rewrite (`planner._Planner._rewrite`), and
   neither consequence has been seen. Whether a `SHALLOW CLONE` of such a table is
   accepted, and whether the policy reaches the clone, is not tried either: `--clone` is
-  refused for it. There is no probe for this. It would have to create a policy, and
+  refused for it. The same holds for a table with a column mask or a row filter of its
+  own, which `--clone` is refused for too (`planner._Planner._clone_first`). The manual
+  says of [those](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
+  that "deep and shallow clones are not supported on tables that have row-level
+  security or column masks", and of
+  [ABAC](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements)
+  that clones "aren't supported on tables with ABAC policies" (both read 2026-10-11).
+  No workspace has been asked. There is no probe for this. It would have to create a policy, and
   one that applies to the principal that runs `verify`.
+
+- **A backfill of a masked or filtered table.** Not tried on a workspace: what an
+  `UPDATE … SET <column> = <using> WHERE <column> IS NULL` sees of a table with a row
+  filter or a column mask, of its own or from a policy, for a principal they apply to.
+  stevin expects that the rows a filter hides are not updated and that a masked column
+  is read masked. The manual's pages on
+  [row filters and column masks](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
+  and on [ABAC](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/requirements)
+  do not say (read 2026-10-11). So the backfill is refused for such a table
+  (`planner._Planner._add_column`), and neither consequence has been seen.
+
+- **A nested field's name, quoted in a type.** Every statement spells a type with its
+  nested names in backticks, as in ``STRUCT<`street`:STRING>`` (`planner.type_sql`).
+  [The manual](https://docs.databricks.com/aws/en/sql/language-manual/data-types/struct-type)
+  says a field's name is an identifier. No workspace has been sent one: until this was
+  changed, a plain name went out bare, and the live suite has no field with another
+  kind of name. The unit tests hold that the fake reads the type back equal to the
+  spec, for a reserved word, a name with a space and a name with a backtick.
 
 - **A grant inherited from a catalog.** `stevin access` reads where a privilege is
   granted from `table_privileges.inherited_from`. `NONE` for the table's own and
@@ -186,7 +212,13 @@ unit tests hand stevin the mapping the Databricks CLI prints for a target
 (`tests/unit/test_owned_elsewhere.py`). That the CLI names a development target's
 schema `dev_<user>_…` was read from a real CLI (`tests/integration/test_live_bundle.py`).
 No live run has planned a project whose `owned_elsewhere` names a schema by that
-reference.
+reference. The same holds for a key of `schemas:` (`tests/unit/test_schema_modes.py`).
+
+**`stevin list` — not tried on a workspace.** It sends no statement of its own: it is
+the read a plan gives a schema, without the per-table `SHOW CREATE TABLE` and without
+the policies, and that read runs in the live suite. The command itself and `apply`'s
+exit codes `3` and `4` are held offline only (`tests/unit/test_listing.py`,
+`tests/unit/test_cli_apply.py`).
 
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
 POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns

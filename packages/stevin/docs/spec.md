@@ -64,6 +64,21 @@ bundle's: stevin leaves that one alone too.
 can, so one project file serves every catalog. What the modes mean is in the
 [safety model](safety.md#additive-and-strict-schemas).
 
+A key of `schemas:` is two parts, `catalog.schema`. A `${…}` reference is one part,
+whatever dots it holds, and stands for one name. With [a bundle](bundles.md), name a
+schema the bundle deploys the way the bundle does:
+
+```yaml
+schemas:
+  ${catalog}.${resources.schemas.raw.name}: strict
+```
+
+The key follows the schema to `dev_jane_raw` on a development target and to `raw` in
+production. A reference that has no value for the target you plan against stops the
+command and names the key, with its file, line and column. So does a value that is
+empty or holds a dot or a `*`. No key is left out: a schema never gets the target's
+mode because its key could not be read.
+
 There is a runnable example of exactly this layout in
 [`examples/`](https://github.com/kostavo-oss/tools/tree/main/packages/stevin/examples).
 
@@ -509,6 +524,15 @@ The plan adds the column, fills it with
 rewrites the files holding the rows it touches, so it is classed `rewrite` and a restore
 point is recorded first. It is safe to repeat. Without `using:`, the plan still adds the
 column, but warns that `SET NOT NULL` will fail.
+
+A table whose data is masked or filtered is not filled this way: one with a
+[mask or row filter](#column-masks-and-row-filters) of its own, or under a
+[row filter or column mask policy](features.md#the-policies-a-table-is-under). The fill
+runs as the principal that applies the plan. It reaches only the rows that principal
+can see, and it writes a masked column as that principal sees it. So the plan holds a
+backfill step `apply` refuses. Add the column without `using:` and without
+`nullable: false`, fill it by hand as a principal that sees every row, and then set
+`nullable: false`.
 
 ## Seeds
 

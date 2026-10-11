@@ -85,7 +85,7 @@ src/stevin/
   executor.py, history.py   run a plan; the runs, steps and lock tables
   adopt.py, yamledit.py   live state back into a spec file's text
   probes.py, doctor.py, access.py, advice.py   verify, doctor, access, refusals
-  api.py, cli.py, serve.py   the verbs as functions, the fourteen commands, the ui page
+  api.py, cli.py, serve.py   the verbs as functions, the fifteen commands, the ui page
   sql.py, formerly.py, errors.py   quoting, the old names, StevinError
   render/       rich, markdown, json, html, compare, labels, access; base.css
 tests/unit/         offline: the fake warehouse, snapshots, the docs' pictures

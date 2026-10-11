@@ -1,8 +1,8 @@
 """Live state, read from Unity Catalog.
 
-One of the three modules that touch the outside world. Everything it returns is
-the same model the loader produces, so the differ cannot tell which side came
-from a file and which from a warehouse.
+It reads a workspace and changes nothing. Everything it returns is the same
+model the loader produces, so the differ cannot tell which side came from a file
+and which from a warehouse.
 
 Reads are done with `information_schema` (one query per schema, not per table)
 plus `DESCRIBE DETAIL` for the things it doesn't carry — properties, clustering

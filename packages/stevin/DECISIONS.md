@@ -111,3 +111,47 @@ document, the changelog and git; each carries the date of the decision.
     the first reason. Where the policies were not read, a rewrite is planned with a
     warning (RW-5): refusing there would refuse every rewrite of a project that hands
     policies over.
+25. **2026-10-11 — A key of `schemas:` is read as a key of `owned_elsewhere` is**
+    (OWN-9): split first, each part filled in on its own, and an error at the key when
+    a reference has no one name for the target. Why an error: a key that is left out
+    gives its schema the target's mode. Under a `strict` target, a schema the file
+    marks `additive` then has its orphaned tables dropped, and under an `additive`
+    target a schema marked `strict` keeps them without a word. Rejected: leaving the
+    key out only where that is the safe side, when the target is `additive`. The file
+    would then be read by two rules, and a `strict` that does nothing is still not
+    what it says.
+26. **2026-10-11 — A nested field's name is quoted in a statement and bare where it is
+    shown** (SQL-1). Why: `STRUCT<select:INT>` leaves it to Databricks whether `select`
+    is a name there, and a rule with an exception for types is a rule a reader has to
+    check each time. A type is compared as a value, so the two spellings cannot turn
+    into drift. Rejected: saying in the rule that a plain nested name is left bare,
+    with a probe for a reserved word. That keeps a second way to put a name into SQL.
+    A quoted nested name is read from the manual and has not been sent to a workspace.
+27. **2026-10-11 — The refusal covers every step that reads a table's data to write it
+    somewhere: a rewrite, a clone, a backfill** (RW-4, RW-6, RW-7). Entry 24 refused
+    the rewrite and the clone under a policy. A clone of a table with a mask or row
+    filter of its own was still planned, and so was a `using:` backfill on any masked
+    or filtered table. Why they are refused too: each runs as the applying principal.
+    A clone is a second table over the same rows, which stevin keeps. A backfill is an
+    `UPDATE` that reaches only the rows that principal can see, so the rows a filter
+    hides stay NULL and a `NOT NULL` after it fails or passes for the wrong reason,
+    and it writes a masked column as the principal sees it into a column without the
+    mask. The first of those holds for a `using:` that reads a constant or another
+    table, so the expression is not looked at. Put aside: a warning on the step, for
+    the reason in entry 24, and refusing only a `using:` that names a masked column,
+    which leaves the hidden rows. The manual says a table with a row filter or column
+    mask is not cloned at all. It does not say what an `UPDATE` sees. None of this has
+    been tried on a workspace: the refusals are the safe side of untested questions.
+28. **2026-10-11 — A refusal is an exit code, and the listing is a command of its own**
+    (APL-8, OWN-10). A program that runs `apply` could tell a stale plan from a failed
+    step only by matching stevin's sentences. Why exit codes: `drift` already answers
+    with one, a code cannot be reworded, and it is there when the output is wrapped or
+    lost. Why 3 and 4, not 2: the command line itself exits 2 for an option it does
+    not know, and `drift` uses 2 for drifted. Why two codes: "plan again" and "say
+    `--allow-destructive`" are different things to do next. Put aside: a `--format
+    json` result for `apply`, a second output format to keep true for one field.
+    Why `list` is a command and not an option: `drift` exists to diff and its exit code
+    means drifted, `import` writes files for one schema, and `access` is about one
+    table and who may read it. An option that turns one of them into "list and do not
+    diff" would undo what that command is for. It uses `--json`, as `doctor`, `verify`
+    and `access` do; `--format` is for the renderings of a plan.

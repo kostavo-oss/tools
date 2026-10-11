@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`stevin list` says what the specs describe and whether each object is there.** One
+  line per spec: its name, its kind, and `exists` or `not there`. It makes no plan and
+  changes nothing, so it is the cheap way for a program to ask what exists: `--json`
+  gives `{"target": …, "objects": [{"name": …, "kind": …, "exists": …}]}`.
+
 ### Fixed
 
 - **`owned_elsewhere` can name a schema the way a bundle does.** A key such as
@@ -14,7 +21,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   part, whatever it holds, and stands for the name the target deploys: `dev_jane_raw`
   on a development target, `raw` in production.
 
+- **A key of `schemas:` can name a schema the way a bundle does.** A key such as
+  `${catalog}.${resources.schemas.raw.name}: strict` was refused, for the same reason.
+  A `${…}` reference is now one part of the key there too.
+
 ### Changed
+
+- **`apply` exits 3 or 4 for a refusal, where it exited 1.** A program could not tell
+  a plan that will never run from a step that failed. `apply` now exits `3` when the
+  plan is stale, when its file is not a plan this version reads, or when it holds a
+  step stevin could not write: plan again. It exits `4` when the plan destroys
+  something and `--allow-destructive` was not given. A failure is still `1`. `show`
+  and `ui` exit `3` too for a file that is not a plan. A script that tests for
+  exactly `1` has to change; one that tests for non-zero does not.
+
+- **A key of `schemas:` that has no value for a target is an error.** A key with a
+  variable the target does not define was left out without a word, and its schema got
+  the target's mode: under a `strict` target, a schema marked `additive` had its
+  orphaned tables planned as drops. `plan`, `drift`, `apply` and `validate` now stop
+  and name the key, with its file, line and column, before the workspace is read. The
+  same holds for a reference whose value is empty or holds a dot or a `*`.
 
 - **A key of `owned_elsewhere` that has no value for a target is an error.** A key
   with a variable the target does not define was left out without a word, and the
@@ -23,6 +49,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whose value is empty or holds a dot or a `*`: a reference stands for one name.
   `validate` asks no Databricks CLI, so for a name only the CLI knows it reads the key
   and the specs with the same name standing in, and says which names it left unsettled.
+
+- **A nested field's name in a type is always quoted in a statement.** A struct was
+  sent as `STRUCT<street:STRING>`, and a field called `select` or `from` went out bare.
+  Every statement now says ``STRUCT<`street`:STRING>``: in `CREATE TABLE`, `ADD
+  COLUMNS`, a function's parameters and the casts of a rewrite. A plan still shows the
+  type without the backticks, and nothing is planned for a table because of it. This
+  has not been sent to a workspace yet.
+
+- **`plan --clone` no longer clones a table that has a column mask or a row filter of
+  its own.** The clone was planned, as a second table over the same rows. The plan now
+  holds a step `apply` refuses: *this table has a column mask or row filter, and a
+  clone would be a copy of its data that may not carry them. Plan without --clone: the
+  table's Delta version is recorded either way.* That is what a table under a policy
+  already got. The Databricks manual says such a table cannot be cloned at all; this
+  has not been tried on a workspace.
+
+- **A new column's `using:` is no longer filled in on a masked or filtered table.** A
+  new column with `using:` was filled with an `UPDATE`, also on a table with a column
+  mask or row filter of its own or under a row filter or column mask policy. That
+  `UPDATE` runs as the applying principal: it reaches only the rows that principal
+  can see, and it writes a masked column as the principal sees it into a column
+  without the mask. The plan now holds a backfill step `apply` refuses, which says so
+  and what to do: add the column without `using:`, and fill it by hand as a principal
+  that sees every row. This holds whatever the expression reads. Where stevin did not
+  read the policies, the backfill is planned with a warning. What an `UPDATE` sees of
+  such a table has not been tried on a workspace.
 
 - **A table under an ABAC row filter or column mask policy is no longer rewritten.** A
   change that needs a rewrite, such as a type that cannot be widened or new

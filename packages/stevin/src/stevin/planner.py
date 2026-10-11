@@ -187,6 +187,9 @@ class _Planner:
         #: What is known of each table planned so far, for a step that copies
         #: its data: the policies it is under decide whether it may.
         self._facts: dict[str, TableFacts] = {}
+        #: The tables with a column mask or row filter of their own: the ones
+        #: read with one, and the ones an earlier step of this plan sets one on.
+        self._protected: set[str] = set()
         #: The table being planned, for a step that needs its column types.
         self._desired: Table | None = None
         self._clone_suffix = clone_suffix
@@ -254,6 +257,26 @@ class _Planner:
         self._cloned.add(table)
         backup = backup_name(table, self._clone_suffix)
         facts = self._facts.get(table)
+        if table in self._protected:
+            # A second table over the same rows, which stevin keeps. Whether a
+            # clone carries the mask or the filter is not something stevin has
+            # seen, and the manual says such a table is not cloned at all:
+            # "Deep and shallow clones are not supported on tables that have
+            # row-level security or column masks" (read 2026-10-11).
+            # https://docs.databricks.com/aws/en/tables/row-and-column-filters
+            # Not planned (RULES.md, RW-6). TODO(verify): not tried on a workspace.
+            self.emit(
+                table,
+                "CLONE backup",
+                "meta",
+                sql=None,
+                note=(
+                    "this table has a column mask or row filter, and a clone would "
+                    "be a copy of its data that may not carry them. Plan without "
+                    "--clone: the table's Delta version is recorded either way"
+                ),
+            )
+            return
         policies = reaching_the_data(facts.policies) if facts else ()
         if policies:
             # The same exposure as a staging copy: a second table that reads the
@@ -297,6 +320,17 @@ class _Planner:
                 "files, so it lasts until a VACUUM removes them"
             ),
         )
+
+    def _masked_or_filtered(self, table: str, facts: TableFacts) -> str | None:
+        """What masks or filters this table's data, as the start of a sentence, or
+        None: a mask or row filter of its own, read or set earlier in this plan,
+        or the row filter and column mask policies in scope of it."""
+        if table in self._protected:
+            return "this table has a column mask or row filter"
+        policies = reaching_the_data(facts.policies)
+        if policies:
+            return f"{_in_scope(policies)} of this table"
+        return None
 
     def _policies_unread(self, facts: TableFacts) -> str | None:
         """What a step that copies a table's data says when nobody read the
@@ -424,6 +458,8 @@ class _Planner:
         self._kind = table_diff.facts.kind
         if self._kind == "table":
             self._facts[table_diff.table] = table_diff.facts
+        if isinstance(table_diff.live, Table) and table_diff.live.protected:
+            self._protected.add(table_diff.table)
         self._desired = (
             table_diff.desired if isinstance(table_diff.desired, Table) else None
         )
@@ -1031,6 +1067,8 @@ class _Planner:
                 else f"ALTER TABLE {table} ALTER COLUMN {column} DROP MASK"
             ),
         )
+        # From here on in this plan, the table is one whose data is masked.
+        self._protected.add(change.table)
 
     def _row_filter(self, change: Change) -> None:
         row_filter = change.after
@@ -1053,6 +1091,7 @@ class _Planner:
                 else f"ALTER TABLE {table} DROP ROW FILTER"
             ),
         )
+        self._protected.add(change.table)
 
     def _grant(self, change: Change) -> None:
         privileges = change.after if isinstance(change.after, tuple) else ()
@@ -1510,9 +1549,7 @@ class _Planner:
             self.need_column_mapping(facts, change.path)
         # A column is always added nullable: on a table with rows, every existing
         # row would violate NOT NULL. The constraint is a separate step.
-        definition = (
-            f"{column_path_sql(change.path)} {render_type(column.type, upper=True)}"
-        )
+        definition = f"{column_path_sql(change.path)} {type_sql(column.type)}"
         if column.comment is not None:
             definition += f" COMMENT {quote_literal(column.comment)}"
         self.emit(
@@ -1523,11 +1560,40 @@ class _Planner:
             sql=f"ALTER TABLE {quote_qualified(change.table)} ADD COLUMNS ({definition})",
         )
         backfilled = column.using is not None and not change.nested and facts.exists
-        if backfilled:
+        hidden = self._masked_or_filtered(change.table, facts) if backfilled else None
+        if backfilled and hidden:
+            # The fill is an UPDATE of the table by the applying principal. A row
+            # filter that hides rows from that principal hides them from the
+            # UPDATE, so they stay NULL; and a masked column `using:` reads is
+            # written as the principal sees it, into a column without the mask.
+            # The first holds whatever `using:` reads, a constant too. stevin
+            # can't tell whether the principal is let off, so the fill is not
+            # planned (RULES.md, RW-7; DECISIONS.md, 27). TODO(verify): what an
+            # UPDATE sees of such a table has not been tried on a workspace, and
+            # the manual does not say.
+            self.emit(
+                change.table,
+                f"BACKFILL {change.path}",
+                "rewrite",
+                path=change.path,
+                sql=None,
+                est_bytes=facts.size_bytes,
+                note=(
+                    f"{hidden}. The backfill is an UPDATE that runs as the applying "
+                    "principal: it fills only the rows that principal can see, "
+                    "whatever `using:` reads, and it writes a masked column as that "
+                    "principal sees it, into a column without the mask. Add the "
+                    "column without `using:`"
+                    + ("" if column.nullable else " and without `nullable: false`")
+                    + ", and fill it by hand as a principal that sees every row"
+                ),
+            )
+        elif backfilled:
             # `using:` says how to get this column's value from the rest of the
             # row. On a column being added, that fills the rows already there —
             # which is what lets a NOT NULL column be added to a table with data.
             column_sql = quote_ident(column.name)
+            unread = self._policies_unread(facts)
             self.emit(
                 change.table,
                 f"BACKFILL {change.path}",
@@ -1539,6 +1605,15 @@ class _Planner:
                 ),
                 est_bytes=facts.size_bytes,
                 undo_hint=_restore_hint(facts),
+                warnings=(
+                    (
+                        f"{unread}. If one does, this backfill fills only the rows "
+                        "the applying principal can see, and writes a masked column "
+                        "as that principal sees it",
+                    )
+                    if unread
+                    else ()
+                ),
                 note="rewrites the files holding rows it fills; safe to repeat",
             )
         if not column.nullable:
@@ -1600,7 +1675,7 @@ class _Planner:
         widened = as_data_type(after)
         if widened is not None:
             self.need_timestamp_ntz(facts, change.path, widened)
-        rendered = render_type(widened, upper=True) if widened is not None else ""
+        rendered = type_sql(widened) if widened is not None else ""
         self.emit(
             change.table,
             "ALTER COLUMN TYPE",
@@ -1747,7 +1822,10 @@ class _Planner:
             sql=None,
             est_bytes=facts.size_bytes,
             undo_hint=_restore_hint(facts),
-            note=f"{note}. Rewrites are planned but not generated in v1 (milestone 3)",
+            note=(
+                f"{note}. The planner was handed the change without the spec and "
+                "the live table, so it cannot write the rewrite"
+            ),
         )
 
 
@@ -1759,6 +1837,19 @@ class _Planner:
 def column_path_sql(path: str) -> str:
     """Quote a nested column path segment by segment: ``address.zip``."""
     return ".".join(quote_ident(part) for part in path.split("."))
+
+
+def type_sql(data_type: DataType) -> str:
+    """A type as a statement spells it: keywords in upper case, and every nested
+    field's name through `quote_ident()`, as every other name in a statement is.
+
+    ``STRUCT<`select`:INT,`from`:STRING>``, never `STRUCT<select:INT,from:STRING>`.
+    A field's name in a type is an identifier, and an identifier may be quoted:
+    https://docs.databricks.com/aws/en/sql/language-manual/data-types/struct-type
+    TODO(verify): read from the manual. No workspace has been sent a type with
+    its nested names quoted.
+    """
+    return render_type(data_type, upper=True, quoted=True)
 
 
 def set_tags_sql(
@@ -1845,12 +1936,11 @@ def create_function_sql(function: Function, *, replace: bool = False) -> str:
     """
     verb = "CREATE OR REPLACE FUNCTION" if replace else "CREATE FUNCTION IF NOT EXISTS"
     parameters = ", ".join(
-        f"{quote_ident(p.name)} {render_type(p.type, upper=True)}"
-        for p in function.parameters
+        f"{quote_ident(p.name)} {type_sql(p.type)}" for p in function.parameters
     )
     lines = [
         f"{verb} {quote_qualified(function.name)}({parameters})",
-        f"RETURNS {render_type(function.returns, upper=True)}",
+        f"RETURNS {type_sql(function.returns)}",
     ]
     if function.comment is not None:
         lines.append(f"COMMENT {quote_literal(function.comment)}")
@@ -1911,7 +2001,7 @@ def create_table_sql(table: Table) -> str:
 
 
 def _column_definition(column: Field) -> str:
-    definition = f"{quote_ident(column.name)} {render_type(column.type, upper=True)}"
+    definition = f"{quote_ident(column.name)} {type_sql(column.type)}"
     if not column.nullable:
         definition += " NOT NULL"
     if column.comment is not None:
@@ -2170,7 +2260,7 @@ def _live_counterpart(column: Field, live: Table) -> Field | None:
 def _value_expression(column: Field, source: Field | None) -> str | None:
     if source is None:
         # A column that isn't there yet starts out empty.
-        return f"CAST(NULL AS {render_type(column.type, upper=True)})"
+        return f"CAST(NULL AS {type_sql(column.type)})"
     return _convert(column.type, source.type, quote_ident(source.name))
 
 
@@ -2186,7 +2276,7 @@ def _convert(desired: DataType, live: DataType, reference: str) -> str | None:
     if _is_scalar(desired) and _is_scalar(live):
         # Any scalar to any other scalar is a cast. Whether it is a *sensible*
         # cast is Databricks' call — and `using:` is there for when it isn't.
-        return f"CAST({reference} AS {render_type(desired, upper=True)})"
+        return f"CAST({reference} AS {type_sql(desired)})"
     if type_kind(desired) != type_kind(live):
         # A struct becoming an array, or a scalar becoming a struct: there is no
         # conversion to guess at.
@@ -2226,7 +2316,7 @@ def _struct_expression(desired: Struct, live: Struct, reference: str) -> str | N
         expression = (
             _convert(member.type, source.type, child)
             if source is not None and child is not None
-            else f"CAST(NULL AS {render_type(member.type, upper=True)})"
+            else f"CAST(NULL AS {type_sql(member.type)})"
         )
         if expression is None:
             return None

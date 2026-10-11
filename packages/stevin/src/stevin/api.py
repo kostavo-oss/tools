@@ -27,6 +27,7 @@ from stevin.adopt import Adoption
 from stevin.connect import Connection
 from stevin.executor import ExecutionResult, Executor, Status
 from stevin.history import DeltaHistory, HistoryStore, NoHistory
+from stevin.introspect import LiveSchema
 from stevin.loader import (
     Diagnostic,
     Project,
@@ -73,13 +74,17 @@ def plan(
     say — so they aren't read twice.
 
     Raises `SpecErrors` if a spec can't be read, `SpecError` if a key of
-    `owned_elsewhere` has no one name for this target, `PlanningError` if the specs
+    `owned_elsewhere` or `schemas` has no one name for this target,
+    `PlanningError` if the specs
     can't be planned together — two files describing one name, a function spec
     that no mask or row filter names — and `IntrospectionError` if the
     workspace can't be read.
     """
     specs = specs if specs is not None else project.load_specs(target)
     owners = project.owners(target)
+    # Read before the workspace is: a `schemas:` key with no one name for this
+    # target is an error at the key, never a schema in the target's mode.
+    modes = project.modes(target)
     # Two files for one name, a function spec nothing masks or filters with, a
     # spec for dbt's table: refused here rather than in `plan_tables`, which has
     # no files to name — and before `select`, which must not hide any of them.
@@ -96,7 +101,7 @@ def plan(
         connection.introspector(project.manage, parallel),
         target=target.name,
         tool_version=package_version(),
-        mode_for=lambda schema: project.mode_for(target, schema),
+        mode_for=lambda schema: modes.get(schema.lower(), target.mode),
         check_order=check_order,
         clone=clone,
         select=chosen,
@@ -172,12 +177,81 @@ def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:
         # An `owned_elsewhere` key that has no one name for this target.
         owners = None
         about_owners = (Diagnostic("error", error.message, str(error.loc)),)
+    try:
+        project.modes(target)
+        about_modes: tuple[Diagnostic, ...] = ()
+    except SpecError as error:
+        # A `schemas:` key that has no one name for this target.
+        about_modes = (Diagnostic("error", error.message, str(error.loc)),)
     return (
         *specs.diagnostics,
         *cycles(specs.files),
         *about_owners,
+        *about_modes,
         *owned_diagnostics(specs.files, owners),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Listed:
+    """One object a spec describes, and whether it is in the workspace.
+
+    `kind` is `table`, `view`, `function`, `schema` or `volume`. `exists` is
+    whether an object of that kind is there under that name: nothing is said
+    about whether it matches its spec, which is what a plan is for.
+    """
+
+    name: str
+    kind: str
+    exists: bool
+
+
+def listing(
+    project: Project,
+    target: Target,
+    connection: Connection,
+    *,
+    select: Callable[[str], bool] | Sequence[str] | str | None = None,
+    specs: Specs | None = None,
+    parallel: int = 8,
+) -> tuple[Listed, ...]:
+    """The objects the specs describe for a target, and whether each exists.
+
+    It reads and writes nothing. It diffs nothing either: each schema the specs
+    name gets the light read a plan gives the tables it does not describe, with
+    no `SHOW CREATE TABLE` and no policies, and the answer is one line per
+    spec, in the order the specs were found. `select` narrows it as it does for
+    `plan`.
+
+    Raises `SpecErrors` if a spec can't be read, `PlanningError` for a name
+    that is not `catalog.schema.name` or a selection that matches no spec, and
+    `IntrospectionError` if the workspace can't be read.
+    """
+    specs = specs if specs is not None else project.load_specs(target)
+    relations = specs.relations
+    chosen = _selector(select, [relation.name for relation in relations])
+    if chosen is not None:
+        relations = tuple(r for r in relations if chosen(r.name))
+    reader = connection.introspector(project.manage.without_policies(), parallel)
+    schemas: dict[tuple[str, str], LiveSchema] = {}
+    listed: list[Listed] = []
+    for relation in relations:
+        kind = kind_of(relation)
+        if len(relation.parts) != (2 if kind == "schema" else 3):
+            raise PlanningError(
+                f"name {relation.name!r} must be "
+                + ("catalog.schema" if kind == "schema" else "catalog.schema.name")
+            )
+        key = (relation.parts[0], relation.parts[1])
+        if key not in schemas:
+            # No table is read in full: whether it is there is all that is asked.
+            schemas[key] = reader.schema(*key, full=())
+        found = schemas[key]
+        exists = found.exists and (
+            kind == "schema" or found.relation(relation.name, kind) is not None
+        )
+        listed.append(Listed(relation.name, kind, exists))
+    return tuple(listed)
 
 
 def apply(
@@ -209,7 +283,8 @@ def apply(
 
     Raises `StalePlan` if the live objects have moved since the plan was made,
     `DestructiveRefused` if it would destroy something and `allow_destructive`
-    says nothing, `ExecutionError` for anything else that stops it. A step that
+    says nothing, `CannotRun` (`stevin.executor`) if it holds a step without
+    SQL, `ExecutionError` for anything else that stops it. A step that
     fails once it is running doesn't raise: the result says which one, so the
     rest of the run is on record.
     """

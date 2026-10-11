@@ -912,6 +912,37 @@ def feature_access(studio: Studio) -> None:
 
 
 @scene
+def feature_list(studio: Studio) -> None:
+    """What the specs describe, and whether each is there: no plan is made."""
+    studio.write(
+        "tables/orders.yml",
+        """\
+        table: ${catalog}.sales.orders
+        columns:
+          - {name: order_id, type: bigint}
+        """,
+    )
+    studio.apply()
+    studio.write(
+        "tables/customers.yml",
+        """\
+        table: ${catalog}.sales.customers
+        columns:
+          - {name: customer_id, type: bigint}
+        """,
+    )
+    studio.write(
+        "tables/big_orders.yml",
+        """\
+        view: ${catalog}.sales.big_orders
+        query: SELECT order_id FROM ${catalog}.sales.orders
+        """,
+    )
+    studio.shoot("feature-list", "stevin list")
+    assert studio.exit_code == 0
+
+
+@scene
 def feature_views(studio: Studio) -> None:
     orders = """\
         table: ${catalog}.sales.orders

@@ -1885,7 +1885,11 @@ def _project(select: str, source: Table) -> Fields:
 
 def _infer(expression: str, source: Table, env: dict[str, DataType]) -> DataType:
     text = expression.strip()
-    if match := re.fullmatch(r"CAST\((.*) AS ([A-Za-z0-9_<>(), ]+)\)", text, re.DOTALL):
+    # The type of a cast: type words, and a nested field's name in backticks,
+    # which is how a statement spells one (`` STRUCT<`select`:INT> ``).
+    if match := re.fullmatch(
+        r"CAST\((.*) AS ((?:`(?:[^`]|``)*`|[A-Za-z0-9_<>(),: ])+)\)", text, re.DOTALL
+    ):
         return parse_type(match.group(2))
     if text.startswith("named_struct(") and text.endswith(")"):
         arguments = _split_args(text[len("named_struct(") : -1])

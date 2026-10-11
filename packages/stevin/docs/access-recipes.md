@@ -181,9 +181,9 @@ Plainly, because no tool removes it:
   the function on the table's real size before the spec names it.
 - **Governed tables have limits**, from
   [row filters and column masks](https://docs.databricks.com/aws/en/tables/row-and-column-filters):
-  no deep or shallow clone, so `plan --clone` cannot back one up (the clone step fails
-  on the workspace; take a `CREATE TABLE … DEEP CLONE` of the *unprotected* source
-  before adding the filter if you need one); `MERGE` into a table whose filter or mask
+  no deep or shallow clone, so `plan --clone` does not back one up (the plan holds a
+  clone step `apply` refuses; take a `CREATE TABLE … DEEP CLONE` of the *unprotected*
+  source before adding the filter if you need one); `MERGE` into a table whose filter or mask
   has nesting, aggregation, a window, a limit or a non-deterministic function is
   refused; no time travel through a filter or mask; and **Delta Sharing does not share
   a table with a row filter or a column mask**. The sharing shape is a filtered view, and
