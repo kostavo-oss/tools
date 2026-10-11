@@ -1,0 +1,13 @@
+version: 1
+specs: [tables]
+history_schema: ${catalog}.stevin
+
+targets:
+  dev:
+    vars:
+      catalog: dev
+      analysts: dev-analysts
+
+contract_roles:                # a role in a contract: who it is here
+  consumer: ${analysts}
+  steward: [data-stewards]

@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A data contract's roles can become grants.** A contract says who may use its data
+  in `roles`: a name and an `access` level. With `contract_roles:` in `stevin.yml`,
+  which maps a role to the principals it means and may use the target's variables,
+  every table whose spec points at the contract with `from_contract:` gets them as
+  grants: `read` gives `SELECT`, `write` gives `SELECT` and `MODIFY`. They join the
+  spec's own `grants:` and are planned as any grant is. A role the map does not name
+  is refused, and so is a role with no `access` or with one stevin does not know,
+  unless the map gives that role `[]`, which means nobody. Without the key nothing
+  changes: a contract's roles are not read, and `validate` says so in a warning.
+  Taking a role out of a contract revokes nothing, as taking a grant out of a spec
+  revokes nothing. Built against the fake warehouse: no workspace has taken a grant
+  that came from a contract.
+
 ## [0.4.0a3] - 2026-10-11
 
 ### Added

@@ -38,6 +38,7 @@
         grants=tuple(
         ),
         name='main.sales.orders',
+        own_grants=None,
         owner=None,
         partitioned_by=None,
         properties=tuple(

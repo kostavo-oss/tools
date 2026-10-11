@@ -240,11 +240,29 @@ def validate(
     variables = {**variables, **standing_in}
     unresolved = {n: why for n, why in unresolved.items() if n not in standing_in}
 
+    # Who a data contract's roles are, when the project says: read with the
+    # same names standing in. Without a target there are no variables to fill
+    # in, as for the specs themselves.
+    roles = None
+    if found is not None and found.contract_roles is not None:
+        try:
+            roles = found.roles(
+                replace(
+                    chosen or Target("none"),
+                    variables=tuple(sorted(variables.items())),
+                    unresolved=tuple(sorted(unresolved.items())),
+                    resources=(),
+                )
+            )
+        except SpecError as error:
+            err.print(f"[red]{escape(str(error))}[/]")
+            raise typer.Exit(1) from error
+
     problems = 0
     read: list[LoadedSpec] = []
     for path in files:
         try:
-            table = load_spec(path, variables, unresolved, manage)
+            table = load_spec(path, variables, unresolved, manage, roles)
         except SpecError as error:
             err.print(f"[red]{escape(str(error))}[/]")
             problems += 1

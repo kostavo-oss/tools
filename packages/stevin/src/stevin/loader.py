@@ -33,7 +33,13 @@ from stevin.bundle import (
     ask_cli,
     read_bundle,
 )
-from stevin.contract import ContractError, read_contract
+from stevin.contract import (
+    ROLES_KEY,
+    ContractError,
+    read_contract,
+    role_grants,
+    role_names,
+)
 from stevin.errors import StevinError
 from stevin.manage import ASPECT_OF, EVERYTHING, MANAGEABLE, Manage, strip
 from stevin.model.function import Function, Parameter
@@ -259,6 +265,12 @@ class Project:
     #: `dbt: manifest:` — where dbt wrote `manifest.json`, so what dbt builds is
     #: dbt's. Read when a plan is made, not when the project is.
     dbt_manifest: Path | None = None
+    #: `contract_roles:` as written, `${var}` and all: a role a data contract
+    #: names, to the principals it means. None when the file has no such key,
+    #: which is not the same as an empty one: without the key no role is read.
+    contract_roles: tuple[tuple[str, tuple[str, ...]], ...] | None = None
+    #: Where each role was written, for a message about one of them.
+    contract_roles_locs: tuple[tuple[str, Loc], ...] = ()
 
     @classmethod
     def load(cls, path: Path | str, environ: Mapping[str, str] | None = None) -> Project:
@@ -356,9 +368,13 @@ class Project:
         files: list[LoadedSpec] = []
         failures: list[SpecError] = []
         diagnostics: list[Diagnostic] = []
+        try:
+            roles = self.roles(target)
+        except SpecError as error:
+            raise SpecErrors([error]) from error
         for path in spec_files(self):
             try:
-                relation = load_spec(path, variables, unresolved, self.manage)
+                relation = load_spec(path, variables, unresolved, self.manage, roles)
             except SpecError as error:
                 failures.append(error)
                 continue
@@ -368,6 +384,44 @@ class Project:
             raise SpecErrors(failures)
         diagnostics.extend((*shared_names(files), *unreferenced_functions(files)))
         return Specs(tuple(files), tuple(diagnostics))
+
+    def roles(self, target: Target) -> dict[str, tuple[str, ...]] | None:
+        """`contract_roles:` for one target: a role to the principals it means,
+        with the target's variables in. None when the file has no such key, and
+        a contract's roles are then not read.
+
+        Raises `SpecError`, at the role, when a reference has no value for this
+        target or a principal comes out empty: a principal that was quietly
+        left out would be a grant the file asks for and nobody gets.
+        """
+        if self.contract_roles is None:
+            return None
+        locs = dict(self.contract_roles_locs)
+        variables = target.variables_map()
+        unresolved = target.unresolved_map()
+        roles: dict[str, tuple[str, ...]] = {}
+        for role, principals in self.contract_roles:
+            loc = locs.get(role) or Loc(self.root / CONFIG_NAMES[0], 1, 1)
+            filled: list[str] = []
+            for principal in principals:
+                try:
+                    value = substitute(principal, variables, unresolved).strip()
+                except KeyError as error:
+                    raise SpecError(
+                        f"{ROLES_KEY}, role {role!r}, for target {target.name!r}: "
+                        f"{error.args[0]}",
+                        loc,
+                    ) from error
+                if not value:
+                    raise SpecError(
+                        f"{ROLES_KEY}, role {role!r}: {principal} is empty for "
+                        f"target {target.name!r}. Name a principal, or write `[]` "
+                        "for nobody",
+                        loc,
+                    )
+                filled.append(value)
+            roles[role] = tuple(dict.fromkeys(filled))
+        return roles
 
     def history_schema_for(self, target: Target) -> str | None:
         if self.history_schema is None:
@@ -535,6 +589,9 @@ class _Ctx:
     raw: bool = False
     #: What this project hands to another tool; those keys are refused here.
     manage: Manage = EVERYTHING
+    #: The project's `contract_roles:` for this target: a role to its
+    #: principals. None when the project has no such key, or there is no project.
+    contract_roles: tuple[tuple[str, tuple[str, ...]], ...] | None = None
 
     def loc(self, node: Node) -> Loc:
         mark = node.start_mark
@@ -1090,9 +1147,13 @@ def load_spec(
     variables: Mapping[str, str] | None = None,
     unresolved: Mapping[str, str] | None = None,
     manage: Manage = EVERYTHING,
+    contract_roles: Mapping[str, tuple[str, ...]] | None = None,
 ) -> Relation:
     """Read one spec file: a table, or — with a `view:` or `function:` key — one
-    of those. A `.sql` file is a CREATE statement, read by `stevin.sqlspec`."""
+    of those. A `.sql` file is a CREATE statement, read by `stevin.sqlspec`.
+
+    `contract_roles` is `Project.roles` for the target: with it, the roles of a
+    data contract a spec points at become grants on the table."""
     if path.suffix.lower() == ".sql":
         # Imported here: sqlspec builds on this module's variables and errors.
         from stevin.sqlspec import load_sql_spec
@@ -1104,7 +1165,7 @@ def load_spec(
         raise SpecError(f"cannot read spec: {error}", Loc(path, 1, 1)) from error
     except UnicodeDecodeError as error:
         raise not_utf8(path, error) from error
-    return load_spec_text(text, path, variables, unresolved, manage)
+    return load_spec_text(text, path, variables, unresolved, manage, contract_roles)
 
 
 def load_spec_text(
@@ -1113,6 +1174,7 @@ def load_spec_text(
     variables: Mapping[str, str] | None = None,
     unresolved: Mapping[str, str] | None = None,
     manage: Manage = EVERYTHING,
+    contract_roles: Mapping[str, tuple[str, ...]] | None = None,
 ) -> Relation:
     """The same, from text that isn't on disk yet — what `adopt` checks its own
     work with. `path` is only for the errors, which still name a file and a line.
@@ -1122,6 +1184,9 @@ def load_spec_text(
         tuple(sorted((variables or {}).items())),
         tuple(sorted((unresolved or {}).items())),
         manage=manage,
+        contract_roles=(
+            tuple(contract_roles.items()) if contract_roles is not None else None
+        ),
     )
     node = _compose_text(text, path)
     if node is None:
@@ -1362,6 +1427,12 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
     grants: tuple[Grant, ...] = ()
     if "grants" in items:
         grants = _read_grants(ctx, items["grants"][0])
+    own_grants: tuple[Grant, ...] | None = None
+    if contract is not None and contract.grants:
+        # The contract's roles, as grants beside the spec's own: a principal
+        # both name gets what they give together.
+        own_grants = grants
+        grants = _grants_together(grants, contract.grants)
     row_filter = None
     if "row_filter" in items:
         row_filter = _read_row_filter(ctx, items["row_filter"][0])
@@ -1395,6 +1466,19 @@ def _read_table(ctx: _Ctx, node: Node, items: dict[str, tuple[Node, Loc]]) -> Ta
         from_contract=contract.written if contract is not None else None,
         contract_port=contract.port if contract is not None else None,
         contract_notes=contract.notes if contract is not None else (),
+        own_grants=own_grants,
+    )
+
+
+def _grants_together(*several: tuple[Grant, ...]) -> tuple[Grant, ...]:
+    """Grants from more than one place as one list: a principal once, with
+    every privilege any of them gives it."""
+    privileges: dict[str, set[str]] = {}
+    for grants in several:
+        for grant in grants:
+            privileges.setdefault(grant.principal, set()).update(grant.privileges)
+    return tuple(
+        Grant(principal, tuple(sorted(found))) for principal, found in privileges.items()
     )
 
 
@@ -1417,6 +1501,8 @@ class _ContractShape:
     comment: str | None
     tags: tuple[tuple[str, str], ...]
     notes: tuple[str, ...]
+    #: What the contract's roles grant, when the project says who they are.
+    grants: tuple[Grant, ...] = ()
 
 
 def _contract_shape(
@@ -1457,6 +1543,13 @@ def _contract_shape(
             if port is not None
             else contract.object_or_only(name.split(".")[-1])
         )
+        # Roles are read only in a project that says who they are. Where it
+        # does, every role has an answer or the spec is refused.
+        granted = (
+            role_grants(contract, dict(ctx.contract_roles))
+            if ctx.contract_roles is not None
+            else ()
+        )
     except ContractError as error:
         if port is None and "describes no table" in str(error):
             # The table's name is the default; say so when it isn't there.
@@ -1488,6 +1581,14 @@ def _contract_shape(
             for ref in found.references
         ),
     )
+    notes = [f"{shown}: {note}" for note in found.notes]
+    if ctx.contract_roles is None and contract.roles:
+        named = ", ".join(role_names(contract)) or "without a name"
+        notes.append(
+            f"{shown} names roles ({named}) and stevin makes no grant from them: "
+            f"it reads a contract's roles only when stevin.yml says who they are, "
+            f"under `{ROLES_KEY}:`"
+        )
     return _ContractShape(
         written,
         port,
@@ -1496,7 +1597,8 @@ def _contract_shape(
         found.partitioned_by,
         found.comment,
         found.tags,
-        tuple(f"{shown}: {note}" for note in found.notes),
+        tuple(notes),
+        granted,
     )
 
 
@@ -1763,6 +1865,7 @@ CONFIG_KEYS = {
     "manage",
     "owned_elsewhere",
     "dbt",
+    "contract_roles",
 }
 DBT_KEYS = {"manifest"}
 TARGET_KEYS = {"vars", "warehouse_id", "mode", "profile", "default"}
@@ -1900,6 +2003,35 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         manifest_node = _require(ctx, dbt_items, items["dbt"][0], "manifest", "dbt")
         dbt_manifest = root / _string(ctx, manifest_node, "dbt.manifest")
 
+    contract_roles: list[tuple[str, tuple[str, ...]]] | None = None
+    contract_roles_locs: list[tuple[str, Loc]] = []
+    if ROLES_KEY in items:
+        if not manage.manages("grants"):
+            raise SpecError(
+                f"`{ROLES_KEY}` makes grants from a data contract's roles, and "
+                "`manage.grants: false` says grants are set somewhere else. Take "
+                "one of the two out",
+                items[ROLES_KEY][1],
+            )
+        contract_roles = []
+        for role, (principals_node, key_loc) in _mapping(
+            ctx, items[ROLES_KEY][0], ROLES_KEY
+        ).items():
+            what = f"the principals of role {role!r}"
+            principals = (
+                _string_list(ctx, principals_node, what)
+                if isinstance(principals_node, SequenceNode)
+                else (_string(ctx, principals_node, what),)
+            )
+            if not all(principal.strip() for principal in principals):
+                raise SpecError(
+                    f"{ROLES_KEY}: role {role!r} has an empty principal. Name a "
+                    "user, a group or a service principal, or write `[]` for nobody",
+                    ctx.loc(principals_node),
+                )
+            contract_roles.append((role, principals))
+            contract_roles_locs.append((role, key_loc))
+
     return Project(
         root=root,
         spec_paths=spec_paths,
@@ -1914,6 +2046,8 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         owned_elsewhere=tuple(owned_elsewhere),
         owned_elsewhere_locs=tuple(owned_elsewhere_locs),
         dbt_manifest=dbt_manifest,
+        contract_roles=tuple(contract_roles) if contract_roles is not None else None,
+        contract_roles_locs=tuple(contract_roles_locs),
     )
 
 
@@ -2092,8 +2226,9 @@ def load_specs(project: Project, target: Target) -> tuple[LoadedSpec, ...]:
     """Load every spec in a project, rendered for one target."""
     variables = target.variables_map()
     unresolved = target.unresolved_map()
+    roles = project.roles(target)
     return tuple(
-        LoadedSpec(path, load_spec(path, variables, unresolved, project.manage))
+        LoadedSpec(path, load_spec(path, variables, unresolved, project.manage, roles))
         for path in spec_files(project)
     )
 
@@ -2674,7 +2809,9 @@ def _contract_document(document: dict[str, object], table: Table) -> dict[str, o
         columns=(),
         tags=table.tags,
         removed_tags=table.removed_tags,
-        grants=table.grants,
+        # The spec's own: what a contract's roles grant is read from the
+        # contract each time, and is never written here as the spec's.
+        grants=table.own_grants if table.own_grants is not None else table.grants,
         row_filter=table.row_filter,
         governed_columns=tuple(
             GovernedColumn(

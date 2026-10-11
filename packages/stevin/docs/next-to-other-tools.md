@@ -132,7 +132,9 @@ A producer who wrote an [ODCS](https://bitol-io.github.io/open-data-contract-sta
 contract has already said what the table looks like; a spec can take its shape from the
 contract and add only governance and layout:
 [Shape from a data contract](spec.md#shape-from-a-data-contract). stevin reads the
-contract for the shape and nothing else. Testing live data against a contract, and
+contract for the shape and, when the project file says who its roles are, for
+[grants](spec.md#roles-from-a-data-contract), and for nothing else. Testing live data
+against a contract, and
 telling a breaking change from a safe one, is what the
 [Data Contract CLI](https://github.com/datacontract/datacontract-cli) does; stevin
 doesn't, and the two meet at the file.

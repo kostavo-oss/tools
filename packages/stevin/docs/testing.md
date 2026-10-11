@@ -214,6 +214,12 @@ schema `dev_<user>_…` was read from a real CLI (`tests/integration/test_live_b
 No live run has planned a project whose `owned_elsewhere` names a schema by that
 reference. The same holds for a key of `schemas:` (`tests/unit/test_schema_modes.py`).
 
+**Grants from a contract's roles — not tried on a workspace.** The roles are read and
+turned into grants offline, and planned against the fake warehouse
+(`tests/unit/test_contract_roles.py`). No workspace has taken a grant that came from a
+contract. The statements are the `GRANT` and `REVOKE` a spec's own grants make, and
+those run in the live suite (`tests/integration/test_live_governance.py`).
+
 **`stevin list` — not tried on a workspace.** It sends no statement of its own: it is
 the read a plan gives a schema, without the per-table `SHOW CREATE TABLE` and without
 the policies, and that read runs in the live suite. The command itself and `apply`'s

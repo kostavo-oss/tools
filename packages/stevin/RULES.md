@@ -306,6 +306,25 @@ DDL is not transactional across statements, so there is no rollback. There is th
   put live state over it.
   Held by: `tests/unit/test_from_contract.py::test_a_spec_cannot_say_the_shape_twice`,
   `tests/unit/test_from_contract.py::test_adopt_refuses_to_write_over_a_contract`.
+- **SPEC-4** — In a project whose `stevin.yml` has `contract_roles:`, the roles of a
+  contract a spec points at are grants on that spec's table, to the principals the key
+  names for the target: `read` is `SELECT`, `write` is `SELECT` and `MODIFY`, compared
+  without case. They are one list with the spec's own grants, a principal once, and
+  from there grants as any other (ACC-1): a role taken out of the contract leaves its
+  principal unnamed, so nothing is revoked. A role's grant is never written into a
+  spec.
+  Held by: `tests/unit/test_contract_roles.py::test_a_role_becomes_a_grant_to_the_principals_the_project_names`,
+  `tests/unit/test_contract_roles.py::test_a_role_taken_out_of_the_contract_is_a_grant_taken_out_of_a_spec`,
+  `tests/unit/test_contract_roles.py::test_a_roles_grant_is_never_written_as_the_specs_own`.
+- **SPEC-5** — A grant from a contract is one somebody chose. Without `contract_roles:`
+  no role is read, the plan is what it is for a contract with no roles, and `validate`
+  warns once per spec. With it, a spec is refused, on its `from_contract` line, for a
+  role the key does not name, a role without a name, and a role with no `access` or
+  with one that is not `read` or `write`. A role the key maps to `[]` gets no grant
+  and its `access` is not looked at.
+  Held by: `tests/unit/test_contract_roles.py::test_without_the_key_roles_are_not_read_and_validate_says_so_once`,
+  `tests/unit/test_contract_roles.py::test_a_role_the_map_does_not_name_is_refused`,
+  `tests/unit/test_contract_roles.py::test_a_role_stevin_cannot_read_into_a_grant_is_refused`.
 
 ## DBX — what is assumed of Databricks
 
