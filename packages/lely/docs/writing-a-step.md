@@ -82,6 +82,8 @@ uv run ops/scope.py plan -t dev --name shop_data -o plan.json
 uv run ops/scope.py apply --plan-file plan.json --name shop_data
 uv run ops/scope.py apply -t dev --name shop_data             # plan, show, ask, apply
 uv run ops/scope.py destroy -t dev --name shop_data
+uv run ops/scope.py plan -t dev --name shop_data --destroy -o gone.json
+uv run ops/scope.py destroy --plan-file gone.json -t dev --name shop_data
 uv run ops/scope.py status -t dev --name shop_data
 uv run ops/scope.py check -t dev --name shop_data [--live]
 ```
@@ -91,6 +93,12 @@ The fields of `Options` are the flags, with their types and their `#:` comments 
 whatever already signs the Databricks CLI in is used. `-f json` answers as data; `--yes`
 gives consent in the command, as it does for `lely apply`.
 
+Under lely a plan shows an output where another step takes it. On its own a step has no
+other step, so it prints what it gives under `Gives:`. `plan` prints the outputs it knows
+and names the ones that come later, with when. `apply` prints what the step returned. A
+`Secret` is shown as `***`, and so is an output that holds what a `Secret` option was
+given. With `-f json` or `-f md` these lines go to stderr.
+
 A plan the step writes is a one-step lely plan: the same file, the same checks before it
 runs — the workspace, the project, the git tree — and `lely apply plan.json` takes it, given
 a config that names the step the same way. The step refuses a plan file that holds other
@@ -98,15 +106,18 @@ steps: `lely apply` runs those.
 
 What a flag can carry: text, whole and decimal numbers, `true`/`false` as a word, a
 `Secret`, one of a `Literal`'s values, a list (the flag more than once), a mapping
-(`--name key=value`, more than once), and `T | None`. An option of another type is refused
-when the step starts, and a `${steps.…}` reference too: on its own, a step has no step
-above to take it from.
+(`--name key=value`, more than once, the value read as the mapping declares it), and
+`T | None`. An option of another type is refused when the step starts, and a `${steps.…}`
+reference too: on its own, a step has no step above to take it from. A literal `${` is
+written `$${`, as in a config file.
 
 `check` holds the step to the rules below: `plan` behind a Databricks CLI that refuses
 anything but a read, the plan through a plan file and back, outputs as declared, and
 `overview` reading only. `--live` adds the cycle — plan, apply, destroy, plan again — on the
-target: it makes and removes things there. What a step does through the SDK is its own: `check` cannot see a
-write made there.
+target: it makes and removes things there. It says so first: what it is about to do, on
+which target and workspace, and as whom. A step with no destroy is applied and planned
+again, and what it made stays. What a step does through the SDK is its own: `check`
+cannot see a write made there.
 
 ## Under lely
 

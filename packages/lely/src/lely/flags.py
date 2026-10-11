@@ -10,8 +10,10 @@ of errors, one `made_from` hash.
 The types a flag can carry: `str`, `int`, `float`, `bool` (as a word: `true`,
 `yes`, `no`…, so a bundle variable can set it), `Secret` (text), `Literal[…]`
 (one of them), `tuple[T, …]` (the flag more than once), `Mapping[str, T]`
-(`--name key=value`, more than once), and `T | None`. Anything else is refused
-when the step starts, with this list.
+(`--name key=value`, more than once, the value read as a `T`), and `T | None`.
+Anything else is refused when the step starts, with this list.
+
+A value is written as in a config file: `$${` is a literal `${` (REF-3).
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from lely.config import Entry, Loc, Map, Scalar, Seq
 from lely.errors import LelyError, Refused
 from lely.model import Linked, Secret
 from lely.options import default_of, option_fields
+from lely.refs import has_reference
 from lely.registry import option_docs
 
 if TYPE_CHECKING:
@@ -76,17 +79,32 @@ class _OneOf(ParamType):
 
 
 class _Pair(ParamType):
-    """`key=value`, for a mapping option."""
+    """`key=value`, for a mapping option. The value is read as the mapping
+    declares it: a whole number for `Mapping[str, int]`, and so on."""
 
     name = "key=value"
 
-    def convert(self, value: Any, param: Any, ctx: Any) -> tuple[str, str]:
+    def __init__(self, element: Any = str) -> None:
+        self.element = element
+
+    def convert(self, value: Any, param: Any, ctx: Any) -> tuple[str, Any]:
         if isinstance(value, tuple):
             return value
         key, separator, rest = str(value).partition("=")
         if not separator or not key.strip():
             self.fail(f"'{value}' is not key=value", param, ctx)
-        return key.strip(), rest
+        return key.strip(), self._read(rest, key.strip(), param, ctx)
+
+    def _read(self, text: str, key: str, param: Any, ctx: Any) -> Any:
+        if isinstance(self.element, ParamType):
+            return self.element.convert(text, param, ctx)
+        if self.element in (int, float):
+            try:
+                return self.element(text)
+            except ValueError:
+                word = "a whole number" if self.element is int else "a number"
+                self.fail(f"'{text}' for `{key}` is not {word}", param, ctx)
+        return text
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +166,8 @@ def _kind(tp: Any, name: str, options: type) -> tuple[Any, bool]:
     elif origin in (dict, Mapping) or tp in (dict, Mapping):
         element = args[1] if len(args) == 2 else str
         if element in _SCALARS or element is Secret:
-            return _Pair(), True
+            inner, _ = _kind(element, name, options)
+            return _Pair(inner), True
     elif tp is bool:
         return _YesNo(), False
     elif tp in (str, int, float):
@@ -197,8 +216,9 @@ def block_from(flags: Sequence[Flag], values: Mapping[str, Any]) -> Map:
     """What the flags gave, as the `with:` block a config would hold.
 
     A flag not given is left out, so the option's own default applies. A value
-    that looks like a reference is refused: on its own, a step has no step
-    above to take it from (SOLO-4).
+    that holds a reference is refused: on its own, a step has no step above to
+    take it from (SOLO-4). `$${` is none: it is a literal `${`, written out
+    when the options are read, as from a config file.
     """
     entries: list[Entry] = []
     for flag in flags:
@@ -213,7 +233,7 @@ def block_from(flags: Sequence[Flag], values: Mapping[str, Any]) -> Map:
 def _node(value: Any, flag: Flag) -> Scalar | Seq | Map:
     if flag.many and isinstance(flag.kind, _Pair):
         pairs = [
-            v if isinstance(v, tuple) else _Pair().convert(v, None, None) for v in value
+            v if isinstance(v, tuple) else flag.kind.convert(v, None, None) for v in value
         ]
         return Map(
             tuple(Entry(k, COMMAND_LINE, Scalar(v, COMMAND_LINE)) for k, v in pairs),
@@ -229,8 +249,9 @@ def _no_reference(flag: Flag, value: Any) -> None:
     for text in texts:
         if isinstance(text, tuple):
             text = text[1]
-        if isinstance(text, str) and "${" in text:
+        if isinstance(text, str) and has_reference(text):
             raise Refused(
                 f"{flag.option} is `{text}`: on its own, a step has no step above to "
-                "take a `${…}` reference from. Run it under lely, or pass the value."
+                "take a `${…}` reference from. Run it under lely, or pass the value. "
+                "For a literal `${`, write `$${`."
             )

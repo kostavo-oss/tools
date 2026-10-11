@@ -90,6 +90,26 @@ if __name__ == "__main__":
 '''
 
 
+def variant(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str) -> Solo:
+    """The marker step with something changed, as its own command line."""
+    (tmp_path / "ops").mkdir(exist_ok=True)
+    (tmp_path / "ops" / "other.py").write_text(text)
+    monkeypatch.chdir(tmp_path)
+    fake = (sys.executable, str(project.FAKE_DATABRICKS), str(project.world(tmp_path)))
+    monkeypatch.setattr(cli, "DATABRICKS", fake)
+    monkeypatch.setattr(cli, "WHOAMI", lambda profile: project.WORKSPACE)
+    monkeypatch.setattr(cli, "CONNECT", lambda profile: None)
+    monkeypatch.setattr(cli, "_interactive", lambda: False)
+    from lely.registry import find
+
+    return Solo(find("./ops/other.py:Marker", tmp_path).cls, tmp_path)
+
+
+def changed(old: str, new: str, text: str = MARKER) -> str:
+    assert old in text, old
+    return text.replace(old, new)
+
+
 @dataclasses.dataclass(frozen=True)
 class Ran:
     exit_code: int
@@ -373,3 +393,185 @@ def test_a_wrong_value_is_refused_by_the_flag(marker: Solo) -> None:
 
     assert result.exit_code == 2
     assert "--times" in result.output
+
+
+def test_a_mapping_of_numbers_arrives_as_numbers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SOLO-3: a pair's value is read as the mapping declares it."""
+    text = changed(
+        "        #: How many times.\n",
+        "        #: Limits, by name.\n        limits: Mapping[str, int] = None\n"
+        "        #: Ratios, by name.\n        ratios: Mapping[str, float] = None\n"
+        "        #: Switches, by name.\n        on: Mapping[str, bool] = None\n"
+        "        #: How many times.\n",
+    )
+    text = changed(
+        'f"writes {ctx.options.word}"',
+        'f"writes {ctx.options.limits} {ctx.options.ratios} {ctx.options.on}"',
+        text,
+    )
+    text = "from collections.abc import Mapping\n" + text
+    solo = variant(tmp_path, monkeypatch, text)
+
+    result = solo(
+        *("plan", "-t", "dev", "--word", "hi", "--limits", "rows=3", "--limits", "n=-1"),
+        *("--ratios", "half=0.5", "--on", "fast=yes"),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "writes {'rows': 3, 'n': -1} {'half': 0.5} {'fast': True}" in result.output
+    wrong = solo("plan", "-t", "dev", "--word", "hi", "--limits", "rows=many")
+    assert wrong.exit_code == 2
+    assert "--limits" in wrong.output and "not a whole number" in wrong.output
+
+
+def test_a_literal_dollar_brace_is_written_as_in_a_config(marker: Solo) -> None:
+    """SOLO-4: `$${` is no reference, and reaches the step as `${`."""
+    result = marker("plan", "-t", "dev", "--word", "$${HOME}/x")
+
+    assert result.exit_code == 0, result.output
+    assert "writes ${HOME}/x" in result.output
+    refused = marker("plan", "-t", "dev", "--word", "${HOME}/x")
+    assert refused.exit_code == 2
+    assert "For a literal `${`, write `$${`." in " ".join(refused.output.split())
+
+
+# -- what the step gives ----------------------------------------------------------
+
+
+def test_plan_prints_what_the_step_knows_and_names_what_comes_later(
+    marker: Solo,
+) -> None:
+    """SOLO-8."""
+    result = marker("plan", "-t", "dev", "--word", "hi")
+
+    assert result.exit_code == 0, result.output
+    gives = result.out[result.out.index("Gives:") :]
+    assert "→ file = dev-marker.txt" in gives
+    assert "→ written  known after every run" in gives
+    # with `-f json`, stdout is the plan and nothing else: it is said on stderr
+    as_json = marker("plan", "-t", "dev", "--word", "hi", "-f", "json")
+    assert planfile.loads(as_json.out).target == "dev"
+    assert "→ file = dev-marker.txt" in as_json.err
+    # a destroy gives nothing
+    assert "Gives:" not in marker("plan", "-t", "dev", "--word", "hi", "--destroy").output
+
+
+def test_apply_prints_what_the_step_returned(marker: Solo) -> None:
+    """SOLO-8."""
+    result = marker("apply", "-t", "dev", "--word", "hi", "--times", "2", "--yes")
+
+    assert result.exit_code == 0, result.output
+    gives = result.out[result.out.index("Gives:") :]
+    assert "→ file = dev-marker.txt" in gives
+    assert "→ written = 2" in gives
+    # a step with nothing left to do returned nothing: it gives what it knows
+    again = marker("apply", "-t", "dev", "--word", "hi", "--times", "2", "--yes")
+    assert "→ file = dev-marker.txt" in again.out and "written" not in again.out
+
+
+def test_no_secret_is_printed_with_what_the_step_gives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SOLO-8: a `Secret` is `***`, and so is an output that hands back what a
+    `Secret` option was given, whole or inside something."""
+    text = changed(
+        'outputs = (Output("file"), Output("written", known="run"))',
+        'outputs = (Output("file"), Output("key"), Output("plain"), Output("deep"),'
+        ' Output("written", known="run"))',
+    )
+    text = changed(
+        'outputs = {"file": path.name}',
+        "token = ctx.options.token.reveal()\n"
+        '        outputs = {"file": path.name, "key": ctx.options.token,'
+        ' "plain": f"Bearer {token}", "deep": {"a": [token]}}',
+        text,
+    )
+    solo = variant(tmp_path, monkeypatch, text)
+    flags = ("-t", "dev", "--word", "hi", "--token", "t0p-s3cret")
+
+    planned = solo("plan", *flags)
+    applied = solo("apply", *flags, "--yes")
+
+    for result in (planned, applied):
+        assert result.exit_code == 0, result.output
+        assert "t0p-s3cret" not in result.output
+        gives = result.out[result.out.index("Gives:") :]
+        assert "→ file = dev-marker.txt" in gives
+        assert "→ key = ***" in gives
+        assert "→ plain = ***" in gives
+        assert "→ deep = ***" in gives
+
+
+# -- check --live says first --------------------------------------------------------
+
+
+def test_check_live_says_what_it_will_do_before_it_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SOLO-7."""
+    logs = changed(
+        "        self._path(ctx).write_text(self._text(ctx))\n",
+        "        import sys\n"
+        '        print("marker: writing now", file=sys.stderr)\n'
+        "        self._path(ctx).write_text(self._text(ctx))\n",
+    )
+    solo = variant(tmp_path, monkeypatch, logs)
+
+    result = solo("check", "-t", "dev", "--word", "hi", "--live")
+
+    assert result.exit_code == 0, result.output
+    said = " ".join(result.err.split())
+    first = (
+        "--live: about to apply the step, destroy it and plan again, on target `dev` "
+        f"on {project.WORKSPACE}. It makes what the plan shows, and removes it."
+    )
+    assert said.startswith(first)
+    assert said.index(first) < said.index("marker: writing now")
+    # without --live it says what --live would do, and does none of it
+    dry = solo("check", "-t", "dev", "--word", "hi")
+    assert "--live would apply the step, destroy it and plan again" in dry.err
+    assert "about to" not in dry.err and "writing now" not in dry.err
+
+
+def test_check_doesnt_speak_of_a_destroy_the_step_doesnt_have(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    start, end = MARKER.index("    def plan_destroy"), MARKER.index("if __name__ ==")
+    solo = variant(tmp_path, monkeypatch, MARKER[:start] + "\n" + MARKER[end:])
+
+    dry = solo("check", "-t", "dev", "--word", "hi")
+    live = solo("check", "-t", "dev", "--word", "hi", "--live")
+
+    assert dry.exit_code == 0 and live.exit_code == 0, dry.output + live.output
+    for result in (dry, live):
+        said = " ".join(result.err.split())
+        assert "apply the step and plan again, on" in said
+        assert "The step has no destroy: what it makes stays." in said
+        assert "destroy it" not in said
+    assert (tmp_path / "dev-marker.txt").exists()
+
+
+# -- a destroy, planned first ------------------------------------------------------
+
+
+def test_a_destroy_can_be_planned_saved_and_run(marker: Solo) -> None:
+    """SOLO-2: `plan --destroy -o` writes what `destroy --plan-file` runs."""
+    marker("apply", "-t", "dev", "--word", "hi", "--yes")
+
+    planned = marker("plan", "-t", "dev", "--word", "hi", "--destroy", "-o", "d.json")
+
+    assert planned.exit_code == 0, planned.output
+    assert "removes dev-marker.txt" in planned.output
+    assert planfile.loads((marker.root / "d.json").read_text()).kind == "destroy"
+    assert (marker.root / "dev-marker.txt").exists()
+    # `apply` doesn't take it; `destroy` does
+    assert (
+        marker("apply", "--plan-file", "d.json", "--word", "hi", "--yes").exit_code == 2
+    )
+    result = marker(
+        "destroy", "--plan-file", "d.json", "-t", "dev", "--word", "hi", "--yes"
+    )
+    assert result.exit_code == 0, result.output
+    assert not (marker.root / "dev-marker.txt").exists()

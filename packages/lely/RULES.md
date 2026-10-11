@@ -506,23 +506,29 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_solo.py::test_plan_shows_the_change_and_changes_nothing`.
 - **SOLO-2** — Its commands are `plan`, `apply`, `destroy`, `status` and `check`. Each
   takes `-t`, which `apply` may leave out when it is given a plan file, `--profile`, and
-  the step's own flags. `plan` takes `-o`; `apply` and `destroy` take `--plan-file` and
-  `--yes`; `apply` takes `--allow-destructive`; all but `check` take `-f rich|json|md`.
-  Consent is asked as `lely` asks it.
+  the step's own flags. `plan` takes `-o`, and `--destroy` to plan a teardown, which
+  `destroy --plan-file` runs; `apply` and `destroy` take `--plan-file` and `--yes`;
+  `apply` takes `--allow-destructive`; all but `check` take `-f rich|json|md`. Consent
+  is asked as `lely` asks it.
   Held by: `tests/unit/test_solo.py::test_apply_with_a_target_plans_asks_and_applies`,
-  `tests/unit/test_solo.py::test_without_a_terminal_apply_needs_yes`.
+  `tests/unit/test_solo.py::test_without_a_terminal_apply_needs_yes`,
+  `tests/unit/test_solo.py::test_a_destroy_can_be_planned_saved_and_run`.
 - **SOLO-3** — Each field of `Options` is a flag, `--<name>` with dashes for underscores,
   with the field's type and the `#:` comment above it as its help. A flag carries text, a
   whole or a decimal number, a yes or no as a word, a `Secret`, one of a `Literal`'s
-  values, a list (the flag more than once), a mapping of text (`--<name> key=value`, more
-  than once) and `T | None`. An option of another type is refused when the step starts,
-  and a value that does not parse is refused by the flag's name. A flag that is not given
-  is left out, so the option's own default applies.
+  values, a list (the flag more than once), a mapping of text, numbers, yes or no or
+  secrets (`--<name> key=value`, more than once, the value read as the mapping declares
+  it) and `T | None`. An option of another type is refused when the step starts, and a
+  value that does not parse is refused by the flag's name. A flag that is not given is
+  left out, so the option's own default applies.
   Held by: `tests/unit/test_solo.py::test_the_options_are_the_flags_with_their_help`,
-  `tests/unit/test_solo.py::test_a_missing_required_option_is_refused_by_name`.
-- **SOLO-4** — A flag whose value holds a `${` is refused before anything runs, with what
-  to do: run the step under lely, or pass the value.
-  Held by: `tests/unit/test_solo.py::test_a_reference_is_refused_with_what_to_do`.
+  `tests/unit/test_solo.py::test_a_missing_required_option_is_refused_by_name`,
+  `tests/unit/test_solo.py::test_a_mapping_of_numbers_arrives_as_numbers`.
+- **SOLO-4** — A flag whose value holds a `${…}` is refused before anything runs, with what
+  to do: run the step under lely, or pass the value. `$${` is none, as in a config file
+  (REF-3): it reaches the step as a literal `${`.
+  Held by: `tests/unit/test_solo.py::test_a_reference_is_refused_with_what_to_do`,
+  `tests/unit/test_solo.py::test_a_literal_dollar_brace_is_written_as_in_a_config`.
 - **SOLO-5** — A plan a step writes is a one-step lely plan: `lely apply plan.json` takes
   it, given a config that names the step the same way, and the same checks are made before
   anything runs. A step refuses a plan file that holds any other step.
@@ -531,18 +537,22 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
 - **SOLO-7** — `check` holds the step to the rules, on a target: `plan` and `overview`
   behind a Databricks CLI that refuses anything but a read, the plan through a plan file
   and back, and outputs as declared. `--live` also applies and destroys on the target, or
-  applies and plans again for a step with no destroy, and says that it will before it
-  does. A check that fails ends with 1.
+  applies and plans again for a step with no destroy. Before it runs anything it says
+  which of the two it is about to do, on which target, on which workspace and as whom.
+  Without `--live` it says what `--live` would do, and speaks of no destroy the step
+  does not have. A check that fails ends with 1.
   Held by: `tests/unit/test_solo.py::test_check_holds_the_step_to_the_rules`,
-  `tests/unit/test_solo.py::test_check_live_applies_and_destroys`.
-  Not kept yet: #52 — `check --live` applies and destroys without saying so first: it
-  prints what passed afterwards.
+  `tests/unit/test_solo.py::test_check_live_applies_and_destroys`,
+  `tests/unit/test_solo.py::test_check_live_says_what_it_will_do_before_it_does`.
 - **SOLO-8** — On its own, `plan` prints the outputs the step knows and names the ones
-  known later, and `apply` prints what the step returned. A `Secret` is shown as `***`.
-  Not kept yet: #52 — in a terminal a plan shows an output only where another step takes
-  it, and a run's result shows none, so a step alone shows no output; the plan file and
-  `plan -f json` hold the outputs that have a plain name, and not the names of the ones
-  known later.
+  known later, each with when, and `apply` prints what the step returned, or what it
+  knows when it had nothing to do. They stand under `Gives:`, after the plan or the
+  result: on stdout, and on stderr with `-f json` or `-f md`, where stdout holds that
+  and nothing else. A `Secret` is shown as `***`, and so is an output that holds what a
+  `Secret` option was given.
+  Held by: `tests/unit/test_solo.py::test_plan_prints_what_the_step_knows_and_names_what_comes_later`,
+  `tests/unit/test_solo.py::test_apply_prints_what_the_step_returned`,
+  `tests/unit/test_solo.py::test_no_secret_is_printed_with_what_the_step_gives`.
 
 ## PLAN — the plan and its file
 

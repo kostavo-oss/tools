@@ -17,8 +17,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.
 
+- **A step on its own shows what it gives.** `plan` prints the outputs it knows and names
+  the ones that come later; `apply` prints what the step returned. A `Secret` is `***`.
+- **A step on its own can plan its destroy**: `plan --destroy -o gone.json`, then
+  `destroy --plan-file gone.json`.
+- **A flag for `Mapping[str, int]`** (or a decimal number, or true and false) reads the
+  value of `key=value` as that type. Such a step started, and then refused every value.
+
 ### Changed
 
+- **`check --live` says what it is about to do before it does it**: apply and destroy, on
+  which target and workspace, and as whom. Without `--live`, `check` no longer speaks of
+  a destroy for a step that has none.
+- **A flag takes `$${` for a literal `${`**, as a config file does. It was refused as a
+  reference.
 - **`lely doctor` is no longer meant to say whether credentials are read-only.** It
   never could. It says whether the identity is a workspace admin, and for anyone else
   that it cannot tell what the credentials may change.

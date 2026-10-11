@@ -611,6 +611,7 @@ def plan(
     log: Log,
     connect: Callable[[], WorkspaceClient],
     kind: PlanKind = "apply",
+    given: dict[str, Given] | None = None,
 ) -> Plan:
     """Plan `config` for `target`: to apply it, or to destroy it.
 
@@ -618,11 +619,23 @@ def plan(
     usual, for what it gives the steps below, and then asked what taking it
     down would remove. The plan keeps the order written; a destroy runs it
     from the bottom up.
+
+    `given`, when a caller hands one in, is filled with what each step gives,
+    whole: the plan itself keeps less (REF-8). A step on its own shows it
+    (SOLO-8).
     """
     check(config)
     runs_for(config, target)
     session = Session(
-        config, target, workspace, env, databricks, log, connect, purpose=kind
+        config,
+        target,
+        workspace,
+        env,
+        databricks,
+        log,
+        connect,
+        given={} if given is None else given,
+        purpose=kind,
     )
     steps: list[PlannedStep] = []
     for step in config.steps:

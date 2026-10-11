@@ -278,3 +278,20 @@ Rejected: a guess, such as trying a harmless write or reading a few grants. A wr
 question where being wrong lets a pull request change a workspace. Rejected: leaving
 the rule open until an API turns up, which keeps a promise in the rules that nobody is
 working on. The rule had the number 6 of the `CLI` area; what `doctor` does say is `CLI-8`.
+
+## 36. 2026-10-11 — A step on its own prints what it gives, and can plan its destroy
+
+Under lely an output is shown where another step takes it, so a one-step plan showed
+none and a run showed none. A step on its own prints them itself, under `Gives:`. The
+plan file is left as it is: it stays the one-step lely plan `lely apply` takes.
+Rejected: showing every output in every lely plan, which would put each field of each
+bundle resource in a pull request's comment. Rejected: adding outputs to a run's
+record, a change of that file's format for something only a step on its own prints.
+
+An output that holds what a `Secret` option was given is printed as `***` too. A step
+that hands an option back as plain text has made a mistake, and printing is where it
+would cost.
+
+`destroy --plan-file` was there and nothing could write the file it takes. `plan` got
+`--destroy`. Rejected: taking `--plan-file` off `destroy`, since a teardown is what one
+most wants to read first.

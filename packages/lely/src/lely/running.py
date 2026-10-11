@@ -46,6 +46,7 @@ from lely.model import (
     Workspace,
 )
 from lely.planning import Prepared, Session, made_from, missing
+from lely.refs import Given
 from lely.registry import find
 from lely.step import Cli, Log
 
@@ -69,11 +70,16 @@ def apply(
     allow_destructive: bool = False,
     from_step: str | None = None,
     at_waiting: AtWaiting | None = None,
+    given: dict[str, Given] | None = None,
 ) -> Result:
     """Run `approved`, a plan to apply.
 
     `at_waiting` is `None` for a plan that was reviewed as a file: it stops at
     a waiting step. Raises `Refused` when nothing may start at all.
+
+    `given`, when a caller hands one in, is filled as the run goes with what
+    each step gives: a step on its own shows what it returned (SOLO-8). It is
+    only ever written to here.
     """
     check_kind(approved, "apply")
     target = approved.target
@@ -81,7 +87,16 @@ def apply(
     check_applies(config, target)
     approval.destructive_allowed(approved.steps, allow_destructive)
 
-    session = Session(config, target, workspace, env, databricks, log, connect)
+    session = Session(
+        config,
+        target,
+        workspace,
+        env,
+        databricks,
+        log,
+        connect,
+        given={} if given is None else given,
+    )
     run = _Run("apply", target, workspace)
     started = from_step is None
     for index, step in enumerate(config.steps):

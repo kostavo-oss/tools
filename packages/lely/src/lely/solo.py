@@ -1,6 +1,6 @@
 """A step on its own: the command line `Step.main()` gives (SOLO-1).
 
-    uv run ops/scope.py plan -t dev --name shop_data [-o plan.json]
+    uv run ops/scope.py plan -t dev --name shop_data [-o plan.json] [--destroy]
     uv run ops/scope.py apply --plan-file plan.json --name shop_data
     uv run ops/scope.py apply -t dev --name shop_data [--yes]
     uv run ops/scope.py destroy -t dev --name shop_data
@@ -19,12 +19,15 @@ from __future__ import annotations
 import dataclasses
 import functools
 import inspect
+import json
 import os
-from collections.abc import Callable, Sequence
+import typing
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
 import typer
+from rich.text import Text
 from typer.core import TyperCommand, TyperGroup, TyperOption
 
 from lely import approval, cli, config, planfile, planning, running, source, testing
@@ -32,7 +35,9 @@ from lely import step as contract
 from lely.databricks import DatabricksCli
 from lely.errors import LelyError, Refused
 from lely.flags import Flag, block_from, flags_of, options_of
-from lely.model import Plan, Source
+from lely.model import KNOWN, Plan, Secret, Source, Value
+from lely.refs import Given, match
+from lely.render import words
 from lely.render.rich import render_plan, result_view, status_view
 
 OUT = cli.out
@@ -65,7 +70,16 @@ def app_for(cls: type) -> TyperGroup:
         TyperCommand(
             "plan",
             help="Plan the step and show what would change. Changes nothing.",
-            params=[*_every(flags), _output(), _format()],
+            params=[
+                *_every(flags),
+                _output(),
+                TyperOption(
+                    param_decls=["--destroy"],
+                    is_flag=True,
+                    help="Plan taking the step down: what `destroy` would remove.",
+                ),
+                _format(),
+            ],
             callback=functools.partial(_plan, cls, flags),
         )
     )
@@ -112,13 +126,15 @@ def app_for(cls: type) -> TyperGroup:
         TyperCommand(
             "check",
             help="Hold the step to the rules: plan reading only, through a plan file"
-            " and back. --live applies and destroys on the target as well.",
+            " and back. --live applies on the target as well, and destroys if the"
+            " step can.",
             params=[
                 *_every(flags),
                 TyperOption(
                     param_decls=["--live"],
                     is_flag=True,
-                    help="Apply, plan again, destroy: makes and removes things.",
+                    help=_LIVE[contract.destroys(cls)][0].capitalize()
+                    + ": it makes things on the target, and says so first.",
                 ),
             ],
             callback=functools.partial(_check, cls, flags),
@@ -190,11 +206,14 @@ class _Solo:
     config: config.Config
     step: config.StepConfig
     run: cli._Run
+    #: What the flags gave for an option that is a `Secret`: never printed.
+    secrets: tuple[str, ...] = ()
 
 
 def _solo(cls: type, flags: Sequence[Flag], values: dict[str, Any]) -> _Solo:
     profile = values.pop("profile", None)
     block = block_from(flags, values)
+    secrets = _secrets(cls, values)
     root = Path.cwd()
     step = config.StepConfig(
         name=_name(cls),
@@ -215,7 +234,26 @@ def _solo(cls: type, flags: Sequence[Flag], values: dict[str, Any]) -> _Solo:
         databricks=DatabricksCli(cli.DATABRICKS, profile, env),
         connect=functools.cache(lambda: cli.CONNECT(profile)),
     )
-    return _Solo(loaded, step, run)
+    return _Solo(loaded, step, run, secrets)
+
+
+def _secrets(cls: type, values: dict[str, Any]) -> tuple[str, ...]:
+    """The text every `Secret` option was given, as the flags carried it."""
+    hints = typing.get_type_hints(_options_of(cls))
+    found: list[str] = []
+    for name, tp in hints.items():
+        if not _holds_secret(tp):
+            continue
+        given = values.get(name)
+        for one in given if isinstance(given, list | tuple) else [given]:
+            text = one[1] if isinstance(one, tuple) else one
+            if isinstance(text, str) and text:
+                found.append(text)
+    return tuple(found)
+
+
+def _holds_secret(tp: Any) -> bool:
+    return tp is Secret or any(_holds_secret(arg) for arg in typing.get_args(tp))
 
 
 def _uses(cls: type, root: Path) -> str:
@@ -279,16 +317,22 @@ def _guard(command: Callable[..., None]) -> Callable[..., None]:
 @_guard
 def _plan(cls: type, flags: Sequence[Flag], **values: Any) -> None:
     output = values.pop("output", None)
+    destroy = values.pop("destroy", False)
     fmt = _fmt(values.pop("output_format"))
     solo = _solo(cls, flags, values)
     out = Path(output) if output else None
+    given: dict[str, Given] = {}
     built = planning.plan(
         solo.config,
         target=values["target"],
         source=source.read(solo.config.root, out),
+        kind="destroy" if destroy else "apply",
+        given=given,
         **solo.run.edges,
     )
     cli._show_plan(built, fmt, out)
+    if not destroy:  # a destroy gives nothing
+        _say_gives(solo, given, fmt, later=True)
 
 
 @_guard
@@ -317,14 +361,16 @@ def _apply(cls: type, flags: Sequence[Flag], **values: Any) -> None:
     approval.destructive_allowed(approved.steps, allow_destructive)
     if not cli._nothing_in(approved):
         cli._consent(f"Apply this plan to {cli._where(approved, run)}?", yes)
+    given: dict[str, Given] = {}
     result = running.apply(
         solo.config,
         approved,
         allow_destructive=allow_destructive,
         at_waiting=at_waiting,
+        given=given,
         **run.edges,
     )
-    _finish(result, fmt)
+    _finish(result, fmt, lambda: _say_gives(solo, given, fmt, later=False))
 
 
 @_guard
@@ -378,6 +424,12 @@ def _check(cls: type, flags: Sequence[Flag], **values: Any) -> None:
     """
     live = values.pop("live", False)
     solo = _solo(cls, flags, values)
+    does, leaves = _LIVE[contract.destroys(cls)]
+    if live:
+        # said before anything runs, the reading checks too: once the step is
+        # applied it is too late to read what `--live` meant (SOLO-7)
+        where = f"target `{values['target']}` on {solo.run.workspace}"
+        _say(ERR, Text(f"--live: about to {does}, on {where}. {leaves}", "yellow"))
     prepared = planning.Session(
         solo.config,
         values["target"],
@@ -426,7 +478,21 @@ def _check(cls: type, flags: Sequence[Flag], **values: Any) -> None:
     for line in passed:
         ERR.print(f"[green]ok[/]      {line}")
     if not live:
-        ERR.print("[dim]--live would apply, plan again and destroy on the target[/]")
+        _say(ERR, Text(f"--live would {does}, on the target. {leaves}", "dim"))
+
+
+#: What `check --live` does on the target, and what it leaves there: for a
+#: step that can destroy, and for one that can't.
+_LIVE = {
+    True: (
+        "apply the step, destroy it and plan again",
+        "It makes what the plan shows, and removes it.",
+    ),
+    False: (
+        "apply the step and plan again",
+        "The step has no destroy: what it makes stays.",
+    ),
+}
 
 
 # -- shared ------------------------------------------------------------------------
@@ -457,7 +523,9 @@ def _unsaved(root: Path) -> Source:
         return Source()
 
 
-def _finish(result: Any, fmt: cli.Format) -> None:
+def _finish(
+    result: Any, fmt: cli.Format, after: Callable[[], None] | None = None
+) -> None:
     if fmt is cli.Format.json:
         cli._echo_json(planfile.result_to_json(result))
     elif fmt is cli.Format.md:
@@ -468,6 +536,82 @@ def _finish(result: Any, fmt: cli.Format) -> None:
         OUT.print(result_view(result))
     if result.outcome != "done":
         raise typer.Exit(2 if result.outcome == "refused" else 1)
+    if after is not None:
+        after()
+
+
+# -- what the step gives (SOLO-8) ----------------------------------------------------
+
+
+def _say(console: Any, *lines: Text) -> None:
+    """Lines of lely's own, with a plugin's words in them: shown, never obeyed,
+    and without the run's token."""
+    for line in lines:
+        line.plain = words.clean(cli._hide(line.plain))
+        console.print(line, highlight=False)
+
+
+def _say_gives(
+    solo: _Solo, given: dict[str, Given], fmt: cli.Format, *, later: bool
+) -> None:
+    """Print what the step gives: after a plan, what it knows and the names of
+    what comes later; after an apply, what it returned.
+
+    Under lely a plan shows an output where another step takes it. A step on
+    its own has no other step, so it says them itself. With `-f json` or `-f
+    md`, stdout holds that and nothing else, and this goes to stderr.
+    """
+    gives = given.get(solo.step.name)
+    if gives is None:
+        return
+    lines = list(_gives_lines(gives, solo.secrets, later=later))
+    if lines:
+        console = OUT if fmt is cli.Format.rich else ERR
+        _say(console, Text(), Text("Gives:", "bold"), *lines)
+
+
+def _gives_lines(gives: Given, secrets: Sequence[str], *, later: bool) -> Iterator[Text]:
+    for name, value in gives.outputs.items():
+        yield Text.assemble(("  → ", "dim"), f"{name} = {_shown(value, secrets)}")
+    if not later:
+        return
+    for name in sorted(gives.later):
+        named = match(gives.declared, tuple(name.split(".")))
+        when = KNOWN[named.output.known] if named is not None else KNOWN["exists"]
+        yield Text(f"  → {name}  known {when}", "dim")
+    for output in gives.declared:
+        instances = [
+            name
+            for name in (*gives.outputs, *gives.later)
+            if (named := match(gives.declared, tuple(name.split("."))))
+            and named.output == output
+        ]
+        if instances or (output.shape and output.known == "plan"):
+            continue  # said above; or a shape with nothing of it in this project
+        when = f"known {KNOWN[output.known]}" if output.known != "plan" else "not yet"
+        yield Text(f"  → {output.name}  {when}", "dim")
+
+
+def _shown(value: Value, secrets: Sequence[str]) -> str:
+    """A value as it is printed. A `Secret` is `***`, and so is a value that
+    holds what a `Secret` option was given: an output that hands an option back
+    is not a way round it."""
+    if isinstance(value, Secret) or _holds(value, secrets):
+        return "***"
+    return words.shown(value)
+
+
+def _holds(value: Any, secrets: Sequence[str]) -> bool:
+    """Whether a value has a secret anywhere in it: in a text, a key, or a
+    number written out."""
+    if isinstance(value, dict):
+        return any(_holds(k, secrets) or _holds(v, secrets) for k, v in value.items())
+    if isinstance(value, list | tuple):
+        return any(_holds(item, secrets) for item in value)
+    if value is None or isinstance(value, bool):
+        return False
+    text = value if isinstance(value, str) else json.dumps(value)
+    return any(secret in text for secret in secrets)
 
 
 __all__ = ["app_for", "main"]
