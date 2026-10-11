@@ -37,7 +37,7 @@ resources:
             client: python
             environment_version: "2"
             dependencies:
-              - stevin==0.4.0a2              # pin: the plan was made by this version
+              - stevin==0.4.0a3              # pin: the plan was made by this version
       tasks:
         - task_key: apply
           environment_key: stevin
