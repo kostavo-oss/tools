@@ -5,7 +5,7 @@ sites, has to be sure of who is asking. This module is that decision and
 nothing else: no sockets, no workspace, no clock — a request's method, path and
 headers go in, and either nothing comes out or the reason it is refused.
 
-What it holds to (spec/008-the-page.md, R9):
+What it holds to (GATE-2 to GATE-5 in `RULES.md`):
 
 * **Only its own address.** A request whose `Host` is not the address the server
   listens on is refused — that is what a site does that had its name pointed at

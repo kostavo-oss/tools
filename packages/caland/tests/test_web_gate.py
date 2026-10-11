@@ -1,4 +1,4 @@
-"""The gate: which requests the local server answers (spec/008, R9)."""
+"""The gate: which requests the local server answers (GATE-2 to GATE-7)."""
 
 from __future__ import annotations
 
@@ -29,11 +29,13 @@ def ask(method="GET", path="/api/state", **headers):
 
 
 def test_its_own_page_is_answered():
+    """GATE-2."""
     assert ask() is None
     assert ask("POST", "/api/value") is None
 
 
 def test_localhost_is_this_server_too():
+    """GATE-2."""
     assert ask(Host=f"localhost:{PORT}", Origin=f"http://localhost:{PORT}") is None
 
 
@@ -69,13 +71,17 @@ def test_a_request_with_no_host_is_refused():
     ],
 )
 def test_another_site_is_refused_even_with_the_token(origin):
+    """GATE-3."""
     refusal = ask("POST", "/api/value", Origin=origin)
     assert refusal and refusal.status == 403
 
 
 @pytest.mark.parametrize("site", ["cross-site", "same-site", "none"])
 def test_the_api_is_only_for_the_page_itself(site):
-    """`same-site` is another port of this machine; `none` is an address typed in."""
+    """GATE-3.
+
+    `same-site` is another port of this machine; `none` is an address typed in.
+    """
     assert ask(Sec_Fetch_Site=site).status == 403
 
 
@@ -86,6 +92,7 @@ def test_something_that_is_no_browser_is_held_to_the_token():
 
 @pytest.mark.parametrize("token", [None, "", "wrong", TOKEN + "x", TOKEN[:-1]])
 def test_without_the_token_nothing_under_api_is_answered(token):
+    """GATE-4."""
     for method, path in [
         ("GET", "/api/state"),
         ("GET", "/api/keys"),
@@ -95,10 +102,12 @@ def test_without_the_token_nothing_under_api_is_answered(token):
 
 
 def test_a_token_in_the_address_is_not_a_token():
+    """GATE-4."""
     assert ask(path=f"/api/state?token={TOKEN}", X_Caland_Token=None).status in (401, 404)
 
 
 def test_the_page_itself_needs_no_token_and_holds_nothing():
+    """GATE-6."""
     for path in gate.STATIC:
         assert (
             ask(path=path, X_Caland_Token=None, Origin=None, Sec_Fetch_Site="none")
@@ -112,15 +121,18 @@ def test_the_page_itself_needs_no_token_and_holds_nothing():
 
 
 def test_the_page_is_only_read():
+    """GATE-6."""
     assert ask("POST", "/").status == 405
 
 
 def test_entering_needs_the_key_not_the_token():
+    """GATE-7."""
     assert ask("POST", gate.ENTER, X_Caland_Token=None) is None
     assert ask("GET", gate.ENTER, X_Caland_Token=None).status == 405
 
 
 def test_entering_from_another_site_is_refused():
+    """GATE-7."""
     assert (
         ask("POST", gate.ENTER, X_Caland_Token=None, Origin="https://evil.example").status
         == 403
@@ -136,7 +148,7 @@ def test_entering_from_another_site_is_refused():
     [None, "text/plain", "application/x-www-form-urlencoded", "multipart/form-data"],
 )
 def test_what_a_form_on_another_site_can_send_is_refused(kind):
-    """Those three need no permission to send across sites; JSON does."""
+    """GATE-5. Those three need no permission to send across sites; JSON does."""
     assert ask("POST", "/api/value", Content_Type=kind).status == 415
 
 
@@ -150,7 +162,10 @@ def test_json_with_a_charset_is_json():
     "method", ["PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE", "CONNECT"]
 )
 def test_nothing_but_get_and_post(method):
-    """OPTIONS above all: it is how another site asks for permission, and it gets none."""
+    """GATE-5.
+
+    OPTIONS above all: it is how another site asks for permission, and it gets none.
+    """
     assert ask(method).status == 405
 
 

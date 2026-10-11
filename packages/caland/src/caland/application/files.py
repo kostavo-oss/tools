@@ -1,4 +1,4 @@
-"""What a file is, before it becomes a secret.
+"""What a file is, before it becomes a secret. FILE-2, FILE-3 and FILE-4.
 
 Somebody who picks a certificate wants to know it is the right one before it
 goes in: what kind of file, who it is for, who issued it, when it expires. This

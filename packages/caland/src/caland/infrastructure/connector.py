@@ -7,6 +7,11 @@ auth:
   * connect_url     -> Config(host=..., auth_type="external-browser") U2M (OAuth)
 
 Both block (connect_url may open a browser); callers run them in worker threads.
+
+caland keeps no token (KEPT-1). The SDK keeps a sign-in through the browser itself, in
+`~/.config/databricks-sdk-py/oauth/`, and waits for that sign-in without a time limit:
+`launch_external_browser` in `databricks/sdk/oauth.py` handles one request and has no
+timeout.
 """
 
 from __future__ import annotations

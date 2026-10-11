@@ -5,11 +5,13 @@ from caland.domain.permissions import authorization_summary
 
 
 def test_perm_rank_orders_permissions():
+    """ACL-3."""
     assert perm_rank("READ") < perm_rank("WRITE") < perm_rank("MANAGE")
     assert perm_rank("nonsense") == 0
 
 
 def test_authorization_summary_computes_effective_permission():
+    """ACL-3."""
     identity = Identity("me@corp.com", authenticated=True)
     scopes = [Scope("prod"), Scope("ro")]
     acls = {

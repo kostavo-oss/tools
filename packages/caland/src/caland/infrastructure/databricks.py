@@ -1,7 +1,9 @@
 """DatabricksSecretStore — the infrastructure adapter implementing SecretStore.
 
-The only place that imports the Databricks SDK. Converts SDK types into our
-domain value objects and SDK exceptions into `StoreError`. All methods block:
+This layer is the only place that imports the Databricks SDK (CODE-1), and of a
+workspace only its secrets and who is signed in are asked (CODE-2). Converts SDK types
+into our domain value objects and SDK exceptions into `StoreError`. All methods
+block:
 they are called on the thread of the request that asked, or on the loader's.
 """
 
@@ -112,8 +114,10 @@ class DatabricksSecretStore:
             raise StoreError(_short(exc)) from exc
 
     def put_secret_bytes(self, scope: str, key: str, value: bytes) -> None:
-        """Store bytes byte for byte: `bytes_value` takes them as base64.
-        https://docs.databricks.com/api/workspace/secrets/putsecret"""
+        """Store bytes byte for byte: `bytes_value` takes them as base64. VAL-10.
+        https://docs.databricks.com/api/workspace/secrets/putsecret
+        (Run on a workspace, 2026-10-06: a file of every byte there is, with NULs, a
+        byte order mark, CRLF and random bytes, was stored and came back the same.)"""
         try:
             self.client.secrets.put_secret(
                 scope=scope, key=key, bytes_value=base64.b64encode(value).decode("ascii")

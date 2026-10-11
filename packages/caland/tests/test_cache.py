@@ -17,6 +17,7 @@ def test_upsert_secret_adds_updates_and_sorts():
 
 
 def test_remove_secret_drops_row_and_the_value_held_of_it():
+    """VAL-4."""
     cache = WorkspaceCache(label="t")
     cache.upsert_secret(Secret("s", "a"))
     cache.raw[("s", "a")] = b"secret"

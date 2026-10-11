@@ -33,6 +33,7 @@ auth_type = external-browser
 
 
 def test_discover_skips_sections_without_host(tmp_path, monkeypatch):
+    """WSP-1."""
     store, _ = _store(
         tmp_path,
         monkeypatch,
@@ -48,6 +49,7 @@ token = dapi-y
 
 
 def test_discover_env_fallback_when_no_config(tmp_path, monkeypatch):
+    """WSP-3."""
     monkeypatch.setenv("DATABRICKS_CONFIG_FILE", str(tmp_path / "missing"))
     monkeypatch.setenv("DATABRICKS_HOST", "https://env.databricks.com")
     profiles = DatabricksCfgProfileStore().discover()
@@ -75,6 +77,7 @@ def cfg(tmp_path, monkeypatch):
 
 
 def test_a_profile_is_added_to_the_end_and_what_was_there_is_as_it_was(cfg):
+    """KEPT-2."""
     DatabricksCfgProfileStore().add("new-one", "https://new.example.com/")
     assert cfg.read_text() == (
         CFG
@@ -114,6 +117,7 @@ def test_every_profile_is_named_with_an_address_or_not(cfg):
 def test_a_new_file_is_its_owners_alone_and_one_that_was_there_keeps_its_mode(
     tmp_path, monkeypatch
 ):
+    """KEPT-2."""
     import stat
     import sys
 
@@ -220,6 +224,7 @@ def test_a_link_said_from_where_it_is_and_a_link_to_a_link_stay_links(
 def test_a_link_to_a_file_that_is_not_there_yet_gets_that_file_and_stays(
     tmp_path, monkeypatch
 ):
+    """KEPT-2."""
     import stat
 
     real, link = _linked(tmp_path, monkeypatch)

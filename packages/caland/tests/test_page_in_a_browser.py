@@ -171,6 +171,7 @@ WHOLE_PAGE = "document.documentElement.outerHTML"
 
 # ── getting in ───────────────────────────────────────────────────────
 def test_it_opens_with_its_key_and_shows_the_workspace(page):
+    """VIEW-2."""
     assert page.js(
         "[...document.querySelectorAll('#scopes li span.mono')].map(n => n.textContent)"
     ) == [
@@ -200,6 +201,7 @@ def test_without_a_key_the_page_shows_nothing_and_says_what_to_do(browser, serve
 
 
 def test_a_wrong_key_is_no_key(browser, serve):
+    """GATE-7."""
     server = serve(workspace())
     server.page.new_key()
     tab = browser.tab(f"{server.address}#not-the-key")
@@ -208,11 +210,13 @@ def test_a_wrong_key_is_no_key(browser, serve):
 
 
 def test_a_reload_stays_in(page):
+    """GATE-9."""
     page.reload()
     page.wait(SHOWN)
 
 
 def test_another_tab_is_not_in(browser, page):
+    """GATE-9."""
     other = browser.tab(page.server.address)
     other.wait("!document.getElementById('locked').hidden")
 
@@ -243,6 +247,7 @@ def test_a_page_that_loses_its_key_shows_nothing_it_was_told(page):
 
 
 def test_nothing_is_kept_by_the_browser_but_the_token_for_this_tab(page):
+    """VAL-7."""
     page.press("j")
     page.wait(PROD)
     page.press("l", " ")
@@ -254,10 +259,12 @@ def test_nothing_is_kept_by_the_browser_but_the_token_for_this_tab(page):
 
 # ── the keyboard ─────────────────────────────────────────────────────
 def test_it_opens_with_the_keyboard_in_the_scopes(page):
+    """KEY-7."""
     assert page.focus() == "scopes"
 
 
 def test_tab_goes_from_pane_to_pane(page):
+    """KEY-4."""
     page.press("Tab")
     assert page.focus() == "keys"
     page.press("Tab")
@@ -269,7 +276,7 @@ def test_tab_goes_from_pane_to_pane(page):
 
 
 def test_nothing_that_scrolls_is_a_stop_of_its_own(page):
-    """A browser makes a box that scrolls a stop for tab unless it is told not to;
+    """KEY-4. A browser makes a box that scrolls a stop for tab unless it is told not to;
     which browsers do differs. The stops are these, whatever the browser."""
     page.press("j")
     page.wait(PROD)
@@ -283,7 +290,7 @@ def test_nothing_that_scrolls_is_a_stop_of_its_own(page):
 
 
 def test_tab_is_not_kept_by_the_page(page):
-    """After the last stop it leaves for the browser's own bar, as on any page."""
+    """KEY-4. After the last stop it leaves for the browser's own bar, as on any page."""
     page.press("Tab", "Tab", "Tab")
     assert page.js(
         "document.activeElement === document.body || !document.hasFocus()"
@@ -291,6 +298,7 @@ def test_tab_is_not_kept_by_the_page(page):
 
 
 def test_arrows_move_inside_a_pane_and_across(page):
+    """KEY-2, KEY-5."""
     page.press("j")
     assert page.js(SELECTED_SCOPE) == "prod" and page.focus() == "scopes"
     page.wait(PROD)
@@ -311,6 +319,7 @@ def test_arrows_move_inside_a_pane_and_across(page):
 
 
 def test_the_filter_picks_while_typing_and_goes_back(page):
+    """KEY-7, KEY-8, VIEW-6."""
     page.press("j")
     page.wait(PROD)
     page.press("/")
@@ -330,6 +339,7 @@ def test_the_filter_picks_while_typing_and_goes_back(page):
 
 
 def test_f_hides_the_scopes_out_of_reach_and_shows_them_again(page):
+    """VIEW-2."""
     page.press("f")
     page.wait("document.querySelectorAll('#scopes li').length === 3")
     assert page.js("document.querySelector('#scopes li.out')") is None
@@ -349,6 +359,7 @@ def test_a_scope_out_of_reach_says_so_and_who_can_change_that(page):
 
 # ── a value ──────────────────────────────────────────────────────────
 def test_a_value_is_in_the_page_only_while_it_is_shown(page):
+    """VAL-7."""
     page.press("j")
     page.wait(PROD)
     page.press("l")
@@ -365,6 +376,7 @@ def test_a_value_is_in_the_page_only_while_it_is_shown(page):
 
 
 def test_a_value_shown_again_is_read_again_and_is_what_is_there_now(page):
+    """VAL-3."""
     page.press("j")
     page.wait(PROD)
     page.press("l", " ")
@@ -398,7 +410,7 @@ SECONDS_LEFT = (
 
 
 def test_a_shown_value_hides_itself_when_30_seconds_have_gone_by_the_clock(page):
-    """By the clock, not by counting: a machine that slept through the seconds
+    """VAL-6. By the clock, not by counting: a machine that slept through the seconds
     must not go on showing the value for as many more when it wakes."""
     page.press("j")
     page.wait(PROD)
@@ -415,7 +427,7 @@ def test_a_shown_value_hides_itself_when_30_seconds_have_gone_by_the_clock(page)
 
 
 def test_a_page_that_is_looked_at_again_hides_a_value_whose_time_has_gone_at_once(page):
-    """A tab in the background is given few turns, and a machine asleep none:
+    """VAL-6. A tab in the background is given few turns, and a machine asleep none:
     coming back, the value is gone before anything else happens."""
     page.press("j")
     page.wait(PROD)
@@ -442,6 +454,7 @@ def test_a_clock_put_back_does_not_keep_a_value_on_the_page(page):
 
 
 def test_moving_on_takes_the_value_off_the_page(page):
+    """VAL-6."""
     page.press("j")
     page.wait(PROD)
     page.press("l", " ")
@@ -451,6 +464,7 @@ def test_moving_on_takes_the_value_off_the_page(page):
 
 
 def test_space_on_a_button_presses_that_button(page):
+    """KEY-6."""
     page.press("j")
     page.wait(PROD)
     page.press("l", "l", "l", "l")  # secrets, then Show, Copy, Copy as code
@@ -468,6 +482,7 @@ def test_space_on_a_button_presses_that_button(page):
 
 # ── what a workspace says is text ────────────────────────────────────
 def test_a_name_is_text_and_never_markup(page):
+    """VIEW-9."""
     page.press("j")
     page.wait(PROD)
     page.wait("document.querySelector('#detail table')")
@@ -480,6 +495,7 @@ def test_a_name_is_text_and_never_markup(page):
 
 
 def test_a_name_goes_into_code_as_a_name_whatever_is_in_it(page):
+    """VAL-9."""
     page.press("j")
     page.wait(PROD)
     page.press("l", "G", "C")
@@ -493,6 +509,7 @@ def test_a_name_goes_into_code_as_a_name_whatever_is_in_it(page):
 
 
 def test_a_scope_may_be_called_what_every_object_has(browser, serve):
+    """VIEW-9."""
     names = ["__proto__", "constructor", "toString", "hasOwnProperty"]
     server = serve(
         FakeSecretStore(
@@ -521,9 +538,9 @@ def test_a_scope_may_be_called_what_every_object_has(browser, serve):
     assert tab.js("document.getElementById('toast').hidden") is True
 
 
-# ── fast, and held to it (spec/008, R7) ──────────────────────────────
-#: R7's two numbers, in milliseconds: how soon the page is painted, and how long a
-#: keystroke in the filter may take in a workspace of 500 scopes and 5,000 secrets.
+# ── fast, and held to it (VIEW-8) ────────────────────────────────────
+#: The two numbers of VIEW-8, in milliseconds: how soon the page is painted, and how
+#: long a keystroke in the filter may take in a workspace of 500 scopes and 5,000 secrets.
 FIRST_PAINT, KEYSTROKE = 300, 50
 #: A limit in milliseconds is the point of that test, so it has one — with room. On the
 #: machine this was written on the page is painted in about 80 ms and a keystroke takes
@@ -534,6 +551,7 @@ ROOM = 3
 
 
 def test_a_big_workspace_draws_at_once_and_filters_without_waiting(browser, serve):
+    """VIEW-8."""
     go_on = threading.Event()
 
     class Held(FakeSecretStore):
@@ -576,7 +594,7 @@ def test_a_big_workspace_draws_at_once_and_filters_without_waiting(browser, serv
     assert took < KEYSTROKE * ROOM, f"a keystroke in the filter took {took:.0f} ms"
 
 
-# ── changing things (spec/008, R1 and R4–R6) ─────────────────────────
+# ── changing things (SEC, FILE, ACL) ─────────────────────────────────
 OPEN = "document.getElementById('{}').open"
 TOAST = "document.getElementById('toast').textContent"
 KEYS_SHOWN = "[...document.querySelectorAll('#secrets td.mono')].map(n => n.textContent)"
@@ -617,6 +635,7 @@ def prod(page):
 
 
 def test_a_new_secret_is_typed_in_and_selected(prod):
+    """SEC-1."""
     prod.press("n")
     prod.wait(OPEN.format("form"))
     assert prod.focus() == "form-key"
@@ -635,6 +654,7 @@ def test_a_new_secret_is_typed_in_and_selected(prod):
 
 
 def test_a_new_secret_does_not_overwrite_and_says_so_in_the_dialog(prod):
+    """SEC-2."""
     prod.press("n")
     prod.type("api-key")
     prod.press("Tab")
@@ -646,6 +666,7 @@ def test_a_new_secret_does_not_overwrite_and_says_so_in_the_dialog(prod):
 
 
 def test_a_certificate_is_picked_described_and_stored_as_it_is(prod, tmp_path):
+    """FILE-1, FILE-2."""
     from test_files import certificate, pem
 
     cert, _ = certificate()
@@ -676,6 +697,7 @@ def test_a_certificate_is_picked_described_and_stored_as_it_is(prod, tmp_path):
 
 
 def test_a_file_that_is_no_text_goes_in_and_is_shown_as_what_it_is(prod, tmp_path):
+    """VAL-10."""
     data = bytes(range(256)) * 4
     file = tmp_path / "bundle.p12"
     file.write_bytes(data)
@@ -702,6 +724,7 @@ def test_a_file_that_is_no_text_goes_in_and_is_shown_as_what_it_is(prod, tmp_pat
 
 
 def test_a_file_too_large_to_be_a_secret_is_refused_before_it_is_sent(prod, tmp_path):
+    """FILE-5."""
     file = tmp_path / "huge.bin"
     file.write_bytes(b"x" * (128 * 1024 + 1))
     prod.press("n")
@@ -734,6 +757,7 @@ def test_typing_a_value_lets_go_of_the_file_and_the_other_way_round(prod, tmp_pa
 
 
 def test_a_form_that_is_closed_keeps_nothing_typed_or_chosen(prod, tmp_path):
+    """FILE-1."""
     file = tmp_path / "note.txt"
     file.write_text("from the file\n")
     prod.press("n")
@@ -774,6 +798,7 @@ def test_editing_with_nothing_typed_changes_nothing(prod):
 
 
 def test_deleting_takes_a_deliberate_y_and_u_puts_it_back(prod):
+    """ASK-1, SEC-5."""
     prod.press("d")
     prod.wait(OPEN.format("confirm"))
     assert prod.js("document.getElementById('confirm-what').innerText") == (
@@ -794,6 +819,7 @@ def test_deleting_takes_a_deliberate_y_and_u_puts_it_back(prod):
 
 
 def test_escape_deletes_nothing(prod):
+    """ASK-1."""
     prod.press("d")
     prod.wait(OPEN.format("confirm"))
     prod.press("Escape")
@@ -804,6 +830,7 @@ def test_escape_deletes_nothing(prod):
 
 
 def test_a_scope_has_a_key_of_its_own_and_says_what_goes_with_it(prod):
+    """ACL-2."""
     prod.press("h", "D")
     prod.wait(OPEN.format("confirm"))
     assert prod.js("document.getElementById('confirm-what').innerText") == (
@@ -844,6 +871,7 @@ def test_d_with_no_secret_deletes_nothing_and_says_which_key_would(prod):
 
 
 def test_a_scope_whose_secrets_cannot_be_listed_is_not_called_empty(page):
+    """ACL-2."""
     page.press("j", "j")
     page.wait(f"{SELECTED_SCOPE} === 'shut'")
     page.press("D")
@@ -854,6 +882,7 @@ def test_a_scope_whose_secrets_cannot_be_listed_is_not_called_empty(page):
 
 
 def test_after_a_delete_the_selection_stays_where_it_was(prod):
+    """KEY-7, SEC-5."""
     prod.press("j")
     assert prod.js(SELECTED_KEY) == "db-password"
     prod.press("d")
@@ -864,6 +893,7 @@ def test_after_a_delete_the_selection_stays_where_it_was(prod):
 
 
 def test_u_pressed_before_the_delete_is_answered_loses_nothing(prod):
+    """SEC-11."""
     prod.press("d")
     prod.wait(OPEN.format("confirm"))
     prod.press("y", "u")  # at once: the put-back waits its turn
@@ -874,6 +904,7 @@ def test_u_pressed_before_the_delete_is_answered_loses_nothing(prod):
 
 
 def test_an_empty_file_is_refused_in_the_form(prod, tmp_path):
+    """SEC-3."""
     file = tmp_path / "nothing.pem"
     file.write_bytes(b"")
     prod.press("e")
@@ -912,6 +943,7 @@ def test_a_file_described_too_late_does_not_land_in_another_form(prod, tmp_path)
 
 
 def test_a_certificate_pasted_into_the_value_is_taken_line_for_line(prod):
+    """FILE-1."""
     import json
 
     from test_files import certificate, pem
@@ -958,6 +990,7 @@ def test_a_rename_and_the_original_put_back(prod):
 
 
 def test_a_copy_to_another_scope(prod):
+    """SEC-6."""
     prod.press("m")
     prod.wait(OPEN.format("move"))
     prod.type("from-prod")
@@ -971,6 +1004,7 @@ def test_a_copy_to_another_scope(prod):
 
 
 def test_a_move_onto_another_secret_is_refused_in_the_dialog(prod):
+    """SEC-7."""
     prod.press("m")
     prod.wait(OPEN.format("move"))
     prod.type("db-password")
@@ -1027,6 +1061,7 @@ PICKED_GRANT = (
 
 
 def test_a_grant_is_picked_changed_and_removed_by_its_keys(prod):
+    """KEY-3."""
     prod.press("p")
     prod.wait(OPEN.format("grants"))
     assert prod.focus() == "grants-box"
@@ -1075,6 +1110,7 @@ def test_a_letter_typed_into_a_grants_name_is_no_key(prod):
 
 
 def test_started_read_only_the_keys_in_the_grants_pick_and_change_nothing(browser, serve):
+    """ASK-3."""
     store = workspace()
     server = serve(store, read_only=True)
     tab = browser.tab(f"{server.address}#{server.page.new_key()}")
@@ -1093,6 +1129,7 @@ def test_started_read_only_the_keys_in_the_grants_pick_and_change_nothing(browse
 
 
 def test_a_grant_with_nobody_named_is_said_in_the_dialog(prod):
+    """ACL-4."""
     prod.press("p")
     prod.wait(OPEN.format("grants"))
     prod.js("document.getElementById('grant-give').click()")
@@ -1101,6 +1138,7 @@ def test_a_grant_with_nobody_named_is_said_in_the_dialog(prod):
 
 
 def test_a_scope_is_made_and_selected(prod):
+    """ACL-1."""
     prod.press("N")
     prod.wait(OPEN.format("scope-form"))
     assert prod.focus() == "scope-name"
@@ -1116,6 +1154,7 @@ def test_a_scope_is_made_and_selected(prod):
 
 
 def test_a_key_vault_scopes_secrets_can_only_be_copied_out(page):
+    """SEC-12, SEC-13."""
     page.wait("document.querySelector('#detail button')")
     assert page.js(SELECTED_SCOPE) == "kv"
     assert page.js(BUTTONS) == [
@@ -1170,6 +1209,7 @@ def test_started_read_only_the_page_offers_no_change(browser, serve):
 
 
 def test_the_buttons_of_a_secret_in_the_order_the_arrows_walk_them(prod):
+    """KEY-5."""
     assert prod.js(BUTTONS) == [
         "Show",
         "Copy",
@@ -1184,7 +1224,7 @@ def test_the_buttons_of_a_secret_in_the_order_the_arrows_walk_them(prod):
     ]
 
 
-# ── the tools (spec/005, and 002 R5) ─────────────────────────────────
+# ── the tools (ENV, LIST, and sorting) ───────────────────────────────
 LIST = (
     "[...document.querySelectorAll('#list-rows tr')]"
     ".map(r => [...r.cells].map(c => c.textContent))"
@@ -1193,6 +1233,7 @@ LIST_TITLE = "document.getElementById('list-title').textContent"
 
 
 def test_copy_puts_the_value_on_the_clipboard_and_never_in_the_page(prod):
+    """VAL-8."""
     prod.press("c")
     prod.wait(f"{TOAST} === 'Copied api-key.'")
     assert prod.clipboard() == VALUE
@@ -1200,6 +1241,7 @@ def test_copy_puts_the_value_on_the_clipboard_and_never_in_the_page(prod):
 
 
 def test_s_sorts_the_pane_the_keyboard_is_in_and_keeps_what_was_selected(prod):
+    """VIEW-7."""
     prod.press("j")  # db-password
     prod.press("s")
     shown = prod.js(KEYS_SHOWN)
@@ -1231,6 +1273,7 @@ def test_s_sorts_the_pane_the_keyboard_is_in_and_keeps_what_was_selected(prod):
 
 
 def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
+    """LIST-1."""
     prod.press("A")
     prod.wait(OPEN.format("list"))
     assert prod.js(LIST_TITLE) == "Not changed in 90 days: 6 secrets"
@@ -1251,6 +1294,7 @@ def test_the_stale_report_lists_what_was_not_changed_oldest_first(prod):
 
 
 def test_enter_in_a_list_goes_to_what_is_picked(prod):
+    """KEY-3, LIST-4."""
     prod.press("A")
     prod.wait(OPEN.format("list"))
     prod.press("j", "Enter")  # the second oldest
@@ -1260,6 +1304,7 @@ def test_enter_in_a_list_goes_to_what_is_picked(prod):
 
 
 def test_the_overview_says_what_you_can_reach_strongest_first(prod):
+    """LIST-2."""
     prod.press("a")
     prod.wait(OPEN.format("list"))
     assert prod.js(LIST_TITLE) == "What you can reach: 3 of 4 scopes"
@@ -1274,6 +1319,7 @@ def test_the_overview_says_what_you_can_reach_strongest_first(prod):
 
 
 def test_who_has_access_narrows_as_a_name_is_typed(prod):
+    """LIST-3."""
     prod.press("P")
     prod.wait(OPEN.format("list"))
     assert prod.focus() == "list-filter"
@@ -1305,6 +1351,7 @@ def test_a_scope_is_filled_from_a_file_after_it_is_said_what_that_does(prod, tmp
 
 
 def test_an_import_that_overwrites_nothing_is_not_dressed_as_a_danger(prod, tmp_path):
+    """ENV-3."""
     file = tmp_path / "app.env"
     file.write_text("ONLY_NEW=1\n")
     prod.choose_files("#env-file", str(file))
@@ -1320,6 +1367,7 @@ def test_an_import_that_overwrites_nothing_is_not_dressed_as_a_danger(prod, tmp_
 
 
 def test_an_import_that_stops_says_where_and_that_the_rest_stays(prod, tmp_path):
+    """ENV-4."""
     file = tmp_path / "app.env"
     file.write_text("FIRST=1\nSECOND=2\nTHIRD=3\n")
     real = prod.store.put_secret_bytes
@@ -1339,6 +1387,7 @@ def test_an_import_that_stops_says_where_and_that_the_rest_stays(prod, tmp_path)
 
 
 def test_a_scopes_keys_are_copied_as_a_template_without_reading_a_value(prod):
+    """ENV-5, VAL-2."""
     prod.press("x")
     prod.wait(OPEN.format("env"))
     prod.press("1")
@@ -1348,6 +1397,7 @@ def test_a_scopes_keys_are_copied_as_a_template_without_reading_a_value(prod):
 
 
 def test_a_scopes_values_are_copied_only_after_a_y(prod):
+    """ASK-1, ENV-6, KEY-3."""
     prod.press("x")
     prod.wait(OPEN.format("env"))
     prod.press("2")
@@ -1363,7 +1413,7 @@ def test_a_scopes_values_are_copied_only_after_a_y(prod):
 
 
 def test_two_quick_changes_to_a_setting_are_kept_in_the_order_made(prod, monkeypatch):
-    """The first is held up on its way. Were the second sent beside it, it would
+    """VIEW-2. The first is held up on its way. Were the second sent beside it, it would
     overtake, and what is kept would be the older choice."""
     prefer, asked, done = Handler._prefer, [], []
     overtaken, both = threading.Event(), threading.Event()
@@ -1410,6 +1460,7 @@ def test_every_value_can_be_forgotten_from_the_keys(prod):
 
 
 def test_every_value_is_forgotten_by_a_key_in_the_keys_and_by_none_outside(prod):
+    """VAL-5."""
     prod.press(" ")
     prod.wait("document.querySelector('pre.value.shown')")
     held = prod.server.page.loader.service.cache.raw
@@ -1436,6 +1487,7 @@ def test_the_keys_open_at_their_first_line(page):
 
 
 def test_enter_goes_on_from_the_scopes_and_shows_the_value_of_a_secret(page):
+    """KEY-6."""
     page.press("j")
     page.wait(PROD)
     assert page.focus() == "scopes"
@@ -1466,7 +1518,7 @@ NAMED = {
 
 
 def test_every_key_the_page_takes_is_in_the_list_of_keys_and_in_the_docs(page):
-    """ "Everything has a key" — and a key nobody is told of is no key."""
+    """KEY-1, KEY-2. "Everything has a key" — and a key nobody is told of is no key."""
     import re
     from pathlib import Path
 
@@ -1499,7 +1551,7 @@ def test_every_key_the_page_takes_is_in_the_list_of_keys_and_in_the_docs(page):
 def test_an_import_answered_late_does_not_take_the_place_of_another_question(
     prod, tmp_path
 ):
-    """Choose a file, then `d` before the server has said what the import would
+    """ASK-2. Choose a file, then `d` before the server has said what the import would
     do: the question on the page stays "Delete", and `y` deletes — it must not
     have become "Import" underneath."""
     file = tmp_path / "app.env"
@@ -1539,6 +1591,7 @@ def test_a_list_answered_late_does_not_open_over_a_question(prod):
 
 
 def test_no_dialog_opens_over_another_but_a_question_over_the_grants(prod):
+    """ASK-2."""
     prod.press("A")
     prod.wait(OPEN.format("list"))
     prod.js(
@@ -1563,6 +1616,7 @@ def test_no_dialog_opens_over_another_but_a_question_over_the_grants(prod):
 
 
 def test_a_y_typed_into_a_filter_answers_no_question(prod):
+    """ASK-2, KEY-6."""
     prod.press("P")
     prod.wait(OPEN.format("list"))
     prod.type("yy")
@@ -1572,6 +1626,7 @@ def test_a_y_typed_into_a_filter_answers_no_question(prod):
 
 
 def test_a_list_asked_for_while_the_workspace_is_read_says_so_and_fills(browser, serve):
+    """LIST-4."""
     go_on = threading.Event()
 
     class Held(FakeSecretStore):
@@ -1603,6 +1658,7 @@ def test_a_list_asked_for_while_the_workspace_is_read_says_so_and_fills(browser,
 
 
 def test_a_locked_page_keeps_no_list_and_no_file(prod, tmp_path):
+    """GATE-9."""
     file = tmp_path / "app.env"
     file.write_text("NEW_ONE=held-value\n")
     prod.choose_files("#env-file", str(file))
@@ -1622,6 +1678,7 @@ def test_a_locked_page_keeps_no_list_and_no_file(prod, tmp_path):
 
 
 def test_a_name_in_a_copied_table_stays_a_name(browser, serve):
+    """LIST-1."""
     odd = "a|b __init__ `x`"
     server = serve(
         FakeSecretStore(
@@ -1641,7 +1698,7 @@ def test_a_name_in_a_copied_table_stays_a_name(browser, serve):
     assert row.count(" | ") == 3  # four columns, as the heading has
 
 
-# ── which workspace (spec/001) ───────────────────────────────────────
+# ── which workspace (WSP) ────────────────────────────────────────────
 PLACES = (
     "[...document.querySelectorAll('#picker-rows tr')].map(r => r.cells[0].textContent)"
 )
@@ -1710,6 +1767,7 @@ def test_with_several_workspaces_the_page_asks_which(choosing):
 
 
 def test_w_goes_to_another_workspace_and_keeps_nothing_of_the_one_left(choosing):
+    """WSP-9."""
     choosing.wait(OPEN.format("picker"))
     choosing.press("Enter")  # dev
     choosing.wait(
@@ -1755,6 +1813,7 @@ def test_esc_leaves_the_workspace_as_it_is_when_there_is_one(choosing):
 
 
 def test_a_workspace_is_signed_in_to_by_its_address_and_kept_under_a_name(choosing):
+    """WSP-7."""
     choosing.wait(OPEN.format("picker"))
     choosing.js("document.getElementById('picker-url').focus()")
     choosing.type("new.example.com")
@@ -1780,6 +1839,7 @@ def test_a_workspace_is_signed_in_to_by_its_address_and_kept_under_a_name(choosi
 
 
 def test_an_address_that_is_none_is_said_in_the_dialog(choosing):
+    """WSP-6."""
     choosing.wait(OPEN.format("picker"))
     choosing.js("document.getElementById('picker-url').focus()")
     choosing.type("http://insecure.example.com/path")
@@ -1887,6 +1947,7 @@ def test_a_tab_left_showing_another_workspace_changes_nothing_and_catches_up(cho
 
 
 def test_a_value_that_comes_late_is_not_shown_under_another_workspace(choosing):
+    """WSP-10."""
     in_common(choosing, "dev")
     dev = choosing.connector.stores["dev"]
     real = dev.get_secret_bytes
@@ -1917,6 +1978,7 @@ def test_a_value_that_comes_late_is_not_shown_under_another_workspace(choosing):
 
 
 def test_the_choice_comes_back_even_when_something_else_was_open(choosing):
+    """WSP-8."""
     go_on = threading.Event()
     real = choosing.connector.connect_profile
 
@@ -1949,6 +2011,7 @@ def test_the_choice_comes_back_even_when_something_else_was_open(choosing):
 
 
 def test_enter_twice_is_one_sign_in(choosing):
+    """WSP-9."""
     choosing.wait(OPEN.format("picker"))
     choosing.js("document.getElementById('picker-url').focus()")
     choosing.type("new.example.com")
@@ -2006,7 +2069,7 @@ def test_a_profile_not_kept_is_said_once_and_the_sign_in_stands(choosing):
 def test_the_row_that_is_picked_is_gone_to_also_when_two_have_one_name_and_address(
     browser,
 ):
-    """A bundle's target and a profile for the same workspace: the second row is
+    """WSP-4. A bundle's target and a profile for the same workspace: the second row is
     the profile, and signs in as the profile does."""
     from caland.application import OnboardingService
     from caland.domain import SOURCE_BUNDLE

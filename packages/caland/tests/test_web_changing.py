@@ -90,12 +90,14 @@ def post(served, path, body):
 # ── nothing changes that may not ─────────────────────────────────────
 @pytest.mark.parametrize(("path", "body"), CHANGES)
 def test_read_only_is_the_servers_to_hold(read_only, path, body):
+    """ASK-3."""
     status, told = post(read_only, path, body)
     assert status == 403 and "read-only" in told["error"]
     assert wrote(read_only) == []
 
 
 def test_read_only_still_reads(read_only):
+    """ASK-3."""
     assert post(read_only, "/api/value", {"scope": "prod", "key": "api-key"})[0] == 200
     assert read_only.json("GET", "/api/state")[1]["read_only"] is True
     assert post(read_only, "/api/describe", {"base64": b64(b"x")})[0] == 200
@@ -103,6 +105,7 @@ def test_read_only_still_reads(read_only):
 
 @pytest.mark.parametrize(("path", "body"), CHANGES)
 def test_no_change_without_the_token_or_from_another_site(served, path, body):
+    """GATE-3."""
     assert served.ask("POST", path, body, token="wrong")[0] == 401
     assert (
         served.ask("POST", path, body, headers={"Origin": "https://evil.example"})[0]
@@ -116,6 +119,7 @@ def test_no_change_without_the_token_or_from_another_site(served, path, body):
 
 @pytest.mark.parametrize(("path", "body"), CHANGES)
 def test_no_change_by_a_get(served, path, body):
+    """GATE-5."""
     assert served.ask("GET", path)[0] == 404
     assert wrote(served) == []
 
@@ -140,12 +144,14 @@ def test_no_change_by_a_get(served, path, body):
     ],
 )
 def test_a_key_vault_scopes_secrets_are_azures(served, path, body):
+    """SEC-12."""
     status, told = post(served, path, body)
     assert status == 409 and "Azure Key Vault" in told["error"]
     assert wrote(served) == []
 
 
 def test_a_secret_can_be_copied_out_of_a_key_vault_scope(served):
+    """SEC-12."""
     body = {
         "scope": "kv",
         "key": "tenant-id",
@@ -159,6 +165,7 @@ def test_a_secret_can_be_copied_out_of_a_key_vault_scope(served):
 
 # ── a secret ─────────────────────────────────────────────────────────
 def test_text_is_stored_as_it_was_typed(served):
+    """SEC-1."""
     assert (
         post(
             served,
@@ -212,11 +219,13 @@ def test_text_comes_back_as_text(served):
     ],
 )
 def test_a_secret_said_badly_is_not_saved(served, body):
+    """SEC-4."""
     assert post(served, "/api/secret/put", body)[0] == 400
     assert wrote(served) == []
 
 
 def test_an_empty_value_is_a_slip_not_a_wish_to_wipe(served):
+    """SEC-3."""
     status, told = post(
         served, "/api/secret/put", {"scope": "prod", "key": "api-key", "text": ""}
     )
@@ -232,6 +241,7 @@ def test_a_scope_that_is_not_there_is_not_written_to(served):
 
 
 def test_a_new_secret_does_not_overwrite_one_that_is_there(served):
+    """SEC-2."""
     body = {"scope": "prod", "key": "api-key", "text": "oops", "new": True}
     status, told = post(served, "/api/secret/put", body)
     assert status == 409 and "already" in told["error"] and wrote(served) == []
@@ -239,6 +249,7 @@ def test_a_new_secret_does_not_overwrite_one_that_is_there(served):
 
 
 def test_a_value_may_be_as_large_as_a_secret_holds_and_no_larger(served):
+    """SEC-4."""
     fits = {"scope": "prod", "key": "big", "base64": b64(b"x" * LIMIT)}
     assert post(served, "/api/secret/put", fits)[0] == 200
     over = {"scope": "prod", "key": "bigger", "base64": b64(b"x" * (LIMIT + 1))}
@@ -262,6 +273,7 @@ def test_what_the_workspace_refuses_is_said_shortly(served):
 
 # ── deleting, and taking it back ─────────────────────────────────────
 def test_deleting_keeps_what_it_held_and_undo_puts_it_back(served):
+    """SEC-9."""
     assert post(served, "/api/secret/delete", {"scope": "prod", "key": "api-key"}) == (
         200,
         {"kept": True},
@@ -275,11 +287,13 @@ def test_deleting_keeps_what_it_held_and_undo_puts_it_back(served):
 
 
 def test_undo_with_nothing_to_put_back(served):
+    """SEC-9."""
     status, told = post(served, "/api/undo", {})
     assert status == 409 and wrote(served) == []
 
 
 def test_deleting_what_is_not_there(served):
+    """SEC-5."""
     assert post(served, "/api/secret/delete", {"scope": "prod", "key": "nope"})[0] == 404
     assert (
         post(served, "/api/secret/delete", {"scope": "nope", "key": "api-key"})[0] == 404
@@ -287,6 +301,7 @@ def test_deleting_what_is_not_there(served):
 
 
 def test_forgetting_ends_the_chance_to_put_it_back(served):
+    """VAL-5."""
     post(served, "/api/secret/delete", {"scope": "prod", "key": "api-key"})
     post(served, "/api/forget", {})
     assert served.json("GET", "/api/state")[1]["taken"] is None
@@ -295,6 +310,7 @@ def test_forgetting_ends_the_chance_to_put_it_back(served):
 
 # ── moving ───────────────────────────────────────────────────────────
 def test_a_move_a_rename_and_a_copy(served):
+    """SEC-6."""
     move = {"scope": "prod", "key": "api-key", "to_scope": "prod", "to_key": "renamed"}
     assert post(served, "/api/secret/move", move)[0] == 200
     keys = [row[0] for row in served.json("GET", "/api/scope?name=prod")[1]["secrets"]]
@@ -329,6 +345,7 @@ def test_a_move_a_rename_and_a_copy(served):
     ],
 )
 def test_a_move_that_makes_no_sense_moves_nothing(served, change, status):
+    """SEC-7."""
     body = {
         "scope": "prod",
         "key": "api-key",
@@ -342,6 +359,7 @@ def test_a_move_that_makes_no_sense_moves_nothing(served, change, status):
 
 # ── grants and scopes ────────────────────────────────────────────────
 def test_a_grant_is_given_changed_and_taken(served):
+    """ACL-4."""
     give = {"scope": "prod", "principal": "data-engineers", "permission": "WRITE"}
     assert post(served, "/api/grant/put", give)[0] == 200
     assert ["data-engineers", "WRITE"] in served.json("GET", "/api/scope?name=prod")[1][
@@ -362,6 +380,7 @@ def test_a_grant_is_given_changed_and_taken(served):
 
 
 def test_grants_on_a_key_vault_scope_are_changed_like_any(served):
+    """ACL-4."""
     give = {"scope": "kv", "principal": "analysts", "permission": "READ"}
     assert post(served, "/api/grant/put", give)[0] == 200
 
@@ -393,6 +412,7 @@ def test_a_grant_on_a_scope_that_is_not_there(served):
 
 
 def test_a_scope_is_made_and_seen_at_once(served):
+    """ACL-1."""
     before = served.json("GET", "/api/state")[1]["version"]
     assert post(served, "/api/scope/create", {"name": "fresh"})[0] == 200
     state = served.json("GET", "/api/state")[1]
@@ -407,12 +427,14 @@ def test_a_scope_is_made_and_seen_at_once(served):
 
 
 def test_a_scope_that_is_there_is_not_made_again(served):
+    """ACL-1."""
     assert post(served, "/api/scope/create", {"name": "prod"})[0] == 409
     assert post(served, "/api/scope/create", {"name": ""})[0] == 400
     assert wrote(served) == []
 
 
 def test_a_scope_is_deleted_with_what_was_in_it(served):
+    """ACL-2."""
     assert post(served, "/api/scope/delete", {"name": "prod"})[0] == 200
     assert [scope["name"] for scope in served.json("GET", "/api/state")[1]["scopes"]] == [
         "kv"
@@ -421,6 +443,7 @@ def test_a_scope_is_deleted_with_what_was_in_it(served):
 
 
 def test_every_change_moves_the_version(served):
+    """VIEW-5."""
     seen = [served.json("GET", "/api/state")[1]["version"]]
     changes = [
         CHANGES[0],
@@ -436,12 +459,14 @@ def test_every_change_moves_the_version(served):
 
 # ── what a file is ───────────────────────────────────────────────────
 def test_a_file_is_described_and_kept_nowhere(served):
+    """FILE-5."""
     status, told = post(served, "/api/describe", {"base64": b64(b"KEY=value\n")})
     assert status == 200 and told["kind"] == "text, 1 line" and told["size"] == 10
     assert wrote(served) == [] and served.page.loader.service.cache.raw == {}
 
 
 def test_describing_takes_the_token_like_everything_else(served):
+    """FILE-5."""
     assert (
         served.ask("POST", "/api/describe", {"base64": "YQ=="}, token="wrong")[0] == 401
     )
@@ -460,6 +485,7 @@ def test_a_file_too_large_to_be_a_secret_is_said_to_be(served):
 # ── what a second pair of eyes found ─────────────────────────────────
 @pytest.mark.parametrize("new", [True, False])
 def test_an_empty_file_wipes_nothing(served, new):
+    """SEC-3."""
     body = {
         "scope": "prod",
         "key": "api-key" if not new else "fresh",
@@ -471,6 +497,7 @@ def test_an_empty_file_wipes_nothing(served, new):
 
 
 def test_text_that_is_no_text_is_refused_not_failed_on(served):
+    """GATE-11."""
     raw = b'{"scope": "prod", "key": "k", "text": "\\ud800"}'
     assert served.ask("POST", "/api/secret/put", raw=raw)[0] == 400
 
@@ -481,17 +508,20 @@ def test_json_nested_beyond_reason_is_refused_not_failed_on(served):
 
 
 def test_a_new_secret_in_another_case_does_not_overwrite(served):
+    """SEC-2."""
     body = {"scope": "prod", "key": "API-Key", "text": "oops", "new": True}
     status, told = post(served, "/api/secret/put", body)
     assert status == 409 and "api-key" in told["error"] and wrote(served) == []
 
 
 def test_a_scope_in_another_case_is_there_already(served):
+    """SEC-8."""
     status, told = post(served, "/api/scope/create", {"name": "PROD"})
     assert status == 409 and "“prod”" in told["error"] and wrote(served) == []
 
 
 def test_undo_does_not_overwrite_a_secret_made_since_and_keeps_what_it_holds(served):
+    """SEC-10."""
     post(served, "/api/secret/delete", {"scope": "prod", "key": "api-key"})
     post(
         served,
@@ -529,6 +559,7 @@ def test_reading_again_shows_the_value_that_is_there_now(served):
 
 
 def test_describing_any_file_answers(served):
+    """FILE-4."""
     import os
 
     for data in (
@@ -548,6 +579,7 @@ ENV = (
 
 
 def test_an_import_is_shown_before_it_is_done_and_says_no_value(served):
+    """ENV-3."""
     status, told = post(served, "/api/env/preview", {"scope": "prod", "base64": b64(ENV)})
     assert status == 200
     assert told == {
@@ -559,6 +591,7 @@ def test_an_import_is_shown_before_it_is_done_and_says_no_value(served):
 
 
 def test_an_import_puts_every_pair_and_leaves_out_the_empty(served):
+    """ENV-3."""
     status, told = post(served, "/api/env/import", {"scope": "prod", "base64": b64(ENV)})
     assert status == 200 and told["done"] == ["NEW_ONE", "API-KEY", "MULTI"]
     assert (told["total"], told["stopped_at"], told["empty"]) == (3, "", ["EMPTY"])
@@ -569,6 +602,7 @@ def test_an_import_puts_every_pair_and_leaves_out_the_empty(served):
 
 
 def test_an_import_that_stops_says_how_far_it_got_and_at_which_key(served):
+    """ENV-4."""
     real = served.store.put_secret_bytes
 
     def refusing(scope, key, value):
@@ -600,12 +634,14 @@ def test_an_import_is_a_change_like_any(read_only, served, path):
 
 
 def test_an_import_of_more_than_a_scope_holds_is_refused(served):
+    """ENV-2."""
     many = "".join(f"K{n}=v\n" for n in range(1001)).encode()
     status, told = post(served, "/api/env/import", {"scope": "prod", "base64": b64(many)})
     assert status == 413 and "1001" in told["error"] and wrote(served) == []
 
 
 def test_an_export_is_the_scopes_text_values_and_names_what_it_left_out(served):
+    """ENV-6."""
     post(
         served,
         "/api/secret/put",
@@ -622,6 +658,7 @@ def test_an_export_is_the_scopes_text_values_and_names_what_it_left_out(served):
 
 
 def test_an_export_reads_values_so_it_is_no_get_and_takes_the_token(served):
+    """ENV-6."""
     assert served.ask("GET", "/api/env/export?scope=prod")[0] == 404
     assert (
         served.ask("POST", "/api/env/export", {"scope": "prod"}, token="wrong")[0] == 401
@@ -636,6 +673,7 @@ def test_an_export_is_reading_and_works_read_only(read_only):
 
 # ── preferences, and every scope's grants ────────────────────────────
 def test_every_scopes_grants_at_once(served):
+    """LIST-2."""
     status, told = served.json("GET", "/api/grants")
     assert status == 200 and told["scopes"] == {
         "kv": [["users", "READ"]],
@@ -644,6 +682,7 @@ def test_every_scopes_grants_at_once(served):
 
 
 def test_a_preference_is_kept_and_said_back():
+    """ASK-4, LIST-1."""
     kept = []
     store = seeded_store()
     loader = Loader(lambda: WorkspaceService(store, "test"))
@@ -687,6 +726,7 @@ PEM_ENV = (
 
 
 def test_a_key_quoted_over_several_lines_is_one_secret_and_whole(served):
+    """ENV-1."""
     status, told = post(
         served, "/api/env/preview", {"scope": "prod", "base64": b64(PEM_ENV)}
     )
@@ -715,6 +755,7 @@ def test_a_key_quoted_over_several_lines_is_one_secret_and_whole(served):
 def test_a_file_that_cannot_be_read_without_guessing_is_refused_whole(
     served, path, env, why
 ):
+    """ENV-2."""
     status, told = post(served, path, {"scope": "prod", "base64": b64(env)})
     assert status == 400 and why in told["error"]
     assert wrote(served) == []
@@ -723,6 +764,7 @@ def test_a_file_that_cannot_be_read_without_guessing_is_refused_whole(
 
 
 def test_after_an_import_in_another_case_the_new_value_is_the_one_shown(served):
+    """SEC-8."""
     post(served, "/api/value", {"scope": "prod", "key": "api-key"})  # shown before
     post(
         served, "/api/env/import", {"scope": "prod", "base64": b64(b"API-KEY=rotated\n")}
@@ -750,6 +792,7 @@ def test_an_export_reads_what_is_there_now(served):
 
 
 def test_a_value_that_ends_in_a_newline_comes_back_with_it(served):
+    """ENV-7."""
     post(
         served, "/api/secret/put", {"scope": "prod", "key": "token", "text": "ghp_abc\n"}
     )
@@ -769,6 +812,7 @@ def test_a_value_that_ends_in_a_newline_comes_back_with_it(served):
     ],
 )
 def test_a_preference_asked_for_badly_changes_none(served, body):
+    """KEPT-3."""
     assert post(served, "/api/settings", body)[0] == 400
     state = served.json("GET", "/api/state")[1]
     assert (state["show_all"], state["stale_after"]) == (True, 90)

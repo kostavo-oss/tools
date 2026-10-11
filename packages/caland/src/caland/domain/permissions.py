@@ -1,4 +1,4 @@
-"""Authorization rules — a domain service.
+"""Authorization rules — a domain service. ACL-3.
 
 The "what can this principal do" logic that used to live on the cache. It's a
 business rule about scopes + ACLs + identity, so it belongs in the domain.

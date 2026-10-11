@@ -12,10 +12,12 @@ def _write(tmp_path, body: str) -> DatabricksBundleStore:
 
 
 def test_no_file_returns_none(tmp_path):
+    """WSP-2."""
     assert DatabricksBundleStore(root=tmp_path).discover() is None
 
 
 def test_picks_the_default_target(tmp_path):
+    """WSP-2."""
     store = _write(
         tmp_path,
         """
@@ -106,6 +108,7 @@ def test_templated_target_host_falls_back_to_top_level(tmp_path):
 
 
 def test_no_host_returns_none(tmp_path):
+    """WSP-2."""
     assert _write(tmp_path, "bundle:\n  name: empty\n").discover() is None
 
 

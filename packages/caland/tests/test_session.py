@@ -14,6 +14,7 @@ def test_authenticate_and_load_scopes_populate_cache():
 
 
 def test_warm_scope_pulls_secrets_and_acls():
+    """VIEW-3."""
     s = WorkspaceService(seeded_store(), "t")
     s.load_scopes()
     s.warm_scope("prod")
@@ -22,6 +23,7 @@ def test_warm_scope_pulls_secrets_and_acls():
 
 
 def test_warm_scope_swallows_store_errors():
+    """VIEW-4."""
     gw = FakeSecretStore(scopes=[Scope("prod")], fail_on={"list_secrets"})
     s = WorkspaceService(gw, "t")
     s.load_scopes()
@@ -30,6 +32,7 @@ def test_warm_scope_swallows_store_errors():
 
 
 def test_warm_scope_marks_readability_per_scope():
+    """ACL-3."""
     # 'mine' lists fine (readable); 'theirs' denies reads (visible but no access)
     gw = FakeSecretStore(
         scopes=[Scope("mine"), Scope("theirs")],

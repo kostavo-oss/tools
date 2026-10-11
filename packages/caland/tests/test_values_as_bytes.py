@@ -32,6 +32,7 @@ def service() -> Looked:
 
 
 def test_bytes_go_in_and_come_back_as_they_were(service):
+    """VAL-10."""
     service.put_secret_bytes("prod", "bundle", BUNDLE)
     assert service.store._values[("prod", "bundle")] == BUNDLE
     service.forget_values()
@@ -40,18 +41,21 @@ def test_bytes_go_in_and_come_back_as_they_were(service):
 
 
 def test_a_value_is_read_from_the_workspace_every_time_it_is_asked_for(service):
+    """VAL-3."""
     for _ in range(3):
         service.reveal_bytes("prod", "api-key")
     assert service.store.count("get_secret_bytes") == 3
 
 
 def test_a_second_look_shows_what_is_there_now(service):
+    """VAL-3."""
     assert service.reveal_bytes("prod", "api-key") == b"value::prod/api-key"
     service.store._values[("prod", "api-key")] = b"rotated elsewhere"
     assert service.reveal_bytes("prod", "api-key") == b"rotated elsewhere"
 
 
 def test_moving_keeps_every_byte(service):
+    """VAL-10."""
     service.put_secret_bytes("prod", "bundle", BUNDLE)
     service.move_secret("prod", "bundle", "prod", "renamed")
     assert service.secret("prod", "bundle") is None
@@ -59,6 +63,7 @@ def test_moving_keeps_every_byte(service):
 
 
 def test_moving_is_done_in_the_safe_order(service):
+    """SEC-6."""
     service.move_secret("prod", "api-key", "prod", "moved")
     done = [call[0] for call in service.store.calls if call[0] != "list_secrets"]
     assert done[-3:] == ["get_secret_bytes", "put_secret_bytes", "delete_secret"]
@@ -116,12 +121,14 @@ def test_putting_back_is_one_deep(service):
 
 
 def test_a_secret_whose_value_cannot_be_read_is_deleted_for_good(service):
+    """SEC-9."""
     service.store._fail_on.add("get_secret_bytes")
     assert service.delete_secret_kept("prod", "api-key") is False
     assert service.secret("prod", "api-key") is None and service.taken is None
 
 
 def test_what_cannot_be_put_back_now_is_kept_for_when_it_can(service):
+    """SEC-10."""
     service.delete_secret_kept("prod", "api-key")
     service.delete_scope("prod")
     with pytest.raises(StoreError, match="scope “prod” is gone"):
@@ -133,6 +140,7 @@ def test_what_cannot_be_put_back_now_is_kept_for_when_it_can(service):
 
 
 def test_it_is_not_put_back_over_a_secret_made_since(service):
+    """SEC-10."""
     service.delete_secret_kept("prod", "api-key")
     service.put_secret_bytes("prod", "api-key", b"ROTATED-NEW")
     with pytest.raises(Exists, match="would overwrite it"):
@@ -170,6 +178,7 @@ def test_a_delete_keeps_the_value_as_it_was_when_deleted(service):
 
 
 def test_reading_a_scope_again_lets_go_of_what_was_read_of_it(service):
+    """VAL-4."""
     service.reveal_bytes("prod", "api-key")
     service.reveal_bytes("prod", "db-password")
     service.reveal_bytes("kv", "tenant-id")
@@ -188,6 +197,7 @@ def test_a_new_secret_is_not_put_over_one_made_elsewhere_since(service):
 
 
 def test_a_move_does_not_land_on_one_made_elsewhere_since(service):
+    """SEC-7."""
     service.store._secrets["prod"].append(Secret("prod", "made-elsewhere"))
     with pytest.raises(Exists):
         service.move_secret("prod", "api-key", "prod", "made-elsewhere")
@@ -212,6 +222,7 @@ def test_a_name_in_another_case_is_the_same_name(service, key):
 
 
 def test_the_fake_takes_a_name_in_another_case_for_the_same_secret():
+    """SEC-8."""
     store = FakeSecretStore(scopes=[Scope("s")], secrets={"s": [Secret("s", "Case-Key")]})
     store.put_secret_bytes("s", "case-key", b"lower")
     assert [x.key for x in store.list_secrets("s")] == ["Case-Key"]
@@ -222,7 +233,7 @@ def test_the_fake_takes_a_name_in_another_case_for_the_same_secret():
 
 # ── one change at a time ─────────────────────────────────────────────
 def test_a_put_back_asked_for_while_a_delete_is_under_way_loses_nothing():
-    """`d`, `y`, and `u` before the answer: the secret just deleted must be either
+    """SEC-11. `d`, `y`, and `u` before the answer: the secret just deleted must be either
     back or still held — never gone with nothing to put back."""
     import threading
     import time
@@ -262,6 +273,7 @@ def test_a_put_back_asked_for_while_a_delete_is_under_way_loses_nothing():
 
 
 def test_two_new_secrets_of_one_name_at_once_make_one():
+    """SEC-11."""
     import threading
 
     store = seeded_store()
@@ -291,6 +303,7 @@ def test_forgetting_forgets_what_could_be_put_back_too(service):
 
 
 def test_deleting_a_scope_drops_the_values_held_from_it(service):
+    """VAL-4."""
     service.reveal_bytes("prod", "api-key")
     service.delete_scope("prod")
     assert service.cache.raw == {}

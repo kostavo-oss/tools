@@ -1,4 +1,4 @@
-"""JSON-file settings adapter — persisted preferences, never secrets.
+"""JSON-file settings adapter — persisted preferences, never secrets. KEPT-3.
 
 Lives at `$XDG_CONFIG_HOME/caland/settings.json` (default
 `~/.config/caland/settings.json`). Deliberately forgiving: a missing,

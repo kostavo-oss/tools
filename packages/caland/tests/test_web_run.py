@@ -38,6 +38,7 @@ def run(**kwargs: Any) -> tuple[int, str]:
 
 
 def test_it_says_where_it_is_and_stops_when_left_alone():
+    """CMD-6, CMD-8."""
     code, said = run()
     assert code == 0
     assert re.search(r"http://127\.0\.0\.1:\d+/#[\w-]{40,}", said)
@@ -47,6 +48,7 @@ def test_it_says_where_it_is_and_stops_when_left_alone():
 
 
 def test_with_a_browser_the_key_is_not_printed():
+    """CMD-6."""
     opened: list[str] = []
 
     def browser(address: str) -> bool:
@@ -59,17 +61,20 @@ def test_with_a_browser_the_key_is_not_printed():
 
 
 def test_when_no_browser_starts_the_link_is_said_instead():
+    """CMD-6."""
     code, said = run(open_browser=True, browser=lambda address: False)
     assert code == 0 and re.search(r"http://127\.0\.0\.1:\d+/#[\w-]{40,}", said)
 
 
 def test_the_file_with_the_key_is_gone_when_it_stops():
+    """CMD-7."""
     opened: list[str] = []
     run(open_browser=True, browser=lambda address: bool(opened.append(address)) or True)
     assert not Path(unquote(urlsplit(opened[0]).path)).exists()
 
 
 def test_being_told_to_stop_is_tidied_like_ctrl_c():
+    """CMD-7."""
     import os
     import signal
     import threading
@@ -88,6 +93,7 @@ def test_being_told_to_stop_is_tidied_like_ctrl_c():
 
 
 def test_a_workspace_that_is_not_there_ends_it_before_it_starts():
+    """CMD-4."""
     code, said = run(name="nope")
     assert code == 2 and "No workspace “nope” found. There is: dev." in said
     assert "http://" not in said
@@ -100,11 +106,13 @@ def test_several_workspaces_and_no_name_starts_and_lets_the_page_ask_which():
 
 
 def test_no_workspace_at_all_starts_too_for_one_can_be_signed_in_to_by_address():
+    """CMD-5."""
     code, said = run(onboarding=onboarding(workspaces=()))
     assert code == 0 and "caland stopped." in said
 
 
 def test_every_value_is_forgotten_when_it_stops():
+    """CMD-7."""
     held = []
 
     class Remembering(OnboardingService):

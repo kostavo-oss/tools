@@ -9,6 +9,9 @@ coordination lives here, so:
 
 These methods block. The server calls them on the thread of the request that
 asked; a workspace is read in the background (`loading.py`).
+
+One change at a time, against what is there now: SEC-11. A value is read from the
+workspace every time it is asked for: VAL-3. What is held of values: VAL-4.
 """
 
 from __future__ import annotations

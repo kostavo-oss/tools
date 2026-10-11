@@ -36,6 +36,7 @@ def _client() -> MagicMock:
 
 
 def test_databricks_store_satisfies_protocol():
+    """CODE-1."""
     assert isinstance(DatabricksSecretStore.from_profile("x"), SecretStore)
 
 

@@ -1,4 +1,4 @@
-"""OnboardingService — connection/login use-cases.
+"""OnboardingService — connection/login use-cases. WSP-1, WSP-4, CMD-5.
 
 Depends only on domain ports (`WorkspaceConnector`, `ProfileStore`, `BundleStore`);
 the composition root injects concrete infrastructure adapters. Produces

@@ -10,6 +10,7 @@ from caland.infrastructure.settings import settings_path
 
 
 def test_what_is_saved_is_what_is_loaded(tmp_path):
+    """KEPT-3."""
     store = JsonSettingsStore(tmp_path / "settings.json")
     store.save(Settings(show_all_scopes=True, audit_threshold=180))
     assert store.load() == Settings(show_all_scopes=True, audit_threshold=180)
@@ -20,6 +21,7 @@ def test_what_is_saved_is_what_is_loaded(tmp_path):
 
 
 def test_a_missing_or_broken_file_means_the_defaults_never_a_failure(tmp_path):
+    """KEPT-3."""
     path = tmp_path / "settings.json"
     assert JsonSettingsStore(path).load() == Settings()
     for broken in ("{not json", "[1, 2]", '"text"', ""):

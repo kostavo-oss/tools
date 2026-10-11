@@ -1,4 +1,4 @@
-"""DatabricksCfgProfileStore — the `ProfileStore` port over ~/.databrickscfg.
+"""DatabricksCfgProfileStore — the `ProfileStore` port over ~/.databrickscfg. KEPT-2.
 
 That file holds tokens. So it is written one writer at a time, never half — a
 copy beside it is written and moved into its place. A new file is its owner's

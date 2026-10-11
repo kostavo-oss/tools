@@ -1,4 +1,4 @@
-"""What a file is, before it becomes a secret (spec/008, R5)."""
+"""What a file is, before it becomes a secret (FILE-2 to FILE-4)."""
 
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ def key_pem(key, password: bytes | None = None) -> bytes:
 
 
 def test_a_pem_certificate_says_who_it_is_for_who_issued_it_and_when_it_ends():
+    """FILE-2."""
     cert, _ = certificate()
     told = describe(pem(cert))
     assert told.kind == "PEM certificate" and told.binary is False
@@ -60,6 +61,7 @@ def test_a_pem_certificate_says_who_it_is_for_who_issued_it_and_when_it_ends():
 
 
 def test_the_names_it_lists_count_before_its_subject():
+    """FILE-2."""
     cert, _ = certificate(
         names=("a.example", "b.example", "c.example", "d.example", "e.example")
     )
@@ -87,6 +89,7 @@ def test_a_certificate_with_its_key_says_so():
 
 
 def test_a_private_key_is_named_and_never_read():
+    """FILE-3."""
     _, key = certificate()
     assert describe(key_pem(key)).kind == "PEM private key"
     assert describe(key_pem(key, b"hunter2")).kind == "PEM private key, encrypted"
@@ -102,7 +105,7 @@ def test_a_der_certificate_is_binary_and_read():
 
 @pytest.mark.parametrize("password", [b"hunter2", None])
 def test_a_pkcs12_bundle_is_named_by_its_shape_and_never_opened(password):
-    """It says itself how many rounds its check takes: a file of 785 bytes can
+    """FILE-3. It says itself how many rounds its check takes: a file of 785 bytes can
     ask for two thousand million, and whoever opens it is busy for minutes."""
     cert, key = certificate()
     how = (
@@ -119,13 +122,14 @@ def test_a_pkcs12_bundle_is_named_by_its_shape_and_never_opened(password):
 
 
 def test_nothing_here_can_open_a_pkcs12_bundle():
+    """FILE-3."""
     from caland.application import files
 
     assert not hasattr(files, "pkcs12")
 
 
 def test_no_file_makes_it_raise_or_take_its_time():
-    """Whatever the bytes: random ones, and a real certificate cut off at every
+    """FILE-4. Whatever the bytes: random ones, and a real certificate cut off at every
     length, as DER and as PEM."""
     import os
     import time
@@ -146,6 +150,7 @@ def test_no_file_makes_it_raise_or_take_its_time():
 
 
 def test_a_certificate_that_cannot_be_read_is_said_to_be_that(monkeypatch):
+    """FILE-4."""
     from caland.application import files
 
     def broken(certificate):
@@ -205,4 +210,5 @@ def test_what_is_told_is_plain_data():
 
 
 def test_the_limit_is_databricks():
+    """SEC-4."""
     assert LIMIT == 131072

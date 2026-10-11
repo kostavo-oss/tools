@@ -154,6 +154,9 @@ asking.
     shown, as anyone who can see your screen can. If that worries you for a workspace, use a
     browser profile without extensions.
 
+    A program on your machine that opens every connection Caland takes, 64 of them, keeps
+    the page from loading. It gets nothing: that is a nuisance, not a leak.
+
 ## If you want a terminal app
 
 That is [isolinear](installation.md#if-you-want-a-terminal-app): what Caland was until 0.6,
