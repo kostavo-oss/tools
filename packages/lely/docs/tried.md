@@ -108,3 +108,7 @@ there were no environments.
     known that answers it. What a workspace admin may change is not said either: it was
     not checked, on a workspace or in the docs, what the `admins` group may do to what
     is in Unity Catalog.
+12. **Which place a bundle variable is taken from.** That `--var` wins over a
+    `BUNDLE_VAR_` variable in the environment, and that one over a value in the bundle's
+    target, is from Databricks' docs. Neither was tried, and nor was what the CLI's plan
+    shows when only such a value differs between plan and apply.

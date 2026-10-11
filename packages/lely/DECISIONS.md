@@ -409,3 +409,26 @@ permission model into one line of a check, to go stale there, and `doctor` would
 not have seen any of it for the workspace at hand. The fact it reads off is enough for
 what the line is for: someone who gave a pull request's plan an admin's credentials
 sees it.
+
+## 43. 2026-10-11 — A plan is not held to what the bundle resolves from outside lely
+
+Decided by the owner (kostavo-oss/tools#53), open since the bundle plugin was built on
+2026-10-05: the limit stays, and is documented. A `BUNDLE_VAR_<name>` in the
+environment of the apply, or a variable's `lookup` that answers something else than at
+plan, changes what is deployed without changing a line of the plan. lely does not hold
+a plan to those values (PLAN-13), and `docs/safety.md` says what a team can do.
+
+Why: the way to close it is a fingerprint of the bundle's resolved variables, kept in
+the plan and compared at apply. Variables can depend on who runs the CLI, so a plan
+made by one identity would be refused when another applies it. That is how the GitHub
+workflows run: the pull request plans with credentials that read, the merge applies
+with ones that write. The check would refuse the one flow lely is built for.
+
+Rejected: the fingerprint always, for that reason. Rejected: the fingerprint as an
+option a project turns on. It would be a safety switch that is off where it is needed
+and that breaks the workflows where it is on, and one more thing a reviewer has to
+know the state of. What a team does instead costs nothing: keep `BUNDLE_VAR_` variables
+out of the environment of the apply, and set variables in the bundle's target or in
+the step's `vars`, which the plan is already held to. Databricks' docs say a variable in
+the environment wins over the target's value, so the first of those is the one that
+counts; that order was not tried.

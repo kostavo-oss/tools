@@ -57,9 +57,22 @@ A step in the repo runs when a plan is made: its `plan`, and whatever that does.
 
 - **Files git doesn't track** are not part of the tree a plan is held to: a new, unadded
   notebook is deployed without the plan knowing.
-- **What the bundle resolves from outside** — a `BUNDLE_VAR_x` set at apply, a variable
-  looked up in the workspace — can change what is deployed without changing a line of the
-  plan.
+- **What the bundle resolves from outside lely.** lely does not hold a plan to the
+  values a bundle's variables end up with. Two things can change them after the review
+  without changing a line of the plan: a `BUNDLE_VAR_<name>` in the environment of the
+  apply, and a variable with a `lookup`, which the workspace answers again at apply.
+  What a team can do:
+    - Keep `BUNDLE_VAR_` variables out of the environment of the job that applies. This
+      is the one that counts: Databricks'
+      [docs](https://docs.databricks.com/aws/en/dev-tools/bundles/variables) say such a
+      variable wins over a value set in the bundle's target.
+    - Set a bundle's variables in the bundle's target, which is in the git tree the plan
+      is held to, or pass them with the step's `vars`, which are in the config the plan
+      is held to. The same docs say a `--var`, which is what `vars` become, wins over the
+      environment. They name one more place that wins over the target's value: a
+      `variable-overrides.json` under the bundle's `.databricks` folder, which is
+      usually not in git. lely has not tried any of this order on a workspace.
+    - Where a looked-up value must not move between review and apply, write the id.
 - **Whether credentials are read-only.** `lely doctor` says what it can see: which workspace,
   as whom, and whether that is a workspace admin. It says no more of an admin than that:
   for an admin and for anyone else, lely cannot tell what the credentials may change.

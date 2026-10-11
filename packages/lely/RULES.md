@@ -678,6 +678,18 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   moved since. The order of the options themselves does not count: a plugin is handed
   those by name.
   Held by: `tests/unit/test_options.py::test_a_mapping_counts_in_the_order_written`.
+- **PLAN-13** — A plan is not held to what the bundle resolves from outside lely. A
+  reviewed plan is held to the steps as written, the values each step took from the
+  steps above, the workspace and the git tree (PLAN-4, PLAN-5, PLAN-6), and each step
+  runs only the changes the plan showed (APL-3). A bundle variable set as
+  `BUNDLE_VAR_<name>` in the environment of the apply, or one whose `lookup` answers
+  something else than at plan, is none of those: lely keeps no fingerprint of the
+  variables a bundle resolved, and where the Databricks CLI's plan reads the same with
+  the other value, the apply goes through.
+  Not tested: it is a limit, not a behaviour, and the stand-in for the Databricks CLI
+  resolves no variable from the environment or by a lookup. What the CLI's plan shows
+  when only such a value differs, and which of two places a variable is set in wins,
+  were not tried on a workspace.
 
 ## WAIT — a step that cannot be planned yet
 

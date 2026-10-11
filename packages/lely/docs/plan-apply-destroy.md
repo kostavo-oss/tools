@@ -71,6 +71,10 @@ means the same thing:
   repository. A bundle's notebooks are in no plan at all; this is what ties them to the
   review. A plan made with uncommitted changes says so, and is not run from a file.
 
+It is not held to what a bundle resolves from outside lely, such as a `BUNDLE_VAR_`
+variable in the environment of the apply:
+[what lely can't see](safety.md#what-lely-cant-see) says what to do about that.
+
 A plan file holds no secret. It does hold the plan each plugin made — for the bundle, the
 Databricks CLI's own — so treat it like the config it was made from.
 
