@@ -131,4 +131,4 @@ are the gaps [the tools are for](why.md), closed by answering a few questions.
 What a team would do next is theirs: real sources in place of the example, real models,
 and a contract that says what they promise. The template's own record of what has been
 tried, and what has not, is in its
-[spec](https://github.com/kostavo-oss/data-product-template/blob/main/spec/README.md).
+[TRIED.md](https://github.com/kostavo-oss/data-product-template/blob/main/TRIED.md).

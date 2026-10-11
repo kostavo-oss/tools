@@ -4,8 +4,8 @@ Thanks for your interest! Issues and pull requests are very welcome.
 
 This repository holds four tools, each a package under `packages/`, each with its own
 version, changelog, docs and rules. What is shared is here: the lock file, the gate, the
-site, the workflows. A package's own `CONTRIBUTING.md` says what holds inside it —
-stevin's, for one, has the architecture and the house rules of a plan/apply tool.
+site, the workflows. A package's own `CONTRIBUTING.md` says how to work inside it, and
+its `RULES.md` what must stay true of its code.
 
 ## How changes land
 
