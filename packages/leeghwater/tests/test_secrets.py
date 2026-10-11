@@ -7,7 +7,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import TSecretStrValue
 
 from conftest import FakeWorkspace
-from leeghwater import LeeghwaterError
+from leeghwater import LeeghwaterError, prepare
 from leeghwater.secrets import (
     DatabricksSecretsProvider,
     PointedSecretsProvider,
@@ -62,6 +62,30 @@ def test_a_scope_is_listed_once_and_only_what_is_there_is_read(workspace, monkey
 
     assert workspace.lists == ["ingest"]
     assert workspace.reads == [("ingest", "sources-github-access_token")]
+
+
+def test_a_scope_that_is_also_pointed_into_is_listed_once(
+    on_databricks, workspace, monkeypatch
+):
+    """SEC-6. The scope's own provider and the one for pointed-at secrets share a list."""
+    monkeypatch.setenv("SOURCES__GITHUB__PAGE_SIZE", "50")
+    prepare(
+        secret_scopes=["ingest"],
+        secrets={"sources.orders.api_key": "ingest/sources-github-access_token"},
+        workspace_client=workspace,
+    )
+
+    assert list(orders()) == [{"key": "tok-from-ingest"}]
+    assert list(github()) == [{"token": "tok-from-ingest", "page_size": 50}]
+
+    assert workspace.lists == ["ingest"]
+    assert set(workspace.reads) == {("ingest", "sources-github-access_token")}
+
+    # A later run lists again: what one run saw is not what the next one goes by.
+    prepare(secret_scopes=["ingest"], workspace_client=workspace)
+    list(github())
+
+    assert workspace.lists == ["ingest", "ingest"]
 
 
 def test_a_value_that_is_not_a_secret_is_never_asked_of_a_scope(workspace):

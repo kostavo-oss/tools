@@ -6,7 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`leeghwater.where()`** says where the process runs: on a laptop or on Databricks,
+  and on which runtime. The function was there and could not be imported by that name.
+
+### Changed
+
+- **`doctor` checks what a run would read, wherever it would load.** A Key Vault is
+  checked on a laptop without `--profile` too, where `doctor` used to check nothing. The
+  sign-in and the secret scopes are checked for every run that reads a scope, also one
+  that loads somewhere other than Databricks. When there is nothing to check it says
+  `nothing to check: this run reads no workspace and no key vault`.
+- **Every command's help is plain text.** The help of `run`, of a pipeline, of `list`
+  and of `doctor` was drawn in boxes, which a job's log shows as box characters.
+
 ### Fixed
+
+- A secret scope that is named and also pointed into with `--secret` is listed once in a
+  run. It was listed twice, once for each.
 
 - **A later `prepare()` starts from nothing.** A second call in one process, as in a
   notebook, kept what the first had set: its secret scopes and Key Vaults stayed

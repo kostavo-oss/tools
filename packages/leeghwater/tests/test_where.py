@@ -27,6 +27,23 @@ def test_it_reads_the_process_environment_when_given_none(on_databricks):
     assert where().on_databricks
 
 
+def test_a_project_can_ask_where_it_runs(monkeypatch):
+    """DBX-9. The name a project imports, not the module the code keeps it in."""
+    import leeghwater
+
+    assert "where" in leeghwater.__all__
+    assert not leeghwater.where().on_databricks
+
+    monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "client.2.5")
+    here = leeghwater.where()
+
+    assert (here.on_databricks, here.serverless, here.runtime) == (
+        True,
+        True,
+        "client.2.5",
+    )
+
+
 def test_importing_leeghwater_does_not_import_dlt():
     """PRE-1. On Databricks an early `import dlt` gets the wrong module."""
     import subprocess

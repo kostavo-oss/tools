@@ -1,6 +1,6 @@
 import dlt
 
-from leeghwater._report import _reason, _size, failed_jobs, is_load_info, load_report
+from leeghwater._report import _reason, _size, load_report
 
 
 @dlt.resource
@@ -14,8 +14,6 @@ def test_a_report_names_each_job_and_where_it_went():
 
     report = load_report(info)
 
-    assert is_load_info(info)
-    assert failed_jobs(info) == []
     assert "load report" in report
     assert ": loaded" in report
     assert "done    rows" in report

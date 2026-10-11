@@ -194,3 +194,25 @@ one's scopes, profile, log level and `--set` values. `prepare()` after
   provider registered and emptied, which leaves its name in dlt's list and in its errors.
 - A call that is refused leaves no setup. It has taken the earlier call back by then,
   and the setup of that call would name scopes that are gone.
+
+## 18. 2026-10-11 — `doctor` checks what the run would read, not everything the app names
+
+Decided by the writer. `doctor` asks a workspace when the run loads into it or reads a
+scope of it, and asks each Key Vault always. On a laptop without a profile it checks no
+scope and no warehouse, though the app names them.
+
+Why: a `doctor` that fails says the run would fail. A local run reads no scope
+(decision 5) and has no profile to sign in with, so a check of the app's scopes there
+would fail on a laptop whose run goes through. Rejected: checking everything the app
+names with the SDK's default sign-in, wherever the run loads.
+
+## 19. 2026-10-11 — The providers of a run share one reader of the workspace
+
+Decided by the writer. The provider of a scope and the provider of the pointed-at
+secrets take the reader of a provider that is registered already, when it was made with
+the same client. The reader keeps the listing of a scope.
+
+Why: decision 7 wants one listing per scope in a run, and a scope that was named and
+also pointed into was listed by each provider. Rejected: a listing kept for the whole
+process, which a later `prepare()` would go by after the scope had changed. The reader
+goes when its providers are taken out (decision 17).

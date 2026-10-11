@@ -378,7 +378,13 @@ class App:
         root.help = self.help
         root.no_args_is_help = True
 
-        run = TyperGroup(name="run", help="Run one pipeline.", no_args_is_help=True)
+        # APP-12. typer draws help with rich, in boxes, unless a command is told not to:
+        # the project's own commands are told by the Typer they are made on, and the
+        # ones made here each take it themselves.
+        plain: dict[str, Any] = {"rich_markup_mode": None}
+        run = TyperGroup(
+            name="run", help="Run one pipeline.", no_args_is_help=True, **plain
+        )
         for name, function in pipelines.items():
             run.add_command(
                 TyperCommand(
@@ -386,6 +392,7 @@ class App:
                     help=inspect.getdoc(function),
                     params=[*_own_options(name, function), *_every_run_options()],
                     callback=functools.partial(self._run_command, name, function),
+                    **plain,
                 )
             )
         root.add_command(run)
@@ -398,6 +405,7 @@ class App:
                 help="Name the pipelines and their parameters.",
                 params=[as_json],
                 callback=functools.partial(self._list, pipelines),
+                **plain,
             )
         )
         root.add_command(
@@ -406,6 +414,7 @@ class App:
                 help="Say where this would run and what would be set up; change nothing.",
                 params=[*_every_run_options(), as_json],
                 callback=self._doctor_command,
+                **plain,
             )
         )
         return root
@@ -515,7 +524,7 @@ class App:
     def _doctor_command(self, **values: Any) -> None:
         as_json = values.pop("as_json")
         setup = self._prepare(_Options.take(values), require_warehouse=False)
-        checks = self._checks(setup) if setup.loads_into_databricks else []
+        checks = self._checks(setup)
         ok = all(check["ok"] for check in checks)
         if as_json:
             typer.echo(
@@ -527,7 +536,7 @@ class App:
             self._say("doctor", setup)
             if not checks:
                 typer.echo(
-                    "  nothing to check: this would load locally, with no workspace"
+                    "  nothing to check: this run reads no workspace and no key vault"
                 )
             for check in checks:
                 mark = "ok    " if check["ok"] else "FAILED"
@@ -548,32 +557,40 @@ class App:
                 found = f"{type(error).__name__}: {error}"
                 checks.append({"what": what, "ok": False, "found": found})
 
-        scopes = Scopes(self.workspace_client)
-        try:
-            client = scopes.client
-        except Exception as error:
-            return [{"what": "sign-in", "ok": False, "found": f"{error}"}]
+        # APP-9: what the run would read is checked, wherever it would load. A workspace
+        # is asked when the run loads into it or reads a scope of it; a vault always.
+        if setup.loads_into_databricks or setup.secret_scopes or setup.pointed_secrets:
+            scopes = Scopes(self.workspace_client)
+            try:
+                client = scopes.client
+            except Exception as error:
+                checks.append({"what": "sign-in", "ok": False, "found": f"{error}"})
+            else:
+                check("identity", scopes.identity)
 
-        check("identity", scopes.identity)
-        names: dict[str, set[str]] = {}
+                def listed(scope: str) -> str:
+                    return ", ".join(sorted(scopes.names(scope))) or "no secrets in it"
 
-        def listed(scope: str) -> str:
-            names[scope] = scopes.names(scope)
-            return ", ".join(sorted(names[scope])) or "no secrets in it"
+                for scope in setup.secret_scopes:
+                    check(f"secret scope {scope}", functools.partial(listed, scope))
 
-        for scope in setup.secret_scopes:
-            check(f"secret scope {scope}", functools.partial(listed, scope))
+                def pointed(path: str, ref: str) -> str:
+                    scope, key = split_pointer(path, ref)
+                    if key not in scopes.names(scope):
+                        raise LookupError(f"no secret '{key}' in scope '{scope}'")
+                    return f"{scope}/{key} is there"
 
-        def pointed(path: str, ref: str) -> str:
-            scope, key = split_pointer(path, ref)
-            if scope not in names:
-                listed(scope)
-            if key not in names[scope]:
-                raise LookupError(f"no secret '{key}' in scope '{scope}'")
-            return f"{scope}/{key} is there"
+                for path, ref in setup.pointed_secrets.items():
+                    check(f"secret {path}", functools.partial(pointed, path, ref))
 
-        for path, ref in setup.pointed_secrets.items():
-            check(f"secret {path}", functools.partial(pointed, path, ref))
+                if setup.warehouse and setup.loads_into_databricks:
+
+                    def warehouse() -> str:
+                        found = client.warehouses.get(setup.warehouse)
+                        state = getattr(found.state, "value", found.state)
+                        return f"{found.name} ({state})"
+
+                    check(f"warehouse {setup.warehouse}", warehouse)
 
         for url in setup.key_vaults:
 
@@ -584,12 +601,4 @@ class App:
                 return ", ".join(sorted(names)) or "no secrets in it"
 
             check(f"key vault {url}", listed_vault)
-
-        if setup.warehouse:
-
-            def warehouse() -> str:
-                found = client.warehouses.get(setup.warehouse)
-                return f"{found.name} ({getattr(found.state, 'value', found.state)})"
-
-            check(f"warehouse {setup.warehouse}", warehouse)
         return checks
