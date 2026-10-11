@@ -9,6 +9,10 @@
 The first row needs nothing but Python and `dlt[duckdb]`. It tries your source, not the
 destination: DuckDB ignores what is Databricks' own, such as table properties.
 
+Only `--profile` makes a laptop run load into a workspace. A profile in
+`DATABRICKS_CONFIG_PROFILE` does not: the run loads locally, and its first lines say
+that the variable is set and not used.
+
 A project that loads somewhere else says so once, in the app:
 `App(..., destination=..., local_destination=...)`.
 

@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The first lines no longer name a profile the run does not use.** With
+  `DATABRICKS_CONFIG_PROFILE` set in the shell and no `--profile`, a run on a laptop
+  loads locally, as before, and its first lines and `doctor` said
+  `workspace  profile <name>` all the same. That line is gone, `doctor --json` gives
+  `"profile": null`, and the note says
+  `the profile in DATABRICKS_CONFIG_PROFILE (<name>) is not used: give --profile to load into a workspace`.
+  Where a run loads does not change.
+- A run that was given `--profile` and loads somewhere other than Databricks is no
+  longer told to give `--profile`.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added
