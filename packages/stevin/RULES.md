@@ -58,7 +58,8 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   table of any other owner may be governed and never shaped: a spec without column
   types puts tags, grants, masks, a row filter and an owner on it and plans no claim. A
   spec with types for such a table is refused, and so is a governance-only spec for a
-  table nobody is said to own or that is not there yet.
+  table nobody is said to own. One for a table that is not there yet is not planned,
+  and stevin does not create the table (PLAN-5).
   Held by: `tests/unit/test_owned_elsewhere.py::test_even_a_governance_only_spec_for_dbts_table_is_refused`,
   `tests/unit/test_owned_elsewhere.py::test_a_governance_only_spec_governs_a_dlt_table`,
   `tests/unit/test_owned_elsewhere.py::test_a_shape_spec_for_a_dlt_table_is_refused`.
@@ -124,15 +125,19 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   workspace and never runs the Databricks CLI.
   Held by: `tests/unit/test_one_name_one_spec.py::test_validate_refuses_two_files_naming_one_table`,
   `tests/unit/test_plan_order.py::test_the_whole_chain_lands_in_one_order`.
-- **PLAN-5** — A table whose schema the bundle declares and has not deployed is not
-  planned, and that is told apart from a failure. stevin does not create the schema.
-  Every command that makes a plan exits 5, names the schema, writes no plan file and
-  sends no statement: `plan`, `drift`, `apply` without a plan file and `ui` without
-  one. The library raises `NotDeployedYet`, which names the schema. Once the schema is
-  there the same command answers as it always does, and any other refusal of a plan
-  exits 1. `list` makes no plan: it says the table is not there and exits 0.
+- **PLAN-5** — A plan that needs what another tool has yet to make is not made, and
+  that is told apart from a failure. There are two such cases: a table whose schema
+  the bundle declares and has not deployed, and a table a spec only governs that its
+  owner has not made. stevin creates neither. Every command that makes a plan exits 5,
+  names what is missing and whose it is, writes no plan file and sends no statement:
+  `plan`, `drift`, `apply` without a plan file and `ui` without one. The library raises
+  `NotDeployedYet` for the first case and `NotMadeYet` for the second, both a
+  `NotThereYet`. Once the thing is there the same command answers as it always does.
+  Any other refusal of a plan exits 1, also for a governance-only spec: a column the
+  table does not have, and a table nobody is said to own. `list` makes no plan: it
+  says the table is not there and exits 0.
   Held by: `tests/unit/test_bundle.py::test_a_schema_the_bundle_has_not_deployed_is_an_exit_code_of_its_own`,
-  `tests/unit/test_bundle.py::test_the_error_names_the_schema_for_a_program`,
+  `tests/unit/test_owned_elsewhere.py::test_a_governed_table_its_owner_has_not_made_is_exit_5_and_a_mistake_is_1`,
   `tests/unit/test_bundle.py::test_list_answers_before_the_bundle_is_deployed`.
 
 ## APL — what `apply` promises
@@ -180,7 +185,7 @@ DDL is not transactional across statements, so there is no rollback. There is th
   is not a plan this version reads, or it holds a step without SQL. A plan that
   destroys something without `--allow-destructive` exits 4. No statement has run in
   either case. Without a plan file `apply` plans first, and exits 5 as `plan` does when
-  the bundle has not deployed a schema (PLAN-5). Any other failure exits 1, and no
+  the plan needs what another tool has yet to make (PLAN-5). Any other failure exits 1, and no
   outcome of `apply` exits 2.
   Held by: `tests/unit/test_cli_apply.py::test_a_program_can_tell_a_refusal_from_a_failure`.
 

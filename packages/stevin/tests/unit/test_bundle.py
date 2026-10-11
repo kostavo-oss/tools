@@ -744,7 +744,6 @@ def test_a_schema_the_bundle_has_not_deployed_is_an_exit_code_of_its_own(
 
 
 def test_the_error_names_the_schema_for_a_program() -> None:
-    # RULES.md: PLAN-5.
     from fake_warehouse import FakeWarehouse
     from helpers import col, table
     from stevin import NotDeployedYet
@@ -756,6 +755,7 @@ def test_the_error_names_the_schema_for_a_program() -> None:
         "dev.sales",
         "schema 'sales'",
     )
+    assert (refused.value.missing, refused.value.owner) == ("dev.sales", "the bundle")
 
 
 def test_list_answers_before_the_bundle_is_deployed(

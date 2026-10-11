@@ -57,7 +57,9 @@ them.
   [governance-only spec](spec.md#a-governance-only-spec): the columns by name, no types.
   stevin lays it over the live table, changes governance only, and never claims,
   reshapes or drops the table. A column or table the spec names that isn't there yet
-  stops the plan: the pipeline makes it first.
+  stops the plan: the pipeline makes it first. A table that isn't there ends `plan`
+  with [exit code `5`](cli.md#exit-codes-of-plan), so a tool that runs the pipeline
+  itself can wait for it.
 - `import` writes that spec for you, with what the table already carries.
 - [leeghwater](https://kostavo-oss.github.io/tools/leeghwater/) runs the same dlt
   pipeline on a laptop and in a Databricks job; the tables it lands are read by what

@@ -222,9 +222,11 @@ exit codes `3` and `4` are held offline only (`tests/unit/test_listing.py`,
 
 **The exit code `5` — not tried on a workspace.** A plan before the bundle has deployed
 a table's schema exits `5` against the fake warehouse and a bundle read from its file
-(`tests/unit/test_bundle.py`). No live run has planned a bundle's target that was never
-deployed. What decides it is whether the schema is found, and that read runs in the
-live suite.
+(`tests/unit/test_bundle.py`), and so does a plan with a governance-only spec for a
+table that is not there (`tests/unit/test_owned_elsewhere.py`). No live run has planned
+a bundle's target that was never deployed, or a spec for a table a pipeline has yet to
+load. What decides it is whether the schema and the table are found, and that read
+runs in the live suite.
 
 **Reading ABAC policies — settled 2026-10-10.** A SQL warehouse accepts `SHOW EFFECTIVE
 POLICIES ON TABLE` and `ON SCHEMA` and answers in the eight columns

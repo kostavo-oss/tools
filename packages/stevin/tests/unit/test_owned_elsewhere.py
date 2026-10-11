@@ -315,9 +315,102 @@ def test_a_governed_column_the_table_lacks_is_refused() -> None:
 
 
 def test_a_governed_table_that_is_not_there_yet_is_theirs_to_make() -> None:
+    from stevin import NotDeployedYet, NotMadeYet, NotThereYet
+
     fake = FakeWarehouse.of(DLT_LOADS, DLT_VERSION)
     with pytest.raises(PlanningError, match="isn't there yet.*owns it makes it first"):
         planned([GOVERN], fake)
+    with pytest.raises(NotMadeYet) as refused:
+        planned([GOVERN], fake)
+    assert (refused.value.table, refused.value.missing, refused.value.owner) == (
+        "dev.raw.customers",
+        "dev.raw.customers",
+        "dlt",
+    )
+    assert "dev.raw.customers isn't there yet" in str(refused.value)
+    assert "it is dlt's" in str(refused.value)
+    # one base for a host that only wants to know "not yet", and two cases
+    assert issubclass(NotMadeYet, NotThereYet) and issubclass(NotThereYet, PlanningError)
+    assert issubclass(NotDeployedYet, NotThereYet)
+    assert not issubclass(NotMadeYet, NotDeployedYet)
+
+
+GOVERN_YML = """\
+table: ${catalog}.raw.customers
+tags: {domain: sales}
+columns:
+  - {name: email, tags: {pii: email}}
+"""
+
+
+def test_a_governed_table_its_owner_has_not_made_is_exit_5_and_a_mistake_is_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every command that plans exits 5 and names the table and its owner,
+    before any statement, also when the table's schema is not there either.
+    Once the owner has made the table the plan is made. What is the spec's own
+    mistake is still 1: a column the table does not have, and no owner said."""
+    # RULES.md: PLAN-5.
+    from typer.testing import CliRunner
+
+    from stevin import cli
+
+    (tmp_path / "stevin.yml").write_text(
+        "specs: [tables]\ntargets:\n  dev:\n    vars: {catalog: dev}\n"
+        "owned_elsewhere:\n  ${catalog}.raw.*: the loader\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "tables").mkdir()
+    (tmp_path / "tables" / "customers.yml").write_text(GOVERN_YML, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+
+    def on(fake: FakeWarehouse) -> None:
+        monkeypatch.setattr(cli, "_connect", lambda *_a, **_k: Connection(runner=fake))
+
+    for fake in (FakeWarehouse(), FakeWarehouse(schemas={"dev.raw"})):
+        on(fake)
+        for command in (
+            ["plan"],
+            ["plan", "-f", "json", "-o", "plan.json"],
+            ["drift"],
+            ["apply", "--yes"],
+            ["ui", "--no-open"],
+        ):
+            result = runner.invoke(cli.app, command)
+            said = " ".join(result.output.split())
+            assert result.exit_code == 5, (command, result.output)
+            assert "dev.raw.customers isn't there yet" in said
+            assert "it is the loader's" in said
+        assert fake.ddl == []
+        assert not (tmp_path / "plan.json").exists()
+        listed = runner.invoke(cli.app, ["list", "--json"])
+        assert listed.exit_code == 0, listed.output
+        assert '"exists": false' in listed.output
+
+    # The loader has run: the table is there, and its governance is planned.
+    there = table(col("id", "bigint"), col("email", "string"), name="dev.raw.customers")
+    on(FakeWarehouse.of(there))
+    made = runner.invoke(cli.app, ["plan"])
+    assert made.exit_code == 0, made.output
+    assert "SET TAG" in made.output
+
+    # A column the table does not have is the spec's to put right: 1.
+    on(FakeWarehouse.of(table(col("id", "bigint"), name="dev.raw.customers")))
+    lacking = runner.invoke(cli.app, ["plan"])
+    assert lacking.exit_code == 1, lacking.output
+    assert "has no column 'email' to govern" in " ".join(lacking.output.split())
+
+    # Nobody is said to own it: 1, whether or not the table is there.
+    (tmp_path / "stevin.yml").write_text(
+        "specs: [tables]\ntargets:\n  dev:\n    vars: {catalog: dev}\n",
+        encoding="utf-8",
+    )
+    for fake in (FakeWarehouse(schemas={"dev.raw"}), FakeWarehouse.of(there)):
+        on(fake)
+        unowned = runner.invoke(cli.app, ["plan"])
+        assert unowned.exit_code == 1, unowned.output
+        assert "nothing says whose it is" in " ".join(unowned.output.split())
 
 
 def test_owned_tables_are_theirs_not_unmanaged() -> None:

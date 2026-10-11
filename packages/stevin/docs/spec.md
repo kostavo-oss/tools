@@ -187,7 +187,9 @@ It may carry `tags`, `grants`, `row_filter`, `owner`, a `comment`, and columns w
 clustering, partitioning, properties, seeds or renames. The plan lays it over the live
 table and finds only governance to change; the table is never claimed, so it can never
 become a drop candidate, and a column or table the spec names that isn't there stops
-the plan — whoever owns it makes it first. What the spec doesn't mention — a comment
+the plan — whoever owns it makes it first. For a table that is not there yet, `plan`
+[exits `5`](cli.md#exit-codes-of-plan), which is not a failure; for a column the table
+lacks it exits `1`. What the spec doesn't mention — a comment
 the owner wrote, a mask it doesn't name — is kept and reported, as for any spec.
 
 `adopt` doesn't read a governance-only spec back yet; edit it by hand.

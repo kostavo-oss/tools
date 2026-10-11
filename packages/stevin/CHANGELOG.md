@@ -8,20 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`stevin.NotDeployedYet`**, for a program that uses stevin as a library: the
-  `PlanningError` raised when the bundle has not deployed a table's schema. Its
-  `.schema` names the schema.
+- **`stevin.NotThereYet`, `NotDeployedYet` and `NotMadeYet`**, for a program that uses
+  stevin as a library. `NotThereYet` is the `PlanningError` raised when a plan needs
+  what another tool has yet to make; `.missing` names it and `.owner` says whose it is.
+  `NotDeployedYet` is the bundle's schema, `NotMadeYet` a table a spec only governs.
 
 ### Changed
 
-- **`plan` exits 5 when the bundle has not deployed a schema yet, where it exited 1.**
-  A table whose schema the bundle declares is not planned before the bundle is
-  deployed. That is not a failure: the same plan is made after the deploy. A program
-  that deploys the bundle itself could not tell it from a spec that does not read.
-  Now it can, by the exit code. `drift`, `apply` without a plan file and `ui` without
-  one exit `5` for the same reason. The message is the same and names the schema.
-  Every other refusal is still `1`. A script that tests for exactly `1` has to
-  change; one that tests for non-zero does not.
+- **`plan` exits 5 when it needs what another tool has yet to make, where it exited
+  1.** Two refusals are not failures: a table whose schema the bundle declares and
+  has not deployed, and a governance-only spec for a table its owner has not made, such
+  as a dlt pipeline that has not run. The same plan is made once that tool has run. A
+  program that runs the bundle or the pipeline itself could not tell these from a spec
+  that does not read. Now it can, by the exit code. `drift`, `apply` without a plan
+  file and `ui` without one exit `5` for the same reasons. The messages name what is
+  missing; the one for a governed table now also names its owner. Every other refusal
+  is still `1`. A script that tests for exactly `1` has to change; one that tests for
+  non-zero does not.
 
 ## [0.4.0a2] - 2026-10-11
 
