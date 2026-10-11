@@ -50,7 +50,7 @@ them.
 | What must be true of the code | `RULES.md`: numbered rules in the present tense, each with the tests that hold it |
 | Why it is so, and what it replaced | `DECISIONS.md`: a log with dates, appended to and never edited |
 | How to use it | `docs/`; the README has a quickstart and links to the pages |
-| What ran on a real workspace, and what did not | the docs page for it (`docs/tried.md` in leeghwater) |
+| What ran on a real workspace, and what did not | the docs page for it (`docs/tried.md`; `docs/testing.md` in stevin) |
 | What changed for a user, per release | `CHANGELOG.md` |
 | How to work in the package: its layout, its commands, its rules of working | `CLAUDE.md` |
 | An idea that is wanted and not built | a GitHub issue |
@@ -63,11 +63,8 @@ a `RULES.md` to it: a cited rule exists, a rule is cited by the tests it names o
 beside it. A rule states the whole promise: one the code does not keep in full says
 `Not kept yet:` with the number of the issue that tracks it.
 
-**leeghwater follows this.** lely and caland still have a `spec/` folder that holds
-rules, decisions, runs and history together, and stevin keeps its rules in its
-`CLAUDE.md` and its docs. Each is converted in a pull request of its own, with
-leeghwater's `RULES.md`, `DECISIONS.md` and `CLAUDE.md` as the pattern. Until then a
-package's rules are where its own `CLAUDE.md` says they are.
+**All four packages follow this**, since 2026-10-11. A new package starts the same
+way, with leeghwater's `RULES.md`, `DECISIONS.md` and `CLAUDE.md` as the pattern.
 
 ## How changes land
 
