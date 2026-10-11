@@ -144,10 +144,12 @@ step's payload. To apply, the payload of the approved plan is written to a tempo
 and handed to `stevin apply <file> --config <c>`, with `--allow-destructive` when the
 plan lely let through holds a destructive change. Before that the approved file is
 compared with the plan made right before, every step and the changes it carries out: the core hands a plugin both,
-the fresh plan as `plan` and the approved one as `ctx.approved`. stevin exits 1 for a
-refusal and for a failure alike, so a stale plan is known by stevin's words. The overview
-is the `tables` of a `stevin plan`. It has no destroy. What the plugin assumes of
-stevin's command line is numbered in `tests/fake_stevin.py`.
+the fresh plan as `plan` and the approved one as `ctx.approved`. What `stevin apply`
+exits with decides the outcome: 3 and 4 are a refusal, any other exit that is not 0 is a
+failure. The overview is what `stevin list --json` prints. It has no destroy. The plan
+file says which stevin wrote it, and that is how the step knows a stevin that is too
+old. What the plugin assumes of stevin's command line is numbered in
+`tests/fake_stevin.py`.
 
 **`Program`** is no plugin lely ships but a base in `lely.step`: a class with a
 `command`. It runs the program with `process.run`, never through a shell, and reads
@@ -204,8 +206,8 @@ There is no Databricks CLI, workspace or GitHub in the unit suite.
   environment.
 - `tests/fixtures/stevin-*.json` are plan files stevin wrote against its own fake
   warehouse. `tests/fake_stevin.py` is the `stevin` command as a fake: it plans from one
-  of them, applies a plan file, refuses a stale one in stevin's words, and fails on a
-  command line it does not know.
+  of them, applies a plan file, lists what it describes, refuses a plan with stevin's
+  words and exit codes, and fails on a command line it does not know.
 - `tests/project.py` is the scenario most tests share.
 - `tests/browser/` asks Chrome whether a plugin's view stays in its frame. It skips
   without Chrome.

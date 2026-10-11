@@ -52,8 +52,8 @@ There is no `spec/` folder, and none comes back.
   docs in its docstring. If unsure, say so and add a `TODO(verify)`: do not guess.
 - The `stevin` plugin runs the `stevin` command and imports nothing of stevin. It applies
   the plan file that was approved (STV-4) and drops nothing (STV-10). What it assumes of
-  stevin's command line is numbered S1 to S7 in `tests/fake_stevin.py`; it has not run on
-  a workspace.
+  stevin's command line is numbered S1 to S9 in `tests/fake_stevin.py`; it has not run on
+  a workspace. It needs stevin 0.4.0a2 or newer (STV-14).
 - `render/base.css` is in three packages, byte for byte (PKG-4): change all three in one
   pull request. After a change to `render/html.py`, run `uv run pytest tests/browser`
   and remake the pictures in `docs/assets/` when the page looks different.

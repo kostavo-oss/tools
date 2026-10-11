@@ -312,3 +312,26 @@ plugin that writes and fail one that reads. Rejected: comparing the project's fo
 before and after a plan. A program a step runs may keep files of its own there, and
 that is not the step keeping state. So the kit's docs name what it does not see, and
 the rule for that part (PLG-16) says it is not tested.
+
+## 38. 2026-10-11 — The `stevin` step goes by stevin's exit codes, and needs the stevin that has them
+
+stevin 0.4.0a2 exits 3 for a plan that will never run and 4 for a destructive one it
+was not told to allow, and has `list`. The step reads those codes and matches no
+sentence any more, and a status asks `stevin list` where it ran a whole plan. This
+closes what entry 33 left open.
+
+The step refuses an older stevin. Rejected: keeping the two sentences as a fallback
+for a stevin that exits 1 with the known words. That keeps the guess the exit codes
+were asked for to end, for a version nobody has to stay on: stevin is an alpha, and
+`uv tool upgrade stevin` is the whole cost. With the fallback a refusal an older stevin
+words differently would still end as failed, and nobody would be told why.
+
+The version comes from the plan file, where stevin writes it, so nothing more is run
+to learn it. Rejected: `stevin --version` before each plan, one more process for what
+the file already says. A version that does not read as one, such as the `unknown` of
+stevin run from its source, is let through: lely turns away only what it knows to be
+older. A development build of 0.4.0a2 counts as older, as Python's packaging orders it.
+
+The overview has a new rule, STV-13, and the rule it had is dropped with its number
+left empty: what a status reads changed, and with it what it can say. `stevin list` says whether an object is there, not
+what a plan would do to it.

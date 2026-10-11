@@ -2,6 +2,7 @@
 
     python fake_stevin.py <world> plan --target T --config C --output OUT --format json
     python fake_stevin.py <world> apply PLAN --config C [--allow-destructive]
+    python fake_stevin.py <world> list --target T --config C --json [--select S]
 
 `<world>` is a folder that stands for a workspace and a stevin project. Every
 call is appended to `<world>/calls.jsonl`.
@@ -12,28 +13,45 @@ own in-memory warehouse. `<world>/state.json` is what the workspace remembers:
 the steps that were applied. `<world>/handed.json` is a copy of the plan file
 `apply` was last handed. What it does is what stevin's command line was
 read to do (`packages/stevin`: `cli.py`, `executor.py`, `render/json.py`), and,
-for S1 to S5, what its CLI was seen to do against that in-memory warehouse on
-2026-10-11. None of it was seen on a workspace.
+for S1 to S6 and S8, what the CLI of stevin 0.4.0a2 was seen to do against that
+in-memory warehouse on 2026-10-11: what it printed, and how it exited. None of
+it was seen on a workspace.
 
 - S1  `plan --output OUT --format json` writes the plan file and prints
       `Wrote <file>`. Steps that were applied are left out of the next plan.
 - S2  `apply PLAN` runs that plan. Its target is the file's: `--target` or
       `--select` beside a file is refused, exit 1. It does not ask.
 - S3  A plan that holds a `destructive` step is refused without
-      `--allow-destructive`, before anything runs, exit 1.
-- S4  A plan the live tables have moved on from is refused as stale, exit 1,
+      `--allow-destructive`, before anything runs, exit 4.
+- S4  A plan the live tables have moved on from is refused as stale, exit 3,
       in the words "the live tables have changed since this plan was made
       (<tables>). Plan again and review the new plan." A plan that already ran
       is stale by its own doing. The fake's fingerprint is the steps applied
       and the text of `<world>/moved`.
-- S5  A plan file of another format is refused, exit 1: "plan format version
-      9 — this stevin writes and reads version 1. Re-run `stevin plan`."
-- S6  A step without SQL is one stevin can't run: the plan is refused, exit 1.
+- S5  A plan file of another format is refused, exit 3: "plan format version
+      9 — this stevin writes and reads version 1. Re-run `stevin plan`." So is
+      a file that is no JSON. A file that can't be read at all is a failure,
+      exit 1.
+- S6  A step without SQL is one stevin can't run: the plan is refused, exit 3.
 - S7  A failed step ends the run with exit 1; the steps before it stay applied.
+- S8  `list --target T --config C --json [--select S]` prints
+      `{"target": T, "objects": [{"name", "kind", "exists"}]}`, one object per
+      spec, in the order the specs were found, and plans nothing. The fake's
+      specs are the tables of `<world>/plan.json`, by their short names, which
+      is the order of the files the recordings were made from. A selection
+      that matches no spec is a failure, exit 1.
+- S9  Exit 2 is the command line's own answer to what it does not know: an
+      older stevin answers `list` with "No such command 'list'." and exit 2
+      (seen from stevin 0.3.0a1). No outcome of `apply` exits 2.
+
+Every plan says which stevin wrote it, in `tool_version`: 0.4.0a2 in the
+recordings, the first with S3 to S6 as exit codes and with S8.
 
 A test tells it what to do with files in `<world>`:
 
-- `fail-plan`, `fail-apply`: the verb fails with that text, exit 1.
+- `fail-plan`, `fail-apply`, `fail-list`: the verb fails with that text, exit 1.
+- `refuse-apply`: `apply` refuses with that text, exit 3, whatever the words.
+- `version`: the next plan says this stevin wrote it.
 - `fail-step`: a number; `apply` fails at that step, after the ones before it.
 - `moved`: someone changed a table since the plan was made (S4). Write it
   after planning.
@@ -57,10 +75,24 @@ FORMAT_VERSION = 1
 _PLAN_FLAGS = ("--target", "--config", "--output", "--format", "--select")
 _APPLY_FLAGS = ("--config",)
 _APPLY_SWITCHES = ("--allow-destructive",)
+_LIST_FLAGS = ("--target", "--config", "--select")
+_LIST_SWITCHES = ("--json",)
+
+#: `apply`'s exit codes for a plan it refuses before anything runs (stevin's
+#: rule APL-8): one that will never run, and one that was not allowed.
+PLAN_AGAIN, NOT_ALLOWED = 3, 4
 
 
 class _Fails(Exception):
     """stevin's own way of failing: a red line on stderr, exit 1."""
+
+
+class _Refuses(Exception):
+    """stevin's own way of refusing a plan: a red line on stderr, exit 3 or 4."""
+
+    def __init__(self, said: str, code: int = PLAN_AGAIN) -> None:
+        super().__init__(said)
+        self.code = code
 
 
 class _Unknown(Exception):
@@ -80,6 +112,8 @@ def main(argv: list[str]) -> int:
             print(_plan(world, args[1:]))
         elif args[:1] == ["apply"]:
             print(_apply(world, args[1:]))
+        elif args[:1] == ["list"]:
+            print(_list(world, args[1:]))
         else:
             raise _Unknown(f"can't answer {args!r}")
     except _Unknown as error:
@@ -88,6 +122,9 @@ def main(argv: list[str]) -> int:
     except _Fails as error:
         print(str(error), file=sys.stderr)
         return 1
+    except _Refuses as error:
+        print(str(error), file=sys.stderr)
+        return error.code
     return 0
 
 
@@ -128,7 +165,40 @@ def planned(world: Path) -> dict[str, Any]:
             table["facts"]["exists"] = True
     document["steps"] = steps
     document["state_fingerprint"] = _fingerprint(world)
+    document["tool_version"] = _read(world / "version") or document["tool_version"]
     return document
+
+
+# -- list ---------------------------------------------------------------------------
+
+
+def _list(world: Path, args: list[str]) -> str:
+    flags, rest = _flags(args, _LIST_FLAGS, _LIST_SWITCHES)
+    if rest:
+        raise _Unknown(f"`list` takes no argument: {rest!r}")
+    for name in ("--target", "--config", "--json"):
+        if name not in flags:
+            raise _Unknown(f"`list` without {name}: only its JSON is faked")
+    _told_to_fail(world, "list")
+    tables = sorted(planned(world)["tables"], key=lambda t: t["table"].split(".")[-1])
+    objects: list[dict[str, Any]] = [
+        {
+            "name": table["table"],
+            "kind": table["facts"].get("kind") or "table",
+            "exists": bool(table["facts"].get("exists")),
+        }
+        for table in tables
+    ]
+    selected = flags.get("--select")
+    if selected is not None:
+        objects = [
+            one
+            for one in objects
+            if any(one["name"].endswith(f".{pattern}") for pattern in selected)
+        ]
+        if not objects:
+            raise _Fails(f"the selection {selected[0]!r} matches no spec")
+    return json.dumps({"target": flags["--target"][0], "objects": objects}, indent=2)
 
 
 # -- apply --------------------------------------------------------------------------
@@ -147,22 +217,29 @@ def _apply(world: Path, args: list[str]) -> str:
         )
     name = Path(rest[0]).name
     try:
-        document = json.loads(Path(rest[0]).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        text = Path(rest[0]).read_text(encoding="utf-8")
+    except OSError as error:
         raise _Fails(f"cannot read {name}: {error}") from None
+    try:
+        document = json.loads(text)
+    except ValueError as error:  # S5
+        raise _Refuses(f"{name}: not valid JSON: {error}") from None
     (world / "handed.json").write_text(json.dumps(document), encoding="utf-8")
     version = document.get("format_version")
     if version != FORMAT_VERSION:  # S5
-        raise _Fails(
+        raise _Refuses(
             f"{name}: plan format version {version!r} — this stevin writes and "
             f"reads version {FORMAT_VERSION}. Re-run `stevin plan`."
         )
     _told_to_fail(world, "apply")
+    refusal = _read(world / "refuse-apply")
+    if refusal:
+        raise _Refuses(refusal)
     steps = document["steps"]
     said = [f"{document['target']} · {len(steps)} steps"]
     unrunnable = [step for step in steps if step.get("sql") is None]
     if unrunnable:  # S6
-        raise _Fails(
+        raise _Refuses(
             f"this plan has {len(unrunnable)} step(s) stevin can't run:\n"
             + "\n".join(f"  {s['id']}. {s['title']} on {s['table']}" for s in unrunnable)
         )
@@ -171,13 +248,14 @@ def _apply(world: Path, args: list[str]) -> str:
         titles = ", ".join(
             f"{s['id']}. {s['title']} on {s['table']}" for s in destructive
         )
-        raise _Fails(
+        raise _Refuses(
             f"this plan destroys something ({titles}). Allow it explicitly if that "
-            "is what you want. Re-run with --allow-destructive."
+            "is what you want. Re-run with --allow-destructive.",
+            NOT_ALLOWED,
         )
     if document.get("state_fingerprint") != _fingerprint(world):  # S4
         moved = ", ".join(dict.fromkeys(step["table"] for step in steps))
-        raise _Fails(
+        raise _Refuses(
             f"the live tables have changed since this plan was made ({moved}). "
             "Plan again and review the new plan."
         )

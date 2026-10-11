@@ -13,6 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   plan stevin refuses as stale ends the run with 2 and says to plan again. `lely status`
   lists the tables stevin's specs describe. `lely destroy` leaves them alone and says so:
   a dropped table is its rows. It has not run on a workspace yet.
+- **The `stevin` step needs stevin 0.4.0a2 or newer.** It reads stevin's exit codes to
+  tell a refusal from a failure, and no longer stevin's words. `lely status` asks
+  `stevin list`, so it makes no plan. A plan from an older stevin fails and names both
+  versions.
 - **A plugin can run what was reviewed.** In `apply`, `ctx.approved` is the step's plan
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.

@@ -29,7 +29,7 @@ The tests run against stand-ins: `tests/fake_databricks.py` is the Databricks CL
 plugin for bundles assumes of the real CLI, and what was seen of it, is numbered `V1` to
 `V8` in the docstring of `src/lely/steps/bundle.py`; the tests and the fake cite those
 numbers. What the `stevin` plugin assumes of stevin's command line is numbered `S1` to
-`S7` in `tests/fake_stevin.py`.
+`S9` in `tests/fake_stevin.py`.
 
 The areas: `CFG` the config, `REF` what flows between steps, `PLG` the plugin contract,
 `BDL` the `bundle` plugin, `BRUN` the `bundle.run` plugin, `STV` the `stevin` plugin,
@@ -442,17 +442,15 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_step_stevin.py::test_a_file_stevin_would_no_longer_run_the_same_is_refused`,
   `tests/unit/test_step_stevin.py::test_a_file_for_another_target_is_refused`,
   `tests/unit/test_running.py::test_a_stevin_plan_that_was_applied_in_part_is_not_resumed`.
-- **STV-6** — A plan stevin refuses because the live tables moved since it was made,
-  because another version of stevin saved it, or because its format is not stevin's, ends
-  the run as refused, in stevin's words and with the advice to plan again. Nothing is planned
-  again in its place, and no step after it starts.
+- **STV-6** — A plan stevin refuses because it will never run ends the run as refused, in
+  stevin's words and with the advice to plan again: the live tables moved since it was
+  made, its file is not a plan that stevin reads, or it holds a step without SQL. The
+  step knows such a refusal by the exit code of `stevin apply`, 3, and never by its
+  words. Nothing is planned again in its place, and no step after it starts.
   Held by: `tests/unit/test_step_stevin.py::test_a_stale_plan_is_refused_in_stevins_words`,
-  `tests/unit/test_step_stevin.py::test_a_plan_file_of_another_stevin_is_refused_too`,
+  `tests/unit/test_step_stevin.py::test_a_refusal_is_known_by_its_exit_code_and_not_by_its_words`,
   `tests/unit/test_running.py::test_a_stale_stevin_plan_stops_the_run_and_nothing_after_it_starts`.
-  Not kept yet: #65 — stevin gives a refusal no sign of its own: every refusal and every
-  failure exits 1. The step knows a refusal by two sentences of stevin's, so a refusal
-  stevin words differently ends the run as failed.
-- **STV-7** — Any other exit of `stevin apply` that is not 0 is the step's failure, quoted
+- **STV-7** — An exit of `stevin apply` that is not 0, 3 or 4 is the step's failure, quoted
   in stevin's words from both of its streams. What stevin applied before it stopped stays
   applied.
   Held by: `tests/unit/test_step_stevin.py::test_a_failing_apply_is_a_failure_in_stevins_words`.
@@ -470,17 +468,30 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_step_stevin.py::test_it_plans_applies_and_lists_and_drops_nothing`,
   `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`,
   `tests/unit/test_cli.py::test_a_destroy_plan_says_in_one_line_that_stevins_tables_stay`.
-- **STV-11** — The overview is every object stevin's specs describe for the target, with
-  its kind and whether it exists, read from `stevin plan` and from nothing else. The step
-  gives no outputs.
-  Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
-  `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
 - **STV-12** — Of stevin's plan file lely shows the names of tables, and each step's
   title, column, risk class and warnings, and nothing else: no owner, and no statement.
   What `stevin apply` writes is passed on to the step's log as it comes, under the step's
   name.
   Held by: `tests/unit/test_step_stevin.py::test_the_plan_names_no_owner`,
   `tests/unit/test_step_stevin.py::test_what_stevin_says_is_passed_on`.
+- **STV-13** — The overview is every object stevin's specs describe for the target, with
+  its kind and whether it exists, as `stevin list --json` answers and from nothing else:
+  no plan is made for a status. A `list` that fails is said in stevin's words, and a
+  stevin that has no `list` is said with the version that has it. The step gives no
+  outputs.
+  Held by: `tests/unit/test_step_stevin.py::test_the_overview_is_what_the_specs_describe`,
+  `tests/unit/test_step_stevin.py::test_a_list_that_fails_or_cant_be_read_is_said`,
+  `tests/unit/test_running.py::test_status_lists_what_stevins_specs_describe`.
+- **STV-14** — The step needs stevin 0.4.0a2 or newer. It reads the version from the plan
+  file stevin wrote, and a plan an older stevin wrote fails when the step is planned,
+  with both versions and how to upgrade. A version it cannot read as one is let through.
+  Held by: `tests/unit/test_step_stevin.py::test_a_plan_of_an_older_stevin_fails_with_both_versions`,
+  `tests/unit/test_step_stevin.py::test_which_stevin_is_new_enough`.
+- **STV-15** — A plan stevin refuses because it destroys something and stevin was not
+  told to allow it, exit 4 of `stevin apply`, ends the run as refused, in stevin's words.
+  It does not say to plan again: lely's plan did not show the change as destructive, and
+  a new plan would read the same.
+  Held by: `tests/unit/test_step_stevin.py::test_allow_destructive_goes_to_stevin_only_with_a_destructive_plan`.
 
 ## PROG — a program as a step
 

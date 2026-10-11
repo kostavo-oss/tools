@@ -1,8 +1,8 @@
 {
   "format_version": 1,
-  "tool_version": "0.1.0",
+  "tool_version": "0.4.0a2",
   "target": "dev",
-  "spec_hash": "704c5f713bb3dd5f",
+  "spec_hash": "c021a62037b6442c",
   "state_fingerprint": "8cd5eec244e9c324",
   "summary": {
     "add": 3,
@@ -16,6 +16,7 @@
   "unmanaged_tables": [],
   "not_managed": [],
   "orphaned_tables": [],
+  "owned_tables": [],
   "tables": [
     {
       "table": "dev.sales.customers",
@@ -27,10 +28,13 @@
         "unmodelled": [],
         "properties": {},
         "schema_exists": false,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [],
+      "cautions": [],
       "desired": {
         "table": "dev.sales.customers",
         "comment": "One row per customer",
@@ -70,7 +74,7 @@
         ],
         "grants": {},
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "live": null,
       "changes": [
@@ -117,7 +121,7 @@
             ],
             "grants": {},
             "row_filter": null,
-            "hooks": null
+            "governed_columns": []
           }
         }
       ]
@@ -132,10 +136,13 @@
         "unmodelled": [],
         "properties": {},
         "schema_exists": false,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [],
+      "cautions": [],
       "desired": {
         "table": "dev.sales.orders",
         "comment": "Order facts, one row per order",
@@ -188,7 +195,7 @@
         ],
         "grants": {},
         "row_filter": null,
-        "hooks": null
+        "governed_columns": []
       },
       "live": null,
       "changes": [
@@ -248,7 +255,7 @@
             ],
             "grants": {},
             "row_filter": null,
-            "hooks": null
+            "governed_columns": []
           }
         }
       ]
@@ -263,10 +270,13 @@
         "unmodelled": [],
         "properties": {},
         "schema_exists": false,
-        "features": []
+        "features": [],
+        "policies": [],
+        "policies_unread": null
       },
       "unmanaged": [],
       "notes": [],
+      "cautions": [],
       "desired": {
         "view": "dev.sales.big_orders",
         "query": "SELECT order_id, order_date, amount\nFROM dev.sales.orders\nWHERE amount > 1000",
@@ -337,7 +347,7 @@
       "path": "",
       "title": "CREATE TABLE orders",
       "risk": "meta",
-      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`orders` (\n  `order_id` BIGINT NOT NULL,\n  `order_date` DATE NOT NULL,\n  `cust_id` STRING,\n  `amount` DECIMAL(10,2),\n  `address` STRUCT<street:STRING,zip:STRING>,\n  CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)\n)\nUSING DELTA\nCLUSTER BY (`order_date`)\nCOMMENT 'Order facts, one row per order'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
+      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`orders` (\n  `order_id` BIGINT NOT NULL,\n  `order_date` DATE NOT NULL,\n  `cust_id` STRING,\n  `amount` DECIMAL(10,2),\n  `address` STRUCT<`street`:STRING,`zip`:STRING>,\n  CONSTRAINT `orders_pk` PRIMARY KEY (`order_id`)\n)\nUSING DELTA\nCLUSTER BY (`order_date`)\nCOMMENT 'Order facts, one row per order'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
       "precheck": null,
       "refusal": null,
       "postcheck": null,

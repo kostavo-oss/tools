@@ -375,8 +375,8 @@ def test_the_stevin_step_applies_the_plan_file_that_was_approved(tmp_path: Path)
     result = p.apply(approved)
     assert result.outcome == "done", result.message
     assert outcomes(result) == {"tables": "done", "warm": "done"}
-    # the overview after an apply is a `stevin plan` too
-    assert stevin.verbs == ["plan", "apply", "plan"]
+    # the overview after an apply is a `stevin list`: no plan is made for it
+    assert stevin.verbs == ["plan", "apply", "list"]
     assert stevin.handed == reviewed
     assert len(stevin.applied) == 5
     assert (tmp_path / "warmed.txt").exists()
@@ -486,17 +486,17 @@ def test_a_destroy_leaves_stevins_tables_alone_and_says_so(tmp_path: Path) -> No
 
 
 def test_status_lists_what_stevins_specs_describe(tmp_path: Path) -> None:
-    """STV-11."""
+    """STV-13: a status asks `stevin list`, and makes no plan."""
     p, stevin = tables(tmp_path)
     found = running.status(p.config, target="dev", **edges(p.fake))
     overview = found.steps[0].overview
     assert overview is not None
     assert [(i.kind, i.key, i.deployed) for i in overview.items] == [
+        ("view", "dev.sales.big_orders", False),
         ("table", "dev.sales.customers", False),
         ("table", "dev.sales.orders", False),
-        ("view", "dev.sales.big_orders", False),
     ]
-    assert stevin.verbs == ["plan"]
+    assert stevin.verbs == ["list"]
     assert stevin.applied == []
 
 

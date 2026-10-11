@@ -3,15 +3,19 @@ its command line.
 
 `tests/fixtures/stevin-*.json` were recorded by running stevin's CLI against
 its own in-memory warehouse (its `tests/screens.py` scenes), so these tests
-hold lely to the plan file stevin really writes. `tests/fake_stevin.py` plans
-from one of them and applies it; what it assumes of stevin is numbered S1 to S7
-there. Each test names the rule of `RULES.md` it holds.
+hold lely to the plan file stevin really writes. `stevin-create`, `-empty` and
+`-destroy` are stevin 0.4.0a2's. `stevin-owner` and `-rewrite` were recorded
+just before that release, with the version stevin's pictures pin, and say
+0.4.0a2 by hand. `tests/fake_stevin.py` plans from one of them, applies it and
+lists what it describes; what it assumes of stevin is numbered S1 to S9 there.
+Each test names the rule of `RULES.md` it holds.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -177,6 +181,64 @@ def test_a_missing_stevin_says_how_to_get_it(tmp_path: Path) -> None:
         Stevin().plan(step)
 
 
+def test_a_plan_of_an_older_stevin_fails_with_both_versions(tmp_path: Path) -> None:
+    """STV-14: the version is read from the plan file stevin wrote, and an
+    older one is turned away at plan, before anything could be applied."""
+    fake = world(tmp_path)
+    fake.told("version", "0.4.0a1")
+    with pytest.raises(LelyError) as failed:
+        Stevin().plan(ctx(fake, tmp_path))
+    assert not isinstance(failed.value, Refused)
+    assert str(failed.value) == (
+        "This plan was written by stevin 0.4.0a1, and lely needs stevin 0.4.0a2 or "
+        "newer: the first that says by its exit code why it refused a plan. Upgrade "
+        "it with `uv tool upgrade stevin`, or set `executable` to one that is new "
+        "enough."
+    )
+    assert fake.verbs == ["plan"]
+
+
+@pytest.mark.parametrize(
+    ("version", "runs"),
+    [
+        ("0.3.0a1", False),
+        ("0.3.9", False),
+        ("0.4.0a1", False),
+        ("0.4.0a2", True),
+        ("0.4.0a2.dev3+g1f2e3d4", False),  # a build on the way to 0.4.0a2
+        ("0.4.0.dev1", False),
+        ("0.4.0-alpha.1", False),
+        ("v0.3.0", False),
+        ("0.4.0.0a1", False),
+        ("0.4.0A2", True),
+        ("0.4.0a2+local", True),
+        ("0.4.0a2.post1", True),
+        ("0.4.0a3.dev1", True),
+        ("0.4.1.dev1", True),
+        ("9" * 5000, True),  # no version lely reads: not known to be older
+        ("0.1111111111", True),
+        ("0.4.0a10", True),
+        ("0.4.0b1", True),
+        ("0.4.0rc1", True),
+        ("0.4.0", True),
+        ("0.4", True),
+        ("0.10.1", True),
+        ("1.0.0", True),
+        ("unknown", True),  # stevin run from its source: not known to be older
+    ],
+)
+def test_which_stevin_is_new_enough(tmp_path: Path, version: str, runs: bool) -> None:
+    """STV-14: only a stevin known to be older is turned away."""
+    fake = world(tmp_path, "stevin-empty.json")
+    fake.told("version", version)
+    if runs:
+        assert Stevin().plan(ctx(fake, tmp_path)).changes == ()
+    else:
+        with pytest.raises(LelyError) as failed:
+            Stevin().plan(ctx(fake, tmp_path))
+        assert f"written by stevin {version}, and lely needs" in str(failed.value)
+
+
 def test_the_fake_fails_loudly_on_what_it_doesnt_know(tmp_path: Path) -> None:
     """The stand-in answers what stevin was read to answer, and nothing else."""
     fake = world(tmp_path)
@@ -326,7 +388,8 @@ def test_an_approved_file_of_another_format_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_stale_plan_is_refused_in_stevins_words(tmp_path: Path) -> None:
-    """STV-6 (S4): a refusal, not a failure, and it says to plan again."""
+    """STV-6 (S4): a refusal, not a failure, and it says to plan again. Known
+    by stevin's exit code, 3."""
     fake = world(tmp_path)
     approved = planned(fake, tmp_path)
     fake.told("moved", "someone added a column by hand")
@@ -339,17 +402,43 @@ def test_a_stale_plan_is_refused_in_stevins_words(tmp_path: Path) -> None:
     assert fake.applied == []
 
 
-def test_a_plan_file_of_another_stevin_is_refused_too(tmp_path: Path) -> None:
-    """STV-6 (S5): told by stevin's words, also when a terminal wrapped them."""
+def test_a_refusal_is_known_by_its_exit_code_and_not_by_its_words(
+    tmp_path: Path,
+) -> None:
+    """STV-6 (S4, S5, S6): exit 3 is a refusal whatever stevin says with it,
+    and the words of a refusal with exit 1 are a failure."""
     fake = world(tmp_path)
     approved = planned(fake, tmp_path)
-    fake.told(
-        "fail-apply",
-        "plan.json: plan format version 9 — this stevin writes and reads version 1. "
-        "Re-run\n`stevin plan`.",
-    )
-    with pytest.raises(Refused, match="stevin refused the plan"):
+    fake.told("refuse-apply", "this plan is of no use any more, in words lely never saw")
+    with pytest.raises(Refused) as refused:
         Stevin().apply(approving(fake, tmp_path, approved), approved)
+    said = str(refused.value)
+    assert said.startswith("stevin refused the plan for step `tables`:\n")
+    assert "in words lely never saw" in said
+    assert said.endswith("Plan again with `lely plan`, and review the new plan.")
+    assert fake.applied == []
+
+    words = world(tmp_path / "words")
+    kept = planned(words, tmp_path)
+    words.told("fail-apply", "it broke. Plan again and review the new plan.")
+    with pytest.raises(LelyError) as failed:
+        Stevin().apply(approving(words, tmp_path, kept), kept)
+    assert not isinstance(failed.value, Refused)
+    assert "`stevin apply` failed (exit 1)" in str(failed.value)
+
+
+def test_a_step_without_sql_is_refused_by_stevin(tmp_path: Path) -> None:
+    """S6: a plan that will never run, exit 3: a refusal. Nothing was applied."""
+    fake = world(tmp_path)
+    plan = planned(fake, tmp_path)
+    assert isinstance(plan.payload, dict)
+    steps = json.loads(json.dumps(plan.payload["steps"]))
+    steps[0]["sql"] = None
+    shown = dataclasses.replace(plan, payload={**plan.payload, "steps": steps})
+    # nothing was approved before it, so the plan it is shown with is what runs
+    with pytest.raises(Refused, match=r"(?s)stevin refused the plan.*stevin can't run"):
+        Stevin().apply(ctx(fake, tmp_path), shown)
+    assert fake.applied == []
 
 
 def test_a_failing_apply_is_a_failure_in_stevins_words(tmp_path: Path) -> None:
@@ -370,8 +459,8 @@ def test_a_failing_apply_is_a_failure_in_stevins_words(tmp_path: Path) -> None:
 def test_allow_destructive_goes_to_stevin_only_with_a_destructive_plan(
     tmp_path: Path,
 ) -> None:
-    """STV-8 (S3). The core lets a destructive plan reach `apply` only with
-    `--allow-destructive`; `test_running.py` holds that half."""
+    """STV-8, STV-15 (S3). The core lets a destructive plan reach `apply` only
+    with `--allow-destructive`; `test_running.py` holds that half."""
     fake = world(tmp_path, "stevin-destroy.json")
     approved = planned(fake, tmp_path)
     assert approved.destructive
@@ -385,8 +474,16 @@ def test_allow_destructive_goes_to_stevin_only_with_a_destructive_plan(
         kept,
         changes=tuple(dataclasses.replace(c, destructive=False) for c in kept.changes),
     )
-    with pytest.raises(LelyError, match="this plan destroys something"):
+    with pytest.raises(Refused) as refused:
         Stevin().apply(approving(again, tmp_path, kept), harmless)
+    said = str(refused.value)
+    assert said.startswith(
+        "stevin refused the plan for step `tables`: it destroys something that "
+        "lely's plan did not show as destructive, so stevin was not told to allow it."
+    )
+    assert "this plan destroys something (1. DROP COLUMN on dev.sales.orders)" in said
+    assert said.endswith("Nothing ran.")
+    assert "Plan again" not in said
     assert again.applied == []
 
 
@@ -451,18 +548,49 @@ def test_it_plans_applies_and_lists_and_drops_nothing(tmp_path: Path) -> None:
 
 
 def test_the_overview_is_what_the_specs_describe(tmp_path: Path) -> None:
-    """STV-11: from `stevin plan`, which reads and changes nothing."""
+    """STV-13 (S8): from `stevin list --json`, which reads and plans nothing."""
     fake = world(tmp_path)
     assert Stevin().plan(ctx(fake, tmp_path, purpose="status")) == StepPlan()
+    step = ctx(fake, tmp_path, target="prod", options={"select": ("orders",)})
+    selected = check_overview(Stevin(), step)
+    assert isinstance(selected, Overview)
+    assert [item.key for item in selected.items] == ["dev.sales.orders"]
+    assert fake.calls[-1] == [
+        "list", "--target", "prod", "--config", "stevin.yml", "--json",
+        "--select", "orders",
+    ]  # fmt: skip
+    fake.clear_calls()
     found = check_overview(Stevin(), ctx(fake, tmp_path))
     assert isinstance(found, Overview)
     assert [(i.kind, i.key, i.name, i.deployed) for i in found.items] == [
+        ("view", "dev.sales.big_orders", "big_orders", False),
         ("table", "dev.sales.customers", "customers", False),
         ("table", "dev.sales.orders", "orders", False),
-        ("view", "dev.sales.big_orders", "big_orders", False),
     ]
-    assert found.notes == ("what stevin's specs describe, as `stevin plan` reads it",)
-    assert fake.verbs == ["plan"]
+    assert found.notes == ("what stevin's specs describe, as `stevin list` reads it",)
+    assert set(fake.verbs) == {"list"}
     Stevin().apply(ctx(fake, tmp_path), Stevin().plan(ctx(fake, tmp_path)))
     after = Stevin().overview(ctx(fake, tmp_path))
     assert all(item.deployed for item in after.items)
+
+
+def test_a_list_that_fails_or_cant_be_read_is_said(tmp_path: Path) -> None:
+    """STV-13: stevin's own words for a failure; and an older stevin, which
+    has no `list`, is said with the version that has it (S9)."""
+    fake = world(tmp_path)
+    fake.told("fail-list", "the selection 'nothing.here' matches no spec")
+    with pytest.raises(LelyError, match=r"(?s)`stevin list` failed \(exit 1\).*no spec"):
+        Stevin().overview(ctx(fake, tmp_path))
+    old = Stevin.Options(executable=(*fake.executable, "an-older-stevin"))
+    with pytest.raises(LelyError) as failed:
+        Stevin().overview(context(old, root=tmp_path, env={}))
+    assert "`stevin list` failed (exit 2)" in str(failed.value)
+    assert "An older stevin has no `list`: it is there from stevin 0.4.0a2." in str(
+        failed.value
+    )
+    for printed in ("not json", "[]", '{"objects": [{"kind": "table"}]}'):
+        echo = Stevin.Options(
+            executable=(sys.executable, "-c", f"print({printed!r})", "stevin")
+        )
+        with pytest.raises(LelyError, match="`stevin list --json` printed no"):
+            Stevin().overview(context(echo, root=tmp_path, env={}))
