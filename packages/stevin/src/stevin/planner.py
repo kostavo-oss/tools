@@ -29,6 +29,7 @@ from stevin.formerly import BACKUP_SUFFIX, STAGING_SUFFIX
 from stevin.model.change import Change
 from stevin.model.function import Function
 from stevin.model.plan import Plan, Risk, Step, TableDiff, TableFacts
+from stevin.model.policy import COLUMN_MASK, ROW_FILTER, Policy
 from stevin.model.schema import Schema
 from stevin.model.table import (
     CLUSTER_AUTO,
@@ -135,14 +136,23 @@ def build_plan(
     spec_hash: str,
     state_fingerprint: str,
     clone: bool = False,
+    policies_asked: bool = True,
 ) -> Plan:
     """Expand changes into ordered steps, inserting prerequisites as they arise.
 
     `clone` adds a `SHALLOW CLONE` of each table before the first step that could
     lose data — a restore point you can query, on top of the Delta version that is
     always recorded.
+
+    `policies_asked` is whether the workspace was asked for the ABAC policies in
+    scope of each table. A project that hands policies over doesn't ask, and then
+    a table's empty `TableFacts.policies` says nothing about what it is under: a
+    step that copies its data says so (RULES.md, RW-5).
     """
-    planner = _Planner(clone_suffix=state_fingerprint[:8] if clone else None)
+    planner = _Planner(
+        clone_suffix=state_fingerprint[:8] if clone else None,
+        policies_asked=policies_asked,
+    )
     for diff in diffs:
         planner.plan_table(diff)
     planner.finish()
@@ -169,8 +179,14 @@ CLONE_BEFORE: frozenset[Risk] = frozenset({"rewrite", "destructive"})
 class _Planner:
     """Sequences step ids and remembers which prerequisites are already planned."""
 
-    def __init__(self, *, clone_suffix: str | None = None) -> None:
+    def __init__(
+        self, *, clone_suffix: str | None = None, policies_asked: bool = True
+    ) -> None:
         self._kind: str = "table"
+        self._policies_asked = policies_asked
+        #: What is known of each table planned so far, for a step that copies
+        #: its data: the policies it is under decide whether it may.
+        self._facts: dict[str, TableFacts] = {}
         #: The table being planned, for a step that needs its column types.
         self._desired: Table | None = None
         self._clone_suffix = clone_suffix
@@ -237,6 +253,25 @@ class _Planner:
             return
         self._cloned.add(table)
         backup = backup_name(table, self._clone_suffix)
+        facts = self._facts.get(table)
+        policies = reaching_the_data(facts.policies) if facts else ()
+        if policies:
+            # The same exposure as a staging copy: a second table that reads the
+            # same rows, which a policy defined on the first needn't reach — and
+            # this one is kept. Not planned (RULES.md, RW-4).
+            self.emit(
+                table,
+                "CLONE backup",
+                "meta",
+                sql=None,
+                note=(
+                    f"{_in_scope(policies)} of this table, and a clone would be a "
+                    "copy of its data the policy may not cover. Plan without "
+                    "--clone: the table's Delta version is recorded either way"
+                ),
+            )
+            return
+        unread = self._policies_unread(facts) if facts else None
         self.emit(
             table,
             "CLONE backup",
@@ -252,10 +287,29 @@ class _Planner:
                 f"TBLPROPERTIES ({quote_literal(MANAGED_PROPERTY)} = 'false')"
             ),
             undo_hint=f"the table as it was is readable at {backup}",
+            warnings=(
+                (f"{unread}. If one does, the clone is a copy the policy may not cover",)
+                if unread
+                else ()
+            ),
             note=(
                 "a shallow clone copies no data: it points at the table's current "
                 "files, so it lasts until a VACUUM removes them"
             ),
+        )
+
+    def _policies_unread(self, facts: TableFacts) -> str | None:
+        """What a step that copies a table's data says when nobody read the
+        policies it is under; the step adds what follows from that for it."""
+        if facts.policies_unread is not None:
+            why = "the workspace would not list them"
+        elif not self._policies_asked:
+            why = "`manage: {policies: false}`"
+        else:
+            return None
+        return (
+            f"stevin did not read the ABAC policies in scope of this table ({why}), "
+            "so it cannot tell whether one masks or filters it"
         )
 
     def finish(self) -> None:
@@ -368,6 +422,8 @@ class _Planner:
         if table_diff.facts.exists and table_diff.live is not None:
             self._existing.add(table_diff.table)
         self._kind = table_diff.facts.kind
+        if self._kind == "table":
+            self._facts[table_diff.table] = table_diff.facts
         self._desired = (
             table_diff.desired if isinstance(table_diff.desired, Table) else None
         )
@@ -569,6 +625,38 @@ class _Planner:
             )
             return
 
+        policies = reaching_the_data(facts.policies)
+        if policies:
+            # The same exposure, from a policy instead of the table's own mask:
+            # the staging copy is a new table, which a policy defined on this
+            # one doesn't reach and one that matches columns by tag needn't.
+            # And a loss besides: the rewrite reads what the applying principal
+            # may see, the staging check compares the copy with that same
+            # reading, and the replace writes it over the table. stevin can't
+            # tell whether the principal is let off the policy, so it doesn't
+            # guess (DECISIONS.md, 24). TODO(verify): neither consequence has
+            # been tried on a workspace.
+            staged = not (projection.complete and projection.copies_only)
+            self.emit(
+                table_diff.table,
+                "REWRITE",
+                "rewrite",
+                sql=None,
+                est_bytes=facts.size_bytes,
+                note=(
+                    f"{_in_scope(policies)} of this table. A rewrite would read the "
+                    "table as the applying principal sees it, masked or filtered, "
+                    + (
+                        "into a staging table the policy may not cover, and write "
+                        "that back over the table"
+                        if staged
+                        else "and write that back over the table"
+                    )
+                    + ". Rewrite it by hand"
+                ),
+            )
+            return
+
         if not projection.complete:
             columns = ", ".join(projection.problems)
             self.emit(
@@ -592,8 +680,19 @@ class _Planner:
         # then it is checked before the table is touched.
         direct = projection.copies_only
         select = ",\n  ".join(projection.expressions)
+        # Said on the first step of the rewrite that copies the data.
+        unread = self._policies_unread(facts)
+        unread_warning = (
+            (
+                f"{unread}. If one does, this rewrite reads the table as the "
+                "applying principal sees it, masked or filtered, and copies that "
+                "to where the policy may not reach",
+            )
+            if unread
+            else ()
+        )
         if not direct:
-            self._stage(table_diff, desired, projection, staging, select)
+            self._stage(table_diff, desired, projection, staging, select, unread_warning)
         # A rewrite copies the columns the spec lists and nothing else, so one the
         # spec removed goes with it — which makes this step destructive, whatever
         # else it is.
@@ -629,7 +728,12 @@ class _Planner:
                 else None
             ),
             warnings=(
-                (f"drops {', '.join(dropped)} along with the rewrite",) if dropped else ()
+                *(
+                    (f"drops {', '.join(dropped)} along with the rewrite",)
+                    if dropped
+                    else ()
+                ),
+                *(unread_warning if direct else ()),
             ),
         )
         # What the replace leaves behind, diffed against the spec: that is how
@@ -673,6 +777,7 @@ class _Planner:
         projection: Projection,
         staging: str,
         select: str,
+        warnings: tuple[str, ...] = (),
     ) -> None:
         """The converted data, written beside the table and checked before it.
 
@@ -702,6 +807,7 @@ class _Planner:
                 f"NULL. {table_diff.table} is untouched; the staged copy is kept at "
                 f"{staging} to inspect. Give the column a `using:` expression"
             ),
+            warnings=warnings,
             note="a full copy is written alongside the table, then dropped again",
         )
 
@@ -1914,6 +2020,25 @@ def _rewrites(table_diff: TableDiff) -> bool:
         and isinstance(table_diff.live, Table)
         and any(needs_rewrite(change) for change in table_diff.changes)
     )
+
+
+def reaching_the_data(policies: Sequence[Policy]) -> tuple[Policy, ...]:
+    """The policies that decide what a reader sees of a table's data: the row
+    filter and column mask policies in scope of it, wherever they are defined.
+
+    In scope, not resolved: whether one applies to a given reader hangs on its
+    conditions, the table's tags and who is asking, which Databricks works out
+    at query time and stevin does not.
+    """
+    return tuple(p for p in policies if p.kind in (ROW_FILTER, COLUMN_MASK))
+
+
+def _in_scope(policies: Sequence[Policy]) -> str:
+    """`the row filter policy eu_only is in scope`, for one or for several."""
+    named = [f"the {p.kind.replace('_', ' ')} policy {p.name}" for p in policies]
+    if len(named) == 1:
+        return f"{named[0]} is in scope"
+    return f"{', '.join(named[:-1])} and {named[-1]} are in scope"
 
 
 def backup_name(table: str, suffix: str) -> str:

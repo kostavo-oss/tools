@@ -24,6 +24,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `validate` asks no Databricks CLI, so for a name only the CLI knows it reads the key
   and the specs with the same name standing in, and says which names it left unsettled.
 
+- **A table under an ABAC row filter or column mask policy is no longer rewritten.** A
+  change that needs a rewrite, such as a type that cannot be widened or new
+  partitioning, was planned for such a table like for any other. The rewrite reads the
+  table as the applying principal sees it and, where it converts values, copies that
+  into a staging table the policy may not cover; then it writes that back over the
+  table. The plan now holds a step `apply` refuses, as for a table with a mask or row
+  filter of its own: *the row filter policy eu_only is in scope of this table. A
+  rewrite would read the table as the applying principal sees it, masked or filtered,
+  into a staging table the policy may not cover, and write that back over the table.
+  Rewrite it by hand.* `plan --clone` is refused for such a table the same way: plan
+  without it. A change that copies no data is planned as before. Where stevin did not
+  read the policies, because the workspace will not list them or the project says
+  `manage: {policies: false}`, a rewrite is still planned, and its first step that
+  copies data now warns that stevin did not read the ABAC policies in scope of this
+  table, so it cannot tell whether one masks or filters it. What Databricks does with
+  such a rewrite has not been tried on a workspace.
+
 - **The design page is now *How it works*.** The docs had the original design, kept as
   it was written with corrections on top. In its place is a page that says how stevin
   works today: the pipeline, the model, what a plan holds, how ownership is known. Its

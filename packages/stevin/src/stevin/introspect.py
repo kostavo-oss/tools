@@ -203,8 +203,9 @@ class Introspector:
     #: What this project manages. Only grants and policies are skipped when
     #: handed over: everything else is still read, because stevin has to know
     #: it is there not to destroy it — a masked table refuses a rewrite, and a
-    #: renamed column's tags are put back after one. Nothing stevin does
-    #: depends on a policy, so those may go unread.
+    #: renamed column's tags are put back after one. A policy is the one
+    #: thing a plan does without: unread, a rewrite is planned and says that
+    #: stevin could not tell what the table is under (RULES.md, RW-5).
     manage: Manage = EVERYTHING
     #: How many per-table queries (DESCRIBE DETAIL, SHOW CREATE TABLE, SHOW
     #: TBLPROPERTIES) run at once. One per table, each about a second on a
@@ -849,8 +850,9 @@ class Introspector:
         A workspace may refuse either: the statements need Databricks SQL or
         Runtime 16.4, and `READ METADATA` or `MANAGE` on the securable, or
         owning it. A refusal is not a failed plan. The policies aren't
-        stevin's, and no step depends on them — so the table says they couldn't
-        be read, and the plan goes on. Only the warehouse's own refusal is
+        stevin's — so the table says they couldn't be read, and the plan goes
+        on; a rewrite in it says it was planned without knowing what the table
+        is under (RULES.md, RW-5). Only the warehouse's own refusal is
         taken that way (`IntrospectionError`); anything else still stops.
 
         Settled on 2026-10-10 by the live suite (`test_live_policies.py` and

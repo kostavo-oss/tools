@@ -97,3 +97,17 @@ document, the changelog and git; each carries the date of the decision.
     parts would have to wait for a target. Also rejected: leaving out a key whose
     reference has no value for a target, which the code did before. A pattern that is
     left out is a table stevin may claim, so it is an error at the key.
+24. **2026-10-11 — A table under a row filter or column mask policy is refused a
+    rewrite** (RW-4), as a table with a mask or row filter of its own is. Why: a
+    rewrite reads the table as the applying principal sees it and copies that into a
+    staging table the policy may not cover. stevin cannot tell, offline or cheaply,
+    whether that principal is let off the policy: it hangs on the policy's conditions,
+    the table's tags and group membership, which Databricks works out at query time. A
+    wrong guess either leaves the data outside the policy or writes the filtered or
+    masked copy over the table. Neither consequence has been tried on a workspace: the
+    refusal is the safe side of an untested question. Put aside: a warning, which a
+    reviewer can miss on the one plan where it matters, and "refuse unless the
+    principal is exempt", which is the guess. `--clone` is refused for such a table for
+    the first reason. Where the policies were not read, a rewrite is planned with a
+    warning (RW-5): refusing there would refuse every rewrite of a project that hands
+    policies over.

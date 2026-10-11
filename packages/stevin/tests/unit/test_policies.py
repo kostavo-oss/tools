@@ -29,14 +29,14 @@ from helpers import col, table
 from stevin import api, cli, doctor
 from stevin.connect import Connection
 from stevin.differ import ONE_FILTER_ONE_MASK, POLICY_LIMITS, policy_conflicts
-from stevin.executor import StalePlan
+from stevin.executor import ExecutionError, StalePlan
 from stevin.history import MemoryHistory
 from stevin.introspect import Introspector, Row
 from stevin.loader import Project
 from stevin.manage import Manage
 from stevin.model.plan import Plan, fingerprint
 from stevin.model.policy import Policy
-from stevin.model.table import MANAGED_PROPERTY, RowFilter, Table
+from stevin.model.table import MANAGED_PROPERTY, Grant, RowFilter, Table
 from stevin.model.types import GovernedColumn, Mask
 from stevin.owned import Owners
 from stevin.planning import plan_tables
@@ -98,6 +98,7 @@ def planned(
     manage: Manage | None = None,
     owners: Owners | None = None,
     strict: bool = False,
+    clone: bool = False,
 ) -> Plan:
     manage = manage or Manage()
     return plan_tables(
@@ -108,6 +109,7 @@ def planned(
         manage=manage,
         owners=owners,
         mode_for=lambda _schema: "strict" if strict else "additive",
+        clone=clone,
     )
 
 
@@ -482,6 +484,181 @@ def test_a_table_dropped_from_a_strict_schema_is_read_with_its_policies() -> Non
     [drop] = [d for d in plan.diffs if d.table == NAME]
     assert drop.facts.policies == (MASK_PII,)
     assert api.is_stale(plan, Connection(runner=fake)) is False
+
+
+# ---------------------------------------------------------------------------
+# a rewrite of a table under a policy
+# ---------------------------------------------------------------------------
+
+#: `id` from bigint to string is no widening: the values are converted, so the
+#: rewrite is staged.
+CONVERTED = replace(CUSTOMERS, columns=(col("id", "string"), *CUSTOMERS.columns[1:]))
+#: Partitioning changes only by a rewrite, and converts nothing: one statement.
+PARTITIONED = replace(CUSTOMERS, partitioned_by=("region",))
+
+NOT_READ = "stevin did not read the ABAC policies in scope of this table"
+
+
+def titles(plan: Plan) -> list[str]:
+    return [step.title for step in plan.steps]
+
+
+def refuses(fake: FakeWarehouse, plan: Plan) -> None:
+    """`apply` runs nothing of a plan that holds a step without SQL."""
+    with pytest.raises(ExecutionError, match="can't run"):
+        api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert fake.ddl == []
+
+
+@pytest.mark.parametrize(
+    ("policy", "named"),
+    [
+        (ON_THE_TABLE, "the row filter policy eu_only is in scope of this table"),
+        (MASK_PII, "the column mask policy mask_pii is in scope of this table"),
+        (OWN_REGION, "the row filter policy own_region is in scope of this table"),
+    ],
+    ids=["a row filter on the table", "a mask on the schema", "a filter on the catalog"],
+)
+def test_a_table_under_a_policy_is_never_rewritten(policy: Policy, named: str) -> None:
+    """The staging copy is a table the policy needn't cover, and what the
+    rewrite reads is what the applying principal may see. Neither is planned."""
+    # RULES.md: RW-4.
+    fake = warehouse(policy)
+    plan = planned(fake, CONVERTED)
+    assert [(s.title, s.risk, s.sql) for s in plan.steps] == [
+        ("REWRITE", "rewrite", None)
+    ]
+    assert plan.steps[0].note == (
+        f"{named}. A rewrite would read the table as the applying principal sees "
+        "it, masked or filtered, into a staging table the policy may not cover, "
+        "and write that back over the table. Rewrite it by hand"
+    )
+    refuses(fake, plan)
+
+
+def test_every_policy_in_the_way_is_named() -> None:
+    plan = planned(warehouse(ON_THE_TABLE, MASK_PII), CONVERTED)
+    assert (plan.steps[0].note or "").startswith(
+        "the row filter policy eu_only and the column mask policy mask_pii are in "
+        "scope of this table. "
+    )
+
+
+def test_the_one_statement_rewrite_is_refused_too() -> None:
+    """It has no staging table, and still writes what the principal reads over
+    the table."""
+    fake = warehouse(ON_THE_TABLE)
+    plan = planned(fake, PARTITIONED)
+    assert [(s.title, s.sql) for s in plan.steps] == [("REWRITE", None)]
+    note = plan.steps[0].note or ""
+    assert "masked or filtered, and write that back over the table" in note
+    assert "staging" not in note
+    refuses(fake, plan)
+    # Without the policy it is the one statement.
+    assert titles(planned(warehouse(), PARTITIONED)) == ["REPLACE TABLE"]
+
+
+def test_a_policy_that_is_not_this_tables_refuses_nothing() -> None:
+    """One on another table, and one that is neither a filter nor a mask."""
+    elsewhere = replace(ON_THE_TABLE, on=ORDERS.name)
+    granting = Policy("let_in", "grant", "main.sales", "schema", to=("analysts",))
+    fake = warehouse(elsewhere, granting)
+    plan = planned(fake, CONVERTED, ORDERS)
+    assert titles(plan) == ["STAGE rewritten data", "REPLACE TABLE", "DROP staging"]
+    assert all(step.sql and not step.warnings for step in plan.steps)
+    result = api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert result.ok, result.error
+
+
+def test_what_is_no_rewrite_is_planned_as_before_under_a_policy() -> None:
+    """A policy stops the copy and nothing else: a column, a grant, a comment."""
+    wanted = replace(
+        CUSTOMERS,
+        columns=(*CUSTOMERS.columns, col("segment", "string")),
+        comment="Customers",
+        grants=(Grant("analysts", ("SELECT",)),),
+    )
+    fake = warehouse(ON_THE_TABLE, MASK_PII)
+    plan = planned(fake, wanted)
+    assert titles(plan) == ["COMMENT ON TABLE", "ADD COLUMN segment", "GRANT to analysts"]
+    assert all(step.sql and not step.warnings for step in plan.steps)
+    result = api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert result.ok, result.error
+
+
+@pytest.mark.parametrize("handed_over", [False, True], ids=["refused", "handed over"])
+def test_a_rewrite_says_when_the_policies_were_not_read(handed_over: bool) -> None:
+    """Nothing was read, so nothing can be refused: the workspace wouldn't list
+    them, or the project hands them over. The rewrite is planned, and the step
+    that copies the data says what stevin doesn't know."""
+    # RULES.md: RW-5.
+    fake = warehouse(ON_THE_TABLE)
+    if not handed_over:
+        fake.refusals["SHOW EFFECTIVE POLICIES"] = REFUSAL
+    manage = Manage(("policies",)) if handed_over else None
+    plan = planned(fake, CONVERTED, manage=manage)
+    assert titles(plan) == ["STAGE rewritten data", "REPLACE TABLE", "DROP staging"]
+    why = (
+        "`manage: {policies: false}`"
+        if handed_over
+        else ("the workspace would not list them")
+    )
+    assert [step.warnings for step in plan.steps] == [
+        (
+            f"{NOT_READ} ({why}), so it cannot tell whether one masks or filters "
+            "it. If one does, this rewrite reads the table as the applying "
+            "principal sees it, masked or filtered, and copies that to where the "
+            "policy may not reach",
+        ),
+        (),
+        (),
+    ]
+    assert plan.summary.warnings == 1
+    result = api.apply(plan, Connection(runner=fake), history=MemoryHistory())
+    assert result.ok, result.error
+
+
+def test_the_one_statement_rewrite_says_it_too_and_nothing_else_does() -> None:
+    # RULES.md: RW-5.
+    manage = Manage(("policies",))
+    [step] = planned(warehouse(), PARTITIONED, manage=manage).steps
+    assert step.title == "REPLACE TABLE"
+    [warning] = step.warnings
+    assert warning.startswith(f"{NOT_READ} (`manage: {{policies: false}}`)")
+    # A change that copies nothing has nothing to say about it.
+    commented = planned(warehouse(), replace(CUSTOMERS, comment="C"), manage=manage)
+    assert [s.warnings for s in commented.steps] == [()]
+    # And where the policies were read and there are none, neither has a rewrite.
+    assert [s.warnings for s in planned(warehouse(), PARTITIONED).steps] == [()]
+
+
+def test_a_table_under_a_policy_is_not_cloned() -> None:
+    """`--clone` makes a second table over the same rows, and keeps it: the
+    same copy outside the policy, so it isn't planned either."""
+    fewer = replace(CUSTOMERS, columns=CUSTOMERS.columns[:2])
+    fake = warehouse(MASK_PII)
+    plan = planned(fake, fewer, clone=True)
+    clone = next(step for step in plan.steps if step.title == "CLONE backup")
+    assert clone.sql is None
+    assert clone.note == (
+        "the column mask policy mask_pii is in scope of this table, and a clone "
+        "would be a copy of its data the policy may not cover. Plan without "
+        "--clone: the table's Delta version is recorded either way"
+    )
+    refuses(fake, plan)
+    # Without `--clone` the column is dropped as before.
+    assert "DROP COLUMN" in titles(planned(warehouse(MASK_PII), fewer))
+
+
+def test_a_clone_says_when_the_policies_were_not_read() -> None:
+    """Each of the two copies says what follows for it: the clone, the rewrite."""
+    plan = planned(warehouse(), CONVERTED, manage=Manage(("policies",)), clone=True)
+    assert titles(plan)[:2] == ["CLONE backup", "STAGE rewritten data"]
+    [[cloned], [staged]] = [step.warnings for step in plan.steps[:2]]
+    assert cloned.startswith(NOT_READ)
+    assert cloned.endswith("the clone is a copy the policy may not cover")
+    assert staged.startswith(NOT_READ) and "this rewrite reads" in staged
+    assert plan.summary.warnings == 2
 
 
 # ---------------------------------------------------------------------------

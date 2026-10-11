@@ -135,8 +135,8 @@ says `TODO(verify)` rather than pretending.
 Most of what stevin assumes about Databricks has been run against a workspace: the
 `TODO(verify)` list was settled on 2026-09-19, and a seed's load — `INSERT OVERWRITE …
 (columns) VALUES …` — on 2026-10-10 (`tests/integration/test_live_seeds.py`, and the probe
-*a seed's INSERT OVERWRITE with a column list is accepted*). Four things are still open.
-They are five `TODO(verify)` marks in the source, because reading policies has two:
+*a seed's INSERT OVERWRITE with a column list is accepted*). Five things are still open.
+They are six `TODO(verify)` marks in the source, because reading policies has two:
 
 - **`CLUSTER BY AUTO` without predictive optimization.** It was on in the workspace this
   was tested in (`planner._clustering_clause`); the probe *CLUSTER BY AUTO is accepted
@@ -158,6 +158,17 @@ They are five `TODO(verify)` marks in the source, because reading policies has t
   `._describe_policy`). The suite makes nothing outside its scratch schema, has only
   `account users` to name, and a `MATCH COLUMNS` condition wants a governed tag. Where a
   label is wrong, a plan still names the policy and where it is defined.
+
+- **A rewrite of a table under an ABAC policy.** Not tried on a workspace: what a
+  `CREATE OR REPLACE TABLE … AS SELECT` reads and writes for a principal a row filter
+  policy or a column mask policy applies to. From the manual, stevin expects two things.
+  The statement reads the table as that principal sees it, so the copy holds fewer rows
+  or masked values. And the staging table is a new table, which a policy defined on the
+  table does not cover. So stevin refuses the rewrite (`planner._Planner._rewrite`), and
+  neither consequence has been seen. Whether a `SHALLOW CLONE` of such a table is
+  accepted, and whether the policy reaches the clone, is not tried either: `--clone` is
+  refused for it. There is no probe for this. It would have to create a policy, and
+  one that applies to the principal that runs `verify`.
 
 - **A grant inherited from a catalog.** `stevin access` reads where a privilege is
   granted from `table_privileges.inherited_from`. `NONE` for the table's own and
