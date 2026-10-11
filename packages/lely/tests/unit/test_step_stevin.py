@@ -7,7 +7,8 @@ hold lely to the plan file stevin really writes. `stevin-create`, `-empty` and
 `-destroy` are stevin 0.4.0a2's. `stevin-owner` and `-rewrite` were recorded
 just before that release, with the version stevin's pictures pin, and say
 0.4.0a2 by hand. `tests/fake_stevin.py` plans from one of them, applies it and
-lists what it describes; what it assumes of stevin is numbered S1 to S9 there.
+lists what it describes, and says 0.4.0a3 wrote the plan: the oldest stevin
+the step runs. What it assumes of stevin is numbered S1 to S10 there.
 Each test names the rule of `RULES.md` it holds.
 """
 
@@ -23,7 +24,7 @@ import pytest
 from rich.console import Console
 
 import project
-from fakes import FakeStevin, Heard, fixture
+from fakes import FakeDatabricks, FakeStevin, Heard, deploy, fixture
 from lely.errors import LelyError, Refused
 from lely.model import Change, Overview, Plan, PlannedStep, StepPlan
 from lely.planfile import normalised
@@ -185,15 +186,15 @@ def test_a_plan_of_an_older_stevin_fails_with_both_versions(tmp_path: Path) -> N
     """STV-14: the version is read from the plan file stevin wrote, and an
     older one is turned away at plan, before anything could be applied."""
     fake = world(tmp_path)
-    fake.told("version", "0.4.0a1")
+    fake.told("version", "0.4.0a2")
     with pytest.raises(LelyError) as failed:
         Stevin().plan(ctx(fake, tmp_path))
     assert not isinstance(failed.value, Refused)
     assert str(failed.value) == (
-        "This plan was written by stevin 0.4.0a1, and lely needs stevin 0.4.0a2 or "
-        "newer: the first that says by its exit code why it refused a plan. Upgrade "
-        "it with `uv tool upgrade stevin`, or set `executable` to one that is new "
-        "enough."
+        "This plan was written by stevin 0.4.0a2, and lely needs stevin 0.4.0a3 or "
+        "newer: the first that says by its exit code that the bundle has not "
+        "deployed a schema yet. Upgrade it with `uv tool upgrade stevin`, or set "
+        "`executable` to one that is new enough."
     )
     assert fake.verbs == ["plan"]
 
@@ -204,16 +205,18 @@ def test_a_plan_of_an_older_stevin_fails_with_both_versions(tmp_path: Path) -> N
         ("0.3.0a1", False),
         ("0.3.9", False),
         ("0.4.0a1", False),
-        ("0.4.0a2", True),
-        ("0.4.0a2.dev3+g1f2e3d4", False),  # a build on the way to 0.4.0a2
+        ("0.4.0a2", False),
+        ("0.4.0a2.post1", False),
+        ("0.4.0a3.dev3+g1f2e3d4", False),  # a build on the way to 0.4.0a3
         ("0.4.0.dev1", False),
-        ("0.4.0-alpha.1", False),
+        ("0.4.0-alpha.2", False),
         ("v0.3.0", False),
-        ("0.4.0.0a1", False),
-        ("0.4.0A2", True),
-        ("0.4.0a2+local", True),
-        ("0.4.0a2.post1", True),
-        ("0.4.0a3.dev1", True),
+        ("0.4.0.0a2", False),
+        ("0.4.0a3", True),
+        ("0.4.0A3", True),
+        ("0.4.0a3+local", True),
+        ("0.4.0a3.post1", True),
+        ("0.4.0a4.dev1", True),
         ("0.4.1.dev1", True),
         ("9" * 5000, True),  # no version lely reads: not known to be older
         ("0.1111111111", True),
@@ -237,6 +240,135 @@ def test_which_stevin_is_new_enough(tmp_path: Path, version: str, runs: bool) ->
         with pytest.raises(LelyError) as failed:
             Stevin().plan(ctx(fake, tmp_path))
         assert f"written by stevin {version}, and lely needs" in str(failed.value)
+
+
+# -- before the bundle has deployed the tables' schema --------------------------------
+
+#: stevin's own line for it (S10): the fake's, and the one the real command wrote.
+NOT_THERE_YET = (
+    "dev.sales is the bundle's schema 'sales', and isn't there yet \u2014 run "
+    "`databricks bundle deploy` first; stevin won't create it"
+)
+
+
+def undeployed(tmp_path: Path) -> tuple[FakeStevin, FakeDatabricks]:
+    """Tables in a schema the bundle declares, on a target never deployed."""
+    fake = world(tmp_path)
+    bundle = FakeDatabricks(tmp_path / "databricks-world")
+    fake.in_a_schema_of(bundle, "schemas.sales")
+    return fake, bundle
+
+
+def test_a_schema_the_bundle_has_not_deployed_makes_the_step_wait(
+    tmp_path: Path,
+) -> None:
+    """STV-16 (S10): exit 5 of `stevin plan` is a waiting step and no failure.
+    The plan holds no change and no stevin plan, and names the schema in
+    stevin's own line, the last it wrote. Once the schema is there the step
+    is planned as ever."""
+    fake, bundle = undeployed(tmp_path)
+    fake.told("notice", "No Databricks CLI found: databricks.yml is read as written.")
+    heard = Heard()
+    plan = check_plan(Stevin(), dataclasses.replace(ctx(fake, tmp_path), log=heard))
+    assert plan == StepPlan(
+        waiting=(
+            "a schema of these tables is the bundle's and is not deployed yet; "
+            "the tables are planned once it is"
+        ),
+        notes=(f"stevin: {NOT_THERE_YET}",),
+    )
+    assert (plan.changes, plan.payload, plan.empty) == ((), None, False)
+    assert PlannedStep("tables", "stevin", "h", plan=plan).state == "waiting"
+    assert fake.verbs == ["plan"]
+    assert "tables: waiting: " + str(plan.waiting) in heard.lines
+    # it reads back from a plan file as it was made
+    assert normalised(plan) == plan
+
+    deploy(bundle.world, {"schemas.sales": {"id": "1", "config": {"name": "sales"}}})
+    ready = check_plan(Stevin(), ctx(fake, tmp_path))
+    assert ready.waiting is None
+    assert [c.key for c in ready.changes] == [
+        "dev.sales.customers",
+        "dev.sales.orders",
+        "dev.sales.big_orders",
+    ]
+
+
+def test_only_the_exit_code_makes_it_wait_never_the_words(tmp_path: Path) -> None:
+    """STV-16: the same sentence with exit 1 is a failure, as every other
+    failure of `stevin plan` is; and exit 5 waits whatever stevin wrote."""
+    fake = world(tmp_path)
+    fake.told("fail-plan", NOT_THERE_YET)
+    with pytest.raises(LelyError, match=r"(?s)`stevin plan` failed \(exit 1\).*isn't"):
+        Stevin().plan(ctx(fake, tmp_path))
+    assert not isinstance(_error(lambda: Stevin().plan(ctx(fake, tmp_path))), Refused)
+
+    for wrote, notes in (
+        ("", ()),
+        ("\n  two   words \n\n", ("stevin: two words",)),
+        # coloured, as stevin writes it under FORCE_COLOR; a link; a bell
+        (
+            "\x1b[31mred\x1b[0m \x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\ a\x07b",
+            ("stevin: red link a b",),
+        ),
+        ("x" * 1000, ("stevin: " + "x" * 399 + "\u2026",)),
+    ):
+        script = f"import sys; sys.stderr.write({wrote!r}); sys.exit(5)"
+        options = Stevin.Options(executable=(sys.executable, "-c", script))
+        plan = Stevin().plan(context(options, root=tmp_path, env={}))
+        assert plan.waiting is not None and plan.notes == notes
+        assert plan.changes == () and plan.payload is None
+
+
+def _error(call: Any) -> Exception:
+    try:
+        call()
+    except Exception as error:
+        return error
+    raise AssertionError("nothing was raised")
+
+
+def test_a_waiting_plan_is_never_applied(tmp_path: Path) -> None:
+    """STV-18: the core stops before a step that is still waiting. Handed
+    such a plan all the same, `apply` refuses and stevin is not run."""
+    fake, _ = undeployed(tmp_path)
+    waiting = planned(fake, tmp_path)
+    for step in (ctx(fake, tmp_path), approving(fake, tmp_path, waiting)):
+        with pytest.raises(Refused, match="Step `tables` is waiting"):
+            Stevin().apply(step, waiting)
+    # also one that holds a whole stevin plan and says it is waiting, and a
+    # whole plan beside an approved one that was waiting
+    whole = planned(world(tmp_path / "other"), tmp_path)
+    marked = dataclasses.replace(whole, waiting="not yet")
+    for step, plan in (
+        (ctx(fake, tmp_path), marked),
+        (approving(fake, tmp_path, marked), whole),
+    ):
+        with pytest.raises(Refused, match="Step `tables` is waiting"):
+            Stevin().apply(step, plan)
+    assert "apply" not in fake.verbs
+    assert fake.applied == []
+
+
+def test_before_the_bundle_is_deployed_a_status_lists_and_a_destroy_skips(
+    tmp_path: Path,
+) -> None:
+    """STV-17 (S10): `stevin list` answers before the schema is there, with
+    every object not there; and for a destroy stevin is not run at all."""
+    fake, _ = undeployed(tmp_path)
+    overview = check_overview(Stevin(), ctx(fake, tmp_path, purpose="status"))
+    assert isinstance(overview, Overview)
+    assert [(item.key, item.deployed) for item in overview.items] == [
+        ("dev.sales.big_orders", False),
+        ("dev.sales.customers", False),
+        ("dev.sales.orders", False),
+    ]
+    assert fake.verbs == ["list"]
+    fake.clear_calls()
+    for purpose in ("status", "destroy"):
+        assert Stevin().plan(ctx(fake, tmp_path, purpose=purpose)) == StepPlan()
+    assert not destroys(Stevin)
+    assert fake.calls == []
 
 
 def test_the_fake_fails_loudly_on_what_it_doesnt_know(tmp_path: Path) -> None:

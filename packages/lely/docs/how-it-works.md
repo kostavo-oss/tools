@@ -34,7 +34,8 @@ Finding a plugin imports its module, so `validate` runs the project's own code.
 options from what the steps above have given so far. When every value is known the
 plugin is asked for its plan and the step is ready. When one is not, the plugin is not
 called with half its options: the step is waiting, and the plan names the output it
-waits for. `apply`, `destroy` and `status` in `running` use the same `Session`, so each
+waits for. A plugin that is called can say the same of its own step, by answering with
+a plan whose `waiting` says why; the step is then waiting too, and held the same way. `apply`, `destroy` and `status` in `running` use the same `Session`, so each
 resolves options the same way.
 
 ## The modules
@@ -100,7 +101,9 @@ compares every value the step takes with the value the plan recorded
 (`approval.same_inputs`), asks the plugin for a fresh plan, and lets the step run only
 if every change in it is one the approved plan showed (`approval.approved_changes`). A
 step that was waiting when the plan was made has no approved changes: `running` asks
-the command line what to do there, through `at_waiting`.
+the command line what to do there, through `at_waiting`. That holds whichever way the
+step came to wait, for an output or by its plugin's word. A step whose plugin still
+says `waiting` in the fresh plan is refused before anybody is asked.
 
 `running.destroy` first walks down, resolving options and planning each step for what
 it gives the others, and compares inputs. Only then does it walk up, asking each plugin

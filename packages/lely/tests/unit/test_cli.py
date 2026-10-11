@@ -24,7 +24,7 @@ from typer.testing import CliRunner, Result
 import fake_github
 import project
 from fake_github import FakeGitHub
-from fakes import FakeDatabricks, FakeStevin
+from fakes import FakeDatabricks, FakeStevin, write_bundle
 from lely import cli, planfile
 from lely.errors import LelyError
 from lely.model import Workspace
@@ -1290,6 +1290,167 @@ def test_a_destroy_plan_says_in_one_line_that_stevins_tables_stay(lely: Lely) ->
     )
     assert line in " ".join(said(result).split())
     assert stevin.calls == []
+
+
+def first_deploy(lely: Lely) -> FakeStevin:
+    """A data product on a target never deployed: the bundle, then stevin's
+    tables in the bundle's schema, then a program below them."""
+    stevin = FakeStevin.planning(lely.root / "stevin-world", "stevin-create.json")
+    (lely.root / "lely.yml").write_text(
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "  - name: tables\n    uses: stevin\n    with:\n"
+        f"      executable: [{', '.join(stevin.executable)}]\n"
+        "  - name: warm\n    uses: ./ops/steps.py:Warm\n"
+    )
+    write_bundle(
+        lely.root,
+        {
+            "name": "shop",
+            "variables": {},
+            "resources": {"schemas": {"sales": {"name": "sales", "catalog_name": "x"}}},
+        },
+    )
+    stevin.in_a_schema_of(lely.fake, "schemas.sales")
+    return stevin
+
+
+WAITS = (
+    "waiting: a schema of these tables is the bundle's and is not deployed yet; "
+    "the tables are planned once it is"
+)
+STEVIN_SAID = (
+    "stevin: dev.sales is the bundle's schema 'sales', and isn't there yet \u2014 run "
+    "`databricks bundle deploy` first; stevin won't create it"
+)
+
+
+def test_a_first_plan_succeeds_with_the_tables_waiting_and_a_file_stops_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """STV-18, WAIT-7: the first plan of a target never deployed ends
+    with 0 and shows the bundle ready and the tables waiting, in the terminal,
+    in the comment and on the page. Applied from that file, the bundle is
+    deployed and the run stops at the tables with 2: stevin applies nothing.
+    The next plan shows the tables, and its file applies them."""
+    lely = _undeployed(tmp_path, monkeypatch)
+    stevin = first_deploy(lely)
+    first = lely("plan", "-t", "dev", "-o", "plan.json")
+    assert first.exit_code == 0, said(first)
+    text = " ".join(said(first).split())
+    assert "+ schemas.sales" in text
+    assert f"\u23f8 {WAITS}" in text
+    assert STEVIN_SAID in text
+    assert "1 waiting" in text
+    assert "Applied from a file, this stops before `tables`" in text
+    comment = " ".join(said(lely("show", "plan.json", "-f", "md")).split())
+    assert "create schemas.sales" in comment
+    assert WAITS in comment and STEVIN_SAID in comment
+    assert lely("ui", "plan.json", "--no-open").exit_code == 0
+    page = (lely.root / "plan.html").read_text()
+    assert '<span class="state waiting">waiting</span>' in page
+    assert "is not deployed yet; the tables are planned once it is</p>" in page
+    kept = json.loads((lely.root / "plan.json").read_text())["steps"][1]
+    assert (kept["state"], kept["plan"]["changes"], kept["plan"]["payload"]) == (
+        "waiting",
+        [],
+        None,
+    )
+
+    stevin.clear_calls()
+    stopped = lely("apply", "plan.json", "--yes", "--allow-destructive")
+    assert stopped.exit_code == 2
+    told = " ".join(said(stopped).split())
+    assert "Step `tables` was waiting when this plan was made" in told
+    assert "Plan again: the next plan shows it." in told
+    assert "ran: app" in told
+    assert "refused: tables" in told
+    assert "never started: warm" in told
+    assert "schemas.sales" in lely.fake.deployed()
+    assert "apply" not in stevin.verbs
+    assert stevin.applied == []
+    assert not (lely.root / "warmed.txt").exists()
+
+    second = lely("plan", "-t", "dev", "-o", "plan.json")
+    assert second.exit_code == 0, said(second)
+    assert "+ dev.sales.orders" in said(second)
+    assert "waiting" not in said(second)
+    done = lely("apply", "plan.json", "--yes")
+    assert done.exit_code == 0, said(done)
+    assert len(stevin.applied) == 4
+    assert (lely.root / "warmed.txt").exists()
+
+
+def test_in_one_go_the_tables_are_shown_and_asked_about_once_the_bundle_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """STV-19: at a terminal lely asks about the plan, deploys the bundle,
+    then shows the tables as stevin plans them now and asks about them. A yes
+    applies what was just shown; in another project a no applies none of it."""
+    lely = _undeployed(tmp_path, monkeypatch)
+    stevin = first_deploy(lely)
+    lely.terminal(True)
+    yes = lely("apply", "-t", "dev", typed="y\ny\n")
+    assert yes.exit_code == 0, said(yes)
+    text = " ".join(said(yes).split())
+    assert text.index("Apply this plan to target `dev`") < text.index(
+        "Run step `tables` on target `dev`"
+    )
+    assert "+ dev.sales.customers" in text and "CREATE TABLE customers [meta]" in text
+    assert "CREATE SCHEMA" not in text  # the schema is the bundle's
+    assert stevin.verbs == ["plan", "plan", "apply", "list"]
+    assert stevin.handed["steps"][0]["title"] == "CREATE TABLE customers"
+    assert len(stevin.applied) == 4
+
+    other = tmp_path / "other"
+    other.mkdir()
+    lely = _undeployed(other, monkeypatch)
+    stevin = first_deploy(lely)
+    lely.terminal(True)
+    no = lely("apply", "-t", "dev", typed="y\nn\n")
+    assert no.exit_code == 2
+    text = " ".join(said(no).split())
+    assert "Run step `tables` on target `dev`" in text
+    assert "Step `tables` wasn't approved. Nothing more was run." in text
+    assert "schemas.sales" in lely.fake.deployed()
+    assert "apply" not in stevin.verbs
+    assert stevin.applied == []
+
+
+def test_a_first_deploy_in_one_go_with_yes_and_a_plan_that_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--yes` without a file plans the tables when it gets there, shows them
+    and runs them. Any other failure of `stevin plan` ends the plan with 1, as
+    it did."""
+    lely = _undeployed(tmp_path, monkeypatch)
+    stevin = first_deploy(lely)
+    stevin.told("fail-plan", "tables/orders.yml: unknown key `colums`")
+    failed = lely("plan", "-t", "dev")
+    assert failed.exit_code == 1
+    assert "`stevin plan` failed (exit 1)" in said(failed)
+    assert "unknown key `colums`" in said(failed)
+    stevin.told("fail-plan", "")
+    result = lely("apply", "-t", "dev", "--yes")
+    assert result.exit_code == 0, said(result)
+    assert "+ dev.sales.customers" in said(result)
+    assert "schemas.sales" in lely.fake.deployed()
+    assert stevin.verbs[-2:] == ["apply", "list"]
+    assert len(stevin.applied) == 4
+
+
+def _undeployed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Lely:
+    """`lely` in a project whose workspace holds nothing yet."""
+    project.write(tmp_path)
+    project.world(tmp_path, deployed=False)
+    run = Lely(tmp_path, monkeypatch)
+    fake = (sys.executable, str(project.FAKE_DATABRICKS), str(run.fake.world))
+    monkeypatch.setattr(cli, "DATABRICKS", fake)
+    monkeypatch.setattr(cli, "WHOAMI", lambda profile: project.WORKSPACE)
+    monkeypatch.setattr(cli, "CONNECT", lambda profile: None)
+    monkeypatch.setattr(cli, "POWERS", lambda profile: "not a workspace admin")
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.chdir(tmp_path)
+    return run
 
 
 def test_with_json_stdout_holds_json_and_nothing_else(ready: Lely) -> None:

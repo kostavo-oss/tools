@@ -125,6 +125,12 @@ class FakeStevin:
         """`fail-plan`, `fail-apply`, `fail-step`, `moved`, `risk`: see the fake."""
         (self.world / name).write_text(text)
 
+    def in_a_schema_of(self, bundle: FakeDatabricks, resource: str) -> None:
+        """The tables' schema is the bundle's `resource`, such as
+        `schemas.sales`: stevin plans them only once that world has deployed
+        it (S10)."""
+        self.told("bundle", f"{bundle.world / 'state.json'}\n{resource}")
+
     @property
     def calls(self) -> list[list[str]]:
         path = self.world / "calls.jsonl"

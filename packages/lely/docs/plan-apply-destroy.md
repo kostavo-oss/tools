@@ -43,7 +43,9 @@ lely apply plan.json --yes        # … without a terminal to ask at
   where the plan already shows one.
 - **A waiting step** is planned once what it waits for exists. Run in one go, lely shows that
   step's plan then and asks about it. Run from a file, it stops there: nobody has seen what
-  the step will do. The next plan shows it ready.
+  the step will do. The next plan shows it ready. A step waits for an output of a step
+  above it, or because its plugin says so: the [`stevin` step](plugins.md#stevin) waits
+  for a schema the bundle has yet to deploy.
 - **`--from <step>`** starts at a step; the ones before it are planned, for what they give,
   and not run.
 - **What a step's program says is passed on** while it runs — `bundle deploy`, a job run, a

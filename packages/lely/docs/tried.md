@@ -102,6 +102,21 @@ there were no environments.
     `exists`, before and after an apply, and ended with 1 for a selection that matched
     nothing. stevin 0.3.0a1 answered `list` with "No such command" and 2. None of that
     says what a warehouse does.
+
+    **The step waiting on a first deploy** has not run on a workspace either, and not
+    against a released stevin: the stevin it needs, 0.4.0a3, was not out when this
+    was written. What was seen, on 2026-10-11, is the command of stevin's source for
+    that release against its in-memory warehouse and a bundle read from its file, with
+    the flags the step passes. With the bundle's schema missing, `stevin plan` wrote
+    no file, ended with 5 and wrote as its last line on stderr that the schema is the
+    bundle's and is not there yet; `stevin list --json` ended with 0 and said
+    `"exists": false`. With the schema there, the same `plan` wrote its file and ended
+    with 0. The fake in lely's tests does the same, but for one thing: that source
+    still wrote `0.4.0a2` into its plan file, which this lely turns away, and the fake
+    writes `0.4.0a3`. So the two were not run together, end to end. Not seen anywhere: `lely plan` and
+    `lely apply` on a target that was never deployed, in a project with a bundle and
+    the `stevin` step; and a first merge on GitHub, which applies the bundle and stops
+    at the tables with 2.
 11. **What `lely doctor` says of an identity.** That a workspace admin is listed in the
     group `admins` is from the docs, and was not seen for an admin who is one through
     another group. Whether credentials are read-only is not said at all: no call is

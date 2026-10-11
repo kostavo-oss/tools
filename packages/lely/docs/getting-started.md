@@ -68,7 +68,8 @@ There is no default target: `-t` is always given. Nothing is changed. Each step 
 
 - **ready** — lely knows what it would do, and shows it;
 - **waiting** — it takes something that doesn't exist yet, like the id of a job this deploy
-  creates, so nobody can know what it will do; the plan says that instead of guessing;
+  creates, or its plugin says it cannot plan yet, like tables in a schema this deploy
+  creates. Nobody can know what it will do; the plan says that instead of guessing;
 - **skipped** — it has `targets:` and this isn't one of them.
 
 ## 4. Apply

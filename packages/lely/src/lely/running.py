@@ -122,7 +122,10 @@ def apply(
                 )
             fresh = session.plan(prepared)
             if not started:
-                run.add(step, "passed", "before `--from`; planned, not applied")
+                detail = "planned, not applied"
+                if fresh.waiting is not None:
+                    detail = "couldn't be planned in full"
+                run.add(step, "passed", f"before `--from`; {detail}")
                 continue
             _may_apply(step, prepared, fresh, was, at_waiting, allow_destructive)
             if not fresh.changes:
@@ -151,9 +154,12 @@ def _may_apply(
 ) -> None:
     """Whether a freshly planned step may run. Raises `Refused` if not."""
     if fresh.waiting is not None:
+        # not "plan again": the next plan says the same until what the step
+        # waits for is there, and no step above it made it in this run
         raise Refused(
             f"Step `{step.name}` still can't be planned in full: {fresh.waiting}. "
-            f"{approval.AGAIN}"
+            "No step above it brought that about in this run, so a new plan alone "
+            "shows the same. Nothing of the step was run."
         )
     if was is None or was.state == "skipped":
         raise Refused(f"Step `{step.name}` isn't in the approved plan. {approval.AGAIN}")
@@ -166,8 +172,12 @@ def _may_apply(
                 if was.every_deploy
                 else "Plan again: the next plan shows it."
             )
+            # what it waited for, where it is a name; a plugin's own reason
+            # is a sentence, and stands after this one
+            waited = was.waiting if was.waits_for else "waiting"
+            why = "" if was.waits_for else f" ({was.plan.waiting})"
             raise Refused(
-                f"Step `{step.name}` was {was.waiting} when this plan was made, so "
+                f"Step `{step.name}` was {waited} when this plan was made{why}, so "
                 f"nobody has seen what it will do. {again}"
             )
         now = PlannedStep(

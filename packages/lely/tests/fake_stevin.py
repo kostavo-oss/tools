@@ -14,8 +14,9 @@ the steps that were applied. `<world>/handed.json` is a copy of the plan file
 `apply` was last handed. What it does is what stevin's command line was
 read to do (`packages/stevin`: `cli.py`, `executor.py`, `render/json.py`), and,
 for S1 to S6 and S8, what the CLI of stevin 0.4.0a2 was seen to do against that
-in-memory warehouse on 2026-10-11: what it printed, and how it exited. None of
-it was seen on a workspace.
+in-memory warehouse on 2026-10-11: what it printed, and how it exited. S10 was
+seen the same way on the same day, from stevin's branch `stevin/not-yet-exit-code`,
+which is what 0.4.0a3 is to hold. None of it was seen on a workspace.
 
 - S1  `plan --output OUT --format json` writes the plan file and prints
       `Wrote <file>`. Steps that were applied are left out of the next plan.
@@ -43,9 +44,20 @@ it was seen on a workspace.
 - S9  Exit 2 is the command line's own answer to what it does not know: an
       older stevin answers `list` with "No such command 'list'." and exit 2
       (seen from stevin 0.3.0a1). No outcome of `apply` exits 2.
+- S10 A table whose schema is one the bundle declares and has not deployed is
+      not planned: `plan` writes no file and nothing on stdout, and exits 5
+      (stevin's rule PLAN-5). The last line it writes on stderr is "<schema> is
+      the bundle's schema '<key>', and isn't there yet — run `databricks bundle
+      deploy` first; stevin won't create it"; it may write other lines before
+      that one. Once the schema is there, `plan` is S1, without a step that
+      creates the schema: it is the bundle's. `list` is S8 either way: it
+      makes no plan, says `"exists": false` for a table in a schema that is
+      not there, and exits 0. The fake's `list` does not look at the schema
+      at all; that the real one answers was seen from stevin's command.
 
-Every plan says which stevin wrote it, in `tool_version`: 0.4.0a2 in the
-recordings, the first with S3 to S6 as exit codes and with S8.
+Every plan says which stevin wrote it, in `tool_version`. The recordings say
+0.4.0a2, the first with S3 to S6 as exit codes and with S8. The fake writes
+0.4.0a3 over it, the first with S10: the plan file is the same in both.
 
 A test tells it what to do with files in `<world>`:
 
@@ -57,6 +69,11 @@ A test tells it what to do with files in `<world>`:
   after planning.
 - `risk`: every step of the next plan carries this risk class, which need not
   be one stevin has.
+- `bundle`: the tables' schema is the bundle's (S10). Two lines: the
+  `state.json` of a `fake_databricks.py` world, and a resource of it such as
+  `schemas.sales`. The schema is there once a bundle in that world has
+  deployed the resource.
+- `notice`: `plan` writes this on stderr before anything else it says there.
 
 Anything else exits 2 and says so, like a command line that was not
 understood: an unknown verb, an unknown flag, a missing one.
@@ -81,6 +98,12 @@ _LIST_SWITCHES = ("--json",)
 #: `apply`'s exit codes for a plan it refuses before anything runs (stevin's
 #: rule APL-8): one that will never run, and one that was not allowed.
 PLAN_AGAIN, NOT_ALLOWED = 3, 4
+#: `plan`'s exit code when the bundle has not deployed a schema yet (stevin's
+#: rule PLAN-5, S10).
+NOT_YET = 5
+
+#: The stevin this stands for: the first with S10.
+WRITES = "0.4.0a3"
 
 
 class _Fails(Exception):
@@ -88,7 +111,8 @@ class _Fails(Exception):
 
 
 class _Refuses(Exception):
-    """stevin's own way of refusing a plan: a red line on stderr, exit 3 or 4."""
+    """stevin's own way of refusing a plan: a red line on stderr, exit 3 or 4,
+    or 5 for a plan it can't make yet."""
 
     def __init__(self, said: str, code: int = PLAN_AGAIN) -> None:
         super().__init__(said)
@@ -140,10 +164,34 @@ def _plan(world: Path, args: list[str]) -> str:
             raise _Unknown(f"`plan` without {name}")
     if flags["--format"] != ["json"]:
         raise _Unknown(f"`plan --format {flags['--format'][0]}`: only json is faked")
+    notice = _read(world / "notice")
+    if notice:
+        print(notice, file=sys.stderr)
     _told_to_fail(world, "plan")
+    _bundle_has_deployed(world)  # S10
     out = Path(flags["--output"][0])
     out.write_text(json.dumps(planned(world), indent=2) + "\n", encoding="utf-8")
     return f"Wrote {out.name}"  # S1
+
+
+def _bundle_has_deployed(world: Path) -> None:
+    """S10: refuse to plan a table whose schema the bundle has yet to deploy."""
+    told = _read(world / "bundle").splitlines()
+    if not told:
+        return
+    state, resource = Path(told[0]), told[1]
+    bundles: dict[str, Any] = {}
+    if state.exists():
+        bundles = json.loads(state.read_text(encoding="utf-8")).get("bundles", {})
+    if any(resource in bundle.get("deployed", {}) for bundle in bundles.values()):
+        return
+    tables = json.loads((world / "plan.json").read_text(encoding="utf-8"))["tables"]
+    schema = tables[0]["table"].rsplit(".", 1)[0]
+    raise _Refuses(
+        f"{schema} is the bundle's schema {resource.split('.', 1)[1]!r}, and isn't "
+        "there yet \u2014 run `databricks bundle deploy` first; stevin won't create it",
+        NOT_YET,
+    )
 
 
 def planned(world: Path) -> dict[str, Any]:
@@ -152,6 +200,9 @@ def planned(world: Path) -> dict[str, Any]:
     document = json.loads((world / "plan.json").read_text(encoding="utf-8"))
     done = set(_state(world)["applied"])
     steps = [step for step in document["steps"] if _key(step) not in done]
+    if _read(world / "bundle"):
+        # S10: the schema is the bundle's, and stevin never creates it
+        steps = [s for s in steps if not s["title"].startswith("CREATE SCHEMA")]
     risk = _read(world / "risk")
     for number, step in enumerate(steps, start=1):
         step["id"] = number
@@ -165,7 +216,7 @@ def planned(world: Path) -> dict[str, Any]:
             table["facts"]["exists"] = True
     document["steps"] = steps
     document["state_fingerprint"] = _fingerprint(world)
-    document["tool_version"] = _read(world / "version") or document["tool_version"]
+    document["tool_version"] = _read(world / "version") or WRITES
     return document
 
 

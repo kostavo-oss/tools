@@ -71,7 +71,7 @@ Planning runs your project's own code — a step in the repo. On a pull request,
 
 Tables, views and the access around them, planned and applied by
 [stevin](https://kostavo-oss.github.io/tools/stevin/). lely runs the `stevin` command, so
-stevin has to be installed where lely runs: version 0.4.0a2 or newer. A plan from an
+stevin has to be installed where lely runs: version 0.4.0a3 or newer. A plan from an
 older stevin fails, and says which version it found.
 
 ```yaml
@@ -109,6 +109,44 @@ line says so. `destructive` loses something, and needs `lely apply --allow-destr
 lely passes that on to stevin only then. A risk class lely does not know is treated as
 destructive.
 
+**The step waits for the bundle's schema.** stevin does not plan a table whose schema
+the bundle declares and has not deployed yet, and it does not create that schema: it is
+the bundle's. That is so on a target that was never deployed, and again whenever the
+bundle gets a new schema with tables in it. stevin then plans none of its tables, also
+not the ones in schemas that are there. So put the `stevin` step below the `bundle`
+step. The plan shows the bundle ready and the tables waiting:
+
+```text
+app  bundle
+    + schemas.sales
+    ▶ uploads the bundle's files
+tables  stevin
+    ⏸ waiting: a schema of these tables is the bundle's and is not deployed yet; the tables are planned once it is
+    stevin: dev.sales is the bundle's schema 'sales', and isn't there yet — run `databricks bundle deploy` first; stevin won't create it
+
+Plan: 1 change · 1 run · 0 destructive · 1 waiting
+```
+
+The second line is stevin's own, and names the schema. With the `bundle` step above
+the tables you do not run the deploy it speaks of: that step does.
+
+lely does not check that a `bundle` step stands above. With the `stevin` step above
+it, or with a bundle that is deployed outside lely, the plan shows the tables waiting
+all the same, and every apply is refused when it reaches them, with nothing of them
+applied. Move the step below the bundle, or deploy the bundle first.
+
+- `lely apply -t dev` deploys the bundle, then plans the tables, shows them and asks.
+- `lely apply plan.json` deploys the bundle and stops at the tables with 2: nobody has
+  seen what stevin will do. The next `lely plan` shows the tables, and that plan
+  applies them. On GitHub that is the next pull request, or an apply by hand.
+
+Once the schema exists the step is planned as on any other day. It is a
+[waiting step](plan-apply-destroy.md#apply) like any other. Any other reason stevin
+cannot plan still fails the plan, with stevin's message. So does this one with a stevin
+older than 0.4.0a3: it ends with 1, and lely cannot tell which stevin it was. `lely
+status` and `lely destroy` work before the first deploy too: a status lists the tables
+as not there, and a destroy skips the step.
+
 **Apply runs the plan that was reviewed.** stevin's own plan file travels inside lely's
 plan file. `lely apply` hands that file to `stevin apply`, never a new one. Two checks
 stand before it:
@@ -125,7 +163,8 @@ applied stays applied, and the next plan shows what is left.
 lely tells a refusal from a failure by stevin's
 [exit code](https://kostavo-oss.github.io/tools/stevin/cli/#exit-codes), not by what
 stevin prints. A refusal ends the run with 2, and a failure with 1. Both show stevin's
-own message.
+own message. It knows that the bundle's schema is not there yet the same way: by the
+exit code of `stevin plan`.
 
 **Destroy drops nothing.** A dropped table is its rows. `lely destroy` skips the step and
 says so. To drop a table, take it out of stevin's specs: stevin's own rules say when it

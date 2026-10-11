@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The `stevin` step waits for the bundle's schema, where the plan failed.** A table
+  whose schema the bundle declares cannot be planned before the bundle has deployed
+  that schema. On a target that was never deployed, `lely plan` stopped at the
+  `stevin` step with stevin's refusal, and a new repository's first pull request got
+  no plan. The step is now *waiting*: the plan succeeds, shows the bundle, and says
+  why the tables wait. `lely apply -t <target>` deploys the bundle, then plans the
+  tables, shows them and asks. `lely apply plan.json` stops at the tables with 2, and
+  the next plan shows them. The same happens when the bundle later gets a new schema
+  with tables in it. Any other failure of `stevin plan` fails the plan as before. Put
+  the `stevin` step below the `bundle` step: lely does not check that.
+- **The `stevin` step needs stevin 0.4.0a3 or newer**, where it needed 0.4.0a2. It is
+  the first stevin whose `plan` says with an exit code that the bundle has not
+  deployed a schema yet. A plan file an older stevin wrote fails the plan and names
+  both versions. Before the schema is there an older stevin writes no file: the plan
+  fails with stevin's own message, as it did.
+- **A step that still waits when a run reaches it is no longer told to plan again.**
+  The refusal says that no step above brought about what it waits for. A step `--from`
+  passes over that could not be planned in full says so, where it said "planned".
+
+### Added
+
+- **The docs say how a plugin makes its step wait**: `plan` answers a `StepPlan` whose
+  `waiting` says why. lely holds such a step as it holds one that waits for an output.
+  The field was there; what a run does with it was not written down.
+
 ## [0.4.0] - 2026-10-11
 
 ### Added
