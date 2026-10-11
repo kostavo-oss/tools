@@ -8,6 +8,7 @@ const POLL = 400;                      // ms between looks while a workspace is 
 const STORE = "caland";                // where this tab keeps the session's token
 const TOKEN_HEADER = "X-Caland-Token";
 const WORKSPACE_HEADER = "X-Caland-Workspace";   // which workspace a request is about
+const WAITING_HEADER = "X-Caland-Waiting";       // nobody asked: the page's own look while it waits
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => {
@@ -53,8 +54,10 @@ class Told extends Error {}
 // Every request says which workspace this page believes it is in, and an answer is taken
 // only if the page is still in that one when it comes: what was asked of one workspace is
 // never done to another, and never shown under another's name. `anywhere` is for what is
-// about no workspace: the state, the choice of one.
-async function ask(path, body, anywhere = false) {
+// about no workspace: the state, the choice of one. `waiting` is for the one request nobody
+// asked for, the look at the state on a timer: caland does not count it as being used, so a
+// tab left waiting on a workspace does not keep caland running.
+async function ask(path, body, anywhere = false, waiting = false) {
   const post = body !== undefined;
   const era = told ? told.turn : null;
   let answer;
@@ -62,6 +65,7 @@ async function ask(path, body, anywhere = false) {
     answer = await fetch(path, {
       method: post ? "POST" : "GET", cache: "no-store",
       headers: { [TOKEN_HEADER]: token ?? "", ...(era === null ? {} : { [WORKSPACE_HEADER]: String(era) }),
+        ...(waiting ? { [WAITING_HEADER]: "1" } : {}),
         ...(post ? { "Content-Type": "application/json" } : {}) },
       body: post ? JSON.stringify(body) : undefined,
     });
@@ -140,10 +144,10 @@ async function enter() {
 }
 
 // ── keeping up with the workspace ────────────────────────────────────
-async function look() {
+async function look(waiting = false) {
   clearTimeout(looking);
   const before = told;
-  const now = await ask("/api/state", undefined, true);
+  const now = await ask("/api/state", undefined, true, waiting === true);
   if (before && before.turn !== now.turn) wipe();   // caland is in another workspace
   told = now;
   if (!before) showAll = told.show_all;
@@ -179,7 +183,7 @@ async function look() {
   if (mustChoose() && asked !== told.version && await openPicker(told.phase === "failed" ? told.error : "")) {
     asked = told.version;   // only once it is open: refused, it is asked again
   }
-  if (told.phase === "connecting" || told.phase === "loading") looking = setTimeout(carefully(look), POLL);
+  if (told.phase === "connecting" || told.phase === "loading") looking = setTimeout(carefully(() => look(true)), POLL);
 }
 // one scope's secrets and grants, once it has been read
 async function fill(name) {

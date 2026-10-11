@@ -81,3 +81,14 @@ def test_an_address_cannot_break_out_of_the_file():
     opener.open('http://127.0.0.1:1/#"><script>alert(1)</script>')
     assert "<script>" not in path_of(seen[0]).read_text()
     opener.clean()
+
+
+def test_once_closed_no_new_file_is_made():
+    """Enter, pressed in the terminal while caland stops, asks for a new link on a
+    thread of its own: it gets none, and leaves nothing behind."""
+    opener, seen = opened_with()
+    assert opener.open(LINK) is True
+    page = path_of(seen[0])
+    opener.close()
+    assert not page.exists() and not page.parent.exists()
+    assert opener.open(LINK) is False and len(seen) == 1

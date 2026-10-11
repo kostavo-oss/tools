@@ -49,5 +49,7 @@ machine has, found in `~/.databrickscfg`; chosen again, it connected again.
 - **Firefox and Safari.** The page is driven in Chrome only.
 - **A real drag and drop** of a file onto the form.
 - **Windows.**
+- **Stopping by itself while a real sign-in in the browser waits.** The tests hold it
+  with a sign-in that never finishes, made by a stand-in. The SDK's own wait was not run.
 - **A real DNS name pointed at the machine**, and a Mac whose `.html` files open in
   something other than the browser. There `caland --no-open` gives the link.

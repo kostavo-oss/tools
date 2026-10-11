@@ -72,15 +72,21 @@ skipped where there is none.
   Held by: `tests/test_web_run.py::test_being_told_to_stop_is_tidied_like_ctrl_c`,
   `tests/test_web_run.py::test_the_file_with_the_key_is_gone_when_it_stops`,
   `tests/test_web_run.py::test_every_value_is_forgotten_when_it_stops`.
-  Not kept yet: #55 — it holds for one signal. A second one that arrives while caland
-  tidies up ends it with a traceback, and the rest of the tidying is skipped.
 - **CMD-8** — Left alone for 30 minutes, caland stops by itself and forgets every value
-  it held. Closing the tab does not stop it.
+  it held. Closing the tab does not stop it. Left alone means that no person asked
+  anything of it: the page's own look at the state while it waits for a workspace is
+  not asking (GATE-15). A sign-in that is never finished does not keep caland running,
+  and when it stops then, its last line says that it was still waiting to be signed in.
   Held by: `tests/test_web_run.py::test_it_says_where_it_is_and_stops_when_left_alone`,
-  `tests/test_web_server.py::test_idle_counts_from_the_last_thing_asked`.
-  Not kept yet: #46 — every request with the token counts as asked, the page's own look
-  at the state while it waits for a workspace among them. A tab that waits on a sign-in
-  that is never finished keeps caland running.
+  `tests/test_web_server.py::test_idle_counts_from_the_last_thing_asked`,
+  `tests/test_web_run.py::test_a_sign_in_that_is_never_finished_does_not_keep_it_running`.
+- **CMD-9** — A signal that comes while caland stops changes nothing, and neither does
+  a third: every step of the tidying is taken, also when one before it failed, no
+  traceback is shown, and the exit code is 0. A step that fails is one line: what it
+  was and the kind of failure.
+  Held by: `tests/test_web_run.py::test_a_signal_that_comes_while_it_tidies_up_changes_nothing`,
+  `tests/test_web_run.py::test_each_step_of_the_tidying_runs_whatever_became_of_the_one_before`,
+  `tests/test_web_run.py::test_the_command_itself_stops_tidily_whatever_signals_it_is_sent`.
 
 ## WSP — which workspace
 
@@ -622,6 +628,15 @@ skipped where there is none.
   Held by: `tests/test_web_server.py::test_a_failure_inside_says_nothing_of_what_failed`,
   `tests/test_web_server.py::test_a_failure_inside_is_said_in_the_terminal_and_not_what_it_said`,
   `tests/test_web_server.py::test_a_path_that_is_not_as_calands_own_are_is_not_said_in_the_terminal`.
+- **GATE-15** — The page says of one request that nobody asked for it, in the header
+  `X-Caland-Waiting`: its look at the state on a timer, while a workspace is connected
+  to or read. That request is not counted as caland being used. It can only be the read
+  of the state: anything else that says so is refused, with the token too. It needs the
+  token like any other.
+  Held by: `tests/test_web_gate.py::test_anything_else_that_says_it_only_waits_is_refused`,
+  `tests/test_web_server.py::test_the_pages_own_look_while_it_waits_is_not_being_asked`,
+  `tests/test_page_in_a_browser.py::test_a_page_that_waits_on_a_sign_in_is_not_asking`.
+
 ## KEPT — what is kept on the machine
 
 - **KEPT-1** — caland has no credentials of its own. It asks for no token and stores

@@ -216,7 +216,8 @@ class Page:
         self._used = self._clock()
 
     def idle(self) -> float:
-        """Seconds since the page last asked for anything."""
+        """Seconds since anything was last asked: by a person, so not counting the
+        page's own look at the state while it waits for a workspace. CMD-8."""
         return self._clock() - self._used
 
 
@@ -360,12 +361,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise _Refused(403, "this key was used, or never was one")
             return self._json({"token": token})
 
-        page.touch()
+        if not gate.waits(method, path, self.headers.get):
+            page.touch()  # asked by a person, not the page's own look while it waits
         turn, workspace, loader, notice = page.current()
         self._reading = loader
         service = loader.service if loader else None
 
-        if (method, path) == ("GET", "/api/state"):
+        if (method, path) == ("GET", gate.STATE):
             return self._json(
                 views.state(
                     loader.progress() if loader else None,
