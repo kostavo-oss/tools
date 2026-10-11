@@ -173,3 +173,24 @@ moved or did not exist. A fact written in five places goes stale in four.
 
 One spec was not carried over: skills for coding agents, a draft that was never agreed
 and that rested on `leeghwater init` (decision 13).
+
+## 17. 2026-10-11 — A call of `prepare()` writes down what it leaves, and the next takes it back
+
+Decided by the writer. A call records each environment variable it sets, with what the
+variable held before, and each provider it adds to dlt's. The next call puts the
+variables back and takes those providers out, before it decides anything.
+
+Why: a notebook calls `prepare()` more than once, and the second call had the first
+one's scopes, profile, log level and `--set` values. `prepare()` after
+`prepare(profile="dev")` said `profile dev` and loaded locally.
+
+- A variable goes back to what it held, and is not just cleared: a
+  `DATABRICKS_CONFIG_PROFILE` of the user's own is theirs again.
+- A variable that no longer holds what leeghwater set is left: somebody set it since.
+- Only a provider `prepare()` added is taken out. One a project registered by hand stays.
+- dlt has no call that takes a provider out, so one function in `_dlt.py` takes it from
+  dlt's list. Rejected: dlt's `reload_providers()`, which throws away every registered
+  provider, a project's own too, and reads the config files again. Rejected: leaving the
+  provider registered and emptied, which leaves its name in dlt's list and in its errors.
+- A call that is refused leaves no setup. It has taken the earlier call back by then,
+  and the setup of that call would name scopes that are gone.

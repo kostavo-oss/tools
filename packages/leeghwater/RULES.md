@@ -146,10 +146,8 @@ leeghwater stands beside dlt.
   Held by: `tests/test_prepare.py::test_a_second_call_changes_nothing`.
 - **PRE-3** — A later `prepare()` leaves the process as if only it had been called:
   the `Setup`, the providers registered with dlt, and the environment.
-  Held by: `tests/test_prepare.py::test_a_later_call_decides_again_from_scratch`.
-  Not kept yet: #44 — the destination, the schemas, the warehouse and the limit are
-  decided anew; a scope an earlier call registered stays registered, and the profile,
-  the log level and the `--set` values of an earlier call stay in the environment.
+  Held by: `tests/test_prepare.py::test_a_later_call_leaves_nothing_of_an_earlier_one`,
+  `tests/test_prepare.py::test_a_later_call_with_other_settings_has_only_its_own`.
 - **PRE-4** — What `prepare()` sets in the environment is what dlt or the Databricks SDK
   read there: `DATABRICKS_CONFIG_PROFILE`, `DLT_PROJECT_DIR`, `RUNTIME__LOG_LEVEL`, and
   what `--set` names.
@@ -166,6 +164,9 @@ leeghwater stands beside dlt.
   Held by: `tests/test_prepare.py::test_the_first_lines_say_everything_and_no_secret`,
   `tests/test_keyvault.py::test_prepare_names_the_vaults_and_reads_them_on_a_laptop_too`,
   `tests/test_app.py::test_a_secret_from_a_scope_reaches_a_pipeline`.
+- **PRE-6** — A `prepare()` that is refused leaves no setup, also when an earlier call
+  made one: `create_pipeline` and `run` refuse until a call goes through.
+  Held by: `tests/test_prepare.py::test_a_call_that_is_refused_leaves_no_setup_of_an_earlier_one`.
 
 ## DBX — what Databricks needs
 

@@ -56,6 +56,12 @@ class _Canary(EnvironProvider):
         return "canary"
 
 
+class _Second(EnvironProvider):
+    @property
+    def name(self) -> str:
+        return "second"
+
+
 def test_a_provider_is_registered_after_dlts_own_and_once():
     """SEC-1."""
     provider = _Canary()
@@ -66,6 +72,21 @@ def test_a_provider_is_registered_after_dlts_own_and_once():
     assert [p.name for p in _dlt.registered_providers()] == [*before, "canary"]
     with pytest.raises(DuplicateConfigProviderException):
         _dlt.register_provider(provider)
+
+
+def test_a_provider_is_taken_out_and_the_others_stay_in_their_place():
+    first, second = _Canary(), _Second()
+    before = [p.name for p in _dlt.registered_providers()]
+    _dlt.register_provider(first)
+    _dlt.register_provider(second)
+
+    assert _dlt.unregister_provider(first) is True
+
+    assert [p.name for p in _dlt.registered_providers()] == [*before, "second"]
+    assert _dlt.unregister_provider(first) is False
+    # The name is free again: dlt refuses a name that is registered.
+    _dlt.register_provider(first)
+    assert [p.name for p in dlt.secrets.config_providers][-2:] == ["second", "canary"]
 
 
 def test_a_destination_takes_its_config_fields_in_the_call(monkeypatch):

@@ -29,6 +29,10 @@ def clean_process(tmp_path, monkeypatch):
     from leeghwater import _prepare
 
     _prepare._current = None
+    # What a test's prepare() wrote down as left is put back here, not by the next test.
+    for left in (_prepare._left_by_run, _prepare._left_by_process):
+        left.variables.clear()
+        left.providers.clear()
     context = Container()[PluggableRunContext]
     context.reload_providers()
     context.initialize_runtime()

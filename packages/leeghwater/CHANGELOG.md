@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A later `prepare()` starts from nothing.** A second call in one process, as in a
+  notebook, kept what the first had set: its secret scopes and Key Vaults stayed
+  registered with dlt, its profile, log level and `--set` values stayed in the
+  environment, and a bare `prepare()` after `prepare(profile="dev")` said `profile dev`
+  while it loaded locally. Now a call first takes back what the one before it set: the
+  environment variables go back to what they held, and the scopes and vaults it
+  registered are taken out of dlt.
+- A `prepare()` that is refused leaves no setup behind. `create_pipeline` and `run` used
+  to go on with the setup of the call before it.
+
 ## [0.1.1] - 2026-10-10
 
 ### Changed
