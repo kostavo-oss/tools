@@ -169,7 +169,7 @@ def load_spec_text(text: str, tmp: Path | None = None) -> object:
 
 def test_handing_something_over_does_not_make_stevin_blind() -> None:
     """The rewrite refusal rests on knowing a table is masked. Still true."""
-    # RULES.md: RW-4.
+    # RULES.md: ACC-6.
     masked = replace(
         table(col("id", "bigint"), name=NAME, properties=MANAGED),
         columns=(replace(col("id", "bigint"), mask=Mask("main.sales.hide")),),

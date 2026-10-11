@@ -171,15 +171,21 @@ DDL is not transactional across statements, so there is no rollback. There is th
 - **RW-4** — A table is not rewritten when a rewrite would lose what a query cannot
   carry, or would copy its data to where its protection does not reach: a table with an
   identity or generated column, with something the model does not cover, or whose data
-  is masked or filtered, by a mask or row filter of its own or by an ABAC policy. The
-  plan holds a step without SQL that says why (RISK-3), also when the project hands
-  masks to another tool.
+  is masked or filtered, by a mask or row filter of its own or by a row filter policy
+  or column mask policy in scope of it, on the table, its schema or its catalog. The
+  plan holds a step without SQL that says why (RISK-3) and, for a policy, names it.
+  That holds for a rewrite in one statement as for a staged one, and `--clone` is
+  refused the same way for a table under such a policy.
   Held by: `tests/unit/test_generation.py::test_a_table_with_identity_is_never_rewritten`,
   `tests/unit/test_masks_and_filters.py::test_a_protected_table_is_never_rewritten`,
-  `tests/unit/test_manage.py::test_handing_something_over_does_not_make_stevin_blind`.
-  Not kept yet: #50 — a table under an ABAC policy is staged and replaced like any
-  other, with no warning: the copy holds what the applying principal reads, outside
-  the policy.
+  `tests/unit/test_policies.py::test_a_table_under_a_policy_is_never_rewritten`.
+- **RW-5** — Where the policies in scope of a table were not read, because the
+  workspace would not list them or the project hands policies to another tool, a
+  rewrite is planned and not refused. Its first step that copies the table's data
+  carries a warning that stevin did not read them and cannot tell whether one masks or
+  filters the table. So does a clone made with `--clone`.
+  Held by: `tests/unit/test_policies.py::test_a_rewrite_says_when_the_policies_were_not_read`,
+  `tests/unit/test_policies.py::test_the_one_statement_rewrite_says_it_too_and_nothing_else_does`.
 
 ## SQL — the statements
 
@@ -219,9 +225,11 @@ DDL is not transactional across statements, so there is no rollback. There is th
   `tests/unit/test_policies.py::test_drift_lists_them_as_not_stevins_and_stays_in_sync`.
 - **ACC-6** — What a project hands to another tool with `manage:` cannot reach a plan:
   its key is refused in a spec and it is not asked of the workspace. stevin still reads
-  what it needs to keep from destroying it (RW-4).
+  what it needs to keep from destroying it: a table's own masks and row filter, so a
+  rewrite of it is still refused (RW-4). Policies handed over are not read (RW-5).
   Held by: `tests/unit/test_manage.py::test_a_handed_over_key_is_refused_in_a_spec`,
-  `tests/unit/test_manage.py::test_the_workspace_is_not_even_asked_about_grants`.
+  `tests/unit/test_manage.py::test_the_workspace_is_not_even_asked_about_grants`,
+  `tests/unit/test_manage.py::test_handing_something_over_does_not_make_stevin_blind`.
 - **ACC-7** — `stevin access` reads and changes nothing, reads grants and policies
   whatever `manage:` says, and says in its output what it does not decide.
   Held by: `tests/unit/test_access.py::test_it_writes_nothing`,

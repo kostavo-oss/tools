@@ -169,6 +169,12 @@ spec's own mask or row filter sits beside one, because Databricks
 they are part of what was reviewed: a policy that arrives or changes between `plan` and
 `apply` makes the plan stale. And a workspace that won't list them costs the plan
 nothing but that: it says so and goes on.
+
+A table with a row filter policy or a column mask policy in scope is never rewritten,
+and never cloned with `--clone`: the copy would hold what the applying principal reads,
+where the policy may not reach, and a rewrite would write that back over the table. The
+plan holds a step without SQL that names the policy. Where the policies were not read, a
+rewrite is planned and says that stevin could not tell.
 [The policies a table is under →](features.md#the-policies-a-table-is-under)
 
 ## What a rewrite actually does

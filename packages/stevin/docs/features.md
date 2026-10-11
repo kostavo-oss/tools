@@ -213,8 +213,8 @@ them, so it never exists unprotected, even for a moment.
 An [ABAC policy](https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/policies) is defined on a catalog, a schema or a table and reaches every
 table below it. So a table you plan can be filtered or masked by something none of its
 spec mentions — written with Terraform or SQL, by someone else. stevin **reads** those
-policies and shows them under the table. It never writes one, and a policy never makes
-a step: the plan below adds a column, and says what the table is under while it does.
+policies and shows them under the table. It never writes one, and a policy is never a
+change: the plan below adds a column, and says what the table is under while it does.
 
 ```yaml title="tables/customers.yml"
 --8<-- "assets/screens/feature-policies.yml"
@@ -238,6 +238,27 @@ Databricks blocks access and returns an error." A table's own filter or mask
 
 ![A spec's mask beside a mask policy](assets/screens/feature-policies-conflict.svg)
 
+A table with a row filter policy or a column mask policy in scope is **not rewritten**,
+as a table with a [mask or row filter of its own](#masks-and-row-filters) is not. A
+rewrite reads the table as the applying principal sees it, masked or filtered, and
+writes that back over the table. Where it converts values it also copies them into a
+staging table first, which a policy on the table does not cover and a policy that
+matches columns by tag may not. stevin cannot tell whether the applying principal is
+let off the policy, so the plan holds a step it will not run, and names the policy:
+
+![A rewrite of a table under a policy](assets/screens/feature-policies-rewrite.svg)
+
+Make that change by hand. Everything that copies no data is planned as always: a
+column, a comment, a tag, a grant. `stevin plan --clone` is refused for such a table
+too, since the clone is a second table over the same rows: plan without it.
+
+Where stevin did not read the policies, it cannot refuse. That is so when the workspace
+will not list them and when the project hands them over with `manage: {policies:
+false}`. A rewrite is then planned, and its first step that copies data carries a
+warning: stevin did not read the policies in scope of this table, so it cannot tell
+whether one masks or filters it. Check the table with
+[`stevin access`](#who-may-see-a-table) before you apply such a plan.
+
 They are read with [`SHOW EFFECTIVE POLICIES ON TABLE`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-policies) and
 [`DESCRIBE POLICY`](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-policy), which take Databricks SQL or Runtime 16.4 and above, and
 `READ METADATA` or `MANAGE` on the securable, or owning it. A workspace that refuses
@@ -255,7 +276,8 @@ drift; [`doctor`](cli.md#doctor) says whether this warehouse will list them.
     several principals, `EXCEPT`, `WHEN`, `MATCH COLUMNS`, and what a refusal looks like.
     Where one of those reads back differently, a plan still names the policy and where
     it is defined. `stevin verify --create-policy` runs the three probes in your
-    workspace.
+    workspace. Not tried: what a rewrite reads and writes for a principal a policy
+    applies to. stevin refuses that rewrite and has never run one.
     [What is still open →](testing.md#what-the-live-suite-has-not-settled)
 
 ## Who may see a table

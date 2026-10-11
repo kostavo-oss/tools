@@ -295,6 +295,9 @@ def plan_tables(
         spec_hash=fingerprint(specs),
         state_fingerprint=fingerprint((d.live for d in diffs), policies_read(diffs)),
         clone=clone,
+        # What the reader was told, not the project file: it is the reader
+        # that did or didn't ask.
+        policies_asked=introspector.manage.manages("policies"),
     )
     return replace(
         built,

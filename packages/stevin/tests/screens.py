@@ -842,6 +842,12 @@ def feature_policies(studio: Studio) -> None:
     studio.write("tables/customers.yml", added)
     studio.quote("tables/customers.yml", "feature-policies.yml")
     studio.shoot("feature-policies", "stevin plan")
+    # A change that would copy the data: under a policy that is not planned.
+    studio.write(
+        "tables/customers.yml",
+        added.replace("customer_id, type: bigint", "customer_id, type: string"),
+    )
+    studio.shoot("feature-policies-rewrite", "stevin plan")
     # The spec puts a mask of its own on a column: both are there now, and a
     # reader both reach is refused by Databricks. The plan says so.
     studio.write(

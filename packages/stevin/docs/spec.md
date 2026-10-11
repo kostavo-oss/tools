@@ -93,7 +93,9 @@ because it only reads.
 nothing to refuse in a spec: `policies: false` only stops it *reading* the
 [policies in scope of each table](features.md#the-policies-a-table-is-under) — one
 `SHOW EFFECTIVE POLICIES` per table it plans — so they are no longer shown in a plan,
-warned about, or part of what makes a plan stale.
+warned about, or part of what makes a plan stale. It also means stevin cannot refuse
+to [rewrite a table under a policy](features.md#the-policies-a-table-is-under): the
+rewrite is planned, with a warning that the policies were not read.
 
 `comments` is worth a word: a spec that says nothing about a comment normally means
 *remove it*, so handing comments over also stops stevin comparing them — a
@@ -594,7 +596,9 @@ controls:
   half-applied.
 - **A protected table is not rewritten.** A rewrite stages a copy of the data, and that
   copy holds whatever the applying principal can see — possibly unmasked — in a table
-  without the protection. stevin plans that as a step it won't run, and says why.
+  without the protection. stevin plans that as a step it won't run, and says why. The
+  same holds for a table an
+  [ABAC policy masks or filters](features.md#the-policies-a-table-is-under).
 
 See [row filters and column masks](https://docs.databricks.com/aws/en/tables/row-and-column-filters)
 for how to write the functions.

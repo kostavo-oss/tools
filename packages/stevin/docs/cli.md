@@ -243,7 +243,10 @@ it's stevin's. `--parallel` (default 8) sets how many of those queries run at on
 reordered spec is usually an edit to the file rather than an intent to move columns.
 
 `--clone` adds a `SHALLOW CLONE` of each table before the first step that could lose
-its data — see the [safety model](safety.md#when-something-goes-wrong).
+its data — see the [safety model](safety.md#when-something-goes-wrong). A table
+[under a row filter or column mask policy](features.md#the-policies-a-table-is-under)
+is not cloned: the plan says so in a step `apply` refuses, and you plan without
+`--clone`.
 
 Tables in the schema that no spec describes are listed at the bottom as unmanaged, and
 never touched.
