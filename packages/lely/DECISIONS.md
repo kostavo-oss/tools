@@ -263,3 +263,18 @@ plan file 0.3.1 saved for one is refused once. The file's format number stays, b
 a new one would refuse every saved plan, also in `lely show`. A plan file names the
 lely that made it, so the refusal says that the versions differ and that this may be
 why.
+
+## 35. 2026-10-11 — `lely doctor` does not say whether credentials are read-only
+
+The promise is given up. `doctor` was to say whether the credentials at hand can do
+more than read, so a pull request's plan is not run with ones that can write. No call
+of Databricks is known that answers that: what an identity may do is granted per
+object, and nothing we know of sums it up. So `doctor` says
+the one thing it can read off, whether the identity is a workspace admin, and for
+anyone else that it cannot tell.
+
+Rejected: a guess, such as trying a harmless write or reading a few grants. A wrong
+"read-only" is worse than none: it would be taken as a check that was made, on the one
+question where being wrong lets a pull request change a workspace. Rejected: leaving
+the rule open until an API turns up, which keeps a promise in the rules that nobody is
+working on. The rule had the number 6 of the `CLI` area; what `doctor` does say is `CLI-8`.

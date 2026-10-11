@@ -95,3 +95,7 @@ there were no environments.
     tables had changed ended with exit 1 and the words the step looks for. Two plans made
     one after the other, with nothing changed between them, held the same steps. None of
     that says what a warehouse does.
+11. **What `lely doctor` says of an identity.** That a workspace admin is listed in the
+    group `admins` is from the docs, and was not seen for an admin who is one through
+    another group. Whether credentials are read-only is not said at all: no call is
+    known that answers it.

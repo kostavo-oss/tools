@@ -19,6 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`lely doctor` is no longer meant to say whether credentials are read-only.** It
+  never could. It says whether the identity is a workspace admin, and for anyone else
+  that it cannot tell what the credentials may change.
 - **A plan made from `lely.yml` is accepted with the same project in `pyproject.toml`,
   whatever the spelling.** What a step is made from is now each option as its plugin is
   handed it: `1.10` and `yes` in YAML are `1.10` and `true` in TOML for a number or a

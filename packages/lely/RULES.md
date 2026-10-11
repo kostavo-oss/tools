@@ -847,13 +847,6 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   `tests/unit/test_cli.py::test_doctor_fails_when_a_tool_is_missing`,
   `tests/unit/test_cli.py::test_doctor_compares_the_clis_version_with_the_one_bundles_need`,
   `tests/unit/test_cli.py::test_doctor_says_a_plugin_that_fails_in_one_line_and_goes_on`.
-- **CLI-6** — `lely doctor` says that planning runs the project's own code and that a pull
-  request's plan should be given credentials that can read and nothing more, and it says
-  whether the credentials at hand can do more than read.
-  Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
-  `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
-  Not kept yet: #52 — no API says "read-only": it says whether the identity is a workspace
-  admin, and that it cannot tell what else the credentials may change.
 - **CLI-7** — A file lely writes with `-o` is written beside its place and moved there,
   where there is room beside it: it is then whole or as it was, and a link standing where
   it goes is replaced, not followed. What is no file, a device or a pipe, is written to as
@@ -862,6 +855,13 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   Held by: `tests/unit/test_cli.py::test_a_file_is_whole_or_as_it_was`,
   `tests/unit/test_cli.py::test_a_file_made_again_is_readable_by_whoever_could_read_it_before`,
   `tests/unit/test_cli.py::test_what_is_no_file_is_written_to_as_it_is`.
+- **CLI-8** — `lely doctor` says that planning runs the project's own code and that a pull
+  request's plan should be given credentials that can read and nothing more. Of the
+  credentials at hand it says one thing: whether the identity is a workspace admin, who
+  can change anything. For any other identity it says that lely cannot tell what else
+  the credentials may change. It never says that credentials are read-only.
+  Held by: `tests/unit/test_cli.py::test_doctor_reports_the_tools_the_workspace_and_the_identity`,
+  `tests/unit/test_cli.py::test_a_member_of_admins_is_a_workspace_admin`.
 
 ## SEC — secrets, and what a plan says
 

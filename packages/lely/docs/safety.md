@@ -55,7 +55,8 @@ A step in the repo runs when a plan is made: its `plan`, and whatever that does.
   looked up in the workspace — can change what is deployed without changing a line of the
   plan.
 - **Whether credentials are read-only.** `lely doctor` says what it can see: which workspace,
-  as whom, and whether that is a workspace admin.
+  as whom, and whether that is a workspace admin. For anyone else it says that it cannot
+  tell what the credentials may change.
 - **What a `Program`'s program really does.** The plan shows its command line.
 - **What a step's program prints.** A deploy, a job run and a step's program are passed on
   while they run. lely hides the run's GitHub token in what they print and knows no other
