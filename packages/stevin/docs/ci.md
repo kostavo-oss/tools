@@ -5,7 +5,7 @@ the job summary, and — on a pull request — posts it as a comment, updating i
 comment on every push instead of adding another.
 
 `uses: kostavo-oss/tools/packages/stevin@stevin-v0` follows the newest 0.x release; pin a release tag
-(`@stevin-v0.4.0a1`) to hold one still. The action runs the stevin of its own version, so the
+(`@stevin-v0.4.0a2`) to hold one still. The action runs the stevin of its own version, so the
 two never disagree.
 
 ## Credentials
