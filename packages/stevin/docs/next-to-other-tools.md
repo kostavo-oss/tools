@@ -44,6 +44,15 @@ them.
 - A schema that holds dlt's own `_dlt_loads` and `_dlt_version` tables is a dlt dataset,
   every table in it. That is a heuristic — a schema someone copied `_dlt_loads` into
   would pass — and `owned_elsewhere` can override it for a name.
+- A pipeline that has not run yet has left no `_dlt_` tables. Say the schema is dlt's
+  in `stevin.yml`, and name it the way the bundle does when the bundle deploys it:
+
+  ```yaml
+  owned_elsewhere:
+    ${catalog}.${resources.schemas.raw.name}.*: dlt
+  ```
+
+  The reference is one part of the key, and stands for the name the target deploys.
 - The PII in a landing table gets its tags, grants, masks and row filter from a
   [governance-only spec](spec.md#a-governance-only-spec): the columns by name, no types.
   stevin lays it over the live table, changes governance only, and never claims,

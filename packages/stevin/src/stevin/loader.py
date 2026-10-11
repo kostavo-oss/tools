@@ -251,6 +251,8 @@ class Project:
     #: `owned_elsewhere:` as written — `catalog.schema.table` patterns, `*` for
     #: any part, `${var}` and all — and who owns what they cover.
     owned_elsewhere: tuple[tuple[str, str], ...] = ()
+    #: Where each of those keys was written, for a message about one of them.
+    owned_elsewhere_locs: tuple[tuple[str, Loc], ...] = ()
     #: `dbt: manifest:` — where dbt wrote `manifest.json`, so what dbt builds is
     #: dbt's. Read when a plan is made, not when the project is.
     dbt_manifest: Path | None = None
@@ -373,17 +375,40 @@ class Project:
         """Who owns what, for one target: the dbt manifest's names, then
         `owned_elsewhere`'s patterns with the target's variables in.
 
-        A pattern using a variable this target doesn't define is left out, as
-        a `schemas:` entry would be. Raises `OwnedError` when a manifest is
-        named and can't be read.
+        A key is split into its three parts first, outside any `${…}`, and each
+        part is filled in on its own: what a reference stands for is one name,
+        never more parts and never a `*`. Raises `SpecError`, at the key, when
+        a reference has no value for this target or its value is not one name:
+        a pattern that was quietly left out would let stevin claim a table the
+        file gives to another tool. Raises `OwnedError` when a manifest is named
+        and can't be read.
         """
         variables = target.variables_map()
+        unresolved = target.unresolved_map()
+        locs = dict(self.owned_elsewhere_locs)
         patterns: list[tuple[str, str]] = []
         for pattern, owner in self.owned_elsewhere:
-            try:
-                patterns.append((substitute(pattern, variables).lower(), owner))
-            except KeyError:
-                continue
+            loc = locs.get(pattern) or Loc(self.root / CONFIG_NAMES[0], 1, 1)
+            parts: list[str] = []
+            for part in key_parts(pattern):
+                try:
+                    value = substitute(part, variables, unresolved)
+                except KeyError as error:
+                    raise SpecError(
+                        f"owned_elsewhere key {pattern!r}, for target "
+                        f"{target.name!r}: {error.args[0]}",
+                        loc,
+                    ) from error
+                if "${" in part and (not value or "." in value or "*" in value):
+                    raise SpecError(
+                        f"owned_elsewhere key {pattern!r}: {part} is {value!r} for "
+                        f"target {target.name!r}, and a reference stands for one "
+                        "part of catalog.schema.table — a name with no dot and no "
+                        "*; write the parts out, or use a reference to each",
+                        loc,
+                    )
+                parts.append(value)
+            patterns.append((".".join(parts).lower(), owner))
         manifest = read_manifest(self.dbt_manifest) if self.dbt_manifest else Owners()
         return combined(manifest, Owners(patterns=tuple(patterns)))
 
@@ -453,6 +478,22 @@ def substitute(
         raise KeyError(f"undefined variable ${{{name}}} (known: {known})")
 
     return VARIABLE.sub(replace, text)
+
+
+def key_parts(text: str) -> tuple[str, ...]:
+    """A dotted key as its parts, split on the dots outside any `${…}`.
+
+    `${catalog}.${resources.schemas.raw.name}.*` is three parts: the dots inside
+    a reference belong to the reference.
+    """
+    parts: list[str] = []
+    start = 0
+    for found in re.finditer(r"\$\{[^}]*\}|\.", text):
+        if found.group() == ".":
+            parts.append(text[start : found.start()])
+            start = found.end()
+    parts.append(text[start:])
+    return tuple(parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1799,11 +1840,13 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
     manage = _read_manage(ctx, items["manage"][0]) if "manage" in items else EVERYTHING
 
     owned_elsewhere: list[tuple[str, str]] = []
+    owned_elsewhere_locs: list[tuple[str, Loc]] = []
     if "owned_elsewhere" in items:
         for pattern, (owner_node, key_loc) in _mapping(
             ctx, items["owned_elsewhere"][0], "owned_elsewhere"
         ).items():
-            if len(pattern.split(".")) != 3:
+            parts = key_parts(pattern)
+            if len(parts) != 3 or not all(parts):
                 raise SpecError(
                     "owned_elsewhere is keyed catalog.schema.table, with * for any "
                     f"part — e.g. ${{catalog}}.silver.* — not {pattern!r}",
@@ -1816,6 +1859,7 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
                     ctx.loc(owner_node),
                 )
             owned_elsewhere.append((pattern, owner))
+            owned_elsewhere_locs.append((pattern, key_loc))
 
     dbt_manifest: Path | None = None
     if "dbt" in items:
@@ -1835,6 +1879,7 @@ def load_project(path: Path, environ: Mapping[str, str] | None = None) -> Projec
         own_targets=own_targets,
         manage=manage,
         owned_elsewhere=tuple(owned_elsewhere),
+        owned_elsewhere_locs=tuple(owned_elsewhere_locs),
         dbt_manifest=dbt_manifest,
     )
 

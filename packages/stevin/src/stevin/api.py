@@ -30,6 +30,7 @@ from stevin.history import DeltaHistory, HistoryStore, NoHistory
 from stevin.loader import (
     Diagnostic,
     Project,
+    SpecError,
     Specs,
     Target,
     owned_diagnostics,
@@ -71,7 +72,8 @@ def plan(
     `specs` is for a caller that has already read them — to lint them first,
     say — so they aren't read twice.
 
-    Raises `SpecErrors` if a spec can't be read, `PlanningError` if the specs
+    Raises `SpecErrors` if a spec can't be read, `SpecError` if a key of
+    `owned_elsewhere` has no one name for this target, `PlanningError` if the specs
     can't be planned together — two files describing one name, a function spec
     that no mask or row filter names — and `IntrospectionError` if the
     workspace can't be read.
@@ -166,6 +168,10 @@ def validate(project: Project, target: Target) -> tuple[Diagnostic, ...]:
         # The manifest can't be read: said once, where the project file is.
         owners = None
         about_owners = (Diagnostic("error", str(error), str(project.root)),)
+    except SpecError as error:
+        # An `owned_elsewhere` key that has no one name for this target.
+        owners = None
+        about_owners = (Diagnostic("error", error.message, str(error.loc)),)
     return (
         *specs.diagnostics,
         *cycles(specs.files),

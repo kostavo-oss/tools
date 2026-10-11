@@ -6,7 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`owned_elsewhere` can name a schema the way a bundle does.** A key such as
+  `${catalog}.${resources.schemas.raw.name}.*: dlt` was refused, because the dots
+  inside the reference were counted as parts of the key. A `${…}` reference is now one
+  part, whatever it holds, and stands for the name the target deploys: `dev_jane_raw`
+  on a development target, `raw` in production.
+
 ### Changed
+
+- **A key of `owned_elsewhere` that has no value for a target is an error.** A key
+  with a variable the target does not define was left out without a word, and the
+  tables it covered were no longer anyone's. `plan`, `validate` and `import` now stop
+  and name the key, with its file, line and column. The same holds for a reference
+  whose value is empty or holds a dot or a `*`: a reference stands for one name.
+  `validate` asks no Databricks CLI, so for a name only the CLI knows it reads the key
+  and the specs with the same name standing in, and says which names it left unsettled.
 
 - **The design page is now *How it works*.** The docs had the original design, kept as
   it was written with corrections on top. In its place is a page that says how stevin

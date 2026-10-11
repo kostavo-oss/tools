@@ -62,7 +62,7 @@
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Whose tables are whose: catalog.schema.table patterns, * for any part, to an owner \u2014 dbt, dlt, a team's name, or unknown. dbt's are refused; the others may be governed."
+      "description": "Whose tables are whose: catalog.schema.table patterns, * for any part, to an owner \u2014 dbt, dlt, a team's name, or unknown. A ${\u2026} reference is one part. dbt's are refused; the others may be governed."
     },
     "schemas": {
       "type": "object",

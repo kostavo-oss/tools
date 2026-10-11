@@ -11,6 +11,7 @@ import os
 import webbrowser
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import replace
 from enum import StrEnum
 from functools import partial
 from pathlib import Path
@@ -259,11 +260,19 @@ def validate(
     # Whose table a spec names, as far as the project's files say: dbt's is
     # refused; a spec without types for a table nobody is known to own is a
     # warning, since a dlt pipeline's is only known from the workspace.
+    # An `owned_elsewhere` key is read with the same names standing in, so a
+    # key and a spec that use one reference still meet.
     owners = None
     if found is not None and chosen is not None:
+        linted = replace(
+            chosen,
+            variables=tuple(sorted(variables.items())),
+            unresolved=tuple(sorted(unresolved.items())),
+            resources=(),
+        )
         try:
-            owners = found.owners(chosen)
-        except OwnedError as error:
+            owners = found.owners(linted)
+        except (OwnedError, SpecError) as error:
             err.print(f"[red]{escape(str(error))}[/]")
             problems += 1
     for diagnostic in owned_diagnostics(read, owners, _shown):
@@ -271,6 +280,13 @@ def validate(
         problems += diagnostic.severity == "error"
 
     unsettled = _mentioned(files, standing_in)
+    if found is not None:
+        in_keys = {
+            match.group(1)
+            for key, _ in found.owned_elsewhere
+            for match in VARIABLE.finditer(key)
+        }
+        unsettled = sorted({*unsettled, *(in_keys & standing_in.keys())})
     if unsettled:
         names = ", ".join(f"${{{name}}}" for name in unsettled)
         err.print(

@@ -52,9 +52,8 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   the mode, and a plan reports it as theirs. The owner is known from `owned_elsewhere:`
   in the project file, from a dbt manifest, and from dlt's own tables in the schema.
   Held by: `tests/unit/test_owned_elsewhere.py::test_owned_tables_are_theirs_not_unmanaged`,
-  `tests/unit/test_owned_elsewhere.py::test_the_project_file_says_who_owns_what`.
-  Not kept yet: #42 — `owned_elsewhere` cannot name a schema that a bundle deploys under
-  another name: a key with a `${resources.schemas.<key>.name}` reference is refused.
+  `tests/unit/test_owned_elsewhere.py::test_the_project_file_says_who_owns_what`,
+  `tests/unit/test_owned_elsewhere.py::test_a_key_names_a_schema_the_way_the_bundle_does`.
 - **OWN-7** — A spec for a table dbt builds is refused, at `validate` and at `plan`. A
   table of any other owner may be governed and never shaped: a spec without column
   types puts tags, grants, masks, a row filter and an owner on it and plans no claim. A
@@ -63,6 +62,13 @@ themselves, `NAME` the names from when this was deltaplan, `ACT` the GitHub Acti
   Held by: `tests/unit/test_owned_elsewhere.py::test_even_a_governance_only_spec_for_dbts_table_is_refused`,
   `tests/unit/test_owned_elsewhere.py::test_a_governance_only_spec_governs_a_dlt_table`,
   `tests/unit/test_owned_elsewhere.py::test_a_shape_spec_for_a_dlt_table_is_refused`.
+- **OWN-8** — A key of `owned_elsewhere:` is three parts, split on the dots outside a
+  `${…}` reference, and each part is filled in for the target on its own. A reference
+  stands for one name: a value that is empty or holds a dot or a `*` is refused, and so
+  is a reference with no value for the target. No key is left out quietly. The error
+  names the key and its file, line and column.
+  Held by: `tests/unit/test_owned_elsewhere.py::test_a_reference_with_no_value_is_an_error_at_the_key`,
+  `tests/unit/test_owned_elsewhere.py::test_what_a_reference_stands_for_is_one_name`.
 
 ## RISK — what a step may cost
 

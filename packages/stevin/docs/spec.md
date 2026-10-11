@@ -119,9 +119,17 @@ dbt manifest can say it for dbt:
 owned_elsewhere:                        # catalog.schema.table patterns, * for any part
   ${catalog}.silver.*: dbt
   ${catalog}.science.*: the data-science team
+  ${catalog}.${resources.schemas.raw.name}.*: dlt   # a schema the bundle deploys
 dbt:
   manifest: ../analytics/target/manifest.json   # what dbt builds is dbt's
 ```
+
+A `${…}` reference is one part of a key, whatever dots it holds. It stands for one
+name: the value for the target you plan against. With [a bundle](bundles.md), name a
+schema the bundle deploys the way the bundle does, and the key follows the schema to
+`dev_jane_raw` on a development target and to `raw` in production. A reference that has
+no value for the target stops the command and names the key, with its file, line and
+column. So does a value that is empty or holds a dot or a `*`.
 
 A dlt pipeline needs no telling: a schema that holds dlt's own `_dlt_loads` and
 `_dlt_version` tables is dlt's, every table in it. (A heuristic, and an honest one: a
