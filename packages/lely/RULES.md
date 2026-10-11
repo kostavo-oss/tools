@@ -230,14 +230,17 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   change nothing; `apply` does what the plan says and no more; it touches only what its
   options name; it destroys only what it can show is its own; a change that loses
   something is marked destructive, and a delete and a replace always are; its outputs are
-  as declared; and no secret is in a plan. `lely.testing` holds a plugin to each of them,
-  with `check_plan`, `check_apply`, `check_destroy` and `check_overview`.
+  as declared; and no secret is in a plan. `lely.testing` holds a plugin to each of them
+  as far as it sees one, which is through the Databricks CLI a step is handed, what the
+  plugin answers, and what a test shows it: `check_plan`, `check_apply`, `check_destroy`
+  and `check_overview`; `check_no_state`, which makes every call on a new plugin and
+  hands `apply` the plan as a plan file keeps it; and `check_only_its_own`, which holds
+  a second step's plan and overview, and what a test names as untouched, the same
+  across this step's apply and destroy. Given a class, every check makes each call on a
+  new instance, as lely does.
   Held by: `tests/unit/test_testing.py::test_a_plugin_that_follows_the_rules_passes_all_of_it`,
-  `tests/unit/test_testing.py::test_plan_changes_nothing`.
-  Not kept yet: #52 — the kit checks what a test can see of them. It has no check for
-  "keeps no state", for "only what its options name" or for "only its own", which is
-  tested for the bundle plugin alone; and it holds only calls of the Databricks CLI to
-  reading, so it cannot see a write made through the SDK or by another program.
+  `tests/unit/test_testing.py::test_plan_changes_nothing`,
+  `tests/unit/test_testing.py::test_a_plugin_keeps_no_state_and_touches_only_its_own`.
 - **PLG-10** — Every plugin lely ships passes the checks of `lely.testing` that apply to
   it.
   Held by: `tests/unit/test_testing.py::test_the_bundle_plugin_passes_the_whole_kit`,
@@ -267,6 +270,14 @@ secrets and what a plan says, `PAGE` a plan as a page, `GH` GitHub, `PKG` the pa
   plan and a destroy show the step as skipped with those words, in place of "has nothing
   to destroy".
   Held by: `tests/unit/test_running.py::test_a_destroy_leaves_stevins_tables_alone_and_says_so`.
+- **PLG-16** — The rules of PLG-9 hold by every road, also where `lely.testing` does not
+  look: `plan` and `overview` make no write through the SDK (`ctx.workspace`) or by a
+  program the plugin starts itself; a plugin keeps no state on its class, in a module,
+  in a file or in a service; and it changes nothing in a workspace that no step's plan
+  or overview shows. The kit's docs name these three as what it does not see.
+  Not tested: the kit holds only the Databricks CLI a step is handed to reading, and
+  sees a workspace only through a plugin's own answers and what a test shows it. For
+  the `stevin` plugin that leaves out `stevin plan`, which is another program.
 
 ## BDL — the `bundle` plugin
 

@@ -17,6 +17,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as it was approved, payload and all. A plugin without a destroy can say why in
   `nothing_to_destroy`.
 
+- **`lely.testing` has `check_no_state` and `check_only_its_own`**, for the two rules
+  it had no check for. Every check takes the plugin's class too, and then makes each
+  call on a new instance, as lely does; `check` on a step's own command line does so.
+  The docs say what the kit cannot see: a write through the SDK or by another program.
 - **A step on its own shows what it gives.** `plan` prints the outputs it knows and names
   the ones that come later; `apply` prints what the step returned. A `Secret` is `***`.
 - **A step on its own can plan its destroy**: `plan --destroy -o gone.json`, then

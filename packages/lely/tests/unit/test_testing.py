@@ -7,14 +7,15 @@ the ones that apply to them (PLG-9).
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
 import project
-from fakes import FakeDatabricks, FakeStevin, write_bundle
+from fakes import FakeDatabricks, FakeStevin, deploy, write_bundle
 from lely.model import (
     Change,
     Item,
@@ -22,6 +23,7 @@ from lely.model import (
     Output,
     Overview,
     Secret,
+    Skip,
     StepPlan,
 )
 from lely.step import Context
@@ -33,6 +35,8 @@ from lely.testing import (
     ReadOnly,
     check_apply,
     check_destroy,
+    check_no_state,
+    check_only_its_own,
     check_overview,
     check_plan,
     context,
@@ -78,12 +82,59 @@ class Good:
 CTX = context(Options())
 
 
+@dataclass(frozen=True, slots=True)
+class Named:
+    name: str
+
+
+class Keeps:
+    """A plugin that keeps the thing its option names in a world outside
+    itself, as a workspace is, by the rules."""
+
+    Options = Named
+    world: ClassVar[set[str]] = set()
+
+    def plan(self, ctx: Context[Named]) -> StepPlan:
+        name = ctx.options.name
+        return StepPlan(() if name in self.world else (Change(name, "create", name),))
+
+    def apply(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.update(change.key for change in plan.changes)
+
+    def overview(self, ctx: Context[Named]) -> Overview:
+        name = ctx.options.name
+        return Overview((Item("thing", name, name, name in self.world),))
+
+    def plan_destroy(self, ctx: Context[Named]) -> StepPlan | Skip:
+        name = ctx.options.name
+        if name not in self.world:
+            return Skip("not there")
+        return StepPlan((Change(name, "delete", name),))
+
+    def destroy(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.difference_update(change.key for change in plan.changes)
+
+
+A, B = context(Named("a")), context(Named("b"))
+
+
+@pytest.fixture(autouse=True)
+def _an_empty_world() -> None:
+    Keeps.world.clear()
+
+
 def test_a_plugin_that_follows_the_rules_passes_all_of_it() -> None:
     """PLG-9."""
     assert check_plan(Good(), CTX).outputs == {"count": 0}
     assert check_apply(Good(), CTX) == {"id": "1", "ran": True}
     assert [c.key for c in check_destroy(Good(), CTX).changes] == ["thing"]
     assert check_overview(Good(), CTX) == Overview()
+    # given as its class, every call is made on a new plugin, as under lely
+    assert check_no_state(Keeps, A) == {}
+    Keeps.world.clear()
+    assert [c.key for c in check_destroy(Keeps, A).changes] == ["a"]
+    check_only_its_own(Keeps, A, B)
+    assert Keeps.world == {"b"}  # the other step's, applied and left alone
 
 
 # -- each rule, broken -------------------------------------------------------------
@@ -100,6 +151,62 @@ def test_plan_changes_nothing(tmp_path: Path) -> None:
     ctx = context(Options(), databricks=FakeDatabricks(tmp_path / "world"))
     with pytest.raises(AssertionError, match="`databricks bundle deploy` isn't a read"):
         check_plan(WritesWhilePlanning(), ctx)
+
+
+class Remembers(Keeps):
+    """Finds what to do while planning, and keeps it on itself."""
+
+    def plan(self, ctx: Context[Named]) -> StepPlan:
+        found = super().plan(ctx)
+        self.todo = [change.key for change in found.changes]
+        return found
+
+    def apply(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.update(getattr(self, "todo", ()))
+
+
+class Sprawls(Keeps):
+    """Makes what its neighbour's options name, too."""
+
+    def apply(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.update({ctx.options.name, "b"})
+
+
+class Greedy(Keeps):
+    """Takes down everything it finds."""
+
+    def destroy(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.clear()
+
+
+class Litters(Keeps):
+    """Leaves behind something no step names."""
+
+    def apply(self, ctx: Context[Named], plan: StepPlan) -> None:
+        self.world.update({ctx.options.name, "left-behind"})
+
+
+def test_a_plugin_keeps_no_state_and_touches_only_its_own() -> None:
+    """PLG-9."""
+    # one plugin for every call hides it; a new one for each, as under lely, doesn't
+    check_apply(Remembers(), A)
+    Keeps.world.clear()
+    with pytest.raises(AssertionError, match="A plugin keeps no state"):
+        check_no_state(Remembers, A)
+    Keeps.world.clear()
+    with pytest.raises(AssertionError, match="applying the step changed what it doesn't"):
+        check_only_its_own(Sprawls, A, B)
+    Keeps.world.clear()
+    with pytest.raises(AssertionError, match="destroying the step changed what isn't"):
+        check_only_its_own(Greedy, A, B)
+    # what neither step names is seen only where a test shows it to the kit
+    Keeps.world.clear()
+    check_only_its_own(Litters, A, B)
+    Keeps.world.clear()
+    with pytest.raises(AssertionError, match="applying the step changed what it doesn't"):
+        check_only_its_own(
+            Litters, A, B, untouched=lambda: sorted(Keeps.world - {"a", "b"})
+        )
 
 
 def test_a_read_is_let_through(tmp_path: Path) -> None:
@@ -244,6 +351,22 @@ def test_the_bundle_plugin_passes_the_whole_kit(tmp_path: Path) -> None:
     check_apply(Bundle(), ctx("two"))
     check_destroy(Bundle(), ctx("three"))
     assert isinstance(check_overview(Bundle(), ctx("four")), Overview)
+    check_no_state(Bundle, ctx("five"))
+    # a second bundle, in a folder of its own, and a third nobody here names
+    other = {**project.BUNDLE, "name": "other"}
+    write_bundle(tmp_path / "other", other)
+    world = FakeDatabricks(tmp_path / "six")
+    theirs = {"jobs.bar": {"id": "9", "config": {"name": "job bar"}}}
+    deploy(world.world, theirs, name="third")
+    check_only_its_own(
+        Bundle,
+        ctx("six"),
+        dataclasses.replace(
+            ctx("six"), options=Bundle.Options(path="other", vars={"model_version": "1"})
+        ),
+        untouched=lambda: world.deployed(name="third"),
+    )
+    assert world.deployed() == {} and world.deployed(name="other") != {}
 
 
 def test_bundle_run_passes_the_parts_that_apply(tmp_path: Path) -> None:
@@ -265,6 +388,30 @@ def test_bundle_run_passes_the_parts_that_apply(tmp_path: Path) -> None:
     # a `run` may remain after apply: it happens every time
     assert check_apply(BundleRun(), run) == {}
     assert fake.runs == [{"key": "jobs.backfill", "args": []}]
+    assert check_no_state(BundleRun, run) == {}
+    # it runs the resource it names, and no other: here, each time it is applied
+    bar = {"jobs.bar": {"id": "772", "config": {"name": "job bar"}}}
+    deploy(fake.world, {**project.DEPLOYED, **bar})
+    both = dataclasses.replace(
+        app, outputs={**app.outputs, "resources.jobs.bar.id": "772"}
+    )
+    other = dataclasses.replace(
+        run, options=BundleRun.Options(bundle=both, resource="jobs.bar")
+    )
+    before = len(fake.runs)
+    check_only_its_own(
+        BundleRun,
+        run,
+        other,
+        untouched=lambda: [
+            r for r in fake.runs if r["key"] not in ("jobs.backfill", "jobs.bar")
+        ],
+    )
+    assert [r["key"] for r in fake.runs[before:]] == [
+        "jobs.backfill",
+        "jobs.bar",
+        "jobs.backfill",
+    ]
 
 
 def test_the_stevin_plugin_passes_the_parts_that_apply(tmp_path: Path) -> None:
@@ -275,6 +422,21 @@ def test_the_stevin_plugin_passes_the_parts_that_apply(tmp_path: Path) -> None:
     assert check_apply(Stevin(), step) == {}
     assert len(stevin.applied) == 8
     assert isinstance(check_overview(Stevin(), step), Overview)
+    # a new plugin for every call, and the approved plan through a plan file
+    fresh = FakeStevin.planning(tmp_path / "second-world", "stevin-rewrite.json")
+    again = context(Stevin.Options(executable=fresh.executable), root=tmp_path, env={})
+    assert check_no_state(Stevin, again) == {}
+    assert len(fresh.applied) == 8
+    # two stevin projects: applying one leaves the other's plan and tables alone.
+    # What `stevin apply` touches inside one project is stevin's own to keep.
+    one = FakeStevin.planning(tmp_path / "one", "stevin-create.json")
+    two = FakeStevin.planning(tmp_path / "two", "stevin-rewrite.json")
+    check_only_its_own(
+        Stevin,
+        context(Stevin.Options(executable=one.executable), root=tmp_path, env={}),
+        context(Stevin.Options(executable=two.executable), root=tmp_path, env={}),
+    )
+    assert one.applied and len(two.applied) == 8
 
 
 class GivesATuple(Good):

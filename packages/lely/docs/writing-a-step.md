@@ -116,8 +116,9 @@ anything but a read, the plan through a plan file and back, outputs as declared,
 `overview` reading only. `--live` adds the cycle — plan, apply, destroy, plan again — on the
 target: it makes and removes things there. It says so first: what it is about to do, on
 which target and workspace, and as whom. A step with no destroy is applied and planned
-again, and what it made stays. What a step does through the SDK is its own: `check`
-cannot see a write made there.
+again, and what it made stays. `check` makes every call on a new instance of the step,
+as lely does. What a step does through the SDK is its own: `check` cannot see a write
+made there, or one made by a program the step starts.
 
 ## Under lely
 
@@ -246,6 +247,40 @@ def test_plans_the_scope():
 `check_plan` runs the plan with a Databricks CLI that refuses anything but a read, and
 checks the plan survives a plan file. `check_apply` plans, applies, and plans again;
 `check_destroy` applies and takes it down; `check_overview` lists.
+
+Two more need a little from the test. `check_no_state` takes the class: it makes every
+call on a new plugin, and hands `apply` the plan as a plan file keeps it. A plugin that
+keeps on itself what it found while planning fails it. `check_only_its_own` takes a
+second step of the same plugin, whose options name other things:
+
+```python
+from lely.testing import check_no_state, check_only_its_own
+
+
+def test_keeps_no_state_and_touches_only_its_own():
+    shop = context(SecretScope.Options(name="shop_data"), connect=workspace)
+    other = context(SecretScope.Options(name="other_data"), connect=workspace)
+    check_no_state(SecretScope, shop)
+    check_only_its_own(SecretScope, shop, other, untouched=lambda: workspace.jobs)
+```
+
+It applies the first step and destroys it, and the second step plans and lists the same
+before and after. `untouched` is anything neither step names, as your stand-in for the
+workspace holds it. Every check takes the plugin as an instance or as its class; given
+the class, each call is made on a new instance, as lely makes one.
+
+What these checks see is limited, and they do not pretend otherwise:
+
+- **A write is seen only when it goes through `ctx.databricks`.** A write `plan` or
+  `overview` makes through the SDK (`ctx.workspace`), or by a program the step starts
+  itself, is not seen.
+- **State is seen only when it is kept on the plugin itself**, or does not survive a plan
+  file. State on the class, in a module, in a file or in a service is not seen.
+- **"Only its own" is seen through the second step's plan and overview**, and through
+  `untouched`. Anything else in a workspace is not seen.
+
+A stand-in for the workspace that records what it is asked sees the rest: give it to
+`context` as `connect=`.
 
 ## A view for the page
 

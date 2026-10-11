@@ -295,3 +295,19 @@ would cost.
 `destroy --plan-file` was there and nothing could write the file it takes. `plan` got
 `--destroy`. Rejected: taking `--plan-file` off `destroy`, since a teardown is what one
 most wants to read first.
+
+## 37. 2026-10-11 — The testing kit checks what it can see, and says what it cannot
+
+`lely.testing` had no check for "keeps no state", "only what its options name" and
+"only its own". It has two now, and each looks through what a test already has. For
+state: a new plugin for every call and the plan through a plan file, which is how lely
+itself calls a plugin. For "its own": a second step of the same plugin, whose plan and
+overview are read before and after the first is applied and destroyed.
+
+Rejected: a workspace client that refuses writes, to see a write made through the
+SDK. We know no way to tell from a call's name whether it writes, and a call that runs
+SQL reads or writes by the statement it is handed. A guard that guesses would pass a
+plugin that writes and fail one that reads. Rejected: comparing the project's folder
+before and after a plan. A program a step runs may keep files of its own there, and
+that is not the step keeping state. So the kit's docs name what it does not see, and
+the rule for that part (PLG-16) says it is not tested.

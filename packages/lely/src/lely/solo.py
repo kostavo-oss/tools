@@ -456,7 +456,7 @@ def _check(cls: type, flags: Sequence[Flag], **values: Any) -> None:
         written = {}
     passed: list[str] = []
     try:
-        plugin = cls()
+        plugin = cls  # the class: every call is made on a new one, as under lely
         testing.check_plan(plugin, ctx, written=written)
         passed.append("plan changes nothing, and survives a plan file")
         if contract.lists(cls):
