@@ -21,8 +21,14 @@ lely's job is the order, the review and the consent. These are the rules it keep
 
 - A value from the environment (`${env.NAME}`) and a value a plugin marks secret are never
   printed and never written — not to a plan file, a comment, a summary or a page.
-- A plan file holds no secret. It does hold each plugin's own plan, so treat it like the
-  config it was made from.
+- A plan file holds no secret. A secret written out in the config is left out of what
+  the file records of a step's options, so no guess at it can be tested against the
+  file. It does hold each plugin's own plan, so treat it like the config it was made
+  from.
+- An output that holds what its step was given as a secret is a secret too, also when
+  the plugin gave it as plain text. lely checks a step's outputs for this, and nothing
+  else a plugin writes. It finds the secret as it was given, whole: not a part of it, and
+  not the same secret spelled another way.
 - With `--github`, lely knows the run's token, and no line it says holds it. A plan that
   holds the token is shown by no command.
 

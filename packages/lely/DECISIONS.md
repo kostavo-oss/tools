@@ -335,3 +335,61 @@ older. A development build of 0.4.0a2 counts as older, as Python's packaging ord
 The overview has a new rule, STV-13, and the rule it had is dropped with its number
 left empty: what a status reads changed, and with it what it can say. `stevin list` says whether an object is there, not
 what a plan would do to it.
+
+## 39. 2026-10-11 — A secret written out is left out of what a step is made from
+
+A `Secret` option written out in the config, which is always so for a flag of a step on
+its own, went into the 16 hex characters a plan file keeps of each step. SEC-1 says a
+secret is never written. A cut hash is not the secret, and it answers the one question
+that matters: is this guess right? So a `Secret` option now counts by its references as
+written and never by its text (SEC-4).
+
+The price is that a plan file does not see that a written-out secret changed between
+plan and apply. Nothing was promised there: a secret from the environment was never
+seen to change, a secret a step takes is never compared (PLAN-4), and a secret is not
+something a reviewer was shown.
+
+Rejected: hashing it with a random salt kept in the plan file. The salt is in the same
+file, so a guess still costs one hash to test; it stops a table made beforehand and
+nothing else, and a token short enough to guess is the case that matters. Rejected: a
+hash keyed with something outside the file. lely keeps no state, so there is nowhere
+for that key to be at apply but the config or the environment of both jobs, which is
+one more secret to hand around for a check nobody asked for.
+
+## 40. 2026-10-11 — An output that holds a secret option is made a secret, when the step is planned
+
+This supersedes the second paragraph of entry 36, which left the plan file and
+`-f json` holding such an output as the step gave it. lely knows what a step was given
+as a secret, so it can see this mistake, and now makes the output a `Secret` (SEC-5).
+
+It is done in the session, when a step is planned and when it is applied. Rejected:
+masking it only where a plan is written. The plan in memory would then hold text and
+the one read from a file a secret, and an apply from a file would refuse its own plan
+at the first step that takes the output, with the value in the message. The cost: a
+step below can take such an output only into a `Secret` option, where it took it into
+any option before. That is the rule for every secret, and the plan said the value out
+loud before.
+
+A short secret makes more outputs match: one that is `a` makes a secret of every
+output with an `a` in it. Rejected: a shortest length below which lely does not look.
+Any number would be a guess at what a secret is, and the mistake that is left is a
+`***` too many.
+
+What it costs and does not do. A list or a mapping that holds the secret becomes one
+secret, so a step below can take no field of it, and where the output comes only from a
+run, that is found out at apply, after the step above ran. Which outputs are secrets
+can be read in the plan file, and that follows from the secret: SEC-4 is about the
+hash of the options, not about this. lely finds the secret as the option holds it:
+`Bearer ${env.T}` is found whole and the token alone is not, nor is another spelling.
+And a plan file an older lely saved holds such an output as text, so the first step
+that takes it refuses the file mid-run; the refusal says neither value.
+
+## 41. 2026-10-11 — A mapping counts in the order written, with the cheapest change that does so
+
+A plugin is handed a mapping's entries in the order written, and the hash sorted them,
+so a plan was accepted with another order than it was made with (PLAN-12). The hash
+keeps the order now. The options themselves stay sorted by name, because a plugin is
+handed those by name, and a mapping whose keys were written in sorted order hashes as
+it did. Rejected: hashing a mapping as a list of pairs, which says the same and would
+refuse every saved plan with a mapping in it. As it is, 0.3.1's plan file is refused
+once only where the keys were not in that order.

@@ -48,9 +48,11 @@ from lely.model import (
     Plan,
     PlanKind,
     PlannedStep,
+    Secret,
     Skip,
     Source,
     StepPlan,
+    Value,
     Workspace,
 )
 from lely.refs import (
@@ -141,14 +143,19 @@ def made_from(step: StepConfig, cls: type) -> str:
     The options count as the plugin is handed them (`options.handed`), so the
     config file's format doesn't matter, nor how a value is spelled: only what
     it says. References stay as they were written, so a value from the
-    environment counts by name and a rotated token isn't a new plan.
+    environment counts by name and a rotated token isn't a new plan. A secret
+    written out is not in it at all (SEC-4): this hash is in the plan file.
+
+    The three keys and the options are in the order of their names; a mapping
+    inside an option stays in the order it was written, as the plugin is
+    handed it (PLAN-12).
     """
     said = {
-        "uses": step.uses,
         "targets": step.targets,
+        "uses": step.uses,
         "with": options.handed(cls, step.options),
     }
-    text = json.dumps(said, sort_keys=True, default=str)
+    text = json.dumps(said, default=str)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
@@ -360,6 +367,9 @@ class Session:
         self.log.info(f"planning {prepared.step.name}")
         result = self._call(prepared, "plan", lambda plugin, ctx: plugin.plan(ctx))
         result = _checked_plan(result, where)
+        result = dataclasses.replace(
+            result, outputs=_kept_secret(result.outputs, prepared.options)
+        )
         _check_outputs(result.outputs, prepared.declared, where, planning=True)
         if result.waiting is None:
             missing = [
@@ -412,6 +422,7 @@ class Session:
             )
         _check_outputs(returned, prepared.declared, where, planning=False)
         returned = planfile.normalised_outputs(returned, f"{where}: `apply`")
+        returned = _kept_secret(returned, prepared.options)
         outputs = {**plan.outputs, **returned}
         missing = [
             output.name
@@ -541,6 +552,28 @@ class Session:
             raise LelyError(
                 f"{where} failed to {verb}: {type(error).__name__}: {error}"
             ) from error
+
+
+def _kept_secret(outputs: Mapping[str, Value], built: object) -> dict[str, Value]:
+    """A step's outputs, with each one that holds what the step was given as a
+    secret made a `Secret` itself (SEC-5).
+
+    A plugin that hands a secret option back as plain text has made a mistake,
+    and this is one lely can see. From here on such an output is a secret like
+    any other: `***` wherever it is shown, a marker in the plan file, and for a
+    step below a value only a `Secret` option takes. It is done when the step
+    is planned and when it is applied, so a plan is the same whether or not it
+    went through a file.
+    """
+    secrets = options.secrets_of(built)
+    if not secrets:
+        return dict(outputs)
+    return {
+        name: Secret(value if isinstance(value, str) else json.dumps(value))
+        if not isinstance(value, Secret) and options.holds(value, secrets)
+        else value
+        for name, value in outputs.items()
+    }
 
 
 def _checked_plan(result: object, where: str, method: str = "plan") -> StepPlan:

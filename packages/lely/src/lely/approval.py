@@ -126,7 +126,8 @@ def same_inputs(approved: PlannedStep, inputs: Sequence[Input]) -> None:
     The same value means the same kind of value: `1` is not `true`, `14` is
     not `14.0` and not `"14"`. A secret can't be compared, and stays one: a
     value the plan showed is not replaced by one nobody can see, nor the other
-    way round.
+    way round. Where one side is a secret, the other is not said either: it
+    may hold the same thing.
     """
     known = {(one.label, one.source): one.value for one in approved.inputs if one.known}
     for taken in inputs:
@@ -134,6 +135,17 @@ def same_inputs(approved: PlannedStep, inputs: Sequence[Input]) -> None:
         if key not in known or not taken.known:
             continue
         if not _unchanged(known[key], taken.value):
+            if isinstance(known[key], Secret) != isinstance(taken.value, Secret):
+                # one of the two is a secret, so the other may hold it: a plan
+                # an older lely saved kept as text what is a secret now (SEC-5)
+                sides = (
+                    "is a secret now, and was none when the plan was approved"
+                    if isinstance(taken.value, Secret)
+                    else "is no secret now, and was one when the plan was approved"
+                )
+                raise Refused(
+                    f"Step `{approved.name}` takes {taken.source}, which {sides}. {AGAIN}"
+                )
             raise Refused(
                 f"Step `{approved.name}` takes {taken.source} = {_said(taken.value)} "
                 f"now; the plan was approved with {_said(known[key])}. {AGAIN}"

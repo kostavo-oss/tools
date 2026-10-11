@@ -116,8 +116,13 @@ JSON, format 4 (`planfile.FORMAT_VERSION`). A step's plan is written by
 made plain JSON at the moment it is planned (`planfile.normalised`), so the approved
 plan and the fresh one compare the same whether or not a file came between them. A
 secret output is written as `{"$secret": true}` and read back as a `Secret` without a
-value. Nothing in the file is used at apply but to compare: every step is planned
-again and gives its values again.
+value. An output that holds what the step's options hold as a `Secret` is made one
+first (`planning._kept_secret`). Nothing in the file is used at apply but to compare:
+every step is planned again and gives its values again.
+
+A step's `made_from` is a hash of its plugin, its targets and its options as the plugin
+is handed them (`options.handed`): references as written, a mapping in the order
+written, and of a `Secret` option only its references, never its text.
 
 A run's record, written by `apply -o` and `destroy -o`, is the result as JSON with a
 `result_format` of 1. `lely ui` is the only thing that reads one.

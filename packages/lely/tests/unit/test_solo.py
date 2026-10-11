@@ -478,8 +478,8 @@ def test_apply_prints_what_the_step_returned(marker: Solo) -> None:
 def test_no_secret_is_printed_with_what_the_step_gives(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """SOLO-8: a `Secret` is `***`, and so is an output that hands back what a
-    `Secret` option was given, whole or inside something."""
+    """SOLO-8, SEC-5: a `Secret` is `***`, and so is an output that hands back
+    what a `Secret` option was given, whole or inside something."""
     text = changed(
         'outputs = (Output("file"), Output("written", known="run"))',
         'outputs = (Output("file"), Output("key"), Output("plain"), Output("deep"),'
@@ -510,6 +510,21 @@ def test_no_secret_is_printed_with_what_the_step_gives(
         assert "→ key = ***" in gives
         assert "→ plain = ***" in gives
         assert "→ deep = ***" in gives
+    # SEC-5: nor is it in a plan file, or in what `-f json` prints of a plan
+    # or of a run, where the step returned it
+    (tmp_path / "dev-marker.txt").unlink()
+    saved = solo("plan", *flags, "-o", "p.json")
+    assert saved.exit_code == 0, saved.output
+    written = (tmp_path / "p.json").read_text()
+    assert "t0p-s3cret" not in written
+    assert json.loads(written)["steps"][0]["plan"]["outputs"]["plain"] == {
+        "$secret": True
+    }
+    for verb in (("plan",), ("apply", "--yes")):
+        as_json = solo(verb[0], *flags, *verb[1:], "-f", "json")
+        assert as_json.exit_code == 0, as_json.output
+        assert "t0p-s3cret" not in as_json.output
+        assert json.loads(as_json.out)
 
 
 # -- check --live says first --------------------------------------------------------

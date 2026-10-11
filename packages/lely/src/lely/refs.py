@@ -142,6 +142,14 @@ def has_reference(text: str) -> bool:
     return any(found.group(1) is not None for found in _REF.finditer(text))
 
 
+def references(text: str) -> tuple[str, ...]:
+    """Every `${…}` in `text` as it was written, in order, and nothing of the
+    text around them. A `$${` is none."""
+    return tuple(
+        found.group(0) for found in _REF.finditer(text) if found.group(1) is not None
+    )
+
+
 def literal(text: str) -> str:
     """A string that holds no reference, as it is meant: each `$${` is a `${`."""
     return _REF.sub(lambda found: found.group(0)[1:], text)

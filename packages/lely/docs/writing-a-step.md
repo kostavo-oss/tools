@@ -97,9 +97,7 @@ Under lely a plan shows an output where another step takes it. On its own a step
 other step, so it prints what it gives under `Gives:`. `plan` prints the outputs it knows
 and names the ones that come later, with when. `apply` prints what the step returned. A
 `Secret` is shown as `***`, and so is an output that holds what a `Secret` option was
-given. With `-f json` or `-f md` these lines go to stderr. That covers these lines only:
-an output a step gives as plain text is in the plan file and in `-f json` as it is. Give a
-secret as a `Secret`.
+given. With `-f json` or `-f md` these lines go to stderr.
 
 A plan the step writes is a one-step lely plan: the same file, the same checks before it
 runs — the workspace, the project, the git tree — and `lely apply plan.json` takes it, given
@@ -219,6 +217,15 @@ outputs = (
 A step that takes an output not known yet is waiting, and the plan says so. Declaring it is
 what lets `lely validate` say that before anything runs. A value nobody may see is a
 `Secret`.
+
+An output that holds what the step was given as a secret becomes a `Secret`, also when
+the step gives it as plain text: a token inside a URL, say. It is then `***` in a plan,
+a marker in the plan file, and a step below can take it only into a `Secret` option. A
+list or a mapping that holds the secret becomes one secret as a whole: a step below
+cannot take a field of it. Give the secret as an output of its own, and it stays out of
+the others. lely finds a secret as the option holds it, not a part of it.
+lely looks at outputs only. A secret in a change's lines, in `notes`, in the `payload`
+or in the `view` is written as it is: keep it out of those.
 
 ## The rules, and how to hold your step to them
 
