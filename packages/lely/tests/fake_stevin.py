@@ -44,16 +44,20 @@ which is what 0.4.0a3 is to hold. None of it was seen on a workspace.
 - S9  Exit 2 is the command line's own answer to what it does not know: an
       older stevin answers `list` with "No such command 'list'." and exit 2
       (seen from stevin 0.3.0a1). No outcome of `apply` exits 2.
-- S10 A table whose schema is one the bundle declares and has not deployed is
-      not planned: `plan` writes no file and nothing on stdout, and exits 5
-      (stevin's rule PLAN-5). The last line it writes on stderr is "<schema> is
-      the bundle's schema '<key>', and isn't there yet — run `databricks bundle
-      deploy` first; stevin won't create it"; it may write other lines before
-      that one. Once the schema is there, `plan` is S1, without a step that
-      creates the schema: it is the bundle's. `list` is S8 either way: it
-      makes no plan, says `"exists": false` for a table in a schema that is
-      not there, and exits 0. The fake's `list` does not look at the schema
-      at all; that the real one answers was seen from stevin's command.
+- S10 A plan that needs what another tool has yet to make is not made: `plan`
+      writes no file and nothing on stdout, and exits 5 (stevin's rule PLAN-5).
+      Two cases. A table whose schema the bundle declares and has not deployed:
+      the last line on stderr is "<schema> is the bundle's schema '<key>', and
+      isn't there yet — run `databricks bundle deploy` first; stevin won't
+      create it". A table a spec only governs that its owner has not made: the
+      last line is "<table> isn't there yet, and its spec only governs it — it
+      is <owner>'s, and whoever owns it makes it first; stevin won't create a
+      table it doesn't shape". The schema is looked at first. stevin may write
+      other lines before that one. Once the thing is there, `plan` is S1,
+      without a step that creates the bundle's schema. `list` is S8 either
+      way: it makes no plan, says `"exists": false` for what is not there, and
+      exits 0. The fake's `list` does not look at either; that the real one
+      answers was seen from stevin's command.
 
 Every plan says which stevin wrote it, in `tool_version`. The recordings say
 0.4.0a2, the first with S3 to S6 as exit codes and with S8. The fake writes
@@ -73,6 +77,13 @@ A test tells it what to do with files in `<world>`:
   `state.json` of a `fake_databricks.py` world, and a resource of it such as
   `schemas.sales`. The schema is there once a bundle in that world has
   deployed the resource.
+- `job`: the first table of the plan is one a spec only governs, and
+  another tool's to make (S10). Two lines, or three: the `state.json` of a
+  `fake_databricks.py` world, a resource of it such as `jobs.load`, and the
+  owner as stevin's project file names it, `dlt` when left out. The table is
+  there once that world has run the resource. Use it with the recording
+  `stevin-governed.json`, whose first table is a governed one in a schema of
+  its own: stevin shapes no table in a schema dlt loads into.
 - `notice`: `plan` writes this on stderr before anything else it says there.
 
 Anything else exits 2 and says so, like a command line that was not
@@ -98,8 +109,8 @@ _LIST_SWITCHES = ("--json",)
 #: `apply`'s exit codes for a plan it refuses before anything runs (stevin's
 #: rule APL-8): one that will never run, and one that was not allowed.
 PLAN_AGAIN, NOT_ALLOWED = 3, 4
-#: `plan`'s exit code when the bundle has not deployed a schema yet (stevin's
-#: rule PLAN-5, S10).
+#: `plan`'s exit code when it needs what another tool has yet to make
+#: (stevin's rule PLAN-5, S10).
 NOT_YET = 5
 
 #: The stevin this stands for: the first with S10.
@@ -169,6 +180,7 @@ def _plan(world: Path, args: list[str]) -> str:
         print(notice, file=sys.stderr)
     _told_to_fail(world, "plan")
     _bundle_has_deployed(world)  # S10
+    _owner_has_made(world)  # S10
     out = Path(flags["--output"][0])
     out.write_text(json.dumps(planned(world), indent=2) + "\n", encoding="utf-8")
     return f"Wrote {out.name}"  # S1
@@ -190,6 +202,27 @@ def _bundle_has_deployed(world: Path) -> None:
     raise _Refuses(
         f"{schema} is the bundle's schema {resource.split('.', 1)[1]!r}, and isn't "
         "there yet \u2014 run `databricks bundle deploy` first; stevin won't create it",
+        NOT_YET,
+    )
+
+
+def _owner_has_made(world: Path) -> None:
+    """S10: refuse to plan a governed table its owner has yet to make."""
+    told = _read(world / "job").splitlines()
+    if not told:
+        return
+    state, resource = Path(told[0]), told[1]
+    runs: list[dict[str, Any]] = []
+    if state.exists():
+        runs = json.loads(state.read_text(encoding="utf-8")).get("runs", [])
+    if any(run.get("key") == resource for run in runs):
+        return
+    tables = json.loads((world / "plan.json").read_text(encoding="utf-8"))["tables"]
+    owner = told[2] if len(told) > 2 else "dlt"
+    raise _Refuses(
+        f"{tables[0]['table']} isn't there yet, and its spec only governs it \u2014 "
+        f"it is {owner}'s, and whoever owns it makes it first; stevin won't create "
+        "a table it doesn't shape",
         NOT_YET,
     )
 

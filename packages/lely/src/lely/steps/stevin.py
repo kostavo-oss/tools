@@ -13,13 +13,15 @@ own releases.
   json`. The plan file becomes this step's payload, whole, and so travels in
   lely's plan file. Each table is one change, keyed by its full name, with one
   line per step stevin would run and that step's risk class.
-  When a table's schema is one the bundle declares and has not deployed,
-  stevin makes no plan and exits 5. That is not a failure: the step is
-  *waiting*, with stevin's own line as a note, and lely plans it again once
-  the steps above it have run. Any other exit that is not 0 fails the plan.
-  The step does not know whether a step above it deploys that bundle: it
-  belongs below the `bundle` step, and where none is above it the run is
-  refused when it reaches the step, with nothing applied.
+  When the plan needs what another tool has yet to make, stevin makes no plan
+  and exits 5: a table's schema is one the bundle declares and has not
+  deployed, or a spec only governs a table its owner, a dlt pipeline say, has
+  not made. That is not a failure: the step is *waiting*, with stevin's own
+  line as a note, and lely plans it again once the steps above it have run.
+  Any other exit that is not 0 fails the plan. The step does not know whether
+  a step above it makes what is missing: it belongs below the `bundle` step
+  and below the step that runs the pipeline, and where neither is above it
+  the run is refused when it reaches the step, with nothing applied.
 - **apply** runs the plan that was approved, never a new one: the approved
   payload is written to a temporary file and handed to `stevin apply <file>`.
   The core has planned the step again right before (APL-3); that fresh plan is
@@ -35,7 +37,7 @@ own releases.
   plan is made for it.
 
 It needs stevin 0.4.0a3 or newer: the first whose `plan` says with an exit code
-that the bundle has not deployed a schema yet. The exit codes of `apply` and
+that it needs what another tool has yet to make. The exit codes of `apply` and
 `list` are there from 0.4.0a2. Every plan file says which stevin wrote it, and
 one an older stevin wrote fails the plan with both versions and what to do.
 
@@ -97,7 +99,7 @@ _RISKS: dict[str, bool] = {
 }
 
 #: The oldest stevin this runs: the first whose `plan` says by its exit code
-#: that the bundle has not deployed a schema yet (S10). `apply` says a refusal
+#: that it needs what another tool has yet to make (S10). `apply` says a refusal
 #: by its exit code, and there is a `list`, from 0.4.0a2.
 NEEDS = "0.4.0a3"
 
@@ -111,16 +113,18 @@ _HAS_LIST = "0.4.0a2"
 #: `--allow-destructive` (S3). Any other exit that is not 0 is a failure.
 _PLAN_AGAIN, _NOT_ALLOWED = 3, 4
 
-#: `stevin plan`'s exit code when a table's schema is one the bundle declares
-#: and has not deployed (stevin's rule PLAN-5, S10): no plan was made, nothing
-#: is wrong, and the same command makes the plan once the bundle is deployed.
+#: `stevin plan`'s exit code when the plan needs what another tool has yet to
+#: make (stevin's rule PLAN-5, S10): the bundle's schema, or a table a spec
+#: only governs. No plan was made, nothing is wrong with the specs, and the
+#: same command makes the plan once that tool has run.
 _NOT_YET = 5
 
-#: What a plan says of a step whose tables stevin can't plan yet. It names no
-#: schema: stevin's own line, in a note under it, does.
+#: What a plan says of a step whose tables stevin can't plan yet. It is true of
+#: both cases and names neither: stevin's own line, in a note under it, says
+#: what is missing and whose it is.
 WAITING = (
-    "a schema of these tables is the bundle's and is not deployed yet; "
-    "the tables are planned once it is"
+    "stevin needs something another step or tool has yet to make; "
+    "the tables are planned once it is there"
 )
 
 #: The most of stevin's own line that a plan keeps.
@@ -190,7 +194,7 @@ class Stevin:
             # plan that is not whole is never one to hand to stevin
             raise Refused(
                 f"Step `{ctx.name}` is waiting: stevin has not planned its tables "
-                "yet, so there is nothing that was shown to apply. Plan again."
+                "yet, so there is nothing that was shown to apply."
             )
         document = _approved(ctx, plan)
         with tempfile.TemporaryDirectory(prefix="lely-stevin-") as scratch:
@@ -258,8 +262,8 @@ class Stevin:
 
 
 class _NotYet(Exception):
-    """`stevin plan` made no plan because the bundle has not deployed a schema
-    yet: exit 5 (S10). `notes` hold stevin's own line, which names the schema."""
+    """`stevin plan` made no plan because it needs what another tool has yet
+    to make: exit 5 (S10). `notes` hold stevin's own line, which names it."""
 
     def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
         super().__init__("stevin can't plan yet")
@@ -275,15 +279,17 @@ class _NotYet(Exception):
 #: A terminal's escape sequences: colour, a link, a title. stevin colours the
 #: line when it is told to (`FORCE_COLOR`), also into a pipe.
 _ESCAPES = re.compile(
-    r"\x1b\[[0-9;?]*[ -/]*[@-~]"  # CSI: colour, the cursor
+    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI: colour, the cursor
     r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"  # OSC: a link, a title
-    r"|\x1b[@-Z\\-_]"  # the two-character ones
+    r"|\x1b[ -/]*[0-~]"  # the short ones: a reset, a character set
 )
 
 
 def _plain(line: str) -> str:
-    """A line a program wrote, without what a terminal would obey: its escape
-    sequences are taken out, and any other control character is a space."""
+    """A line a program wrote, without what a terminal would obey: the escape
+    sequences it is likely to hold are taken out whole, and any control
+    character that is left is a space. A rarer sequence can leave its letters
+    behind; nothing of it is obeyed."""
     line = _ESCAPES.sub("", line)
     return "".join(" " if unicodedata.category(char) == "Cc" else char for char in line)
 
@@ -291,8 +297,8 @@ def _plain(line: str) -> str:
 def _stevin_plan(ctx: Context[Stevin.Options]) -> dict[str, Json]:
     """`stevin plan`, as the plan file it writes. Changes nothing.
 
-    Raises `_NotYet` when stevin says, by its exit code, that the bundle has
-    not deployed a schema yet."""
+    Raises `_NotYet` when stevin says, by its exit code, that the plan needs
+    what another tool has yet to make."""
     options = ctx.options
     with tempfile.TemporaryDirectory(prefix="lely-stevin-") as scratch:
         out = Path(scratch) / "plan.json"
@@ -368,7 +374,7 @@ def _stevin_list(ctx: Context[Stevin.Options]) -> list[dict[str, Json]]:
 
 def _new_enough(version: Json) -> None:
     """Fail for a plan an older stevin than `NEEDS` wrote: its `plan` exits 1
-    where the bundle has not deployed a schema yet, which fails a plan where
+    where it needs what another tool has yet to make, which fails a plan where
     the step is to wait; and one older still exits 1 for a refusal of `apply`.
 
     The version is the one stevin writes into every plan file, so nothing more
@@ -383,8 +389,8 @@ def _new_enough(version: Json) -> None:
         return
     raise LelyError(
         f"This plan was written by stevin {version}, and lely needs stevin {NEEDS} "
-        f"or newer: the first that says by its exit code that the bundle has not "
-        f"deployed a schema yet. {_UPGRADE}"
+        f"or newer: the first that says by its exit code that it needs what "
+        f"another tool has yet to make. {_UPGRADE}"
     )
 
 

@@ -6,10 +6,12 @@ its own in-memory warehouse (its `tests/screens.py` scenes), so these tests
 hold lely to the plan file stevin really writes. `stevin-create`, `-empty` and
 `-destroy` are stevin 0.4.0a2's. `stevin-owner` and `-rewrite` were recorded
 just before that release, with the version stevin's pictures pin, and say
-0.4.0a2 by hand. `tests/fake_stevin.py` plans from one of them, applies it and
-lists what it describes, and says 0.4.0a3 wrote the plan: the oldest stevin
-the step runs. What it assumes of stevin is numbered S1 to S10 there.
-Each test names the rule of `RULES.md` it holds.
+0.4.0a2 by hand. `stevin-governed` is from the source of what is to be 0.4.0a3,
+which still said 0.4.0a2: a table stevin only governs, in a schema dlt loads
+into, and one of its own in another. `tests/fake_stevin.py` plans from one of
+them, applies it and lists what it describes, and says 0.4.0a3 wrote the
+plan: the oldest stevin the step runs. What it assumes of stevin is numbered
+S1 to S10 there. Each test names the rule of `RULES.md` it holds.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from lely.model import Change, Overview, Plan, PlannedStep, StepPlan
 from lely.planfile import normalised
 from lely.render import html, markdown, rich
 from lely.step import Context, applies, destroys, lists
-from lely.steps.stevin import Stevin, changes
+from lely.steps.stevin import WAITING, Stevin, changes
 from lely.testing import check_overview, check_plan, context
 
 
@@ -192,8 +194,8 @@ def test_a_plan_of_an_older_stevin_fails_with_both_versions(tmp_path: Path) -> N
     assert not isinstance(failed.value, Refused)
     assert str(failed.value) == (
         "This plan was written by stevin 0.4.0a2, and lely needs stevin 0.4.0a3 or "
-        "newer: the first that says by its exit code that the bundle has not "
-        "deployed a schema yet. Upgrade it with `uv tool upgrade stevin`, or set "
+        "newer: the first that says by its exit code that it needs what another "
+        "tool has yet to make. Upgrade it with `uv tool upgrade stevin`, or set "
         "`executable` to one that is new enough."
     )
     assert fake.verbs == ["plan"]
@@ -272,8 +274,8 @@ def test_a_schema_the_bundle_has_not_deployed_makes_the_step_wait(
     plan = check_plan(Stevin(), dataclasses.replace(ctx(fake, tmp_path), log=heard))
     assert plan == StepPlan(
         waiting=(
-            "a schema of these tables is the bundle's and is not deployed yet; "
-            "the tables are planned once it is"
+            "stevin needs something another step or tool has yet to make; "
+            "the tables are planned once it is there"
         ),
         notes=(f"stevin: {NOT_THERE_YET}",),
     )
@@ -294,6 +296,43 @@ def test_a_schema_the_bundle_has_not_deployed_makes_the_step_wait(
     ]
 
 
+#: stevin's own line for a governed table its owner has not made (S10).
+NOT_MADE_YET = (
+    "dev.raw.numbers isn't there yet, and its spec only governs it \u2014 it is "
+    "dlt's, and whoever owns it makes it first; stevin won't create a table it "
+    "doesn't shape"
+)
+
+
+def test_a_governed_table_its_owner_has_not_made_makes_the_step_wait(
+    tmp_path: Path,
+) -> None:
+    """STV-16 (S10): the other case of exit 5, on its own: a table a spec only
+    governs is not there until a job has run. The step waits in the same
+    words, and stevin's line names the table and its owner. Once the job has
+    run the step is planned as ever: the governed table is changed, never
+    created. The plan is one stevin made of such a project."""
+    fake = world(tmp_path, "stevin-governed.json")
+    bundle = FakeDatabricks(tmp_path / "databricks-world")
+    fake.governs_what_a_run_makes(bundle, "jobs.load")
+    plan = check_plan(Stevin(), ctx(fake, tmp_path))
+    assert plan == StepPlan(waiting=WAITING, notes=(f"stevin: {NOT_MADE_YET}",))
+    assert "bundle" not in WAITING and "schema" not in WAITING  # true of both cases
+
+    bundle.world.mkdir()
+    (bundle.world / "state.json").write_text(json.dumps({"runs": [{"key": "jobs.load"}]}))
+    ready = check_plan(Stevin(), ctx(fake, tmp_path))
+    assert ready.waiting is None
+    assert [(c.key, c.action, c.detail) for c in ready.changes] == [
+        (
+            "dev.raw.numbers",
+            "update",
+            ("SET TAGS domain  [meta]", "GRANT to analysts  [meta]"),
+        ),
+        ("dev.sales.orders", "create", ("CREATE TABLE orders  [meta]",)),
+    ]
+
+
 def test_only_the_exit_code_makes_it_wait_never_the_words(tmp_path: Path) -> None:
     """STV-16: the same sentence with exit 1 is a failure, as every other
     failure of `stevin plan` is; and exit 5 waits whatever stevin wrote."""
@@ -311,6 +350,8 @@ def test_only_the_exit_code_makes_it_wait_never_the_words(tmp_path: Path) -> Non
             "\x1b[31mred\x1b[0m \x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\ a\x07b",
             ("stevin: red link a b",),
         ),
+        # a 256-colour code with colons, a title ended by a bell, a reset
+        ("\x1b[38:5:196mx\x1b[m \x1b]0;title\x07y \x1bcz", ("stevin: x y z",)),
         ("x" * 1000, ("stevin: " + "x" * 399 + "\u2026",)),
     ):
         script = f"import sys; sys.stderr.write({wrote!r}); sys.exit(5)"

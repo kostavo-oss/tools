@@ -157,9 +157,9 @@ def _may_apply(
         # not "plan again": the next plan says the same until what the step
         # waits for is there, and no step above it made it in this run
         raise Refused(
-            f"Step `{step.name}` still can't be planned in full: {fresh.waiting}. "
-            "No step above it brought that about in this run, so a new plan alone "
-            "shows the same. Nothing of the step was run."
+            f"Step `{step.name}` can't be planned in full yet: {fresh.waiting}. "
+            "No step that ran above it in this run brought that about, and a new "
+            "plan shows the same until it is there. Nothing of the step was run."
         )
     if was is None or was.state == "skipped":
         raise Refused(f"Step `{step.name}` isn't in the approved plan. {approval.AGAIN}")

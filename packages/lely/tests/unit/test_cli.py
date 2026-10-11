@@ -1315,8 +1315,8 @@ def first_deploy(lely: Lely) -> FakeStevin:
 
 
 WAITS = (
-    "waiting: a schema of these tables is the bundle's and is not deployed yet; "
-    "the tables are planned once it is"
+    "waiting: stevin needs something another step or tool has yet to make; "
+    "the tables are planned once it is there"
 )
 STEVIN_SAID = (
     "stevin: dev.sales is the bundle's schema 'sales', and isn't there yet \u2014 run "
@@ -1327,7 +1327,7 @@ STEVIN_SAID = (
 def test_a_first_plan_succeeds_with_the_tables_waiting_and_a_file_stops_there(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """STV-18, WAIT-7: the first plan of a target never deployed ends
+    """STV-18: the first plan of a target never deployed ends
     with 0 and shows the bundle ready and the tables waiting, in the terminal,
     in the comment and on the page. Applied from that file, the bundle is
     deployed and the run stops at the tables with 2: stevin applies nothing.
@@ -1348,7 +1348,7 @@ def test_a_first_plan_succeeds_with_the_tables_waiting_and_a_file_stops_there(
     assert lely("ui", "plan.json", "--no-open").exit_code == 0
     page = (lely.root / "plan.html").read_text()
     assert '<span class="state waiting">waiting</span>' in page
-    assert "is not deployed yet; the tables are planned once it is</p>" in page
+    assert "has yet to make; the tables are planned once it is there</p>" in page
     kept = json.loads((lely.root / "plan.json").read_text())["steps"][1]
     assert (kept["state"], kept["plan"]["changes"], kept["plan"]["payload"]) == (
         "waiting",
@@ -1436,6 +1436,88 @@ def test_a_first_deploy_in_one_go_with_yes_and_a_plan_that_fails(
     assert "schemas.sales" in lely.fake.deployed()
     assert stevin.verbs[-2:] == ["apply", "list"]
     assert len(stevin.applied) == 4
+
+
+def test_a_new_product_with_a_job_between_plans_first_and_takes_two_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """STV-20: bundle, then the job that loads, then the tables, on a target
+    never deployed. The first plan ends with 0 and shows the bundle and the
+    run ready and the tables waiting. Its file deploys the bundle, runs the
+    job and stops at the tables with 2. The second plan shows the tables and
+    its file applies them."""
+    lely = _undeployed(tmp_path, monkeypatch)
+    stevin = FakeStevin.planning(lely.root / "stevin-world", "stevin-governed.json")
+    (lely.root / "lely.yml").write_text(
+        "steps:\n  - name: app\n    uses: bundle\n"
+        "  - name: load\n    uses: bundle.run\n"
+        "    with: {bundle: app, resource: jobs.load}\n"
+        "  - name: tables\n    uses: stevin\n    with:\n"
+        f"      executable: [{', '.join(stevin.executable)}]\n"
+    )
+    write_bundle(
+        lely.root,
+        {
+            "name": "shop",
+            "variables": {},
+            "resources": {
+                "schemas": {
+                    "raw": {"name": "raw", "catalog_name": "dev"},
+                    "sales": {"name": "sales", "catalog_name": "dev"},
+                },
+                "jobs": {"load": {"name": "load"}},
+            },
+        },
+    )
+    stevin.in_a_schema_of(lely.fake, "schemas.raw")
+    stevin.governs_what_a_run_makes(lely.fake, "jobs.load", owner="the loader")
+
+    first = lely("plan", "-t", "dev", "-o", "plan.json")
+    assert first.exit_code == 0, said(first)
+    text = " ".join(said(first).split())
+    assert "+ schemas.raw" in text and "\u25b6 runs jobs.load" in text
+    assert f"\u23f8 {WAITS}" in text
+    assert "stevin: dev.raw is the bundle's schema 'raw', and isn't there yet" in text
+    assert "Applied from a file, this stops before `tables`" in text
+    stopped = lely("apply", "plan.json", "--yes")
+    assert stopped.exit_code == 2
+    told = " ".join(said(stopped).split())
+    assert "ran: app, load" in told and "refused: tables" in told
+    assert lely.fake.runs == [{"key": "jobs.load", "args": []}]
+    assert stevin.applied == []
+
+    second = lely("plan", "-t", "dev", "-o", "plan.json")
+    assert second.exit_code == 0, said(second)
+    assert "waiting" not in said(second)
+    assert "~ dev.raw.numbers" in said(second)  # governed: an update, no create
+    assert "+ dev.sales.orders" in said(second)
+    done = lely("apply", "plan.json", "--yes")
+    assert done.exit_code == 0, said(done)
+    assert stevin.applied == [
+        "dev.raw.numbers|SET TAGS|domain",
+        "dev.raw.numbers|GRANT to analysts|analysts",
+        "dev.sales.orders|CREATE TABLE orders|",
+    ]
+
+    # in another product, between the two: the bundle is there and the job is
+    # not run, and stevin's line names the table and the owner as it is said
+    other = tmp_path / "between"
+    other.mkdir()
+    lely = _undeployed(other, monkeypatch)
+    stevin = FakeStevin.planning(other / "stevin-world", "stevin-governed.json")
+    (other / "lely.yml").write_text(
+        "steps:\n  - name: tables\n    uses: stevin\n    with:\n"
+        f"      executable: [{', '.join(stevin.executable)}]\n"
+    )
+    stevin.governs_what_a_run_makes(lely.fake, "jobs.load", owner="the loader")
+    between = lely("plan", "-t", "dev")
+    assert between.exit_code == 0, said(between)
+    text = " ".join(said(between).split())
+    assert f"\u23f8 {WAITS}" in text
+    assert (
+        "stevin: dev.raw.numbers isn't there yet, and its spec only governs it "
+        "\u2014 it is the loader's, and whoever owns it makes it first"
+    ) in text
 
 
 def _undeployed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Lely:

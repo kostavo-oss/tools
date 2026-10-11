@@ -213,7 +213,7 @@ There is no Databricks CLI, workspace or GitHub in the unit suite.
 - `tests/fake_github.py` is a pull request's comments in memory, and a run's
   environment.
 - `tests/fixtures/stevin-*.json` are plan files stevin wrote against its own fake
-  warehouse. `tests/fake_stevin.py` is the `stevin` command as a fake: it plans from one
+  warehouse; `stevin-governed.json` is of a project with a table stevin only governs. `tests/fake_stevin.py` is the `stevin` command as a fake: it plans from one
   of them, applies a plan file, lists what it describes, refuses a plan with stevin's
   words and exit codes, and fails on a command line it does not know.
 - `tests/project.py` is the scenario most tests share.

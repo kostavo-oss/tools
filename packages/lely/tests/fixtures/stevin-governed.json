@@ -1,0 +1,246 @@
+{
+  "format_version": 1,
+  "tool_version": "0.4.0a2",
+  "target": "dev",
+  "spec_hash": "1fe6bc8baf0db368",
+  "state_fingerprint": "690482376a595152",
+  "summary": {
+    "add": 1,
+    "change": 1,
+    "destroy": 0,
+    "steps": 3,
+    "rewrites": 0,
+    "warnings": 0,
+    "highest_risk": "meta"
+  },
+  "unmanaged_tables": [],
+  "not_managed": [],
+  "orphaned_tables": [],
+  "owned_tables": [
+    [
+      "dev.raw._dlt_loads",
+      "dlt"
+    ],
+    [
+      "dev.raw._dlt_version",
+      "dlt"
+    ]
+  ],
+  "tables": [
+    {
+      "table": "dev.raw.numbers",
+      "facts": {
+        "exists": true,
+        "size_bytes": 0,
+        "delta_version": 1,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": true,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [
+        "governs a table another tool makes: shape left to them"
+      ],
+      "cautions": [],
+      "desired": {
+        "table": "dev.raw.numbers",
+        "comment": null,
+        "cluster_by": [],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {
+          "domain": "demo"
+        },
+        "columns": [
+          {
+            "name": "n",
+            "type": "bigint",
+            "nullable": true
+          }
+        ],
+        "constraints": [],
+        "grants": {
+          "analysts": [
+            "SELECT"
+          ]
+        },
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "live": {
+        "table": "dev.raw.numbers",
+        "comment": null,
+        "cluster_by": [],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "columns": [
+          {
+            "name": "n",
+            "type": "bigint",
+            "nullable": true
+          }
+        ],
+        "constraints": [],
+        "grants": {},
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "changes": [
+        {
+          "kind": "set_tag",
+          "path": "domain",
+          "before": null,
+          "after": "demo"
+        },
+        {
+          "kind": "grant",
+          "path": "analysts",
+          "before": null,
+          "after": [
+            "SELECT"
+          ]
+        }
+      ]
+    },
+    {
+      "table": "dev.sales.orders",
+      "facts": {
+        "exists": false,
+        "size_bytes": null,
+        "delta_version": null,
+        "kind": "table",
+        "unmodelled": [],
+        "properties": {},
+        "schema_exists": true,
+        "features": [],
+        "policies": [],
+        "policies_unread": null
+      },
+      "unmanaged": [],
+      "notes": [],
+      "cautions": [],
+      "desired": {
+        "table": "dev.sales.orders",
+        "comment": "Order facts",
+        "cluster_by": [],
+        "cluster_auto": false,
+        "partitioned_by": null,
+        "owner": null,
+        "properties": {},
+        "tags": {},
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "amount",
+            "type": "decimal(18,2)",
+            "nullable": true
+          }
+        ],
+        "constraints": [],
+        "grants": {},
+        "row_filter": null,
+        "governed_columns": []
+      },
+      "live": null,
+      "changes": [
+        {
+          "kind": "create_table",
+          "path": "",
+          "before": null,
+          "after": {
+            "table": "dev.sales.orders",
+            "comment": "Order facts",
+            "cluster_by": [],
+            "cluster_auto": false,
+            "partitioned_by": null,
+            "owner": null,
+            "properties": {},
+            "tags": {},
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "bigint",
+                "nullable": false
+              },
+              {
+                "name": "amount",
+                "type": "decimal(18,2)",
+                "nullable": true
+              }
+            ],
+            "constraints": [],
+            "grants": {},
+            "row_filter": null,
+            "governed_columns": []
+          }
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "table": "dev.raw.numbers",
+      "change": 0,
+      "path": "domain",
+      "title": "SET TAGS",
+      "risk": "meta",
+      "sql": "ALTER TABLE `dev`.`raw`.`numbers` SET TAGS ('domain' = 'demo')",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 2,
+      "table": "dev.raw.numbers",
+      "change": 1,
+      "path": "analysts",
+      "title": "GRANT to analysts",
+      "risk": "meta",
+      "sql": "GRANT SELECT ON TABLE `dev`.`raw`.`numbers` TO `analysts`",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": null,
+      "warnings": [],
+      "note": null
+    },
+    {
+      "id": 3,
+      "table": "dev.sales.orders",
+      "change": 2,
+      "path": "",
+      "title": "CREATE TABLE orders",
+      "risk": "meta",
+      "sql": "CREATE TABLE IF NOT EXISTS `dev`.`sales`.`orders` (\n  `order_id` BIGINT NOT NULL,\n  `amount` DECIMAL(18,2)\n)\nUSING DELTA\nCOMMENT 'Order facts'\nTBLPROPERTIES (\n  'deltaplan.managed' = 'true'\n)",
+      "precheck": null,
+      "refusal": null,
+      "postcheck": null,
+      "failure": null,
+      "est_bytes": null,
+      "undo_hint": "DROP TABLE `dev`.`sales`.`orders`",
+      "warnings": [],
+      "note": null
+    }
+  ]
+}

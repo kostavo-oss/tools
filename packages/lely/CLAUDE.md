@@ -54,7 +54,8 @@ There is no `spec/` folder, and none comes back.
   the plan file that was approved (STV-4) and drops nothing (STV-10). What it assumes of
   stevin's command line is numbered S1 to S10 in `tests/fake_stevin.py`; it has not run on
   a workspace. It needs stevin 0.4.0a3 or newer (STV-14). It waits, and does not fail,
-  when `stevin plan` exits 5: the bundle has not deployed a schema yet (STV-16).
+  when `stevin plan` exits 5: another tool has yet to make what the plan needs, the
+  bundle's schema or a table dlt loads (STV-16).
 - `render/base.css` is in three packages, byte for byte (PKG-4): change all three in one
   pull request. After a change to `render/html.py`, run `uv run pytest tests/browser`
   and remake the pictures in `docs/assets/` when the page looks different.
