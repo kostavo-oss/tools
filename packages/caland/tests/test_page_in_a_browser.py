@@ -597,6 +597,9 @@ def test_a_big_workspace_draws_at_once_and_filters_without_waiting(browser, serv
 # ── changing things (SEC, FILE, ACL) ─────────────────────────────────
 OPEN = "document.getElementById('{}').open"
 TOAST = "document.getElementById('toast').textContent"
+#: Tick or untick a scope in the move dialog, and the scopes that are ticked.
+TICK = "document.querySelector('#move-scope input[value=\"{}\"]').click()"
+TICKED = "[...document.querySelectorAll('#move-scope input:checked')].map(o => o.value)"
 KEYS_SHOWN = "[...document.querySelectorAll('#secrets td.mono')].map(n => n.textContent)"
 #: The detail's buttons by what they say, without the key each shows.
 BUTTONS = (
@@ -989,12 +992,54 @@ def test_a_rename_and_the_original_put_back(prod):
     assert "api-key-old" in prod.js(KEYS_SHOWN)  # the copy stays
 
 
+def test_a_copy_to_several_scopes_at_once(browser, serve):
+    """SEC-15."""
+    store = FakeSecretStore(
+        scopes=[Scope("dev"), Scope("prod"), Scope("staging")],
+        secrets={"dev": [Secret("dev", "api-key", 1_758_000_000_000)]},
+        values={("dev", "api-key"): VALUE},
+    )
+    server = serve(store)
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait(
+        "document.body.dataset.phase === 'ready'"
+        " && document.querySelectorAll('#scopes li').length === 3"
+        " && document.querySelector('#detail button')"
+    )
+    tab.press("l", "m")
+    tab.wait(OPEN.format("move"))
+    assert tab.js(TICKED) == ["dev"]
+    tab.js(TICK.format("staging"))
+    tab.js(TICK.format("prod"))
+    tab.js("document.getElementById('move-save').click()")
+    tab.wait(f"!{OPEN.format('move')} && {TOAST}.startsWith('Copied')")
+    assert tab.js(TOAST) == "Copied api-key to prod/api-key, staging/api-key."
+    for name in ("prod", "staging"):
+        assert store._values[(name, "api-key")] == VALUE.encode(), name
+    assert ("dev", "api-key") in store._values, "and it stays where it was"
+    assert store.count("delete_secret") == 0
+
+
+def test_a_move_with_no_scope_ticked_is_refused_in_the_dialog(prod):
+    """Nowhere to put it is said in the dialog, and nothing is asked of the server."""
+    prod.press("m")
+    prod.wait(OPEN.format("move"))
+    prod.js(TICK.format("prod"))
+    prod.js("document.getElementById('move-save').click()")
+    prod.wait("!document.getElementById('move-error').hidden")
+    assert prod.js("document.getElementById('move-error').textContent") == (
+        "Tick a scope to put it in."
+    )
+    assert prod.js(OPEN.format("move")) is True
+
+
 def test_a_copy_to_another_scope(prod):
     """SEC-6."""
     prod.press("m")
     prod.wait(OPEN.format("move"))
     prod.type("from-prod")
-    prod.js("document.getElementById('move-scope').value = 'staging'")
+    prod.js(TICK.format("prod"))
+    prod.js(TICK.format("staging"))
     prod.js("document.getElementById('move-keep').click()")
     prod.press("Enter")
     prod.wait(f"{SELECTED_SCOPE} === 'staging' && {SELECTED_KEY} === 'from-prod'")
@@ -1174,10 +1219,44 @@ def test_a_key_vault_scopes_secrets_can_only_be_copied_out(page):
     assert page.js("document.getElementById('move-keep').checked") is True
     assert page.js("document.getElementById('move-keep').disabled") is True
     assert page.js(
-        "[...document.getElementById('move-scope').options].map(o => o.value)"
+        "[...document.querySelectorAll('#move-scope input')].map(o => o.value)"
     ) == [
         "prod",
         "staging",
+    ]
+
+
+def test_the_scopes_to_move_to_start_with_those_named_like_this_one(browser, serve):
+    """SEC-14."""
+    names = ["aa-dev", "mm", "zz-dev", "aa-prod", "a-dev", "bb"]
+    store = FakeSecretStore(
+        scopes=[Scope(name) for name in names],
+        secrets={"aa-dev": [Secret("aa-dev", "api-key", 1_758_000_000_000)]},
+        values={("aa-dev", "api-key"): VALUE},
+    )
+    server = serve(store)
+    tab = browser.tab(f"{server.address}#{server.page.new_key()}")
+    tab.wait(
+        "document.body.dataset.phase === 'ready'"
+        " && document.querySelectorAll('#scopes li').length === 6"
+    )
+    tab.press("j")
+    tab.wait("document.querySelector('#detail button')")
+    tab.press("l", "m")
+    tab.wait(OPEN.format("move"))
+    scopes = "document.getElementById('move-scope')"
+    assert tab.js(TICKED) == ["aa-dev"]
+    assert tab.js(f"[...{scopes}.querySelectorAll('input')].map(o => o.value)") == [
+        "aa-dev",
+        "aa-prod",
+        "a-dev",
+        "zz-dev",
+        "bb",
+        "mm",
+    ]
+    assert tab.js(f"[...{scopes}.querySelectorAll('h2')].map(g => g.textContent)") == [
+        "Like aa-dev",
+        "Other scopes",
     ]
 
 

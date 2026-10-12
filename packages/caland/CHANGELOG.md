@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A move or a copy to several scopes in one go.** "Move or copy" has a tick per scope
+  in place of a list that drops down. The scopes you tick are where the secret is
+  afterwards: leave the scope it is in ticked and it stays there too, so "also in
+  staging and prod" is two ticks. Every place is checked before anything is written,
+  and the original is removed only after every copy is made.
+
+### Changed
+
+- **A list of scopes starts with the ones you most likely mean.** In "Move or copy" and
+  in the form, the scope you are in comes first, then the scopes named like it (the same
+  first or last part of the name, as `orders-dev` and `orders-prod`), then the others.
+
+### Fixed
+
+- **A list that drops down follows light and dark.** The list of scopes in the form and
+  the list of permissions came up white on a dark page, with light text on it. A select
+  and its options now name their own ground and ink.
+
 ## [0.7.3] - 2026-10-11
 
 ### Fixed

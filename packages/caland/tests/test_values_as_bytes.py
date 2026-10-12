@@ -69,6 +69,63 @@ def test_moving_is_done_in_the_safe_order(service):
     assert done[-3:] == ["get_secret_bytes", "put_secret_bytes", "delete_secret"]
 
 
+def test_a_move_to_several_scopes_writes_them_all_and_then_removes_the_old(service):
+    """SEC-15."""
+    service.move_secret_to("prod", "api-key", ["staging", "dev", "STAGING"], "moved")
+    done = [call[:3] for call in service.store.calls if call[0] != "list_secrets"]
+    assert done[-4:] == [
+        ("get_secret_bytes", "prod", "api-key"),
+        ("put_secret_bytes", "staging", "moved"),
+        ("put_secret_bytes", "dev", "moved"),
+        ("delete_secret", "prod", "api-key"),
+    ]
+    assert service.store._values[("dev", "moved")] == b"value::prod/api-key"
+    assert service.taken == ("prod", "api-key")
+
+
+def test_the_scope_it_is_in_among_those_named_keeps_it_there(service):
+    """SEC-15."""
+    service.move_secret_to("prod", "api-key", ["prod", "staging"], "api-key-2")
+    assert service.secret("prod", "api-key") is None, "another key: it was moved"
+    assert service.secret("prod", "api-key-2") is not None
+    service.move_secret_to("prod", "api-key-2", ["PROD", "dev"], "api-key-2")
+    assert service.secret("prod", "api-key-2") is not None, "its own key: it stays"
+    assert service.secret("dev", "api-key-2") is not None
+    assert service.store.count("delete_secret") == 1
+    writes = [c[1:3] for c in service.store.calls if c[0] == "put_secret_bytes"]
+    assert writes[-1] == ("dev", "api-key-2"), "and nothing was written over it"
+
+
+def test_one_place_that_is_taken_stops_a_move_to_several(service):
+    """SEC-16."""
+    service.put_secret_bytes("dev", "moved", b"mine")
+    before = service.store.count("put_secret_bytes")
+    with pytest.raises(Exists, match="dev"):
+        service.move_secret_to("prod", "api-key", ["staging", "dev"], "moved")
+    assert service.store.count("put_secret_bytes") == before
+    assert service.secret("staging", "moved") is None
+    assert service.secret("prod", "api-key") is not None
+
+
+def test_a_move_to_several_that_fails_halfway_says_how_far_it_got(service):
+    """SEC-16."""
+    put, puts = service.store.put_secret_bytes, []
+
+    def second_fails(scope, key, value):
+        puts.append(scope)
+        if len(puts) == 2:
+            raise StoreError("boom")
+        put(scope, key, value)
+
+    service.store.put_secret_bytes = second_fails
+    with pytest.raises(StoreError, match="written to “staging” before that"):
+        service.move_secret_to("prod", "api-key", ["staging", "dev"], "moved")
+    assert service.store._values[("staging", "moved")] == b"value::prod/api-key"
+    assert service.secret("prod", "api-key") is not None
+    assert service.store.count("delete_secret") == 0
+    assert service.taken is None
+
+
 def test_a_move_that_fails_halfway_leaves_the_secret_in_two_places(service):
     service.store._fail_on.add("delete_secret")
     with pytest.raises(StoreError):

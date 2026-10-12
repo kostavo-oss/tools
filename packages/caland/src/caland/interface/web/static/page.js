@@ -477,7 +477,33 @@ async function changed(toScope, toKey, saying, place = 0) {
 }
 // where a secret can be put: the scopes you can reach, but for Azure's
 const targets = () => told.scopes.filter((s) => !s.keyvault && s.access);
-const options = (rows, picked) => rows.map((s) => el("option", { textContent: s.name, value: s.name, selected: s.name === picked }));
+// a list of scopes to choose from: the one you are in, then those named like it, then
+// the rest. Named like it: the same first or the same last part of the name, so that
+// orders-dev stands with orders-prod, and dev-orders with prod-orders. Under two
+// headings when there are both kinds.
+const nameEnds = (name) => { const parts = name.toLowerCase().split(/[-_./]+/).filter(Boolean); return [parts[0], parts.at(-1)]; };
+const like = (name, other) => { const [a, z] = nameEnds(name), [b, y] = nameEnds(other); return a === b || z === y; };
+function kinds(rows, picked) {
+  // the one you are in, then the same first part before the same last part, then by name
+  const rank = (s) => s.name === picked ? 0 : nameEnds(s.name)[0] === nameEnds(picked)[0] ? 1 : 2;
+  const byName = (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name);
+  const near = rows.filter((s) => like(picked, s.name)).sort(byName);
+  const far = rows.filter((s) => !like(picked, s.name)).sort(byName);
+  const both = far.length && near.some((s) => s.name !== picked);
+  return both ? [[`Like ${picked}`, near], ["Other scopes", far]] : [[null, [...near, ...far]]];
+}
+function options(rows, picked) {
+  const option = (s) => el("option", { textContent: s.name, value: s.name, selected: s.name === picked });
+  return kinds(rows, picked).flatMap(([label, some]) => label ? [el("optgroup", { label }, ...some.map(option))] : some.map(option));
+}
+// the same list to tick more than one of: where a secret is to be after a move
+function ticks(rows, picked) {
+  const tick = (s) => el("label", { className: "check" },
+    el("input", { type: "checkbox", value: s.name, checked: s.name === picked }), ` ${s.name}`);
+  return kinds(rows, picked).flatMap(([label, some]) => [label ? el("h2", { textContent: label }) : null, ...some.map(tick)])
+    .filter(Boolean);
+}
+const ticked = (id) => [...$(id).querySelectorAll("input:checked")].map((box) => box.value);
 
 // a secret, new or edited
 let editing = null;       // { scope, key } when the form is for a secret that is there
@@ -619,7 +645,7 @@ function openMove() {
   const azure = Boolean(detail.get(scope)?.keyvault);
   moving = { scope, key: row[0] };
   $("move-from").textContent = `${scope}/${row[0]}`;
-  $("move-scope").replaceChildren(...options(targets(), scope));
+  $("move-scope").replaceChildren(...ticks(targets(), scope));
   $("move-key").value = row[0];
   $("move-keep").checked = azure; $("move-keep").disabled = azure;   // out of Azure's: a copy is all there is
   fail("move-error");
@@ -627,17 +653,22 @@ function openMove() {
   $("move-key").focus(); $("move-key").select();
 }
 async function saveMove() {
-  const to_scope = $("move-scope").value, to_key = $("move-key").value.trim(), keep = $("move-keep").checked;
+  const to_scopes = ticked("move-scope"), to_key = $("move-key").value.trim(), keep = $("move-keep").checked;
+  // the scope it is in, ticked and under the name it has: it stays there, and is no new place
+  const stays = to_key === moving.key && to_scopes.includes(moving.scope);
+  const places = to_scopes.filter((name) => !(stays && name === moving.scope));
   try {
+    if (!to_scopes.length) throw new Error("Tick a scope to put it in.");
     if (!to_key) throw new Error("Give it a key.");
-    await ask("/api/secret/move", { ...moving, to_scope, to_key, keep });
+    await ask("/api/secret/move", { ...moving, to_scopes, to_key, keep });
   } catch (error) {
     if (error instanceof Told) throw error;
     return fail("move-error", error);
   }
   $("move").close();
-  await changed(to_scope, to_key, keep ? `Copied ${moving.key} to ${to_scope}/${to_key}.`
-    : `Moved ${moving.key} to ${to_scope}/${to_key} — u puts the original back.`);
+  const where = places.map((name) => `${name}/${to_key}`).join(", ");
+  await changed(places[0], to_key, keep || stays ? `Copied ${moving.key} to ${where}.`
+    : `Moved ${moving.key} to ${where} — u puts the original back.`);
 }
 
 // who has access to a scope

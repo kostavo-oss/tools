@@ -57,6 +57,9 @@ _TOO_BIG = "a secret holds 128 kB at most"
 #: The longest a name may be. Databricks decides what else a name may be.
 NAME_LIMIT = 128
 
+#: The most scopes one move may name: as many as a workspace may hold.
+SCOPES_LIMIT = 1000
+
 #: After how many days a secret counts as stale: the choices there are.
 STALE_AFTER = (30, 90, 180, 365)
 
@@ -594,16 +597,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def _move(self, service: WorkspaceService, body: _Said, query: _Asked) -> _Told:
         scope, key = _text(body, "scope"), _text(body, "key")
-        to_scope, to_key = _text(body, "to_scope"), _name(body, "to_key")
+        to_scopes, to_key = _scopes(body), _name(body, "to_key")
         keep = body.get("keep") is True
-        self._may_change(service, to_scope)
+        for to_scope in to_scopes:
+            self._may_change(service, to_scope)
         if not keep:
             self._may_change(service, scope)  # moving away is a change there too
         if service.secret(scope, key) is None:
             raise _Refused(404, "no such secret")
-        # that the new place is free, and is not the old one, is the service's to
-        # say: it asks the workspace, and one change at a time
-        service.move_secret(scope, key, to_scope, to_key, keep=keep)
+        # that every new place is free, and what the old one among them means, is
+        # the service's to say: it asks the workspace, and one change at a time
+        service.move_secret_to(scope, key, to_scopes, to_key, keep=keep)
         self._changed()
         return {}, 200
 
@@ -756,6 +760,21 @@ def _text(body: dict[str, Any], name: str) -> str:
     value = body.get(name)
     if not isinstance(value, str) or not value:
         raise _Refused(400, f"say which {name}")
+    return value
+
+
+def _scopes(body: dict[str, Any]) -> list[str]:
+    """Where a secret is to go: `to_scopes`, a list of names, or the one `to_scope`."""
+    if "to_scopes" not in body:
+        return [_text(body, "to_scope")]
+    value = body["to_scopes"]
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > SCOPES_LIMIT
+        or not all(isinstance(name, str) and name for name in value)
+    ):
+        raise _Refused(400, "say which to_scopes")
     return value
 
 

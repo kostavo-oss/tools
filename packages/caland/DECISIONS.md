@@ -178,3 +178,38 @@ Databricks SDK, which offers no way to end it, and a page that waits on a worksp
 being read would still keep caland running. What the page asks once when a workspace
 has been read, its names and its first scope, is counted: the 30 minutes then start
 from when the workspace was there.
+
+## 27. 2026-10-12 — Scopes named like this one come first in a list to choose from
+
+A secret is mostly moved or copied between the scopes of one thing: from `orders-dev` to
+`orders-prod`, or from `dev-orders` to `prod-orders`. In a workspace with many scopes
+those were anywhere in a list by name. So the list starts with the scope you are in, then
+the scopes that share its first or its last name part, then the rest.
+
+The name is all there is to go on: Databricks keeps nothing that ties two scopes
+together. Both ends of the name count because both ways of naming are common, and a
+scope that is wrongly called alike costs one line in a short list. Rejected: the longest
+shared beginning, which calls `prod` and `production-other` alike and needs a length to
+be chosen; and a setting that lists which scopes belong together, which is a thing to
+keep up for a list that is only an order.
+
+## 28. 2026-10-12 — A move goes to several scopes, and the ticks say where it ends up
+
+One secret is often wanted in several scopes at once: made in dev, then put in staging
+and prod. That was one dialog per scope. The dialog now has a tick per scope in place
+of a list that drops down, and one request does all of it under the service's one lock:
+every new place is checked, the value is read once, written to each, and the original
+is removed last. A place that is taken stops all of it before the first write, so a move
+is not left half done for a reason that could be known beforehand.
+
+What the ticks mean is where the secret is afterwards. So the scope it is in, left
+ticked under its own key, keeps it, and the others get a copy. This is why that scope is
+ticked to begin with: a rename still needs only a new key, and "also in staging and
+prod" needs only two ticks. *Keep the original* stays, for a copy under another key.
+
+Rejected: one request per scope from the page, which checks each place only when its
+turn comes and can remove the original between two answers; a list with several
+selected, which takes a held key to pick from and hides what is picked in a long list;
+and refusing the secret's own scope among the ticks, which makes the most common case,
+a copy to two more scopes, need a tick taken off first.
+

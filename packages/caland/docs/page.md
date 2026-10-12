@@ -44,6 +44,9 @@ the page, over names it already has.
 
 **Secrets.** ++n++ makes one, ++e++ edits the selected one: type a value, or choose a file.
 ++m++ moves, renames or — with *keep the original* — copies it, to any scope you can reach.
+Tick every scope it is to be in: a move or a copy goes to several at once. The scope it is
+in is ticked to begin with, and left ticked it keeps the secret, so two more ticks put it in
+staging and prod as well. The scopes named like the one you are in stand first.
 ++d++ deletes it after a deliberate ++y++, and ++u++ puts the last one back, for as long as
 Caland runs.
 
