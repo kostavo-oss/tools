@@ -126,6 +126,13 @@ are a different kind of thing, because a table holds data.
   table rebuilt. stevin plans each as the separate, numbered step it is, and tells you
   how much a rebuild rebuilds before it starts.
 
+## Liquibase and Flyway
+
+A migration tool runs the steps you wrote and records which ones ran; stevin works out
+the steps from what the table should be and what it is. Which one fits, and when a
+migration tool is the better choice, has a page of its own:
+[Why not Liquibase or Flyway](why-not-a-migration-tool.md).
+
 ## Data contracts
 
 A producer who wrote an [ODCS](https://bitol-io.github.io/open-data-contract-standard/)
