@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A page on Liquibase and Flyway.** *Why not Liquibase or Flyway* says how a migration
+  tool and stevin differ, what each does on Databricks, and when a migration tool is the
+  better choice.
+
 ## [0.4.0a4] - 2026-10-12
 
 ### Added
