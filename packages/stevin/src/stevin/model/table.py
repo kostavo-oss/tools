@@ -329,6 +329,13 @@ class Table(Securable):
     #: What the contract says that didn't become part of the table — a
     #: relationship into another file — for `validate` to say as a warning.
     contract_notes: tuple[str, ...] = field(default=(), compare=False)
+    #: The spec's own `grants:`, when the contract's roles added to them. None
+    #: when nothing was added: `grants` is then all the spec's. Spec-only, and
+    #: what `dump_spec` writes, so a role's grant is never written as the spec's.
+    #: Left out of the repr, which is what a plan's fingerprints hash: `grants`
+    #: already says what is wanted, and a plan saved by an earlier version
+    #: stays one that can be applied.
+    own_grants: tuple[Grant, ...] | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         sort_governance(self)

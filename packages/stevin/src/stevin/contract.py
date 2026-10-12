@@ -37,24 +37,32 @@ What is read, and what it becomes:
 | `description`                            | the comment                                |
 | `tags` (`key:value`, or just `key`)      | tags                                       |
 | `classification`                         | the tag `classification`                   |
+| `roles`, with `contract_roles:` set      | grants: SELECT, and MODIFY for `write`     |
+
+A contract's `roles` say who may read its data: a role's name and an `access`
+level. They become grants only in a project whose `stevin.yml` says, under
+`contract_roles:`, which principals each role means; real group names differ
+per target, so they stay out of the contract. Without that key the roles are
+left alone and said, as a warning at `validate`.
 
 `unique`, `quality`, `servers` and the rest are the contract's business, not a
-table's shape, and are left alone. Only ODCS v3 (3.0 to 3.2) is read, and only
-the fields above — checked here, by hand, so a contract from a newer minor
-version still reads for what it has. A relationship stevin can't follow — into
-another file, or to a nested property — is not an error: it is left out and
-said, as a warning at `validate`.
+table's shape, and are left alone. No custom property is read. Only ODCS v3
+(3.0 to 3.2) is read, and only the fields above — checked here, by hand, so a
+contract from a newer minor version still reads for what it has. A relationship
+stevin can't follow — into another file, or to a nested property — is not an
+error: it is left out and said, as a warning at `validate`.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from stevin.errors import StevinError
-from stevin.model.table import Check, PrimaryKey
+from stevin.model.table import Check, Grant, PrimaryKey
 from stevin.model.types import Array, Column, DataType, Field, Map, Primitive, Struct
 from stevin.sql import maybe_quote_ident, quote_literal
 from stevin.typeparser import TypeParseError, parse_type
@@ -90,6 +98,17 @@ VECTOR_ELEMENTS: dict[str, str] = {
 }
 VECTOR_DEFAULT = "float32"
 
+#: What a role's `access` gives its principals on the table, compared without
+#: case. The standard leaves `access` free text, with `read` and `write` as its
+#: examples, so these two are what stevin knows and anything else is refused: a
+#: grant is not something to guess from a word.
+ACCESS_PRIVILEGES: dict[str, tuple[str, ...]] = {
+    "read": ("SELECT",),
+    "write": ("SELECT", "MODIFY"),
+}
+#: The key of `stevin.yml` that says which principals a role means.
+ROLES_KEY = "contract_roles"
+
 
 class ContractError(StevinError):
     """A data contract that can't be read as a table's shape."""
@@ -105,6 +124,17 @@ class Reference:
     #: The other object, by its physical name.
     to: str
     to_columns: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Role:
+    """One entry of a contract's `roles`, as written: nothing is checked until
+    a project asks for its grants."""
+
+    #: `role`. None for an entry that has none.
+    name: str | None
+    #: `access`. None when it is missing or isn't text.
+    access: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +170,9 @@ class Contract:
     #: The path as a message says it: as the spec wrote it, forward slashes on
     #: every platform.
     shown: str = ""
+    #: `roles`: who may use the contract's data. They are the contract's, not
+    #: one object's, so every table read from it gets the same ones.
+    roles: tuple[Role, ...] = ()
 
     def object(self, name: str) -> ContractTable:
         """The schema object a spec means, by its physical or logical name.
@@ -210,6 +243,82 @@ def read_contract(path: Path, shown: str | None = None) -> Contract:
         id=_optional_string(document, "id"),
         version=_optional_string(document, "version"),
         shown=shown,
+        roles=_read_roles(document.get("roles")),
+    )
+
+
+def _read_roles(listed: object) -> tuple[Role, ...]:
+    """`roles` as written. Nothing is refused here: a project that doesn't
+    read roles must read the contract as it always did."""
+    if listed is None:
+        return ()
+    if not isinstance(listed, list):
+        return (Role(None, None),)
+    found: list[Role] = []
+    for entry in listed:
+        name = entry.get("role") if isinstance(entry, dict) else None
+        access = entry.get("access") if isinstance(entry, dict) else None
+        found.append(
+            Role(
+                name.strip() if isinstance(name, str) and name.strip() else None,
+                access.strip() if isinstance(access, str) and access.strip() else None,
+            )
+        )
+    return tuple(found)
+
+
+def role_names(contract: Contract) -> tuple[str, ...]:
+    """The roles a contract names, once each, as written."""
+    return tuple(dict.fromkeys(role.name for role in contract.roles if role.name))
+
+
+def role_grants(
+    contract: Contract, principals: Mapping[str, tuple[str, ...]]
+) -> tuple[Grant, ...]:
+    """The contract's roles as grants on its tables.
+
+    `principals` is the project's answer per role: who it means on this target.
+    A role mapped to nobody gives no grant, whatever its `access`. A principal
+    under several roles gets what they give together.
+
+    Raises `ContractError` for a role without a name, a role `principals`
+    doesn't name, a role with no `access`, and an `access` that isn't in
+    `ACCESS_PRIVILEGES`: every role has an answer, or nothing is planned.
+    """
+    shown = contract.shown
+    known = ", ".join(ACCESS_PRIVILEGES)
+    granted: dict[str, set[str]] = {}
+    for role in contract.roles:
+        if role.name is None:
+            raise ContractError(
+                f"{shown}: `roles` must be a list of roles, each with a `role` name"
+            )
+        if role.name not in principals:
+            raise ContractError(
+                f"{shown} names the role {role.name!r}, and `{ROLES_KEY}:` in "
+                f"stevin.yml doesn't say who that is. Add `{role.name}:` there with "
+                "its groups, or with `[]` for nobody"
+            )
+        if not principals[role.name]:
+            continue
+        if role.access is None:
+            raise ContractError(
+                f"{shown}: the role {role.name!r} has no `access`, so stevin can't "
+                f"tell what to grant (it knows: {known}). Give it one in the "
+                f"contract, or map the role to `[]` under `{ROLES_KEY}:`"
+            )
+        privileges = ACCESS_PRIVILEGES.get(role.access.casefold())
+        if privileges is None:
+            raise ContractError(
+                f"{shown}: the role {role.name!r} has access {role.access!r}, and "
+                f"stevin knows only: {known}. Map the role to `[]` under "
+                f"`{ROLES_KEY}:` and grant it in the spec"
+            )
+        for principal in principals[role.name]:
+            granted.setdefault(principal, set()).update(privileges)
+    return tuple(
+        Grant(principal, tuple(sorted(privileges)))
+        for principal, privileges in granted.items()
     )
 
 

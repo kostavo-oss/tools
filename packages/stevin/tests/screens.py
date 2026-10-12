@@ -1135,6 +1135,41 @@ def feature_contract(studio: Studio) -> None:
     studio.quote("contracts/orders.odcs.yaml", "feature-contract.odcs.yaml")
 
 
+ROLES = """\
+    roles:                                # who may use this data
+      - {role: consumer, access: read}
+      - {role: steward, access: write}
+"""
+
+
+@scene
+def feature_contract_roles(studio: Studio) -> None:
+    """The contract says who may read; the project says who that is here."""
+    studio.write(
+        "stevin.yml",
+        PROJECT.replace("catalog: dev", "catalog: dev\n      analysts: dev-analysts")
+        + "\ncontract_roles:                # a role in a contract: who it is here\n"
+        "  consumer: ${analysts}\n"
+        "  steward: [data-stewards]\n",
+    )
+    spec = """\
+        table: ${catalog}.sales.orders
+        from_contract: ../contracts/orders.odcs.yaml
+    """
+    _feature(
+        studio,
+        "contract-roles",
+        {},
+        {
+            "contracts/orders.odcs.yaml": textwrap.dedent(CONTRACT)
+            + textwrap.dedent(ROLES),
+            "tables/orders.yml": spec,
+        },
+        show="stevin.yml",
+    )
+    studio.quote("contracts/orders.odcs.yaml", "feature-contract-roles.odcs.yaml")
+
+
 @scene
 def feature_adopt(studio: Studio) -> None:
     orders = """\

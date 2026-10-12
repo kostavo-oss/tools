@@ -52,6 +52,9 @@ targets:
 
 schemas:                               # per-schema overrides of the target's mode
   ${catalog}.sales: strict
+
+contract_roles:                        # optional: who a data contract's roles are
+  consumer: ${analysts}
 ```
 
 A schema that doesn't exist yet is created — once, just before the first table or view
@@ -62,7 +65,9 @@ bundle's: stevin leaves that one alone too.
 
 `history_schema` and the `schemas:` keys may use the target's variables, like a spec
 can, so one project file serves every catalog. What the modes mean is in the
-[safety model](safety.md#additive-and-strict-schemas).
+[safety model](safety.md#additive-and-strict-schemas). `contract_roles:` is for a spec
+that takes its shape from a data contract:
+[Roles from a data contract](#roles-from-a-data-contract).
 
 A key of `schemas:` is two parts, `catalog.schema`. A `${…}` reference is one part,
 whatever dots it holds, and stands for one name. With [a bundle](bundles.md), name a
@@ -321,10 +326,12 @@ becomes the shape:
 | `relationships`, on a property or on the object | foreign keys to the other object's table, in this table's own schema |
 | `description` | the comment |
 | `tags` (`key:value`, or just `key`) and `classification` | tags; the classification is the tag `classification` |
+| `roles`, when `stevin.yml` has `contract_roles:` | [grants](#roles-from-a-data-contract): `read` → `SELECT`, `write` → `SELECT` and `MODIFY` |
 
 `time` has no Databricks type: give it a `physicalType` stevin can read, or the spec is
 refused naming the property. `unique`, `quality`, `servers` and the rest of the contract
-are the contract's business, not a table's shape. ODCS v3.0 to v3.2 are read; the fields
+are the contract's business, not a table's shape. No custom property is read. ODCS v3.0
+to v3.2 are read; the fields
 above are checked by hand, so a contract from a newer minor version still reads for what
 it has.
 
@@ -344,6 +351,75 @@ the contract. A tag the spec and the contract both set is the spec's. Columns wi
 and a change to it is a change there. `adopt` refuses for the same reason. A contract
 that can't be read — missing, not YAML, not a `DataContract`, another version, no such
 object — is the spec's error, on the `from_contract` line, naming both files.
+
+### Roles from a data contract
+
+A contract can say who may use its data, in its `roles`: a name and an `access` level.
+
+```yaml title="contracts/orders.odcs.yaml"
+roles:
+  - {role: consumer, access: read}
+  - {role: steward, access: write}
+```
+
+stevin reads them into grants when the project file says who each role is. Group names
+differ per workspace, so they are not in the contract:
+
+```yaml title="stevin.yml"
+targets:
+  dev:
+    vars: {catalog: dev, analysts: dev-analysts}
+  prod:
+    vars: {catalog: prod, analysts: analysts}
+
+contract_roles:                 # a role in a contract: who it is here
+  consumer: ${analysts}         # one principal, or a list
+  steward: [data-stewards]
+  auditor: []                   # nobody
+```
+
+A value is a user, a group or a service principal, or a list of them, and may use the
+target's variables. `[]` means nobody: the role gets no grant.
+
+| `access` in the contract | on the table |
+|---|---|
+| `read` | `SELECT` |
+| `write` | `SELECT` and `MODIFY` |
+
+The level is compared without case. The standard leaves `access` free text, and these two
+are the ones stevin knows.
+
+Roles belong to the contract and not to one of its objects, so every table whose spec
+points at the contract gets the same grants. They join the spec's own `grants:` in one
+list: a principal that both name gets what the two give together. From there they are
+[grants](#grants) like any other. A principal a role names has exactly those privileges
+on the table, and a plan shows each `GRANT` and `REVOKE` as a step. A plan does not say
+which grant came from a role and which from the spec.
+
+**Taking a role out of the contract revokes nothing.** Its principal is then no longer
+named, so stevin leaves that grant where it is and lists it as unmanaged, as it does for
+a grant taken out of a spec. To take the access away as well, revoke it yourself. A role
+that goes from `write` to `read` still names its principal, and that one loses `MODIFY`
+in the next plan.
+
+With `contract_roles:` in the project file, every role of every contract a spec points at
+needs an answer. Each of these stops the command, on the spec's `from_contract` line,
+naming the contract and the role:
+
+- a role the map does not name. Add it, with its principals or with `[]`;
+- a role with no `access`, or with one that is not `read` or `write`, unless the map
+  gives it `[]`. Map such a role to `[]` and write its grant in the spec;
+- a role with no `role` name.
+
+A reference that has no value for the target, or a principal that comes out empty, stops
+the command on the role's line in `stevin.yml`. So does `contract_roles:` next to
+[`manage.grants: false`](#what-stevin-manages).
+
+Without `contract_roles:` no role is read and the plan is the same as for a contract
+with no roles. `validate` says so in one warning per spec, naming the roles. A
+governance-only spec and a spec without `from_contract` get nothing from the map.
+`adopt` refuses a spec with `from_contract`, so a role's grant is never written into a
+spec as the spec's own.
 
 ## Clustering
 

@@ -455,6 +455,29 @@ when it has them. A change to the shape is a change there, and `adopt` says so.
 
 [Shape from a data contract →](spec.md#shape-from-a-data-contract)
 
+## Grants from a contract's roles
+
+A contract can also say who may use its data: `roles`, each a name and an access level.
+The project file says who each role is on a target, because a group has another name in
+every workspace. Every table read from the contract then gets the grants, in the plan
+like any other.
+
+```yaml title="contracts/orders.odcs.yaml"
+--8<-- "assets/screens/feature-contract-roles.odcs.yaml"
+```
+
+```yaml title="stevin.yml"
+--8<-- "assets/screens/feature-contract-roles.yml"
+```
+
+![Grants from a contract's roles](assets/screens/feature-contract-roles.svg)
+
+`read` is `SELECT`, `write` is `SELECT` and `MODIFY`. A role the project file does not
+name stops the plan, and so does an access level stevin does not know. Without
+`contract_roles:` the roles are not read.
+
+[Roles from a data contract →](spec.md#roles-from-a-data-contract)
+
 ## Adopting drift
 
 Someone added a column by hand at 2am to unblock a load. `stevin drift` says so —

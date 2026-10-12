@@ -181,3 +181,28 @@ document, the changelog and git; each carries the date of the decision.
     own, which is a line missing in `owned_elsewhere`. Put aside: stevin creating the
     schema or the table, which is how the other tool then meets an object it did not
     make; and planning as if they were there, a plan of a workspace nobody has read.
+30. **2026-10-11 — A contract's roles become grants only through a map in `stevin.yml`**
+    (SPEC-4, SPEC-5). A contract's `roles` say who may use its data, by a role's name
+    and an `access` level; `contract_roles:` in `stevin.yml` says which principals a
+    role means, and with that key the roles of a contract a spec points at are grants
+    on its table. Why a map and not group names in the contract: a group is called
+    something else in every workspace, and a contract is one promise for all of them.
+    The map is filled in per target with the target's variables, as a key of
+    `owned_elsewhere` is, so there is one way to say "per target" and not two. Why
+    opt-in: contracts with `roles` are already read by projects that grant by hand, and
+    reading them unasked was rejected because it would turn those projects red, or
+    worse, plan grants nobody reviewed. Without the key a contract reads as it did and
+    `validate` warns. Why an unmapped role and an unknown `access` are errors: the
+    standard leaves `access` free text, and a grant nobody chose is the unsafe side; a
+    role that quietly got nothing would be a promise in the contract that no plan
+    shows as broken. So `read` and `write` are the two levels known, and `[]` is the
+    way to say "nobody" out loud, also for a role whose `access` stevin does not know.
+    Why ordinary grants: the planner, the differ, drift and `list` need no new idea,
+    and a role taken out of a contract then does what a grant taken out of a spec
+    does, which is nothing (ACC-1). Put aside: revoking when a role goes, which would
+    make a contract's grants behave unlike a spec's; a line in the plan saying which
+    grant came from a contract, which needs a field through the change, the planner
+    and the renderers; `contract_roles` under a target, a second way to say "per
+    target", so a role that is somebody in production and nobody in development has no
+    spelling yet; reading masks, row filters or custom properties from a contract
+    (tools#79 says why).

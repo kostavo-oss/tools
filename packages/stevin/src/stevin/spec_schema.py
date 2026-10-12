@@ -482,6 +482,24 @@ def project_schema() -> Schema:
                         "the others may be governed."
                     )
                 },
+                "contract_roles": {
+                    "type": "object",
+                    "description": (
+                        "Who a data contract's roles are here: a role's name to "
+                        "a principal, or a list of them; [] for nobody. With this "
+                        "key, the roles of a contract a spec points at become "
+                        "grants: read gives SELECT, write gives SELECT and MODIFY."
+                    ),
+                    "additionalProperties": {
+                        "oneOf": [
+                            {"type": "string", "minLength": 1},
+                            {
+                                "type": "array",
+                                "items": {"type": "string", "minLength": 1},
+                            },
+                        ]
+                    },
+                },
                 "dbt": _object(
                     loader.DBT_KEYS,
                     {"manifest": _text("dbt's target/manifest.json: what dbt builds.")},
