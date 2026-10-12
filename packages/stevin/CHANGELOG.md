@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0a4] - 2026-10-12
+
 ### Added
 
 - **A data contract's roles can become grants.** A contract says who may use its data
