@@ -299,8 +299,8 @@ skipped where there is none.
   Held by: `tests/test_web_changing.py::test_deleting_what_is_not_there`,
   `tests/test_page_in_a_browser.py::test_deleting_takes_a_deliberate_y_and_u_puts_it_back`,
   `tests/test_page_in_a_browser.py::test_after_a_delete_the_selection_stays_where_it_was`.
-- **SEC-6** — `m` asks for a scope and a key: another scope is a move, the same scope a
-  rename, and with *keep the original* it is a copy. It is done in the safe order: read
+- **SEC-6** — `m` asks for the scopes to put a secret in and a key: another scope is a
+  move, the same scope a rename, and with *keep the original* it is a copy. It is done in the safe order: read
   the value, write it at the new place, and only then remove the old. A failure halfway
   leaves the secret in two places and never in none.
   Held by: `tests/test_web_changing.py::test_a_move_a_rename_and_a_copy`,
@@ -347,6 +347,31 @@ skipped where there is none.
 - **SEC-13** — As a place to put a secret the page offers the scopes within the
   person's reach that are not Azure Key Vault's.
   Held by: `tests/test_page_in_a_browser.py::test_a_key_vault_scopes_secrets_can_only_be_copied_out`.
+- **SEC-14** — A list of scopes to choose from, in the move dialog and in the form,
+  starts with the scope you are in. After it come the scopes named like it: those with
+  the same first or the same last part of the name, parts being split at `-`, `_`, `.`
+  and `/`, those with the same first part before those with the same last. The other
+  scopes follow. Within each the order is by name. With both kinds the list has two
+  headings, *Like <scope>* and *Other scopes*.
+  Held by: `tests/test_page_in_a_browser.py::test_the_scopes_to_move_to_start_with_those_named_like_this_one`.
+- **SEC-15** — A move or a copy goes to one scope or to several at once: the scopes
+  ticked are where the secret is afterwards, under the key given. The value is read
+  once and written to each, and only then is the original removed. The scope the secret
+  is in is ticked to begin with. Left ticked under the key it has, the secret stays
+  there: nothing is written to it and nothing is removed, with or without *keep the
+  original*.
+  Held by: `tests/test_values_as_bytes.py::test_a_move_to_several_scopes_writes_them_all_and_then_removes_the_old`,
+  `tests/test_values_as_bytes.py::test_the_scope_it_is_in_among_those_named_keeps_it_there`,
+  `tests/test_page_in_a_browser.py::test_a_copy_to_several_scopes_at_once`.
+- **SEC-16** — A move to several scopes is refused whole, before anything is written,
+  when one of them is no place for it: a secret of that key is there, the scope is not
+  there, or it is Azure Key Vault's. With no scope ticked the dialog refuses and stays
+  open. When the workspace refuses a write after the first, the original is not removed
+  and the message names the scopes that were written.
+  Held by: `tests/test_values_as_bytes.py::test_one_place_that_is_taken_stops_a_move_to_several`,
+  `tests/test_values_as_bytes.py::test_a_move_to_several_that_fails_halfway_says_how_far_it_got`,
+  `tests/test_web_changing.py::test_a_move_to_several_is_refused_whole_when_one_scope_is_no_place`.
+
 ## VAL — a value
 
 - **VAL-1** — A value is never written: not to disk, not to the settings, not to a log,

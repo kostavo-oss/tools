@@ -79,6 +79,12 @@ dialog .acts { justify-content: flex-end; margin: 1.1rem 0 0; }
 dialog label { display: block; margin: .7rem 0 .2rem; color: var(--dim);
   font-size: var(--small); }
 dialog label.check { color: inherit; font-size: inherit; margin-top: .9rem; }
+/* scopes to tick: a box that scrolls, a line each, a heading over each kind */
+.ticks { border: 1px solid var(--edge); border-radius: var(--radius); padding: .3rem .6rem;
+  max-height: 11.5rem; overflow-y: auto; }
+dialog .ticks label.check { margin: .1rem 0; overflow-wrap: anywhere; }
+.ticks h2 { margin: .5rem 0 .15rem; }
+.ticks h2:first-child { margin-top: .15rem; }
 dialog td.end { text-align: right; white-space: nowrap; }
 .or { display: flex; gap: .7rem; align-items: center; color: var(--dim);
   font-size: .8rem; margin: .7rem 0 .5rem; }

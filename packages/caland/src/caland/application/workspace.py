@@ -167,24 +167,67 @@ class WorkspaceService:
     def move_secret(
         self, scope: str, key: str, to_scope: str, to_key: str, *, keep: bool = False
     ) -> None:
-        """Move, rename or — with `keep` — copy a secret, in the safe order: read,
-        write at the new place, and only then remove the old. A failure halfway
-        leaves the secret in two places and never in none.
+        """Move, rename or — with `keep` — copy a secret to one place. What
+        `move_secret_to` says of several holds for the one."""
+        self.move_secret_to(scope, key, [to_scope], to_key, keep=keep)
 
-        The value is read now, not taken from what was read earlier: a secret
-        that was changed since must not be moved as it used to be. Raises
-        `Exists` when the new place is taken — and when it *is* the old place
-        but for the case of its name, which to Databricks is the same secret:
-        writing it and then removing "the old" would remove it altogether."""
+    def move_secret_to(
+        self,
+        scope: str,
+        key: str,
+        to_scopes: list[str],
+        to_key: str,
+        *,
+        keep: bool = False,
+    ) -> None:
+        """Move, rename or — with `keep` — copy a secret to one scope or to
+        several, in the safe order: read, write at every new place, and only
+        then remove the old. A failure halfway leaves the secret where it was
+        and in some of the new places, and never in none.
+
+        The scopes named are where the secret is to be afterwards. The one it
+        is in may be among them under the name it has: it then stays there,
+        nothing is written to it and nothing is removed, `keep` or not.
+
+        Every new place is looked at before anything is written: one that is
+        taken stops all of it. The value is read now, not taken from what was
+        read earlier: a secret that was changed since must not be moved as it
+        used to be. Raises `Exists` when a new place is taken — and when the
+        only place named *is* the old place but for the case of its name, which
+        to Databricks is the same secret: writing it and then removing "the
+        old" would remove it altogether. Raises `StoreError` saying how far it
+        got when the workspace refuses a write after the first."""
         with self._one_at_a_time:
-            if same_name(scope, to_scope) and same_name(key, to_key):
+            places: list[str] = []
+            for to_scope in to_scopes:
+                if not any(same_name(to_scope, place) for place in places):
+                    places.append(to_scope)
+            stays = same_name(key, to_key) and any(
+                same_name(scope, place) for place in places
+            )
+            if stays:
+                places = [place for place in places if not same_name(scope, place)]
+            if not places:
                 raise Exists(
                     "That is where it is: Databricks does not tell names apart by case."
                 )
-            self._must_be_free(to_scope, to_key)
+            for place in places:
+                self._must_be_free(place, to_key)
             value = self._read_now(scope, key)
-            self.put_secret_bytes(to_scope, to_key, value)
-            if not keep:
+            written: list[str] = []
+            for place in places:
+                try:
+                    self.put_secret_bytes(place, to_key, value)
+                except StoreError as exc:
+                    if not written:
+                        raise
+                    names = ", ".join(f"“{name}”" for name in written)
+                    raise StoreError(
+                        f"{exc} It was written to {names} before that, and the "
+                        "original is where it was."
+                    ) from exc
+                written.append(place)
+            if not keep and not stays:
                 self.delete_secret(scope, key)
                 self._taken = (scope, key, value)
 

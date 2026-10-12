@@ -331,6 +331,47 @@ def test_a_move_a_rename_and_a_copy(served):
     assert {"renamed", "copy"} <= set(keys)
 
 
+def test_a_copy_to_several_scopes_in_one_go(served):
+    """One request names every scope, the one it is in among them."""
+    for name in ("staging", "dev"):
+        assert post(served, "/api/scope/create", {"name": name})[0] == 200
+    body = {
+        "scope": "prod",
+        "key": "api-key",
+        "to_scopes": ["prod", "staging", "dev"],
+        "to_key": "api-key",
+    }
+    assert post(served, "/api/secret/move", body)[0] == 200
+    for name in ("prod", "staging", "dev"):
+        rows = served.json("GET", f"/api/scope?name={name}")[1]["secrets"]
+        assert "api-key" in [row[0] for row in rows], name
+    assert served.json("GET", "/api/state")[1]["taken"] is None
+
+
+@pytest.mark.parametrize(
+    ("to_scopes", "status"),
+    [
+        ([], 400),
+        ("staging", 400),
+        (["staging", 7], 400),
+        (["staging", ""], 400),
+        (["staging", "nope"], 404),
+        (["staging", "kv"], 409),  # Azure's is no place to put one
+    ],
+)
+def test_a_move_to_several_is_refused_whole_when_one_scope_is_no_place(
+    served, to_scopes, status
+):
+    """SEC-16."""
+    assert post(served, "/api/scope/create", {"name": "staging"})[0] == 200
+    body = {"scope": "prod", "key": "api-key", "to_scopes": to_scopes, "to_key": "x"}
+    assert post(served, "/api/secret/move", body)[0] == status
+    rows = served.json("GET", "/api/scope?name=staging")[1]["secrets"]
+    assert rows == []
+    keys = [row[0] for row in served.json("GET", "/api/scope?name=prod")[1]["secrets"]]
+    assert "api-key" in keys
+
+
 @pytest.mark.parametrize(
     ("change", "status"),
     [
